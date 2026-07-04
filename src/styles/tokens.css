@@ -1,0 +1,1232 @@
+:root {
+	--cobudget-primary: var(--color-primary-element, var(--color-primary, #0078a8));
+	--cobudget-primary-hover: var(--color-primary-element-hover, var(--color-primary-hover, #006a92));
+	--cobudget-primary-light: var(--color-primary-element-light, var(--color-primary-light, #e6f4fb));
+	--cobudget-primary-text: #fff;
+
+	--cobudget-error: #d13438;
+	--cobudget-error-light: #fde8ea;
+	--cobudget-error-soft: rgba(209, 52, 56, 0.12);
+	--cobudget-error-dark: #a1202b;
+	--cobudget-success: var(--color-success-text, #008800);
+	--cobudget-success-light: var(--color-success-background, #e6f4ea);
+	--cobudget-warning: #ffc92b;
+	--cobudget-warning-light: #fff4cf;
+	--cobudget-warning-dark: #7a4d00;
+	--cobudget-tax: #7c3aed;
+	--cobudget-tax-light: #f3e8ff;
+	--cobudget-tax-dark: #5b21b6;
+
+	--cobudget-text: var(--color-main-text, #222);
+	--cobudget-text-muted: var(--color-text-maxcontrast, #666);
+	--cobudget-surface: var(--color-main-background, #fff);
+	--cobudget-surface-muted: var(--color-background-hover, #f5f5f5);
+	--cobudget-surface-strong: var(--color-background-darker, #e5e5e5);
+	--cobudget-page-background: var(--color-main-background, #fff);
+	--cobudget-border: var(--color-border, #ddd);
+	--cobudget-border-strong: var(--color-border-dark, #ccc);
+
+	--cobudget-radius-sm: var(--border-radius, 6px);
+	--cobudget-radius-md: var(--border-radius-element, 8px);
+	--cobudget-radius-lg: var(--border-radius-large, 8px);
+	--cobudget-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.12);
+	--cobudget-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.18);
+	--cobudget-shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.22);
+	--cobudget-focus-ring: 0 0 0 2px var(--cobudget-primary);
+
+	--cobudget-font-xxs: 10px;
+	--cobudget-font-xs: 10px;
+	--cobudget-font-sm: 12px;
+	--cobudget-font-compact: 12px;
+	--cobudget-font-base: var(--default-font-size, 14px);
+	--cobudget-font-ui: 16px;
+	--cobudget-font-md: 16px;
+	--cobudget-font-md-plus: 18px;
+	--cobudget-font-lg: 18px;
+	--cobudget-font-lg-plus: 20px;
+	--cobudget-font-xl: 20px;
+	--cobudget-font-section: 22px;
+	--cobudget-font-title-sm: 22px;
+	--cobudget-font-title-md: 26px;
+	--cobudget-font-title: 26px;
+	--cobudget-font-weight-action: var(--font-weight-element, 700);
+
+	--cobudget-button-height: var(--button-size, 34px);
+	--cobudget-button-height-large: 54px;
+	--cobudget-icon-button-size: var(--button-size, 34px);
+	--cobudget-mobile-touch-size: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--cobudget-error-light: rgba(209, 52, 56, 0.2);
+		--cobudget-error-soft: rgba(209, 52, 56, 0.16);
+		--cobudget-error-dark: #ff8f96;
+		--cobudget-success: #8ee8a3;
+		--cobudget-success-light: rgba(34, 197, 94, 0.18);
+		--cobudget-warning-light: rgba(255, 201, 43, 0.2);
+		--cobudget-warning-dark: #ffd66e;
+		--cobudget-tax-light: rgba(124, 58, 237, 0.22);
+		--cobudget-tax-dark: #c4b5fd;
+	}
+}
+
+html.cobudget-theme-light,
+body.cobudget-theme-light {
+	--cobudget-error: #d13438;
+	--cobudget-error-light: #fde8ea;
+	--cobudget-error-soft: rgba(209, 52, 56, 0.12);
+	--cobudget-error-dark: #a1202b;
+	--cobudget-success: #008800;
+	--cobudget-success-light: #e6f4ea;
+	--cobudget-warning: #ffc92b;
+	--cobudget-warning-light: #fff4cf;
+	--cobudget-warning-dark: #7a4d00;
+	--cobudget-tax: #7c3aed;
+	--cobudget-tax-light: #f3e8ff;
+	--cobudget-tax-dark: #5b21b6;
+	--cobudget-text: #222;
+	--cobudget-text-muted: #666;
+	--cobudget-surface: #fff;
+	--cobudget-surface-muted: #f5f5f5;
+	--cobudget-surface-strong: #e5e5e5;
+	--cobudget-page-background: #fff;
+	--cobudget-border: #ddd;
+	--cobudget-border-strong: #ccc;
+}
+
+html.cobudget-theme-light #content.app-cobudget,
+body.cobudget-theme-light #content.app-cobudget {
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--color-background-dark: var(--cobudget-surface-muted);
+	--color-background-darker: var(--cobudget-surface-strong);
+	--color-border: var(--cobudget-border);
+	--color-border-dark: var(--cobudget-border-strong);
+}
+
+html.cobudget-theme-dark,
+body.cobudget-theme-dark,
+html[data-cobudget-theme="dark"],
+body[data-cobudget-theme="dark"] {
+	--cobudget-error: #f87171;
+	--cobudget-error-light: rgba(209, 52, 56, 0.2);
+	--cobudget-error-soft: rgba(209, 52, 56, 0.16);
+	--cobudget-error-dark: #ff8f96;
+	--cobudget-success: #8ee8a3;
+	--cobudget-success-light: rgba(34, 197, 94, 0.18);
+	--cobudget-warning: #ffc92b;
+	--cobudget-warning-light: rgba(255, 201, 43, 0.2);
+	--cobudget-warning-dark: #ffd66e;
+	--cobudget-tax: #c4b5fd;
+	--cobudget-tax-light: rgba(124, 58, 237, 0.22);
+	--cobudget-tax-dark: #c4b5fd;
+	--cobudget-text: #f5f5f5;
+	--cobudget-text-muted: #b3b3b3;
+	--cobudget-surface: #181818;
+	--cobudget-surface-muted: #242424;
+	--cobudget-surface-strong: #303030;
+	--cobudget-page-background: #121212;
+	--cobudget-border: #3a3a3a;
+	--cobudget-border-strong: #555;
+}
+
+html.cobudget-theme-dark #content.app-cobudget,
+body.cobudget-theme-dark #content.app-cobudget,
+html[data-cobudget-theme="dark"] #content.app-cobudget,
+body[data-cobudget-theme="dark"] #content.app-cobudget {
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--color-background-dark: var(--cobudget-surface-muted);
+	--color-background-darker: var(--cobudget-surface-strong);
+	--color-border: var(--cobudget-border);
+	--color-border-dark: var(--cobudget-border-strong);
+	--color-primary-light: rgba(0, 130, 201, 0.22);
+}
+
+html[data-themes*="dark"]:not(.cobudget-theme-light),
+body[data-themes*="dark"]:not(.cobudget-theme-light),
+html[data-theme*="dark"]:not(.cobudget-theme-light),
+body[data-theme*="dark"]:not(.cobudget-theme-light),
+html[data-theme-default*="dark"]:not(.cobudget-theme-light),
+body[data-theme-default*="dark"]:not(.cobudget-theme-light),
+html[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+body[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+html[data-theme-dark]:not(.cobudget-theme-light),
+body[data-theme-dark]:not(.cobudget-theme-light),
+html.dark:not(.cobudget-theme-light),
+body.dark:not(.cobudget-theme-light),
+html.theme-dark:not(.cobudget-theme-light),
+body.theme-dark:not(.cobudget-theme-light),
+html.theme--dark:not(.cobudget-theme-light),
+body.theme--dark:not(.cobudget-theme-light) {
+	--cobudget-error: #f87171;
+	--cobudget-error-light: rgba(209, 52, 56, 0.2);
+	--cobudget-error-soft: rgba(209, 52, 56, 0.16);
+	--cobudget-error-dark: #ff8f96;
+	--cobudget-success: #8ee8a3;
+	--cobudget-success-light: rgba(34, 197, 94, 0.18);
+	--cobudget-warning: #ffc92b;
+	--cobudget-warning-light: rgba(255, 201, 43, 0.2);
+	--cobudget-warning-dark: #ffd66e;
+	--cobudget-tax: #c4b5fd;
+	--cobudget-tax-light: rgba(124, 58, 237, 0.22);
+	--cobudget-tax-dark: #c4b5fd;
+	--cobudget-text: #f5f5f5;
+	--cobudget-text-muted: #b3b3b3;
+	--cobudget-surface: #181818;
+	--cobudget-surface-muted: #242424;
+	--cobudget-surface-strong: #303030;
+	--cobudget-page-background: #121212;
+	--cobudget-border: #3a3a3a;
+	--cobudget-border-strong: #555;
+}
+
+html[data-themes*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
+body[data-themes*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
+html[data-theme*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
+body[data-theme*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
+html[data-theme-default*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
+body[data-theme-default*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
+html[data-color-scheme*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
+body[data-color-scheme*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
+html[data-theme-dark]:not(.cobudget-theme-light) #content.app-cobudget,
+body[data-theme-dark]:not(.cobudget-theme-light) #content.app-cobudget,
+html.dark:not(.cobudget-theme-light) #content.app-cobudget,
+body.dark:not(.cobudget-theme-light) #content.app-cobudget,
+html.theme-dark:not(.cobudget-theme-light) #content.app-cobudget,
+body.theme-dark:not(.cobudget-theme-light) #content.app-cobudget,
+html.theme--dark:not(.cobudget-theme-light) #content.app-cobudget,
+body.theme--dark:not(.cobudget-theme-light) #content.app-cobudget {
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--color-background-dark: var(--cobudget-surface-muted);
+	--color-background-darker: var(--cobudget-surface-strong);
+	--color-border: var(--cobudget-border);
+	--color-border-dark: var(--cobudget-border-strong);
+	--color-primary-light: rgba(0, 130, 201, 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+	html.cobudget-theme-auto,
+	body.cobudget-theme-auto {
+		--cobudget-error: #f87171;
+		--cobudget-error-light: rgba(209, 52, 56, 0.2);
+		--cobudget-error-soft: rgba(209, 52, 56, 0.16);
+		--cobudget-error-dark: #ff8f96;
+		--cobudget-success: #8ee8a3;
+		--cobudget-success-light: rgba(34, 197, 94, 0.18);
+		--cobudget-warning-light: rgba(255, 201, 43, 0.2);
+		--cobudget-warning-dark: #ffd66e;
+		--cobudget-tax: #c4b5fd;
+		--cobudget-tax-light: rgba(124, 58, 237, 0.22);
+		--cobudget-tax-dark: #c4b5fd;
+		--cobudget-text: #f5f5f5;
+		--cobudget-text-muted: #b3b3b3;
+		--cobudget-surface: #181818;
+		--cobudget-surface-muted: #242424;
+		--cobudget-surface-strong: #303030;
+		--cobudget-page-background: #121212;
+		--cobudget-border: #3a3a3a;
+		--cobudget-border-strong: #555;
+	}
+
+	html.cobudget-theme-auto #content.app-cobudget,
+	body.cobudget-theme-auto #content.app-cobudget {
+		--color-main-text: var(--cobudget-text);
+		--color-text-maxcontrast: var(--cobudget-text-muted);
+		--color-main-background: var(--cobudget-surface);
+		--color-background-hover: var(--cobudget-surface-muted);
+		--color-background-dark: var(--cobudget-surface-muted);
+		--color-background-darker: var(--cobudget-surface-strong);
+		--color-border: var(--cobudget-border);
+		--color-border-dark: var(--cobudget-border-strong);
+		--color-primary-light: rgba(0, 130, 201, 0.22);
+	}
+}
+
+@media (max-width: 768px) {
+	:root {
+		--cobudget-button-height: var(--cobudget-mobile-touch-size);
+		--cobudget-icon-button-size: var(--cobudget-mobile-touch-size);
+	}
+}
+
+:where(
+	html.cobudget-theme-dark,
+	body.cobudget-theme-dark,
+	html[data-themes*="dark"]:not(.cobudget-theme-light),
+	body[data-themes*="dark"]:not(.cobudget-theme-light),
+	html[data-theme*="dark"]:not(.cobudget-theme-light),
+	body[data-theme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	body[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	html[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	body[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-dark]:not(.cobudget-theme-light),
+	body[data-theme-dark]:not(.cobudget-theme-light),
+	html.dark:not(.cobudget-theme-light),
+	body.dark:not(.cobudget-theme-light),
+	html.theme-dark:not(.cobudget-theme-light),
+	body.theme-dark:not(.cobudget-theme-light),
+	html.theme--dark:not(.cobudget-theme-light),
+	body.theme--dark:not(.cobudget-theme-light)
+) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop,
+	.settings-modal,
+	.confirm-modal,
+	.project-create-modal,
+	.project-create-modal-body,
+	.project-create-modal-actions,
+	.backup-settings-grid,
+	.backup-items,
+	.backup-item,
+	.settings-list,
+	.settings-list-item,
+	.share-table,
+	.share-row,
+	.member-search,
+	.search-results,
+	.no-results,
+	.repayment-row,
+	.settlement-preview,
+	.settlement-history-card,
+	.restore-report,
+	.restore-report-block
+) {
+	--cobudget-text: #f5f5f5;
+	--cobudget-text-muted: #b3b3b3;
+	--cobudget-surface: #181818;
+	--cobudget-surface-muted: #242424;
+	--cobudget-surface-strong: #303030;
+	--cobudget-page-background: #121212;
+	--cobudget-border: #3a3a3a;
+	--cobudget-border-strong: #555;
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--color-background-dark: var(--cobudget-surface-muted);
+	--color-background-darker: var(--cobudget-surface-strong);
+	--color-border: var(--cobudget-border);
+	--color-border-dark: var(--cobudget-border-strong);
+	color: var(--cobudget-text);
+}
+
+body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+) {
+	--cobudget-text: #222;
+	--cobudget-text-muted: #666;
+	--cobudget-surface: #fff;
+	--cobudget-surface-muted: #f5f5f5;
+	--cobudget-surface-strong: #e5e5e5;
+	--cobudget-page-background: #fff;
+	--cobudget-border: #ddd;
+	--cobudget-border-strong: #ccc;
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--color-background-dark: var(--cobudget-surface-muted);
+	--color-background-darker: var(--cobudget-surface-strong);
+	--color-border: var(--cobudget-border);
+	--color-border-dark: var(--cobudget-border-strong);
+}
+
+html.cobudget-theme-dark body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body.cobudget-theme-dark:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html[data-cobudget-theme="dark"] body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body[data-cobudget-theme="dark"]:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html[data-themes*="dark"]:not(.cobudget-theme-light) body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body[data-themes*="dark"]:not(.cobudget-theme-light):has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html[data-theme*="dark"]:not(.cobudget-theme-light) body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body[data-theme*="dark"]:not(.cobudget-theme-light):has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html[data-theme-default*="dark"]:not(.cobudget-theme-light) body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body[data-theme-default*="dark"]:not(.cobudget-theme-light):has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html[data-color-scheme*="dark"]:not(.cobudget-theme-light) body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body[data-color-scheme*="dark"]:not(.cobudget-theme-light):has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html[data-theme-dark]:not(.cobudget-theme-light) body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body[data-theme-dark]:not(.cobudget-theme-light):has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html.dark:not(.cobudget-theme-light) body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body.dark:not(.cobudget-theme-light):has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html.theme-dark:not(.cobudget-theme-light) body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body.theme-dark:not(.cobudget-theme-light):has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+html.theme--dark:not(.cobudget-theme-light) body:has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body.theme--dark:not(.cobudget-theme-light):has(#content.app-cobudget) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+),
+body:has(#content.app-cobudget.cobudget-theme-dark) :where(
+	.settings-modal-backdrop,
+	.confirm-modal-backdrop,
+	.project-create-modal-backdrop
+) {
+	--cobudget-text: #f5f5f5;
+	--cobudget-text-muted: #b3b3b3;
+	--cobudget-surface: #181818;
+	--cobudget-surface-muted: #242424;
+	--cobudget-surface-strong: #303030;
+	--cobudget-page-background: #121212;
+	--cobudget-border: #3a3a3a;
+	--cobudget-border-strong: #555;
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--color-background-dark: var(--cobudget-surface-muted);
+	--color-background-darker: var(--cobudget-surface-strong);
+	--color-border: var(--cobudget-border);
+	--color-border-dark: var(--cobudget-border-strong);
+}
+
+@media (prefers-color-scheme: dark) {
+	body.cobudget-theme-auto:has(#content.app-cobudget) :where(
+		.settings-modal-backdrop,
+		.confirm-modal-backdrop,
+		.project-create-modal-backdrop
+	),
+	body:has(#content.app-cobudget.cobudget-theme-auto) :where(
+		.settings-modal-backdrop,
+		.confirm-modal-backdrop,
+		.project-create-modal-backdrop
+	) {
+		--cobudget-text: #f5f5f5;
+		--cobudget-text-muted: #b3b3b3;
+		--cobudget-surface: #181818;
+		--cobudget-surface-muted: #242424;
+		--cobudget-surface-strong: #303030;
+		--cobudget-page-background: #121212;
+		--cobudget-border: #3a3a3a;
+		--cobudget-border-strong: #555;
+		--color-main-text: var(--cobudget-text);
+		--color-text-maxcontrast: var(--cobudget-text-muted);
+		--color-main-background: var(--cobudget-surface);
+		--color-background-hover: var(--cobudget-surface-muted);
+		--color-background-dark: var(--cobudget-surface-muted);
+		--color-background-darker: var(--cobudget-surface-strong);
+		--color-border: var(--cobudget-border);
+		--color-border-dark: var(--cobudget-border-strong);
+	}
+}
+
+:where(
+	html.cobudget-theme-dark,
+	body.cobudget-theme-dark,
+	html[data-cobudget-theme="dark"],
+	body[data-cobudget-theme="dark"],
+	html[data-themes*="dark"]:not(.cobudget-theme-light),
+	body[data-themes*="dark"]:not(.cobudget-theme-light),
+	html[data-theme*="dark"]:not(.cobudget-theme-light),
+	body[data-theme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	body[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	html[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	body[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-dark]:not(.cobudget-theme-light),
+	body[data-theme-dark]:not(.cobudget-theme-light),
+	html.dark:not(.cobudget-theme-light),
+	body.dark:not(.cobudget-theme-light),
+	html.theme-dark:not(.cobudget-theme-light),
+	body.theme-dark:not(.cobudget-theme-light),
+	html.theme--dark:not(.cobudget-theme-light),
+	body.theme--dark:not(.cobudget-theme-light)
+) :where(
+	#content.app-cobudget .app-page-header__title,
+	#content.app-cobudget .app-page-header__subtitle,
+	#content.app-cobudget .project-card,
+	#content.app-cobudget .project-card h3,
+	#content.app-cobudget .project-card-meta,
+	#content.app-cobudget .settings-list,
+	#content.app-cobudget .settings-list-item,
+	#content.app-cobudget .settings-list-info,
+	#content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+	#content.app-cobudget .settings-list-info > strong,
+	#content.app-cobudget .backup-info,
+	#content.app-cobudget .backup-info strong,
+	#content.app-cobudget .backup-info span,
+	#content.app-cobudget .backup-info small,
+	#content.app-cobudget .share-table,
+	#content.app-cobudget .share-row,
+	#content.app-cobudget .share-member,
+	#content.app-cobudget .share-member span:not(.member-avatar),
+	.settings-modal,
+	.settings-modal h2,
+	.settings-modal h3,
+	.settings-modal h4,
+	.settings-modal p,
+	.settings-modal label,
+	.settings-modal strong,
+	.settings-modal small,
+	.settings-modal .modal-note,
+	.settings-modal .restore-user-source,
+	.settings-modal .restore-user-target,
+	.settings-modal .restore-user-target-fixed,
+	.confirm-modal,
+	.confirm-modal h2,
+	.confirm-modal h3,
+	.confirm-modal h4,
+	.confirm-modal p,
+	.confirm-modal label,
+	.confirm-modal strong,
+	.confirm-modal small,
+	.confirm-modal .confirm-modal-message,
+	.confirm-modal .repayment-row,
+	.project-create-modal,
+	.project-create-modal h2,
+	.project-create-modal h3,
+	.project-create-modal h4,
+	.project-create-modal p,
+	.project-create-modal label,
+	.project-create-modal strong,
+	.project-create-modal small,
+	.project-create-modal-title,
+	.project-create-modal .user-name
+) {
+	color: var(--cobudget-text) !important;
+	opacity: 1 !important;
+}
+
+:where(
+	html.cobudget-theme-dark,
+	body.cobudget-theme-dark,
+	html[data-cobudget-theme="dark"],
+	body[data-cobudget-theme="dark"],
+	html[data-themes*="dark"]:not(.cobudget-theme-light),
+	body[data-themes*="dark"]:not(.cobudget-theme-light),
+	html[data-theme*="dark"]:not(.cobudget-theme-light),
+	body[data-theme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	body[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	html[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	body[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-dark]:not(.cobudget-theme-light),
+	body[data-theme-dark]:not(.cobudget-theme-light),
+	html.dark:not(.cobudget-theme-light),
+	body.dark:not(.cobudget-theme-light),
+	html.theme-dark:not(.cobudget-theme-light),
+	body.theme-dark:not(.cobudget-theme-light),
+	html.theme--dark:not(.cobudget-theme-light),
+	body.theme--dark:not(.cobudget-theme-light)
+) :where(
+	.settings-modal .modal-note,
+	.settings-modal .restore-user-hint,
+	.confirm-modal .confirm-modal-message,
+	.project-create-modal .user-id,
+	.project-create-modal .no-results,
+	#content.app-cobudget .settings-list-item.is-hidden .settings-list-info,
+	#content.app-cobudget .backup-info small,
+	#content.app-cobudget .settings-hint,
+	#content.app-cobudget .setting-desc,
+	#content.app-cobudget .project-card-meta,
+	#content.app-cobudget .share-summary
+) {
+	color: var(--cobudget-text-muted) !important;
+	opacity: 1 !important;
+}
+
+:where(
+	html.cobudget-theme-dark,
+	body.cobudget-theme-dark,
+	html[data-cobudget-theme="dark"],
+	body[data-cobudget-theme="dark"],
+	html[data-themes*="dark"]:not(.cobudget-theme-light),
+	body[data-themes*="dark"]:not(.cobudget-theme-light),
+	html[data-theme*="dark"]:not(.cobudget-theme-light),
+	body[data-theme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	body[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	html[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	body[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-dark]:not(.cobudget-theme-light),
+	body[data-theme-dark]:not(.cobudget-theme-light),
+	html.dark:not(.cobudget-theme-light),
+	body.dark:not(.cobudget-theme-light),
+	html.theme-dark:not(.cobudget-theme-light),
+	body.theme-dark:not(.cobudget-theme-light),
+	html.theme--dark:not(.cobudget-theme-light),
+	body.theme--dark:not(.cobudget-theme-light)
+) :where(
+	.settings-modal,
+	.confirm-modal,
+	.project-create-modal,
+	.project-create-modal-header,
+	.project-create-modal-body,
+	.project-create-modal-actions,
+	#content.app-cobudget .settings-list,
+	#content.app-cobudget .settings-list-item,
+	#content.app-cobudget .backup-items,
+	#content.app-cobudget .backup-item,
+	#content.app-cobudget .share-table,
+	#content.app-cobudget .share-row,
+	#content.app-cobudget .project-card
+) {
+	background-color: var(--cobudget-surface) !important;
+	border-color: var(--cobudget-border) !important;
+}
+
+#content.app-cobudget .button-vue--primary,
+#content.app-cobudget .button-vue--primary:hover:not(:disabled),
+#content.app-cobudget .button-vue--primary:focus-visible:not(:disabled) {
+	background-color: var(--cobudget-primary) !important;
+	border-color: var(--cobudget-primary-hover) !important;
+	color: var(--cobudget-primary-text) !important;
+}
+
+#content.app-cobudget .button-vue--primary:hover:not(:disabled),
+#content.app-cobudget .button-vue--primary:focus-visible:not(:disabled) {
+	background-color: var(--cobudget-primary-hover) !important;
+}
+
+#content.app-cobudget .button-vue--primary .button-vue__icon,
+#content.app-cobudget .button-vue--primary .button-vue__text,
+#content.app-cobudget .button-vue--primary .material-design-icon,
+#content.app-cobudget .button-vue--primary .material-design-icon__svg {
+	color: var(--cobudget-primary-text) !important;
+	fill: currentColor !important;
+}
+
+:where(
+	html.cobudget-theme-dark,
+	body.cobudget-theme-dark,
+	html[data-cobudget-theme="dark"],
+	body[data-cobudget-theme="dark"],
+	html[data-themes*="dark"]:not(.cobudget-theme-light),
+	body[data-themes*="dark"]:not(.cobudget-theme-light),
+	html[data-theme*="dark"]:not(.cobudget-theme-light),
+	body[data-theme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	body[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	html[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	body[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-dark]:not(.cobudget-theme-light),
+	body[data-theme-dark]:not(.cobudget-theme-light),
+	html.dark:not(.cobudget-theme-light),
+	body.dark:not(.cobudget-theme-light),
+	html.theme-dark:not(.cobudget-theme-light),
+	body.theme-dark:not(.cobudget-theme-light),
+	html.theme--dark:not(.cobudget-theme-light),
+	body.theme--dark:not(.cobudget-theme-light)
+) :where(
+	.settings-modal input,
+	.settings-modal select,
+	.settings-modal textarea,
+	.confirm-modal input,
+	.confirm-modal select,
+	.confirm-modal textarea,
+	.project-create-modal input,
+	.project-create-modal select,
+	.project-create-modal textarea,
+	.project-create-modal .mx-input,
+	.project-create-modal .input-field__input,
+	.project-create-modal .input-field__label,
+	#content.app-cobudget .backup-settings-grid .form-control,
+	#content.app-cobudget .backup-settings-grid input,
+	#content.app-cobudget .backup-settings-grid select,
+	#content.app-cobudget .share-input
+) {
+	background-color: var(--cobudget-surface) !important;
+	color: var(--cobudget-text) !important;
+	border-color: var(--cobudget-border-strong) !important;
+}
+
+:where(
+	html.cobudget-theme-dark,
+	body.cobudget-theme-dark,
+	html[data-cobudget-theme="dark"],
+	body[data-cobudget-theme="dark"],
+	html[data-themes*="dark"]:not(.cobudget-theme-light),
+	body[data-themes*="dark"]:not(.cobudget-theme-light),
+	html[data-theme*="dark"]:not(.cobudget-theme-light),
+	body[data-theme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	body[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	html[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	body[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-dark]:not(.cobudget-theme-light),
+	body[data-theme-dark]:not(.cobudget-theme-light),
+	html.dark:not(.cobudget-theme-light),
+	body.dark:not(.cobudget-theme-light),
+	html.theme-dark:not(.cobudget-theme-light),
+	body.theme-dark:not(.cobudget-theme-light),
+	html.theme--dark:not(.cobudget-theme-light),
+	body.theme--dark:not(.cobudget-theme-light)
+) :where(.restore-status.exists) {
+	background: var(--cobudget-success-light) !important;
+	color: var(--cobudget-success) !important;
+	border-color: var(--cobudget-success) !important;
+}
+
+:where(
+	html.cobudget-theme-dark,
+	body.cobudget-theme-dark,
+	html[data-cobudget-theme="dark"],
+	body[data-cobudget-theme="dark"],
+	html[data-themes*="dark"]:not(.cobudget-theme-light),
+	body[data-themes*="dark"]:not(.cobudget-theme-light),
+	html[data-theme*="dark"]:not(.cobudget-theme-light),
+	body[data-theme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	body[data-theme-default*="dark"]:not(.cobudget-theme-light),
+	html[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	body[data-color-scheme*="dark"]:not(.cobudget-theme-light),
+	html[data-theme-dark]:not(.cobudget-theme-light),
+	body[data-theme-dark]:not(.cobudget-theme-light),
+	html.dark:not(.cobudget-theme-light),
+	body.dark:not(.cobudget-theme-light),
+	html.theme-dark:not(.cobudget-theme-light),
+	body.theme-dark:not(.cobudget-theme-light),
+	html.theme--dark:not(.cobudget-theme-light),
+	body.theme--dark:not(.cobudget-theme-light)
+) :where(.restore-status.missing) {
+	background: var(--cobudget-error-light) !important;
+	color: var(--cobudget-error) !important;
+	border-color: var(--cobudget-error) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+	:where(html.cobudget-theme-auto, body.cobudget-theme-auto) :where(
+		.settings-modal-backdrop,
+		.confirm-modal-backdrop,
+		.project-create-modal-backdrop,
+		.settings-modal,
+		.confirm-modal,
+		.project-create-modal,
+		.project-create-modal-body,
+		.project-create-modal-actions,
+		.backup-settings-grid,
+		.backup-items,
+		.backup-item,
+		.settings-list,
+		.settings-list-item,
+		.share-table,
+		.share-row,
+		.member-search,
+		.search-results,
+		.no-results,
+		.repayment-row,
+		.settlement-preview,
+		.settlement-history-card,
+		.restore-report,
+		.restore-report-block
+	) {
+		--cobudget-text: #f5f5f5;
+		--cobudget-text-muted: #b3b3b3;
+		--cobudget-surface: #181818;
+		--cobudget-surface-muted: #242424;
+		--cobudget-surface-strong: #303030;
+		--cobudget-page-background: #121212;
+		--cobudget-border: #3a3a3a;
+		--cobudget-border-strong: #555;
+		--color-main-text: var(--cobudget-text);
+		--color-text-maxcontrast: var(--cobudget-text-muted);
+		--color-main-background: var(--cobudget-surface);
+		--color-background-hover: var(--cobudget-surface-muted);
+		--color-background-dark: var(--cobudget-surface-muted);
+		--color-background-darker: var(--cobudget-surface-strong);
+		--color-border: var(--cobudget-border);
+		--color-border-dark: var(--cobudget-border-strong);
+		color: var(--cobudget-text);
+	}
+}
+
+.cobudget-toolbar-icon-button,
+.cobudget-toolbar-icon-button.button-vue {
+	min-width: var(--cobudget-icon-button-size) !important;
+	width: var(--cobudget-icon-button-size) !important;
+	min-height: var(--cobudget-icon-button-size) !important;
+	height: var(--cobudget-icon-button-size) !important;
+	padding: 0 !important;
+	border-color: transparent !important;
+	background-color: transparent !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text) !important;
+}
+
+.cobudget-toolbar-icon-button:hover:not(:disabled),
+.cobudget-toolbar-icon-button:focus-visible:not(:disabled),
+.cobudget-toolbar-icon-button.button-vue:hover:not(:disabled),
+.cobudget-toolbar-icon-button.button-vue:focus-visible:not(:disabled) {
+	border-color: transparent !important;
+	background-color: var(--cobudget-surface-muted) !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text) !important;
+}
+
+.cobudget-toolbar-icon-button.is-active,
+.cobudget-toolbar-icon-button.button-vue.is-active {
+	color: var(--cobudget-primary) !important;
+	background-color: var(--cobudget-surface-muted) !important;
+}
+
+.cobudget-toolbar-icon-button .button-vue__icon {
+	margin: 0 !important;
+}
+
+.cobudget-page-title-with-back {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+	margin-top: -2px;
+}
+
+.cobudget-page-title-with-back > span:last-child {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.cobudget-header-back-button,
+.cobudget-header-back-button.button-vue {
+	min-width: var(--cobudget-icon-button-size) !important;
+	width: var(--cobudget-icon-button-size) !important;
+	min-height: var(--cobudget-icon-button-size) !important;
+	height: var(--cobudget-icon-button-size) !important;
+	padding: 0 !important;
+	border-color: transparent !important;
+	background-color: var(--cobudget-surface-muted) !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text) !important;
+}
+
+.cobudget-header-back-button:hover:not(:disabled),
+.cobudget-header-back-button:focus-visible:not(:disabled),
+.cobudget-header-back-button.button-vue:hover:not(:disabled),
+.cobudget-header-back-button.button-vue:focus-visible:not(:disabled) {
+	border-color: transparent !important;
+	background-color: var(--cobudget-surface-strong) !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text) !important;
+}
+
+.cobudget-header-back-button .button-vue__icon {
+	margin: 0 !important;
+}
+
+.cobudget-toolbar-text-button,
+.cobudget-toolbar-text-button.button-vue {
+	background-color: transparent !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text) !important;
+}
+
+.cobudget-toolbar-text-button:hover:not(:disabled),
+.cobudget-toolbar-text-button:focus-visible:not(:disabled),
+.cobudget-toolbar-text-button.button-vue:hover:not(:disabled),
+.cobudget-toolbar-text-button.button-vue:focus-visible:not(:disabled) {
+	background-color: var(--cobudget-surface-muted) !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text) !important;
+}
+
+html.cobudget-theme-dark #content.app-cobudget,
+body.cobudget-theme-dark #content.app-cobudget,
+html[data-cobudget-theme="dark"] #content.app-cobudget,
+body[data-cobudget-theme="dark"] #content.app-cobudget {
+	background-color: var(--cobudget-page-background) !important;
+	color: var(--cobudget-text) !important;
+}
+
+html.cobudget-theme-dark #content.app-cobudget .app-page-header__title,
+body.cobudget-theme-dark #content.app-cobudget .app-page-header__title,
+html[data-cobudget-theme="dark"] #content.app-cobudget .app-page-header__title,
+body[data-cobudget-theme="dark"] #content.app-cobudget .app-page-header__title,
+html.cobudget-theme-dark #content.app-cobudget .view-header-title,
+body.cobudget-theme-dark #content.app-cobudget .view-header-title,
+html[data-cobudget-theme="dark"] #content.app-cobudget .view-header-title,
+body[data-cobudget-theme="dark"] #content.app-cobudget .view-header-title,
+html.cobudget-theme-dark #content.app-cobudget .project-name,
+body.cobudget-theme-dark #content.app-cobudget .project-name,
+html[data-cobudget-theme="dark"] #content.app-cobudget .project-name,
+body[data-cobudget-theme="dark"] #content.app-cobudget .project-name,
+html.cobudget-theme-dark #content.app-cobudget .project-card h3,
+body.cobudget-theme-dark #content.app-cobudget .project-card h3,
+html[data-cobudget-theme="dark"] #content.app-cobudget .project-card h3,
+body[data-cobudget-theme="dark"] #content.app-cobudget .project-card h3,
+html.cobudget-theme-dark #content.app-cobudget .settings-list-info,
+body.cobudget-theme-dark #content.app-cobudget .settings-list-info,
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info,
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info,
+html.cobudget-theme-dark #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+body.cobudget-theme-dark #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+html.cobudget-theme-dark #content.app-cobudget .settings-list-info > strong,
+body.cobudget-theme-dark #content.app-cobudget .settings-list-info > strong,
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > strong,
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > strong,
+html.cobudget-theme-dark #content.app-cobudget .backup-info strong,
+body.cobudget-theme-dark #content.app-cobudget .backup-info strong,
+html[data-cobudget-theme="dark"] #content.app-cobudget .backup-info strong,
+body[data-cobudget-theme="dark"] #content.app-cobudget .backup-info strong,
+html.cobudget-theme-dark #content.app-cobudget .backup-info span,
+body.cobudget-theme-dark #content.app-cobudget .backup-info span,
+html[data-cobudget-theme="dark"] #content.app-cobudget .backup-info span,
+body[data-cobudget-theme="dark"] #content.app-cobudget .backup-info span,
+html.cobudget-theme-dark #content.app-cobudget .analytics-card h3,
+body.cobudget-theme-dark #content.app-cobudget .analytics-card h3,
+html[data-cobudget-theme="dark"] #content.app-cobudget .analytics-card h3,
+body[data-cobudget-theme="dark"] #content.app-cobudget .analytics-card h3,
+html.cobudget-theme-dark #content.app-cobudget .insights-card h3,
+body.cobudget-theme-dark #content.app-cobudget .insights-card h3,
+html[data-cobudget-theme="dark"] #content.app-cobudget .insights-card h3,
+body[data-cobudget-theme="dark"] #content.app-cobudget .insights-card h3,
+html.cobudget-theme-dark #content.app-cobudget .main-title,
+body.cobudget-theme-dark #content.app-cobudget .main-title,
+html[data-cobudget-theme="dark"] #content.app-cobudget .main-title,
+body[data-cobudget-theme="dark"] #content.app-cobudget .main-title {
+	color: var(--cobudget-text) !important;
+	opacity: 1 !important;
+}
+
+html.cobudget-theme-dark #content.app-cobudget .app-page-header__subtitle,
+body.cobudget-theme-dark #content.app-cobudget .app-page-header__subtitle,
+html[data-cobudget-theme="dark"] #content.app-cobudget .app-page-header__subtitle,
+body[data-cobudget-theme="dark"] #content.app-cobudget .app-page-header__subtitle,
+html.cobudget-theme-dark #content.app-cobudget .project-meta,
+body.cobudget-theme-dark #content.app-cobudget .project-meta,
+html[data-cobudget-theme="dark"] #content.app-cobudget .project-meta,
+body[data-cobudget-theme="dark"] #content.app-cobudget .project-meta,
+html.cobudget-theme-dark #content.app-cobudget .backup-info small,
+body.cobudget-theme-dark #content.app-cobudget .backup-info small,
+html[data-cobudget-theme="dark"] #content.app-cobudget .backup-info small,
+body[data-cobudget-theme="dark"] #content.app-cobudget .backup-info small,
+html.cobudget-theme-dark #content.app-cobudget .analytics-card p,
+body.cobudget-theme-dark #content.app-cobudget .analytics-card p,
+html[data-cobudget-theme="dark"] #content.app-cobudget .analytics-card p,
+body[data-cobudget-theme="dark"] #content.app-cobudget .analytics-card p,
+html.cobudget-theme-dark #content.app-cobudget .insights-card p,
+body.cobudget-theme-dark #content.app-cobudget .insights-card p,
+html[data-cobudget-theme="dark"] #content.app-cobudget .insights-card p,
+body[data-cobudget-theme="dark"] #content.app-cobudget .insights-card p {
+	color: var(--cobudget-text-muted) !important;
+	opacity: 1 !important;
+}
+
+html.cobudget-theme-dark #content.app-cobudget .project-card,
+body.cobudget-theme-dark #content.app-cobudget .project-card,
+html[data-cobudget-theme="dark"] #content.app-cobudget .project-card,
+body[data-cobudget-theme="dark"] #content.app-cobudget .project-card,
+html.cobudget-theme-dark #content.app-cobudget .settings-list,
+body.cobudget-theme-dark #content.app-cobudget .settings-list,
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list,
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list,
+html.cobudget-theme-dark #content.app-cobudget .settings-list-item,
+body.cobudget-theme-dark #content.app-cobudget .settings-list-item,
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item,
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item,
+html.cobudget-theme-dark #content.app-cobudget .backup-items,
+body.cobudget-theme-dark #content.app-cobudget .backup-items,
+html[data-cobudget-theme="dark"] #content.app-cobudget .backup-items,
+body[data-cobudget-theme="dark"] #content.app-cobudget .backup-items,
+html.cobudget-theme-dark #content.app-cobudget .backup-item,
+body.cobudget-theme-dark #content.app-cobudget .backup-item,
+html[data-cobudget-theme="dark"] #content.app-cobudget .backup-item,
+body[data-cobudget-theme="dark"] #content.app-cobudget .backup-item,
+html.cobudget-theme-dark #content.app-cobudget .share-table,
+body.cobudget-theme-dark #content.app-cobudget .share-table,
+html[data-cobudget-theme="dark"] #content.app-cobudget .share-table,
+body[data-cobudget-theme="dark"] #content.app-cobudget .share-table,
+html.cobudget-theme-dark #content.app-cobudget .share-row,
+body.cobudget-theme-dark #content.app-cobudget .share-row,
+html[data-cobudget-theme="dark"] #content.app-cobudget .share-row,
+body[data-cobudget-theme="dark"] #content.app-cobudget .share-row,
+html.cobudget-theme-dark #content.app-cobudget .analytics-card,
+body.cobudget-theme-dark #content.app-cobudget .analytics-card,
+html[data-cobudget-theme="dark"] #content.app-cobudget .analytics-card,
+body[data-cobudget-theme="dark"] #content.app-cobudget .analytics-card,
+html.cobudget-theme-dark #content.app-cobudget .summary-card,
+body.cobudget-theme-dark #content.app-cobudget .summary-card,
+html[data-cobudget-theme="dark"] #content.app-cobudget .summary-card,
+body[data-cobudget-theme="dark"] #content.app-cobudget .summary-card,
+html.cobudget-theme-dark #content.app-cobudget .receipt-check-card,
+body.cobudget-theme-dark #content.app-cobudget .receipt-check-card,
+html[data-cobudget-theme="dark"] #content.app-cobudget .receipt-check-card,
+body[data-cobudget-theme="dark"] #content.app-cobudget .receipt-check-card {
+	background-color: var(--cobudget-surface) !important;
+	border-color: var(--cobudget-border) !important;
+	color: var(--cobudget-text) !important;
+}
+
+html.cobudget-theme-dark #content.app-cobudget .insights-card,
+body.cobudget-theme-dark #content.app-cobudget .insights-card,
+html[data-cobudget-theme="dark"] #content.app-cobudget .insights-card,
+body[data-cobudget-theme="dark"] #content.app-cobudget .insights-card,
+html.cobudget-theme-dark #content.app-cobudget .budget-metrics div,
+body.cobudget-theme-dark #content.app-cobudget .budget-metrics div,
+html[data-cobudget-theme="dark"] #content.app-cobudget .budget-metrics div,
+body[data-cobudget-theme="dark"] #content.app-cobudget .budget-metrics div {
+	background-color: var(--cobudget-surface-muted) !important;
+	border-color: var(--cobudget-border) !important;
+	color: var(--cobudget-text) !important;
+}
+
+html.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info,
+body.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info,
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info,
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info,
+html.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+body.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+html.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > strong,
+body.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > strong,
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > strong,
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > strong {
+	color: var(--cobudget-text-muted) !important;
+	opacity: 1 !important;
+}
+
+html.cobudget-theme-dark .settings-modal-backdrop,
+body.cobudget-theme-dark .settings-modal-backdrop,
+html[data-cobudget-theme="dark"] .settings-modal-backdrop,
+body[data-cobudget-theme="dark"] .settings-modal-backdrop,
+html.cobudget-theme-dark .confirm-modal-backdrop,
+body.cobudget-theme-dark .confirm-modal-backdrop,
+html[data-cobudget-theme="dark"] .confirm-modal-backdrop,
+body[data-cobudget-theme="dark"] .confirm-modal-backdrop,
+html.cobudget-theme-dark .project-create-modal-backdrop,
+body.cobudget-theme-dark .project-create-modal-backdrop,
+html[data-cobudget-theme="dark"] .project-create-modal-backdrop,
+body[data-cobudget-theme="dark"] .project-create-modal-backdrop {
+	--cobudget-text: #f5f5f5;
+	--cobudget-text-muted: #c7c7c7;
+	--cobudget-surface: #181818;
+	--cobudget-surface-muted: #242424;
+	--cobudget-surface-strong: #303030;
+	--cobudget-page-background: #121212;
+	--cobudget-border: #3a3a3a;
+	--cobudget-border-strong: #555;
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--color-background-dark: var(--cobudget-surface-muted);
+	--color-background-darker: var(--cobudget-surface-strong);
+	--color-border: var(--cobudget-border);
+	--color-border-dark: var(--cobudget-border-strong);
+	color: var(--cobudget-text) !important;
+}
+
+html.cobudget-theme-dark .settings-modal,
+body.cobudget-theme-dark .settings-modal,
+html[data-cobudget-theme="dark"] .settings-modal,
+body[data-cobudget-theme="dark"] .settings-modal,
+html.cobudget-theme-dark .confirm-modal,
+body.cobudget-theme-dark .confirm-modal,
+html[data-cobudget-theme="dark"] .confirm-modal,
+body[data-cobudget-theme="dark"] .confirm-modal,
+html.cobudget-theme-dark .project-create-modal,
+body.cobudget-theme-dark .project-create-modal,
+html[data-cobudget-theme="dark"] .project-create-modal,
+body[data-cobudget-theme="dark"] .project-create-modal,
+html.cobudget-theme-dark .project-create-modal-header,
+body.cobudget-theme-dark .project-create-modal-header,
+html[data-cobudget-theme="dark"] .project-create-modal-header,
+body[data-cobudget-theme="dark"] .project-create-modal-header,
+html.cobudget-theme-dark .project-create-modal-body,
+body.cobudget-theme-dark .project-create-modal-body,
+html[data-cobudget-theme="dark"] .project-create-modal-body,
+body[data-cobudget-theme="dark"] .project-create-modal-body,
+html.cobudget-theme-dark .project-create-modal-actions,
+body.cobudget-theme-dark .project-create-modal-actions,
+html[data-cobudget-theme="dark"] .project-create-modal-actions,
+body[data-cobudget-theme="dark"] .project-create-modal-actions {
+	background-color: var(--cobudget-surface) !important;
+	border-color: var(--cobudget-border) !important;
+	color: var(--cobudget-text) !important;
+}
+
+html.cobudget-theme-dark .settings-modal h2,
+body.cobudget-theme-dark .settings-modal h2,
+html[data-cobudget-theme="dark"] .settings-modal h2,
+body[data-cobudget-theme="dark"] .settings-modal h2,
+html.cobudget-theme-dark .settings-modal h3,
+body.cobudget-theme-dark .settings-modal h3,
+html[data-cobudget-theme="dark"] .settings-modal h3,
+body[data-cobudget-theme="dark"] .settings-modal h3,
+html.cobudget-theme-dark .settings-modal p,
+body.cobudget-theme-dark .settings-modal p,
+html[data-cobudget-theme="dark"] .settings-modal p,
+body[data-cobudget-theme="dark"] .settings-modal p,
+html.cobudget-theme-dark .settings-modal label,
+body.cobudget-theme-dark .settings-modal label,
+html[data-cobudget-theme="dark"] .settings-modal label,
+body[data-cobudget-theme="dark"] .settings-modal label,
+html.cobudget-theme-dark .confirm-modal h2,
+body.cobudget-theme-dark .confirm-modal h2,
+html[data-cobudget-theme="dark"] .confirm-modal h2,
+body[data-cobudget-theme="dark"] .confirm-modal h2,
+html.cobudget-theme-dark .confirm-modal p,
+body.cobudget-theme-dark .confirm-modal p,
+html[data-cobudget-theme="dark"] .confirm-modal p,
+body[data-cobudget-theme="dark"] .confirm-modal p,
+html.cobudget-theme-dark .confirm-modal label,
+body.cobudget-theme-dark .confirm-modal label,
+html[data-cobudget-theme="dark"] .confirm-modal label,
+body[data-cobudget-theme="dark"] .confirm-modal label,
+html.cobudget-theme-dark .project-create-modal-title,
+body.cobudget-theme-dark .project-create-modal-title,
+html[data-cobudget-theme="dark"] .project-create-modal-title,
+body[data-cobudget-theme="dark"] .project-create-modal-title,
+html.cobudget-theme-dark .project-create-modal label,
+body.cobudget-theme-dark .project-create-modal label,
+html[data-cobudget-theme="dark"] .project-create-modal label,
+body[data-cobudget-theme="dark"] .project-create-modal label {
+	color: var(--cobudget-text) !important;
+	opacity: 1 !important;
+}
+
+html.cobudget-theme-dark .settings-modal input,
+body.cobudget-theme-dark .settings-modal input,
+html[data-cobudget-theme="dark"] .settings-modal input,
+body[data-cobudget-theme="dark"] .settings-modal input,
+html.cobudget-theme-dark .settings-modal select,
+body.cobudget-theme-dark .settings-modal select,
+html[data-cobudget-theme="dark"] .settings-modal select,
+body[data-cobudget-theme="dark"] .settings-modal select,
+html.cobudget-theme-dark .settings-modal textarea,
+body.cobudget-theme-dark .settings-modal textarea,
+html[data-cobudget-theme="dark"] .settings-modal textarea,
+body[data-cobudget-theme="dark"] .settings-modal textarea,
+html.cobudget-theme-dark .confirm-modal input,
+body.cobudget-theme-dark .confirm-modal input,
+html[data-cobudget-theme="dark"] .confirm-modal input,
+body[data-cobudget-theme="dark"] .confirm-modal input,
+html.cobudget-theme-dark .project-create-modal input,
+body.cobudget-theme-dark .project-create-modal input,
+html[data-cobudget-theme="dark"] .project-create-modal input,
+body[data-cobudget-theme="dark"] .project-create-modal input,
+html.cobudget-theme-dark .project-create-modal select,
+body.cobudget-theme-dark .project-create-modal select,
+html[data-cobudget-theme="dark"] .project-create-modal select,
+body[data-cobudget-theme="dark"] .project-create-modal select,
+html.cobudget-theme-dark .project-create-modal textarea,
+body.cobudget-theme-dark .project-create-modal textarea,
+html[data-cobudget-theme="dark"] .project-create-modal textarea,
+body[data-cobudget-theme="dark"] .project-create-modal textarea {
+	background-color: var(--cobudget-surface) !important;
+	border-color: var(--cobudget-border-strong) !important;
+	color: var(--cobudget-text) !important;
+}
+
+html.cobudget-theme-dark .settings-modal input::placeholder,
+body.cobudget-theme-dark .settings-modal input::placeholder,
+html[data-cobudget-theme="dark"] .settings-modal input::placeholder,
+body[data-cobudget-theme="dark"] .settings-modal input::placeholder,
+html.cobudget-theme-dark .project-create-modal input::placeholder,
+body.cobudget-theme-dark .project-create-modal input::placeholder,
+html[data-cobudget-theme="dark"] .project-create-modal input::placeholder,
+body[data-cobudget-theme="dark"] .project-create-modal input::placeholder {
+	color: var(--cobudget-text-muted) !important;
+	opacity: 1 !important;
+}
+
+html.cobudget-theme-dark .restore-status.exists,
+body.cobudget-theme-dark .restore-status.exists,
+html[data-cobudget-theme="dark"] .restore-status.exists,
+body[data-cobudget-theme="dark"] .restore-status.exists {
+	background: rgba(34, 197, 94, 0.18) !important;
+	border-color: #8ee8a3 !important;
+	color: #8ee8a3 !important;
+}
+
+html.cobudget-theme-dark .restore-status.missing,
+body.cobudget-theme-dark .restore-status.missing,
+html[data-cobudget-theme="dark"] .restore-status.missing,
+body[data-cobudget-theme="dark"] .restore-status.missing {
+	background: rgba(209, 52, 56, 0.2) !important;
+	border-color: #f87171 !important;
+	color: #f87171 !important;
+}

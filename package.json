@@ -1,0 +1,42 @@
+{
+  "name": "cobudget",
+  "version": "0.2.0",
+  "description": "Personal and shared budgeting for Nextcloud",
+  "private": true,
+  "scripts": {
+    "build": "webpack --node-env production --progress",
+    "dev": "webpack --node-env development --progress",
+    "watch": "webpack --node-env development --progress --watch",
+    "test": "npm run test:php && npm run test:static-security && npm run test:frontend-smoke",
+    "test:php": "php tests/php/run.php",
+    "test:frontend-smoke": "node tests/frontend-smoke.mjs",
+    "test:static-security": "php tests/static-security.php"
+  },
+  "dependencies": {
+    "@nextcloud/axios": "^2.1.0",
+    "@nextcloud/dialogs": "^3.1.2",
+    "@nextcloud/initial-state": "^2.0.0",
+    "@nextcloud/router": "^2.1.2",
+    "@nextcloud/vue": "^9.8.2",
+    "floating-vue": "^5.2.2",
+    "linkify-string": "^4.3.3",
+    "linkifyjs": "^4.3.3",
+    "vue": "^3.3.0",
+    "vue-material-design-icons": "^5.3.1",
+    "vue-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0",
+    "@babel/preset-env": "^7.20.0",
+    "@nextcloud/webpack-vue-config": "^6.0.0",
+    "babel-loader": "^9.1.2",
+    "buffer": "^6.0.3",
+    "css-loader": "^7.1.4",
+    "node-polyfill-webpack-plugin": "^4.0.0",
+    "process": "^0.11.10",
+    "style-loader": "^4.0.0",
+    "vue-loader": "^17.0.0",
+    "webpack": "^5.80.0",
+    "webpack-cli": "^6.0.1"
+  }
+}

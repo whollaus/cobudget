@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<info xmlns:xsi= "http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>cobudget</id>
+    <name>CoBudget</name>
+    <summary>Personal and shared budgeting for Nextcloud</summary>
+    <description><![CDATA[CoBudget is a Nextcloud app for tracking personal and shared household finances.
+    It helps you manage payments, budgets, receipts, workspaces, shared areas, settlements and financial insights directly inside Nextcloud.]]></description>
+    <version>0.2</version>
+    <licence>agpl</licence>
+    <author>Wolfgang</author>
+    <namespace>CoBudget</namespace>
+    <category>finance</category>
+    <category>organization</category>
+    <bugs>https://github.com/whollaus/cobudget/issues</bugs>
+    <dependencies>
+        <nextcloud min-version="27" max-version="33" />
+    </dependencies>
+    <navigations>
+        <navigation>
+            <name>CoBudget</name>
+            <route>cobudget.page.index</route>
+            <icon>app.svg</icon>
+            <order>50</order>
+        </navigation>
+    </navigations>
+    <settings>
+        <admin>OCA\CoBudget\Settings\Admin</admin>
+        <admin-section>OCA\CoBudget\Settings\AdminSection</admin-section>
+    </settings>
+    <background-jobs>
+        <job>OCA\CoBudget\Cron\RecurringEntriesJob</job>
+        <job>OCA\CoBudget\Cron\RemindersJob</job>
+        <job>OCA\CoBudget\Cron\BackupJob</job>
+        <job>OCA\CoBudget\Cron\BudgetSnapshotJob</job>
+    </background-jobs>
+</info>

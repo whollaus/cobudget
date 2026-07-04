@@ -1,0 +1,98 @@
+# CoBudget Features
+
+CoBudget is a Nextcloud app for personal and shared household budgeting.
+
+## Payments
+
+- Create income and expense entries.
+- Add date, amount, description, category and payment partner.
+- Mark entries with labels for important payments, payments to review, fixed costs, subscriptions, children and tax relevant payments.
+- Attach receipts and invoices.
+- Use recurring payments and reminders.
+- Filter, search, paginate and export payment lists.
+
+## Categories And Payment Partners
+
+- Manage personal categories and payment partners.
+- Use global categories and payment partners provided by an admin.
+- Hide global entries that are not relevant for your own workflow.
+- Use area-specific categories and payment partners for shared areas.
+
+## Shared Areas
+
+Areas are used for shared spending such as household costs, trips or family budgets.
+
+- Create personal or shared areas.
+- Add trusted Nextcloud users as members.
+- Define the default percentage split for each member.
+- Assign payments to an area.
+- Record who paid or received the money.
+- Settle open payments.
+- Review settlement history and repayment suggestions.
+
+## Workspaces
+
+Workspaces separate data into isolated pools, for example private and business data.
+
+- Create multiple workspaces.
+- Switch between visible workspaces.
+- Hide workspaces from the quick switcher.
+- Keep workspace administration global for the current user.
+
+## Budget Goals
+
+- Create flexible or fixed budget goals.
+- Define criteria using area, category and label combinations.
+- Track personal share only.
+- Review progress, forecast and buffer.
+- Use budget insights in analytics.
+
+## Analytics
+
+Analytics show where money is going and how financial trends develop.
+
+- Current year, current month, last 12 months and year-based views.
+- Income, expense and balance summaries.
+- Development charts.
+- Forecasts for the selected period.
+- Focus tables by category, payment partner, label and area.
+- Shared-area summaries.
+- Budget signals.
+- Missing receipt signals for review and tax relevant payments.
+- Print-optimized report view.
+
+## Receipts
+
+- Store receipt references in CoBudget.
+- Save receipt files in Nextcloud Files.
+- Configure the receipt folder.
+- Optionally group receipts by year or month.
+- Optionally delete receipt files when deleting a payment.
+
+## Templates
+
+- Create reusable payment templates.
+- Use templates from the payment form.
+- Sort templates by usage.
+
+## Backup And Restore
+
+- Create backups from the settings UI.
+- Create user-scoped and full backups via OCC commands.
+- Restore backups with confirmation.
+- Create an automatic safety backup before restore.
+- Preserve receipt paths without embedding the files.
+- Support user mapping for server transfers.
+
+## Admin Settings
+
+- Manage global categories and payment partners.
+- Run integrity checks.
+- Repair supported data issues.
+- Review data quality warnings.
+
+## Theme
+
+- Follow the system theme.
+- Force light mode.
+- Force dark mode.

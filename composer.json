@@ -1,0 +1,13 @@
+{
+    "name": "whollaus/cobudget",
+    "description": "Personal and shared budgeting for Nextcloud",
+    "license": "AGPL-3.0-or-later",
+    "require": {
+        "php": "^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "OCA\\CoBudget\\": "lib/"
+        }
+    }
+}
