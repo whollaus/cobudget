@@ -1089,10 +1089,15 @@ export default {
 			if (Number(counts.attachments || 0) > 0) {
 				parts.push(this.$texts.settings.resetReceiptSummary(this.$texts.settings.countReceiptLinks(Number(counts.attachments || 0))));
 			}
-			const transferable = preview?.transferable_shared_projects || [];
-			if (transferable.length > 0) {
-				const names = transferable.map(project => `${project.name} → ${project.new_owner_name || project.new_owner_id}`).join(', ');
-				parts.push(this.$texts.settings.resetTransferSummary(names));
+			const deletableShared = preview?.deletable_shared_projects || [];
+			if (deletableShared.length > 0) {
+				const names = deletableShared.map(project => project.name).join(', ');
+				parts.push(this.$texts.settings.resetDeleteSharedSummary(names));
+			}
+			const leavableShared = preview?.leavable_shared_projects || [];
+			if (leavableShared.length > 0) {
+				const names = leavableShared.map(project => project.name).join(', ');
+				parts.push(this.$texts.settings.resetLeaveSharedSummary(names));
 			}
 			parts.push(this.$texts.settings.resetSafetySummary());
 			return parts.join(' ');

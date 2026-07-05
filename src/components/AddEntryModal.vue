@@ -6,18 +6,38 @@
 			tabindex="-1"
 			@click.self="closeModal"
 			@keydown.esc.stop.prevent="handleEscape">
-		<div class="modal-content" role="dialog" aria-modal="true" :aria-labelledby="modalTitleId">
+		<div
+			ref="modalContent"
+			class="modal-content"
+			role="dialog"
+			aria-modal="true"
+			:aria-labelledby="modalTitleId"
+			@focusin="handleModalFocusIn"
+			@focusout="handleModalFocusOut">
 			<form @submit.prevent="saveEntry" class="modal-form">
 				<div class="modal-header">
 					<h2 :id="modalTitleId" class="modal-title">{{ modalTitle }}</h2>
-					<button
-						type="button"
-						class="modal-close-button"
-						:aria-label="$texts.common.close()"
-						:title="$texts.common.close()"
-						@click="closeModal">
-						<CloseIcon :size="22" aria-hidden="true" />
-					</button>
+					<div class="modal-header-actions">
+						<button
+							v-if="showMobileHeaderSave"
+							type="button"
+							class="modal-header-save-button"
+							:aria-label="saveActionLabel"
+							:title="saveActionLabel"
+							:disabled="!isValid || loading"
+							@pointerdown.prevent
+							@click="saveEntry">
+							<ContentSaveIcon :size="22" aria-hidden="true" />
+						</button>
+						<button
+							type="button"
+							class="modal-close-button"
+							:aria-label="$texts.common.close()"
+							:title="$texts.common.close()"
+							@click="closeModal">
+							<CloseIcon :size="22" aria-hidden="true" />
+						</button>
+					</div>
 				</div>
 
 				<div class="modal-body">
@@ -45,16 +65,32 @@
 
 						<div class="form-group amount-col" :class="isTemplateMode ? 'core-template-amount' : 'core-amount'">
 							<label>{{ amountLabel }}</label>
-							<input type="text" ref="amountInput" v-model="entry.amountDisplay" @blur="evaluateAmount" class="form-control amount-input" :class="{'bg-income': entry.type === 'income', 'bg-expense': entry.type === 'expense'}" :required="!isTemplateMode" placeholder="0.00">
+							<input
+								type="text"
+								ref="amountInput"
+								v-model="entry.amountDisplay"
+								inputmode="text"
+								autocomplete="off"
+								autocapitalize="off"
+								autocorrect="off"
+								spellcheck="false"
+								pattern="[0-9.,+\-*/]*"
+								@input="sanitizeAmountInput"
+								@blur="evaluateAmount"
+								class="form-control amount-input"
+								:class="{'bg-income': entry.type === 'income', 'bg-expense': entry.type === 'expense'}"
+								:required="!isTemplateMode"
+								placeholder="0.00">
 						</div>
 					</div>
 
 					<div class="entry-details-grid">
 						<div class="form-group detail-category">
 							<label>{{ $texts.entry.category() }}</label>
-							<div class="lookup-field category-input-wrap" :class="{ 'has-leading-icon': selectedCategoryIcon }">
+							<div class="lookup-field category-input-wrap" :class="{ 'has-leading-icon': selectedCategoryIcon, 'has-clear-button': entry.categoryName }">
 								<CategoryIcon v-if="selectedCategoryIcon" :icon="selectedCategoryIcon" :size="18" class="category-input-icon" />
 								<input
+									ref="categoryLookupInput"
 									type="text"
 									v-model="entry.categoryName"
 									class="form-control"
@@ -64,12 +100,23 @@
 									:aria-expanded="showCategorySuggestions ? 'true' : 'false'"
 									aria-controls="category-suggestions"
 									@focus="openLookup('category')"
+									@click="openLookup('category')"
 									@input="onLookupInput('category')"
 									@keydown.down.prevent="moveLookupHighlight('category', 1)"
 									@keydown.up.prevent="moveLookupHighlight('category', -1)"
 									@keydown.enter="handleLookupEnter($event, 'category')"
 									@keydown.esc.stop.prevent="closeLookup"
 									@blur="deferLookupClose('category')">
+								<button
+									v-if="entry.categoryName"
+									type="button"
+									class="lookup-clear-button"
+									:aria-label="$texts.entry.clearCategory()"
+									:title="$texts.entry.clearCategory()"
+									@mousedown.prevent
+									@click.prevent="clearLookupValue('category')">
+									<CloseIcon :size="16" aria-hidden="true" />
+								</button>
 								<div v-if="showCategorySuggestions" id="category-suggestions" class="lookup-menu" role="listbox">
 									<template v-for="section in categorySuggestionSections" :key="section.label || 'category-results'">
 										<div v-if="section.label && section.items.length" class="lookup-group-label">{{ section.label }}</div>
@@ -93,8 +140,9 @@
 
 						<div class="form-group detail-paymentPartner">
 							<label>{{ paymentPartnerLabel }}</label>
-							<div class="lookup-field">
+							<div class="lookup-field" :class="{ 'has-clear-button': entry.paymentPartnerName }">
 								<input
+									ref="paymentPartnerLookupInput"
 									type="text"
 									v-model="entry.paymentPartnerName"
 									class="form-control"
@@ -104,12 +152,23 @@
 									:aria-expanded="showPaymentPartnerSuggestions ? 'true' : 'false'"
 									aria-controls="paymentPartner-suggestions"
 									@focus="openLookup('paymentPartner')"
+									@click="openLookup('paymentPartner')"
 									@input="onLookupInput('paymentPartner')"
 									@keydown.down.prevent="moveLookupHighlight('paymentPartner', 1)"
 									@keydown.up.prevent="moveLookupHighlight('paymentPartner', -1)"
 									@keydown.enter="handleLookupEnter($event, 'paymentPartner')"
 									@keydown.esc.stop.prevent="closeLookup"
 									@blur="deferLookupClose('paymentPartner')">
+								<button
+									v-if="entry.paymentPartnerName"
+									type="button"
+									class="lookup-clear-button"
+									:aria-label="$texts.entry.clearPaymentPartner()"
+									:title="$texts.entry.clearPaymentPartner()"
+									@mousedown.prevent
+									@click.prevent="clearLookupValue('paymentPartner')">
+									<CloseIcon :size="16" aria-hidden="true" />
+								</button>
 								<div v-if="showPaymentPartnerSuggestions" id="paymentPartner-suggestions" class="lookup-menu" role="listbox">
 									<template v-for="section in paymentPartnerSuggestionSections" :key="section.label || 'paymentPartner-results'">
 										<div v-if="section.label && section.items.length" class="lookup-group-label">{{ section.label }}</div>
@@ -330,12 +389,13 @@ import ModalActions from './ModalActions.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import { showRequestError, showToast } from '../services/notifications'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
+import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
 import CbIconButton from './CbIconButton.vue'
 
 export default {
 	name: 'AddEntryModal',
-	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, DeleteOutlineIcon, CbIconButton },
+	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, CbIconButton },
 	props: {
 		projectId: {
 			type: Number,
@@ -387,6 +447,10 @@ export default {
 			showPlanningOptions: false,
 			confirmDialog: null,
 			focusedLookupField: null,
+			lookupSearchMode: {
+				category: false,
+				paymentPartner: false
+			},
 			highlightedCategoryIndex: -1,
 			highlightedPaymentPartnerIndex: -1,
 			attachments: [],
@@ -399,7 +463,9 @@ export default {
 			modalHistoryToken: null,
 			closedByHistory: false,
 			ignoreNextPopState: false,
-			ignorePopStateTimer: null
+			ignorePopStateTimer: null,
+			mobileFormFieldFocused: false,
+			mobileFocusTimer: null
 		}
 	},
 	computed: {
@@ -465,10 +531,10 @@ export default {
 			return this.paymentPartners.filter(p => p.type === this.entry.type || !p.type);
 		},
 		categoryLookupQuery() {
-			return String(this.entry.categoryName || '').trim().toLowerCase();
+			return this.lookupQueryForField('category');
 		},
 		paymentPartnerLookupQuery() {
-			return String(this.entry.paymentPartnerName || '').trim().toLowerCase();
+			return this.lookupQueryForField('paymentPartner');
 		},
 		categorySuggestionSections() {
 			return this.buildSuggestionSections(this.filteredCategories, this.categoryLookupQuery, this.$texts.entry.allCategories());
@@ -505,6 +571,9 @@ export default {
 		},
 		showSaveSplitMenu() {
 			return !this.isTemplateMode && !this.isEditing && !this.loading;
+		},
+		showMobileHeaderSave() {
+			return this.isOpen && this.mobileFormFieldFocused && !this.confirmDialog;
 		},
 		saveMenuItems() {
 			if (!this.showSaveSplitMenu) {
@@ -671,6 +740,7 @@ export default {
 			window.clearTimeout(this.ignorePopStateTimer);
 			this.ignorePopStateTimer = null;
 		}
+		this.clearMobileFocusTimer();
 		this.releaseModalHistory({ skipBack: true });
 	},
 	watch: {
@@ -704,6 +774,58 @@ export default {
 			if (resolver) {
 				resolver(confirmed);
 			}
+		},
+		clearMobileFocusTimer() {
+			if (this.mobileFocusTimer) {
+				window.clearTimeout(this.mobileFocusTimer);
+				this.mobileFocusTimer = null;
+			}
+		},
+		isKeyboardInputTarget(target) {
+			if (!target || !target.tagName) {
+				return false;
+			}
+
+			const tagName = String(target.tagName).toUpperCase();
+			if (target.isContentEditable) {
+				return true;
+			}
+			if (tagName === 'TEXTAREA') {
+				return true;
+			}
+			if (tagName !== 'INPUT') {
+				return false;
+			}
+
+			const type = String(target.type || 'text').toLowerCase();
+			return !['button', 'checkbox', 'color', 'file', 'hidden', 'radio', 'range', 'reset', 'submit'].includes(type);
+		},
+		syncMobileHeaderSaveVisibility() {
+			if (typeof document === 'undefined') {
+				this.mobileFormFieldFocused = false;
+				return;
+			}
+
+			const root = this.$refs.modalContent;
+			const active = document.activeElement;
+			this.mobileFormFieldFocused = !!(
+				this.isOpen
+				&& root
+				&& active
+				&& root.contains(active)
+				&& this.isKeyboardInputTarget(active)
+			);
+		},
+		handleModalFocusIn(event) {
+			this.clearMobileFocusTimer();
+			this.mobileFormFieldFocused = this.isKeyboardInputTarget(event.target);
+		},
+		handleModalFocusOut() {
+			this.clearMobileFocusTimer();
+			this.mobileFocusTimer = window.setTimeout(() => {
+				this.syncMobileHeaderSaveVisibility();
+				this.mobileFocusTimer = null;
+			}, 120);
 		},
 		consumeHistoryClose() {
 			if (!this.closedByHistory) {
@@ -965,16 +1087,54 @@ export default {
 				{ label: allLabel, items: remaining }
 			];
 		},
+		lookupValue(field) {
+			return field === 'category' ? this.entry.categoryName : this.entry.paymentPartnerName;
+		},
+		lookupItems(field) {
+			return field === 'category' ? this.filteredCategories : this.filteredPaymentPartners;
+		},
+		lookupSuggestions(field) {
+			return field === 'category' ? this.categorySuggestions : this.paymentPartnerSuggestions;
+		},
+		setLookupSearchMode(field, isSearching) {
+			this.lookupSearchMode = {
+				...this.lookupSearchMode,
+				[field]: isSearching
+			};
+		},
+		exactLookupMatch(field) {
+			const value = String(this.lookupValue(field) || '').trim().toLowerCase();
+			if (!value) {
+				return null;
+			}
+
+			return this.lookupItems(field).find(item => String(item.name || '').trim().toLowerCase() === value) || null;
+		},
+		lookupQueryForField(field) {
+			const value = String(this.lookupValue(field) || '').trim();
+			if (!value) {
+				return '';
+			}
+
+			if (this.focusedLookupField === field && !this.lookupSearchMode[field] && this.exactLookupMatch(field)) {
+				return '';
+			}
+
+			return value.toLowerCase();
+		},
 		lookupIndex(field, item) {
 			const suggestions = field === 'category' ? this.categorySuggestions : this.paymentPartnerSuggestions;
 			return suggestions.findIndex(suggestion => suggestion.id === item.id);
 		},
 		openLookup(field) {
 			this.focusedLookupField = field;
+			const value = String(this.lookupValue(field) || '').trim();
+			this.setLookupSearchMode(field, value !== '' && !this.exactLookupMatch(field));
 			this.resetLookupHighlight(field);
 		},
 		onLookupInput(field) {
 			this.focusedLookupField = field;
+			this.setLookupSearchMode(field, true);
 			this.resetLookupHighlight(field);
 		},
 		closeLookup() {
@@ -987,6 +1147,23 @@ export default {
 			this.entry.paymentPartnerName = '';
 			this.closeLookup();
 		},
+		clearLookupValue(field) {
+			if (field === 'category') {
+				this.entry.categoryName = '';
+			} else if (field === 'paymentPartner') {
+				this.entry.paymentPartnerName = '';
+			}
+
+			this.focusedLookupField = field;
+			this.setLookupSearchMode(field, false);
+			this.$nextTick(() => {
+				const input = field === 'category' ? this.$refs.categoryLookupInput : this.$refs.paymentPartnerLookupInput;
+				if (input && typeof input.focus === 'function') {
+					input.focus();
+				}
+				this.resetLookupHighlight(field);
+			});
+		},
 		deferLookupClose(field) {
 			window.setTimeout(() => {
 				if (this.focusedLookupField === field) {
@@ -995,10 +1172,15 @@ export default {
 			}, 120);
 		},
 		resetLookupHighlight(field) {
+			const suggestions = this.lookupSuggestions(field);
+			const exactMatch = !this.lookupSearchMode[field] ? this.exactLookupMatch(field) : null;
+			const exactIndex = exactMatch ? suggestions.findIndex(suggestion => suggestion.id === exactMatch.id) : -1;
+			const nextIndex = exactIndex >= 0 ? exactIndex : (suggestions.length > 0 ? 0 : -1);
+
 			if (field === 'category') {
-				this.highlightedCategoryIndex = this.categorySuggestions.length > 0 ? 0 : -1;
+				this.highlightedCategoryIndex = nextIndex;
 			} else if (field === 'paymentPartner') {
-				this.highlightedPaymentPartnerIndex = this.paymentPartnerSuggestions.length > 0 ? 0 : -1;
+				this.highlightedPaymentPartnerIndex = nextIndex;
 			}
 		},
 		moveLookupHighlight(field, direction) {
@@ -1039,11 +1221,24 @@ export default {
 		},
 		selectCategorySuggestion(category) {
 			this.entry.categoryName = category.name;
+			this.setLookupSearchMode('category', false);
 			this.closeLookup();
+			this.blurLookupInput('category');
 		},
 		selectPaymentPartnerSuggestion(paymentPartner) {
 			this.entry.paymentPartnerName = paymentPartner.name;
+			this.setLookupSearchMode('paymentPartner', false);
 			this.closeLookup();
+			this.blurLookupInput('paymentPartner');
+		},
+		blurLookupInput(field) {
+			this.$nextTick(() => {
+				const input = field === 'category' ? this.$refs.categoryLookupInput : this.$refs.paymentPartnerLookupInput;
+				if (input && typeof input.blur === 'function') {
+					input.blur();
+				}
+				this.syncMobileHeaderSaveVisibility();
+			});
 		},
 		async openModal(entryToEdit = null, defaultProjectId = null, isFutureContext = false, templateToLoad = null, isTemplateMode = false, entryToDuplicate = null, defaultType = 'expense') {
 			if (!this.$enableTemplates) {
@@ -1252,6 +1447,8 @@ export default {
 			this.showPlanningOptions = false;
 			this.resetAttachments();
 			this.closeLookup();
+			this.clearMobileFocusTimer();
+			this.mobileFormFieldFocused = false;
 		},
 		resetAttachments() {
 			this.attachments = [];
@@ -1834,6 +2031,15 @@ export default {
 			// Fallback
 			const parsed = this.$parseAmount(str);
 			this.entry.amountDisplay = parsed ? this.$formatInputAmount(parsed) : '';
+		},
+		sanitizeAmountInput() {
+			if (!this.entry.amountDisplay) {
+				return;
+			}
+			const sanitized = String(this.entry.amountDisplay).replace(/[^0-9.,+\-*/]/g, '');
+			if (sanitized !== this.entry.amountDisplay) {
+				this.entry.amountDisplay = sanitized;
+			}
 		}
 	}
 }
@@ -1889,6 +2095,14 @@ export default {
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
+.modal-header-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	flex: 0 0 auto;
+}
+
+.modal-header-save-button,
 .modal-close-button {
 	display: inline-flex;
 	align-items: center;
@@ -1905,16 +2119,32 @@ export default {
 	padding: 0;
 }
 
+.modal-header-save-button {
+	display: none;
+	color: var(--cobudget-primary, var(--color-primary, #0082c9));
+}
+
+.modal-header-save-button:disabled {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+.modal-header-save-button:hover:not(:disabled),
+.modal-header-save-button:focus-visible:not(:disabled),
 .modal-close-button:hover,
 .modal-close-button:focus-visible {
 	background: var(--cobudget-surface-strong);
 	outline: none;
 }
 
+.modal-header-save-button:focus-visible,
 .modal-close-button:focus-visible {
 	box-shadow: var(--cobudget-focus-ring);
 }
 
+.modal-header-save-button :deep(.material-design-icon),
+.modal-header-save-button :deep(.material-design-icon__svg),
 .modal-close-button :deep(.material-design-icon),
 .modal-close-button :deep(.material-design-icon__svg) {
 	display: block;
@@ -2068,6 +2298,10 @@ form {
 	padding-left: 52px;
 }
 
+.lookup-field.has-clear-button .form-control {
+	padding-right: 44px;
+}
+
 .category-input-icon {
 	position: absolute;
 	top: 50%;
@@ -2076,6 +2310,37 @@ form {
 	margin-right: 0;
 	transform: translateY(-50%);
 	pointer-events: none;
+}
+
+.lookup-clear-button {
+	position: absolute;
+	z-index: 3;
+	top: 50%;
+	right: 8px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	cursor: pointer;
+	transform: translateY(-50%);
+}
+
+.lookup-clear-button:hover,
+.lookup-clear-button:focus-visible {
+	background: var(--cobudget-surface-muted, var(--color-background-hover, #f2f2f2));
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	outline: none;
+}
+
+.lookup-clear-button :deep(svg) {
+	display: block;
 }
 
 .lookup-menu {
@@ -2610,6 +2875,10 @@ form {
 		width: min(560px, calc(100vw - 24px));
 	}
 
+	.modal-header-save-button {
+		display: inline-flex;
+	}
+
 	.modal-body {
 		padding: 24px;
 	}
@@ -2617,6 +2886,10 @@ form {
 	.entry-details-grid,
 	.planning-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.entry-details-grid {
+		row-gap: 22px;
 	}
 
 	.core-description,
@@ -2699,6 +2972,14 @@ form {
 	.form-actions {
 		border-radius: 0;
 		padding: 10px 20px;
+	}
+
+	.modal-header-save-button,
+	.modal-close-button {
+		width: var(--cobudget-mobile-touch-size);
+		min-width: var(--cobudget-mobile-touch-size);
+		height: var(--cobudget-mobile-touch-size);
+		min-height: var(--cobudget-mobile-touch-size);
 	}
 
 	.entry-delete-icon-button {

@@ -58,6 +58,7 @@ class UserResetService {
 		private IRootFolder $rootFolder,
 		private IUserManager $userManager,
 		private BackupService $backupService,
+		private HashtagService $hashtagService,
 	) {
 	}
 
@@ -68,7 +69,8 @@ class UserResetService {
 	public function preview(string $userId): array {
 		$projects = $this->projectsForUser($userId);
 		$sharedBlocking = [];
-		$sharedTransferable = [];
+		$ownedSharedDeletable = [];
+		$sharedLeaving = [];
 		$soloProjectIds = [];
 
 		foreach ($projects as $project) {
@@ -83,14 +85,14 @@ class UserResetService {
 					'name' => (string)$project['name'],
 					'member_count' => count($members),
 					'open_entries' => $openCount,
-					'new_owner_id' => (string)$otherMembers[0]['user_id'],
-					'new_owner_name' => $this->displayName((string)$otherMembers[0]['user_id']),
 				];
 
 				if ($openCount > 0) {
 					$sharedBlocking[] = $row;
+				} elseif ((string)($project['owner_id'] ?? '') === $userId) {
+					$ownedSharedDeletable[] = $row;
 				} else {
-					$sharedTransferable[] = $row;
+					$sharedLeaving[] = $row;
 				}
 				continue;
 			}
@@ -99,22 +101,28 @@ class UserResetService {
 		}
 
 		$workspaceIds = $this->workspaceIdsForUser($userId);
+		$ownedSharedProjectIds = array_map(static fn (array $project): int => (int)$project['id'], $ownedSharedDeletable);
+		$deletedProjectIds = array_values(array_unique(array_merge($soloProjectIds, $ownedSharedProjectIds)));
 		$personalEntryIds = $this->entryIdsForPersonalWorkspaceRows($userId, $workspaceIds);
 		$soloEntryIds = $this->entryIdsForProjects($soloProjectIds);
-		$deletedEntryIds = array_values(array_unique(array_merge($personalEntryIds, $soloEntryIds)));
+		$ownedSharedEntryIds = $this->entryIdsForProjects($ownedSharedProjectIds);
+		$deletedEntryIds = array_values(array_unique(array_merge($personalEntryIds, $soloEntryIds, $ownedSharedEntryIds)));
 
 		return [
 			'confirmation' => self::CONFIRMATION_TEXT,
 			'blocking_shared_projects' => $sharedBlocking,
-			'transferable_shared_projects' => $sharedTransferable,
+			'deletable_shared_projects' => $ownedSharedDeletable,
+			'leavable_shared_projects' => $sharedLeaving,
+			'transferable_shared_projects' => [],
 			'counts' => [
 				'workspaces' => count($workspaceIds),
 				'solo_projects' => count(array_unique($soloProjectIds)),
-				'shared_projects_left' => count($sharedTransferable),
+				'shared_projects_deleted' => count($ownedSharedDeletable),
+				'shared_projects_left' => count($sharedLeaving),
 				'entries' => count($deletedEntryIds),
 				'attachments' => $this->countAttachmentsForEntries($deletedEntryIds),
-				'categories' => $this->countUserScopedRows('cobudget_categories', $userId, $workspaceIds, $soloProjectIds),
-				'payment_partners' => $this->countUserScopedRows('cobudget_payment_partners', $userId, $workspaceIds, $soloProjectIds),
+				'categories' => $this->countUserScopedRows('cobudget_categories', $userId, $workspaceIds, $deletedProjectIds),
+				'payment_partners' => $this->countUserScopedRows('cobudget_payment_partners', $userId, $workspaceIds, $deletedProjectIds),
 				'templates' => $this->countRowsByColumn('cobudget_templates', 'user_id', $userId),
 				'budget_goals' => $this->countRowsByColumn('cobudget_budget_goals', 'user_id', $userId),
 			],
@@ -142,10 +150,13 @@ class UserResetService {
 			$report = [
 				'safety_backup' => $safetyBackup,
 				'blocking_shared_projects' => [],
+				'deleted_shared_projects' => [],
+				'left_shared_projects' => [],
 				'transferred_shared_projects' => [],
 				'deleted' => [
 					'workspaces' => 0,
 					'solo_projects' => 0,
+					'shared_projects' => 0,
 					'entries' => 0,
 					'attachments' => 0,
 					'attachment_files' => 0,
@@ -174,14 +185,21 @@ class UserResetService {
 							throw new \RuntimeException('Offene gemeinsame Bereiche müssen vor dem Reset zuerst abgerechnet werden.');
 						}
 
-						$targetUserId = (string)$otherMembers[0]['user_id'];
-						$targetWorkspaceId = $this->ensureDefaultWorkspaceForUser($targetUserId);
-						$this->transferSettledSharedProject($project, $userId, $targetUserId, $targetWorkspaceId);
-						$report['transferred_shared_projects'][] = [
+						if ((string)($project['owner_id'] ?? '') === $userId) {
+							$projectReport = $this->deleteProjectTree($projectId, $deleteReceiptFiles);
+							$report['deleted']['shared_projects']++;
+							$this->addDeletedCounts($report, $projectReport);
+							$report['deleted_shared_projects'][] = [
+								'id' => $projectId,
+								'name' => (string)$project['name'],
+							];
+							continue;
+						}
+
+						$this->leaveSettledSharedProject($projectId, $userId);
+						$report['left_shared_projects'][] = [
 							'id' => $projectId,
 							'name' => (string)$project['name'],
-							'new_owner_id' => $targetUserId,
-							'new_owner_name' => $this->displayName($targetUserId),
 						];
 						continue;
 					}
@@ -199,6 +217,7 @@ class UserResetService {
 				$personalAttachments = $this->deleteAttachmentsForEntries($personalEntryIds, $deleteReceiptFiles);
 				$report['deleted']['attachments'] += $personalAttachments['rows'];
 				$report['deleted']['attachment_files'] += $personalAttachments['files'];
+				$this->hashtagService->deleteHashtagsForEntries($personalEntryIds);
 				$report['deleted']['entries'] += $this->deleteRowsByIds('cobudget_entries', $personalEntryIds);
 
 				$report['deleted']['categories'] += $this->deleteUserScopedRows('cobudget_categories', $userId, $workspaceIds, $soloProjectIds);
@@ -208,6 +227,9 @@ class UserResetService {
 				$report['deleted']['budget_goals'] += $this->deleteRowsByStringColumn('cobudget_budget_goals', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_members', 'user_id', $userId);
 
+				foreach ($workspaceIds as $workspaceId) {
+					$this->hashtagService->deleteWorkspaceHashtags((int)$workspaceId);
+				}
 				$report['deleted']['workspaces'] = $this->deleteRowsByIds('cobudget_workspaces', $workspaceIds);
 				$this->resetUserSettings($userId);
 				$defaultWorkspaceId = $this->createDefaultWorkspaceForUser($userId);
@@ -285,28 +307,7 @@ class UserResetService {
 		return (int)($this->fetchOne($qb)['entry_count'] ?? 0);
 	}
 
-	private function transferSettledSharedProject(array $project, string $userId, string $targetUserId, int $targetWorkspaceId): void {
-		$projectId = (int)$project['id'];
-		$qb = $this->db->getQueryBuilder();
-		$qb->update('cobudget_projects')
-			->set('workspace_id', $qb->createNamedParameter($targetWorkspaceId, \PDO::PARAM_INT))
-			->where($qb->expr()->eq('id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)));
-		if ((string)($project['owner_id'] ?? '') === $userId) {
-			$qb->set('owner_id', $qb->createNamedParameter($targetUserId));
-		}
-		$qb->executeStatement();
-
-		foreach (['cobudget_entries', 'cobudget_settlements', 'cobudget_categories', 'cobudget_payment_partners', 'cobudget_templates'] as $table) {
-			$qb = $this->db->getQueryBuilder();
-			$qb->update($table)
-				->set('workspace_id', $qb->createNamedParameter($targetWorkspaceId, \PDO::PARAM_INT))
-				->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)));
-			$qb->executeStatement();
-		}
-
-		$entryIds = $this->entryIdsForProjects([$projectId]);
-		$this->updateWorkspaceForAttachments($entryIds, $targetWorkspaceId);
-
+	private function leaveSettledSharedProject(int $projectId, string $userId): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete('cobudget_members')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
@@ -318,6 +319,7 @@ class UserResetService {
 		$entryIds = $this->entryIdsForProjects([$projectId]);
 		$settlementIds = $this->idsByColumn('cobudget_settlements', 'project_id', $projectId);
 		$attachmentReport = $this->deleteAttachmentsForEntries($entryIds, $deleteReceiptFiles);
+		$this->hashtagService->deleteHashtagsForEntries($entryIds);
 
 		$deleted = [
 			'entries' => 0,
@@ -466,21 +468,6 @@ class UserResetService {
 		}
 	}
 
-	private function ensureDefaultWorkspaceForUser(string $userId): int {
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('id')
-			->from('cobudget_workspaces')
-			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
-			->andWhere($qb->expr()->eq('is_default', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)))
-			->setMaxResults(1);
-		$row = $this->fetchOne($qb);
-		if ($row !== null) {
-			return (int)$row['id'];
-		}
-
-		return $this->createDefaultWorkspaceForUser($userId);
-	}
-
 	private function createDefaultWorkspaceForUser(string $userId): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->insert('cobudget_workspaces')
@@ -492,20 +479,6 @@ class UserResetService {
 		]);
 		$qb->executeStatement();
 		return (int)$this->db->lastInsertId('*PREFIX*cobudget_workspaces');
-	}
-
-	private function updateWorkspaceForAttachments(array $entryIds, int $workspaceId): void {
-		$entryIds = array_values(array_unique(array_map('intval', $entryIds)));
-		foreach (array_chunk($entryIds, 500) as $chunk) {
-			if ($chunk === []) {
-				continue;
-			}
-			$qb = $this->db->getQueryBuilder();
-			$qb->update('cobudget_entry_attachments')
-				->set('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
-				->where($qb->expr()->in('entry_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
-			$qb->executeStatement();
-		}
 	}
 
 	private function idsByStringColumn(string $table, string $column, string $value): array {

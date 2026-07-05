@@ -795,26 +795,51 @@ trait WorkspaceAwareTrait {
 		return (bool)$qb->executeQuery()->fetch();
 	}
 
-	protected function projectMemberInActiveWorkspace(int $projectId): bool {
+	protected function projectVisibleForCurrentUser(int $projectId): ?array {
 		if (empty($this->userId) || $projectId <= 0) {
-			return false;
-		}
-
-		$workspaceId = $this->getWorkspaceId();
-		if ($workspaceId === null) {
-			return false;
+			return null;
 		}
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('p.id')
+		$qb->select('p.*')
 		   ->from('cobudget_projects', 'p')
 		   ->innerJoin('p', 'cobudget_members', 'm', $qb->expr()->eq('p.id', 'm.project_id'))
 		   ->where($qb->expr()->eq('p.id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
-		   ->andWhere($qb->expr()->eq('p.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)))
 		   ->setMaxResults(1);
+		$row = $qb->executeQuery()->fetch();
 
-		return (bool)$qb->executeQuery()->fetch();
+		return $row ?: null;
+	}
+
+	protected function projectOwnerForCurrentUser(int $projectId): ?array {
+		$project = $this->projectVisibleForCurrentUser($projectId);
+		if ($project === null || (string)($project['owner_id'] ?? '') !== (string)$this->userId) {
+			return null;
+		}
+
+		return $project;
+	}
+
+	protected function projectWorkspaceIdForCurrentUser(?int $projectId): ?int {
+		if ($projectId === null) {
+			return $this->getWorkspaceId();
+		}
+
+		$project = $this->projectVisibleForCurrentUser($projectId);
+		if ($project === null) {
+			return null;
+		}
+
+		return (int)$project['workspace_id'];
+	}
+
+	protected function workspaceIdForEntryScope(?int $projectId): ?int {
+		return $this->projectWorkspaceIdForCurrentUser($projectId);
+	}
+
+	protected function projectMemberInActiveWorkspace(int $projectId): bool {
+		return $this->projectVisibleForCurrentUser($projectId) !== null;
 	}
 
 	protected function projectUserMemberInActiveWorkspace(int $projectId, string $memberUserId): bool {
@@ -823,17 +848,14 @@ trait WorkspaceAwareTrait {
 			return false;
 		}
 
-		$workspaceId = $this->getWorkspaceId();
-		if ($workspaceId === null) {
+		if ($this->projectVisibleForCurrentUser($projectId) === null) {
 			return false;
 		}
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('p.id')
-		   ->from('cobudget_projects', 'p')
-		   ->innerJoin('p', 'cobudget_members', 'm', $qb->expr()->eq('p.id', 'm.project_id'))
-		   ->where($qb->expr()->eq('p.id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
-		   ->andWhere($qb->expr()->eq('p.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+		$qb->select('project_id')
+		   ->from('cobudget_members', 'm')
+		   ->where($qb->expr()->eq('m.project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->eq('m.user_id', $qb->createNamedParameter($memberUserId)))
 		   ->setMaxResults(1);
 
@@ -841,24 +863,7 @@ trait WorkspaceAwareTrait {
 	}
 
 	protected function projectOwnerInActiveWorkspace(int $projectId): bool {
-		if (empty($this->userId) || $projectId <= 0) {
-			return false;
-		}
-
-		$workspaceId = $this->getWorkspaceId();
-		if ($workspaceId === null) {
-			return false;
-		}
-
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('id')
-		   ->from('cobudget_projects')
-		   ->where($qb->expr()->eq('id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
-		   ->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-		   ->andWhere($qb->expr()->eq('owner_id', $qb->createNamedParameter($this->userId)))
-		   ->setMaxResults(1);
-
-		return (bool)$qb->executeQuery()->fetch();
+		return $this->projectOwnerForCurrentUser($projectId) !== null;
 	}
 
 	protected function entryOwnedInActiveWorkspace(int $entryId): ?array {
@@ -898,10 +903,16 @@ trait WorkspaceAwareTrait {
 		   ->from('cobudget_entries', 'e')
 		   ->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->eq('e.project_id', 'm.project_id'))
 		   ->where($qb->expr()->eq('e.id', $qb->createNamedParameter($entryId, \PDO::PARAM_INT)))
-		   ->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->orX(
-			   $qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
-			   $qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
+			   $qb->expr()->andX(
+				   $qb->expr()->isNull('e.project_id'),
+				   $qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
+				   $qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
+			   ),
+			   $qb->expr()->andX(
+				   $qb->expr()->isNotNull('e.project_id'),
+				   $qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
+			   )
 		   ))
 		   ->setMaxResults(1);
 		$row = $qb->executeQuery()->fetch();
@@ -918,12 +929,8 @@ trait WorkspaceAwareTrait {
 			return false;
 		}
 
-		$workspaceId = $this->getWorkspaceId();
+		$workspaceId = $this->projectWorkspaceIdForCurrentUser($projectId);
 		if ($workspaceId === null) {
-			return false;
-		}
-
-		if ($projectId !== null && !$this->projectMemberInActiveWorkspace($projectId)) {
 			return false;
 		}
 
@@ -984,16 +991,10 @@ trait WorkspaceAwareTrait {
 			return null;
 		}
 
-		$workspaceId = $this->getWorkspaceId();
-		if ($workspaceId === null) {
-			return null;
-		}
-
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('id', 'name', 'icon', 'type', 'is_global', 'user_id', 'workspace_id', 'project_id')
 		   ->from('cobudget_categories')
 		   ->where($qb->expr()->eq('id', $qb->createNamedParameter($categoryId, \PDO::PARAM_INT)))
-		   ->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))
 		   ->setMaxResults(1);
 		$row = $qb->executeQuery()->fetch();
@@ -1002,10 +1003,15 @@ trait WorkspaceAwareTrait {
 		}
 
 		if ($row['project_id'] === null || $row['project_id'] === '') {
+			$workspaceId = $this->getWorkspaceId();
+			if ($workspaceId === null || (int)$row['workspace_id'] !== (int)$workspaceId) {
+				return null;
+			}
 			return $row['user_id'] === $this->userId ? $row : null;
 		}
 
-		return $this->projectMemberInActiveWorkspace((int)$row['project_id']) ? $row : null;
+		$projectWorkspaceId = $this->projectWorkspaceIdForCurrentUser((int)$row['project_id']);
+		return $projectWorkspaceId !== null && (int)$row['workspace_id'] === $projectWorkspaceId ? $row : null;
 	}
 
 	protected function paymentPartnerAvailableInActiveWorkspace(?int $paymentPartnerId, ?int $projectId = null): bool {
@@ -1017,12 +1023,8 @@ trait WorkspaceAwareTrait {
 			return false;
 		}
 
-		$workspaceId = $this->getWorkspaceId();
+		$workspaceId = $this->projectWorkspaceIdForCurrentUser($projectId);
 		if ($workspaceId === null) {
-			return false;
-		}
-
-		if ($projectId !== null && !$this->projectMemberInActiveWorkspace($projectId)) {
 			return false;
 		}
 
@@ -1083,16 +1085,10 @@ trait WorkspaceAwareTrait {
 			return null;
 		}
 
-		$workspaceId = $this->getWorkspaceId();
-		if ($workspaceId === null) {
-			return null;
-		}
-
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('id', 'name', 'type', 'is_global', 'user_id', 'workspace_id', 'project_id')
 		   ->from('cobudget_payment_partners')
 		   ->where($qb->expr()->eq('id', $qb->createNamedParameter($paymentPartnerId, \PDO::PARAM_INT)))
-		   ->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))
 		   ->setMaxResults(1);
 		$row = $qb->executeQuery()->fetch();
@@ -1101,10 +1097,15 @@ trait WorkspaceAwareTrait {
 		}
 
 		if ($row['project_id'] === null || $row['project_id'] === '') {
+			$workspaceId = $this->getWorkspaceId();
+			if ($workspaceId === null || (int)$row['workspace_id'] !== (int)$workspaceId) {
+				return null;
+			}
 			return $row['user_id'] === $this->userId ? $row : null;
 		}
 
-		return $this->projectMemberInActiveWorkspace((int)$row['project_id']) ? $row : null;
+		$projectWorkspaceId = $this->projectWorkspaceIdForCurrentUser((int)$row['project_id']);
+		return $projectWorkspaceId !== null && (int)$row['workspace_id'] === $projectWorkspaceId ? $row : null;
 	}
 
 	protected function templateOwnedInActiveWorkspace(int $templateId): bool {
@@ -1112,20 +1113,25 @@ trait WorkspaceAwareTrait {
 			return false;
 		}
 
-		$workspaceId = $this->getWorkspaceId();
-		if ($workspaceId === null) {
-			return false;
-		}
-
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id')
+		$qb->select('id', 'user_id', 'workspace_id', 'project_id')
 		   ->from('cobudget_templates')
 		   ->where($qb->expr()->eq('id', $qb->createNamedParameter($templateId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
-		   ->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 		   ->setMaxResults(1);
 
-		return (bool)$qb->executeQuery()->fetch();
+		$row = $qb->executeQuery()->fetch();
+		if (!$row) {
+			return false;
+		}
+
+		if ($row['project_id'] === null || $row['project_id'] === '') {
+			$workspaceId = $this->getWorkspaceId();
+			return $workspaceId !== null && (int)$row['workspace_id'] === (int)$workspaceId;
+		}
+
+		$projectWorkspaceId = $this->projectWorkspaceIdForCurrentUser((int)$row['project_id']);
+		return $projectWorkspaceId !== null && (int)$row['workspace_id'] === $projectWorkspaceId;
 	}
 
 	protected function workspaceBelongsToUser(int $workspaceId): bool {

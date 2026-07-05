@@ -1,6 +1,7 @@
 <?php
 namespace OCA\CoBudget\Controller;
 
+use OCA\CoBudget\Service\HashtagService;
 use OCA\CoBudget\Service\ProjectNotificationService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataDownloadResponse;
@@ -29,17 +30,19 @@ class EntryController extends Controller {
 	private ?string $userId;
 	private IConfig $config;
 	private IUserManager $userManager;
+	private HashtagService $hashtagService;
 	private ProjectNotificationService $projectNotificationService;
 	private IRootFolder $rootFolder;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, IUserManager $userManager, ProjectNotificationService $projectNotificationService, IRootFolder $rootFolder, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, IUserManager $userManager, HashtagService $hashtagService, ProjectNotificationService $projectNotificationService, IRootFolder $rootFolder, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
 		$this->config = $config;
 		$this->userManager = $userManager;
+		$this->hashtagService = $hashtagService;
 		$this->projectNotificationService = $projectNotificationService;
 		$this->rootFolder = $rootFolder;
 		$this->l10n = $l10n;
@@ -71,6 +74,7 @@ class EntryController extends Controller {
 		?bool $isTaxRelevant = null,
 		?bool $hasReminder = null,
 		?bool $hasAttachment = null,
+		?int $hashtagId = null,
 		$isFuturePayments = false
 	): DataResponse {
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
@@ -79,8 +83,11 @@ class EntryController extends Controller {
 				return $error;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
-			return new DataResponse($this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $isFuture));
+			$workspaceId = $this->workspaceIdForEntryScope($projectId);
+			if ($workspaceId === null) {
+				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
+			}
+			return new DataResponse($this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, null, true));
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
 		}
@@ -109,6 +116,7 @@ class EntryController extends Controller {
 		?bool $isTaxRelevant = null,
 		?bool $hasReminder = null,
 		?bool $hasAttachment = null,
+		?int $hashtagId = null,
 		$isFuturePayments = false
 	): Response {
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
@@ -118,7 +126,7 @@ class EntryController extends Controller {
 			}
 
 			$workspaceId = $this->getWorkspaceId();
-			$entries = $this->fetchEntryRows($workspaceId, self::EXPORT_LIMIT, 0, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $isFuture);
+			$entries = $this->fetchEntryRows($workspaceId, self::EXPORT_LIMIT, 0, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
 			$projectShareBasisPoints = $this->projectShareBasisPointsFromProjects($this->fetchDashboardProjects($workspaceId));
 			$csv = $this->buildEntriesCsv($entries, $projectShareBasisPoints);
 			$filename = 'cobudget-zahlungen-' . date('Ymd-His') . '.csv';
@@ -154,6 +162,7 @@ class EntryController extends Controller {
 		?bool $isTaxRelevant = null,
 		?bool $hasReminder = null,
 		?bool $hasAttachment = null,
+		?int $hashtagId = null,
 		$isFuturePayments = false,
 		$summaryOnly = false
 	): DataResponse {
@@ -166,8 +175,8 @@ class EntryController extends Controller {
 
 			$workspaceId = $this->getWorkspaceId();
 			if ($isSummaryOnly) {
-				$summaryData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $isFuture);
-				$futureSummaryData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, true);
+				$summaryData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
+				$futureSummaryData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true);
 
 				return new DataResponse([
 					'tagCounts' => $this->countDashboardTags($summaryData, $futureSummaryData),
@@ -176,10 +185,10 @@ class EntryController extends Controller {
 
 			$projects = $this->fetchDashboardProjects($workspaceId);
 			$projectShareBasisPoints = $this->projectShareBasisPointsFromProjects($projects);
-			$main = $this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $isFuture, $projectShareBasisPoints);
+			$main = $this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
 			$currentMonthStart = mktime(0, 0, 0, (int)date('n'), 1, (int)date('Y'));
-			$currentMonthData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $currentMonthStart, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, false);
-			$futureData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, true);
+			$currentMonthData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $currentMonthStart, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, false);
+			$futureData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true);
 
 			return new DataResponse([
 				'entries' => $main['entries'],
@@ -193,6 +202,7 @@ class EntryController extends Controller {
 					'categories' => $this->fetchDashboardCategories($workspaceId),
 					'paymentPartners' => $this->fetchDashboardPaymentPartners($workspaceId),
 					'projects' => $projects,
+					'hashtags' => $this->hashtagService->fetchVisibleHashtagsForUser($workspaceId, (string)$this->userId),
 				],
 			]);
 		} catch (\Exception $e) {
@@ -223,13 +233,15 @@ class EntryController extends Controller {
 		?bool $isTaxRelevant,
 		?bool $hasReminder,
 		?bool $hasAttachment,
+		?int $hashtagId,
 		bool $isFuture,
-		?array $projectShareBasisPoints = null
+		?array $projectShareBasisPoints = null,
+		bool $includeLookups = false
 	): array {
-		$totalsData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $isFuture);
-		$entries = $this->fetchEntryRows($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $isFuture);
+		$totalsData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
+		$entries = $this->fetchEntryRows($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
 
-		return [
+		$payload = [
 			'entries' => $entries,
 			'totalsData' => $totalsData,
 			'total' => count($totalsData),
@@ -237,6 +249,14 @@ class EntryController extends Controller {
 			'offset' => $offset,
 			'dateGroups' => $this->buildDateGroups($totalsData, $offset, count($entries), $sortBy, $sortDir, $isFuture, $projectShareBasisPoints)
 		];
+
+		if ($includeLookups) {
+			$payload['lookups'] = [
+				'hashtags' => $this->hashtagService->fetchVisibleHashtagsForUser($workspaceId, (string)$this->userId),
+			];
+		}
+
+		return $payload;
 	}
 
 	private function buildDateGroups(array $allEntries, int $offset, int $pageCount, string $sortBy, string $sortDir, bool $isFuture, ?array $projectShareBasisPoints = null): array {
@@ -351,11 +371,12 @@ class EntryController extends Controller {
 		?bool $isTaxRelevant,
 		?bool $hasReminder,
 		?bool $hasAttachment,
+		?int $hashtagId,
 		bool $isFuture
 	): array {
 		$qb = $this->buildVisibleEntriesQuery($workspaceId);
 		$qb->select('e.id', 'e.user_id', 'e.type', 'e.amount', 'e.amount_cents', 'e.project_id', 'e.split_mode', 'e.is_subscription', 'e.is_fixed_cost', 'e.is_child_related', 'e.is_important', 'e.needs_review', 'e.is_tax_relevant', 'e.date', 'e.recurrence_next_date');
-		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $isFuture);
+		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
 		$qb->groupBy('e.id');
 
 		$result = $qb->executeQuery();
@@ -398,12 +419,13 @@ class EntryController extends Controller {
 		?bool $isTaxRelevant,
 		?bool $hasReminder,
 		?bool $hasAttachment,
+		?int $hashtagId,
 		bool $isFuture
 	): array {
 		$qb = $this->buildVisibleEntriesQuery($workspaceId);
 		$qb->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'));
 		$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name');
-		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $isFuture);
+		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
 		$qb->groupBy('e.id');
 		$this->applyEntryOrdering($qb, $sortBy, $sortDir, $isFuture);
 		$qb->setMaxResults($limit);
@@ -414,6 +436,7 @@ class EntryController extends Controller {
 		$result->closeCursor();
 		$entries = array_map(fn(array $entry): array => $this->normalizeEntryRow($entry), $entries);
 		$entries = $this->attachEntryAttachmentDetails($entries, $workspaceId);
+		$entries = $this->hashtagService->attachHashtagsToEntries($entries);
 
 		if ($isFuture) {
 			foreach ($entries as &$entry) {
@@ -454,6 +477,7 @@ class EntryController extends Controller {
 			'Paid/received by',
 			'Split',
 			'Labels',
+			'Hashtags',
 			'Important',
 			'Review',
 			'Fixed costs',
@@ -501,6 +525,7 @@ class EntryController extends Controller {
 				(string)($entry['user_display_name'] ?? $entry['user_id'] ?? ''),
 				$this->exportSplitMode((string)($entry['split_mode'] ?? '')),
 				implode(', ', $this->exportTagLabels($entry)),
+				implode(', ', $this->exportHashtagLabels($entry)),
 				$this->exportBool($entry['is_important'] ?? false),
 				$this->exportBool($entry['needs_review'] ?? false),
 				$this->exportBool($entry['is_fixed_cost'] ?? false),
@@ -603,6 +628,21 @@ class EntryController extends Controller {
 		return $tags;
 	}
 
+	private function exportHashtagLabels(array $entry): array {
+		$hashtags = [];
+		foreach (($entry['hashtags'] ?? []) as $hashtag) {
+			if (!is_array($hashtag)) {
+				continue;
+			}
+			$name = trim((string)($hashtag['displayName'] ?? $hashtag['name'] ?? ''));
+			if ($name !== '') {
+				$hashtags[] = '#' . $name;
+			}
+		}
+
+		return $hashtags;
+	}
+
 	private function isPlannedEntry(array $entry): bool {
 		$date = (int)($entry['date'] ?? 0);
 		$recurrenceDate = (int)($entry['recurrence_next_date'] ?? 0);
@@ -631,7 +671,6 @@ class EntryController extends Controller {
 			$qb->select('entry_id', 'file_name', 'file_path')
 				->from('cobudget_entry_attachments')
 				->where($idFilter)
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 				->orderBy('entry_id', 'ASC')
 				->addOrderBy('created_at', 'ASC')
 				->addOrderBy('id', 'ASC');
@@ -675,10 +714,16 @@ class EntryController extends Controller {
 			->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'))
 			->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->eq('e.project_id', 'm.project_id'))
 			->where($qb->expr()->orX(
-				$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
-				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
-			))
-			->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				$qb->expr()->andX(
+					$qb->expr()->isNull('e.project_id'),
+					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
+					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
+				),
+				$qb->expr()->andX(
+					$qb->expr()->isNotNull('e.project_id'),
+					$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
+				)
+			));
 
 		return $qb;
 	}
@@ -777,8 +822,7 @@ class EntryController extends Controller {
 		$qb->select('p.*')
 			->from('cobudget_projects', 'p')
 			->innerJoin('p', 'cobudget_members', 'm', $qb->expr()->eq('p.id', 'm.project_id'))
-			->where($qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)))
-			->andWhere($qb->expr()->eq('p.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+			->where($qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)));
 
 		$result = $qb->executeQuery();
 		$projects = $result->fetchAll();
@@ -792,7 +836,7 @@ class EntryController extends Controller {
 			return (int)$project['id'];
 		}, $projects)));
 		$membersByProject = $this->fetchProjectMembersByProjectIds($projectIds);
-		$entriesByProject = $this->fetchOpenExpenseEntriesByProjectIds($projectIds, $workspaceId);
+		$entriesByProject = $this->fetchOpenExpenseEntriesByProjectIds($projectIds);
 
 		foreach ($projects as &$project) {
 			$projectId = (int)$project['id'];
@@ -843,7 +887,7 @@ class EntryController extends Controller {
 		return $membersByProject;
 	}
 
-	private function fetchOpenExpenseEntriesByProjectIds(array $projectIds, int $workspaceId): array {
+	private function fetchOpenExpenseEntriesByProjectIds(array $projectIds): array {
 		if ($projectIds === []) {
 			return [];
 		}
@@ -854,7 +898,6 @@ class EntryController extends Controller {
 			$qb->select('project_id', 'user_id', 'amount', 'amount_cents', 'type', 'split_mode')
 				->from('cobudget_entries')
 				->where($qb->expr()->in('project_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('type', $qb->createNamedParameter('expense')))
 				->andWhere($qb->expr()->eq('is_settled', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
 
@@ -1119,7 +1162,7 @@ class EntryController extends Controller {
 		return $entry;
 	}
 
-	private function applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring = null, $isSubscription = null, $isFixedCost = null, $isChildRelated = null, $isImportant = null, $needsReview = null, $isTaxRelevant = null, $hasReminder = null, $hasAttachment = null, $isFuturePayments = false) {
+	private function applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring = null, $isSubscription = null, $isFixedCost = null, $isChildRelated = null, $isImportant = null, $needsReview = null, $isTaxRelevant = null, $hasReminder = null, $hasAttachment = null, ?int $hashtagId = null, $isFuturePayments = false) {
 		$now = time();
 		if ($isFuturePayments) {
 			$qb->andWhere($qb->expr()->orX(
@@ -1153,6 +1196,12 @@ class EntryController extends Controller {
 
 		if ($categoryId !== null) {
 			$qb->andWhere($qb->expr()->eq('e.category_id', $qb->createNamedParameter($categoryId)));
+		}
+
+		if ($hashtagId !== null) {
+			$qb->innerJoin('e', 'cobudget_entry_hashtags', 'hashtag_filter', $qb->expr()->eq('hashtag_filter.entry_id', 'e.id'));
+			$qb->andWhere($qb->expr()->eq('hashtag_filter.hashtag_id', $qb->createNamedParameter($hashtagId, \PDO::PARAM_INT)));
+			$qb->andWhere($qb->expr()->eq('hashtag_filter.workspace_id', 'e.workspace_id'));
 		}
 
 		if ($dateFrom !== null) {
@@ -1304,6 +1353,7 @@ class EntryController extends Controller {
 			$qb->executeStatement();
 
 			$id = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
+			$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
 			if ($recurrenceInterval !== null) {
 				$this->setEntryRecurrenceSeriesId($id, $id, $workspaceId);
 			}
@@ -1381,7 +1431,6 @@ class EntryController extends Controller {
 				$isFixedCost = false;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
 			$entry = $this->entryVisibleInActiveWorkspace($id);
 
 			if (!$entry) {
@@ -1390,11 +1439,17 @@ class EntryController extends Controller {
 			if ($entry['is_settled']) {
 				return $this->errorResponse('Settled payments cannot be edited', Http::STATUS_FORBIDDEN);
 			}
+			$currentWorkspaceId = (int)$entry['workspace_id'];
+			$workspaceId = $this->workspaceIdForEntryScope($projectId);
+			if ($workspaceId === null) {
+				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
+			}
 
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('cobudget_entries')
 				->set('user_id', $qb->createNamedParameter($entryUserId))
 				->set('project_id', $qb->createNamedParameter($projectId, $projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT))
+				->set('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 				->set('type', $qb->createNamedParameter($type))
 				->set('amount', $qb->createNamedParameter($this->centsToAmountString($amountCents)))
 				->set('amount_cents', $qb->createNamedParameter($amountCents, \PDO::PARAM_INT))
@@ -1418,8 +1473,9 @@ class EntryController extends Controller {
 				->set('reminder_notified', $qb->createNamedParameter($reminderNotified, \PDO::PARAM_BOOL))
 				->set('reminder_text', $qb->createNamedParameter($reminderText, $reminderText === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR))
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($currentWorkspaceId, \PDO::PARAM_INT)));
 			$qb->executeStatement();
+			$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
 
 			if ($recurrenceInterval !== null) {
 				$this->setEntryRecurrenceSeriesId($id, empty($entry['recurrence_series_id']) ? $id : (int)$entry['recurrence_series_id'], $workspaceId);
@@ -1444,12 +1500,12 @@ class EntryController extends Controller {
 					return $validationError;
 				}
 
-				$workspaceId = $this->getWorkspaceId();
 				$entry = $this->entryVisibleInActiveWorkspace($id);
 
 			if (!$entry) {
 				return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
 			}
+			$workspaceId = (int)$entry['workspace_id'];
 
 			$updateQb = $this->db->getQueryBuilder();
 			$updateQb->update('cobudget_entries')
@@ -1483,10 +1539,11 @@ class EntryController extends Controller {
 				return $validationError;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
-			if ($this->entryVisibleInActiveWorkspace($id) === null) {
+			$entry = $this->entryVisibleInActiveWorkspace($id);
+			if ($entry === null) {
 				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
 			}
+			$workspaceId = (int)$entry['workspace_id'];
 
 			return new DataResponse([
 				'attachments' => $this->fetchEntryAttachments($id, (int)$workspaceId),
@@ -1512,11 +1569,11 @@ class EntryController extends Controller {
 				return $validationError;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
 			$entry = $this->entryVisibleInActiveWorkspace($id);
 			if ($entry === null) {
 				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
 			}
+			$workspaceId = (int)$entry['workspace_id'];
 
 			$upload = $this->request->getUploadedFile('file');
 			if (!is_array($upload) || empty($upload['tmp_name'])) {
@@ -1602,15 +1659,15 @@ class EntryController extends Controller {
 				if ($validationError = $this->validatePositiveId($workspaceId, 'Invalid workspace id')) {
 					return $validationError;
 				}
-				if (!$this->workspaceBelongsToUser($workspaceId)) {
-					return $this->errorResponse('Workspace not found or no permission', Http::STATUS_FORBIDDEN);
-				}
-				$this->workspaceId = $workspaceId;
 			}
 
-			$activeWorkspaceId = $this->getWorkspaceId();
-			if ($this->entryVisibleInActiveWorkspace($id) === null) {
+			$entry = $this->entryVisibleInActiveWorkspace($id);
+			if ($entry === null) {
 				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
+			}
+			$activeWorkspaceId = (int)$entry['workspace_id'];
+			if ($workspaceId !== null && (int)$workspaceId !== $activeWorkspaceId) {
+				return $this->errorResponse('Workspace not found or no permission', Http::STATUS_FORBIDDEN);
 			}
 
 			$attachment = $this->fetchEntryAttachment($attachmentId, $id, (int)$activeWorkspaceId);
@@ -1650,10 +1707,11 @@ class EntryController extends Controller {
 				return $validationError;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
-			if ($this->entryVisibleInActiveWorkspace($id) === null) {
+			$entry = $this->entryVisibleInActiveWorkspace($id);
+			if ($entry === null) {
 				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
 			}
+			$workspaceId = (int)$entry['workspace_id'];
 
 			$attachment = $this->fetchEntryAttachment($attachmentId, $id, (int)$workspaceId);
 			if ($attachment === null) {
@@ -1682,7 +1740,6 @@ class EntryController extends Controller {
 					return $validationError;
 				}
 
-				$workspaceId = $this->getWorkspaceId();
 				$entry = $this->entryVisibleInActiveWorkspace($id);
 
 			if (!$entry) {
@@ -1691,8 +1748,10 @@ class EntryController extends Controller {
 			if ($entry['is_settled']) {
 				return $this->errorResponse('Settled payments cannot be deleted', Http::STATUS_FORBIDDEN);
 			}
+			$workspaceId = (int)$entry['workspace_id'];
 
 			$this->deleteEntryAttachments($id, (int)$workspaceId);
+			$this->hashtagService->deleteEntryHashtags($id);
 
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('cobudget_entries')

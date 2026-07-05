@@ -17,6 +17,9 @@
 						<NcActionButton v-if="showSettlementControls" :close-after-click="true" @click="openProjectSettlements" icon="icon-history">
 							{{ $texts.areaDetail.settlements() }}
 						</NcActionButton>
+						<NcActionButton :close-after-click="true" @click="showFilterPanel = true" icon="icon-search">
+							{{ $texts.filters.search() }}
+						</NcActionButton>
 						<NcActionButton v-if="canExportEntries" :close-after-click="true" @click="exportEntries" icon="icon-download" :disabled="isExporting">
 							{{ isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv() }}
 						</NcActionButton>
@@ -36,7 +39,7 @@
 							<DownloadIcon :size="20" />
 						</template>
 					</NcButton>
-					<NcPopover placement="bottom-end">
+					<NcPopover placement="bottom-end" class="project-filter-header-btn">
 						<template #trigger>
 							<NcButton :aria-label="$texts.filters.search()" :title="$texts.filters.search()" variant="tertiary" class="filter-toggle-btn cobudget-toolbar-icon-button" :class="{ 'is-active': hasActiveFilters }">
 								<template #icon>
@@ -50,6 +53,7 @@
 								:showStatusFilter="false"
 								:categories="categories" 
 								:paymentPartners="paymentPartners"
+								:hashtags="hashtags"
 								:initialFilters="filters"
 								@update:filters="onFiltersUpdate"
 							/>
@@ -102,6 +106,34 @@
 					</div>
 			</template>
 		</AppPageHeader>
+
+		<Teleport to="body">
+			<div
+				v-if="showFilterPanel"
+				class="cobudget-filter-sheet-backdrop"
+				role="presentation"
+				@keydown.esc.stop.prevent="showFilterPanel = false"
+				@click.self="showFilterPanel = false">
+				<section class="cobudget-filter-sheet" role="dialog" aria-modal="true" :aria-label="$texts.filters.search()">
+					<div class="cobudget-filter-sheet__header">
+						<h3>{{ $texts.filters.search() }}</h3>
+						<NcButton :aria-label="$texts.common.close()" :title="$texts.common.close()" variant="tertiary" class="cobudget-toolbar-icon-button" @click="showFilterPanel = false">
+							<template #icon>
+								<CloseIcon :size="22" />
+							</template>
+						</NcButton>
+					</div>
+					<TableFilters
+						:showStatusFilter="false"
+						:categories="categories"
+						:paymentPartners="paymentPartners"
+						:hashtags="hashtags"
+						:initialFilters="filters"
+						@update:filters="onFiltersUpdate"
+					/>
+				</section>
+			</div>
+		</Teleport>
 
 		<DraggableScroller v-if="projectDashboardCards.length > 0" class="stats-row project-stats-row">
 			<div v-for="card in projectDashboardCards" :key="card.key" class="stat-card" :class="card.cardClass">
@@ -300,6 +332,7 @@ import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCh
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import ChevronUpIcon from 'vue-material-design-icons/ChevronUp.vue'
+import CloseIcon from 'vue-material-design-icons/Close.vue'
 import DeleteIcon from 'vue-material-design-icons/Delete.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import PencilIcon from 'vue-material-design-icons/Pencil.vue'
@@ -314,7 +347,7 @@ import { downloadBlobResponse } from '../services/downloads'
 
 export default {
 	name: 'ProjectDetail',
-	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, TableTooltip, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon, DeleteIcon, DownloadIcon, TableFilters, DraggableScroller },
+	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, TableTooltip, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, DeleteIcon, DownloadIcon, TableFilters, DraggableScroller },
 	props: ['id'],
 	data() {
 		return {
@@ -325,6 +358,7 @@ export default {
 			templates: [],
 			categories: [],
 			paymentPartners: [],
+			hashtags: [],
 			isExporting: false,
 			showSettleConfirm: false,
 			filters: {
@@ -338,6 +372,7 @@ export default {
 				timeRange: 'all',
 				recurring: 'all',
 				tags: 'all',
+				hashtagId: null,
 				hasReminder: 'all',
 				hasAttachment: 'all'
 			},
@@ -359,6 +394,7 @@ export default {
 				   this.filters.status !== 'active' ||
 				   this.filters.categoryId !== null ||
 				   this.filters.paymentPartnerId !== null ||
+				   this.filters.hashtagId !== null ||
 				   this.filters.timeRange !== 'all' ||
 				   this.filters.recurring !== 'all' ||
 				   this.filters.tags !== 'all' ||
@@ -488,6 +524,7 @@ export default {
 		onSettingsClosed() {
 			this.categories = [];
 			this.paymentPartners = [];
+			this.hashtags = [];
 			this.fetchProjectData();
 		},
 		isTruthy(val) {
@@ -514,6 +551,7 @@ export default {
 				timeRange: 'all',
 				recurring: 'all',
 				tags: 'all',
+				hashtagId: null,
 				hasReminder: 'all',
 				hasAttachment: 'all'
 			}
@@ -691,6 +729,7 @@ export default {
 				isTaxRelevant: isTaxRelevant,
 				hasReminder: hasReminder,
 				hasAttachment: hasAttachment,
+				hashtagId: this.filters.hashtagId,
 				search: this.filters.search,
 				type: this.filters.type,
 				categoryId: this.filters.categoryId,
@@ -715,6 +754,9 @@ export default {
 				this.activeEntries = res.data.entries || [];
 				this.activeDateGroups = res.data.dateGroups || null;
 				this.activePagination.total = res.data.total || 0;
+				if (Array.isArray(res.data.lookups?.hashtags)) {
+					this.hashtags = res.data.lookups.hashtags.sort((a, b) => String(a.displayName || a.name || '').localeCompare(String(b.displayName || b.name || ''), undefined, { sensitivity: 'base' }))
+				}
 			} catch (e) {
 				showRequestError(e, this.$texts.areaDetail.entriesLoadError(), 'Failed to fetch project entries')
 			}
@@ -754,6 +796,7 @@ export default {
 				timeRange: 'all',
 				recurring: 'all',
 				tags: 'all',
+				hashtagId: null,
 				hasReminder: 'all',
 				hasAttachment: 'all'
 			};
@@ -1712,6 +1755,7 @@ th.col-desc {
 	}
 
 	.project-export-header-btn,
+	.project-filter-header-btn,
 	.project-settings-header-btn,
 	.project-settle-header-btn {
 		display: none !important;

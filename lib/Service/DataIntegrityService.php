@@ -81,6 +81,38 @@ class DataIntegrityService {
 			'repairAction' => 'delete',
 		],
 		[
+			'sourceTable' => 'cobudget_hashtags',
+			'sourceLabel' => 'Hashtags',
+			'column' => 'workspace_id',
+			'targetTable' => 'cobudget_workspaces',
+			'targetLabel' => 'Workspace',
+			'repairAction' => 'deleteHashtag',
+		],
+		[
+			'sourceTable' => 'cobudget_entry_hashtags',
+			'sourceLabel' => 'Hashtag-Zuordnungen',
+			'column' => 'entry_id',
+			'targetTable' => 'cobudget_entries',
+			'targetLabel' => 'Zahlung',
+			'repairAction' => 'delete',
+		],
+		[
+			'sourceTable' => 'cobudget_entry_hashtags',
+			'sourceLabel' => 'Hashtag-Zuordnungen',
+			'column' => 'hashtag_id',
+			'targetTable' => 'cobudget_hashtags',
+			'targetLabel' => 'Hashtag',
+			'repairAction' => 'delete',
+		],
+		[
+			'sourceTable' => 'cobudget_entry_hashtags',
+			'sourceLabel' => 'Hashtag-Zuordnungen',
+			'column' => 'workspace_id',
+			'targetTable' => 'cobudget_workspaces',
+			'targetLabel' => 'Workspace',
+			'repairAction' => 'delete',
+		],
+		[
 			'sourceTable' => 'cobudget_members',
 			'sourceLabel' => 'Bereichsmitglieder',
 			'column' => 'project_id',
@@ -216,6 +248,10 @@ class DataIntegrityService {
 				}
 				if ($action === 'deleteBudgetGoal') {
 					$repairedReferences += $this->deleteBudgetGoals($ids);
+					continue;
+				}
+				if ($action === 'deleteHashtag') {
+					$repairedReferences += $this->deleteHashtags($ids);
 					continue;
 				}
 
@@ -587,6 +623,14 @@ class DataIntegrityService {
 		$deleted = 0;
 		$deleted += $this->deleteRowsByColumnValues('cobudget_budget_snapshots', 'budget_goal_id', $ids);
 		$deleted += $this->deleteRows('cobudget_budget_goals', $ids);
+
+		return $deleted;
+	}
+
+	private function deleteHashtags(array $ids): int {
+		$deleted = 0;
+		$deleted += $this->deleteRowsByColumnValues('cobudget_entry_hashtags', 'hashtag_id', $ids);
+		$deleted += $this->deleteRows('cobudget_hashtags', $ids);
 
 		return $deleted;
 	}

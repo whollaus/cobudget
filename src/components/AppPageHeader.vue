@@ -201,5 +201,11 @@ export default {
 	.app-page-header__actions :deep(.budget-new-button.button-vue .button-vue__text) {
 		display: none !important;
 	}
+
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue),
+	.app-page-header__actions :deep(.new-payment-main-button .button-vue) {
+		min-width: calc(var(--cobudget-icon-button-size, 44px) * 2) !important;
+		width: calc(var(--cobudget-icon-button-size, 44px) * 2) !important;
+	}
 }
 </style>

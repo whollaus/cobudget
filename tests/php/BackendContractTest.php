@@ -121,6 +121,7 @@ return [
 		$t->assertContains('use OCA\\CoBudget\\Command\\CreateBackupCommand;', $source, 'Application should import the user backup command');
 		$t->assertContains('use OCA\\CoBudget\\Command\\CreateFullBackupCommand;', $source, 'Application should import the full backup command');
 		$t->assertContains('use OCA\\CoBudget\\Command\\CheckDataIntegrityCommand;', $source, 'Application should import the data integrity command');
+		$t->assertContains('use OCA\\CoBudget\\Command\\ResetAllCommand;', $source, 'Application should import the global reset command');
 		$t->assertContains('use OCA\\CoBudget\\Command\\RestoreBackupCommand;', $source, 'Application should import the user restore command');
 		$t->assertContains('use OCA\\CoBudget\\Command\\RestoreFullBackupCommand;', $source, 'Application should import the full restore command');
 		$t->assertContains('use OCA\\CoBudget\\Cron\\RecurringEntriesJob;', $source, 'Application should import the recurring job');
@@ -132,12 +133,14 @@ return [
 		$t->assertContains('registerCommand(CreateBackupCommand::class)', $register, 'Application should register the user backup command');
 		$t->assertContains('registerCommand(CreateFullBackupCommand::class)', $register, 'Application should register the full backup command');
 		$t->assertContains('registerCommand(CheckDataIntegrityCommand::class)', $register, 'Application should register the data integrity command');
+		$t->assertContains('registerCommand(ResetAllCommand::class)', $register, 'Application should register the global reset command');
 		$t->assertContains('registerCommand(RestoreBackupCommand::class)', $register, 'Application should register the user restore command');
 		$t->assertContains('registerCommand(RestoreFullBackupCommand::class)', $register, 'Application should register the full restore command');
 		foreach ([
 			'CreateBackupCommand::class',
 			'CreateFullBackupCommand::class',
 			'CheckDataIntegrityCommand::class',
+			'ResetAllCommand::class',
 			'RestoreBackupCommand::class',
 			'RestoreFullBackupCommand::class',
 		] as $commandClass) {
@@ -158,6 +161,27 @@ return [
 		$t->assertContains("update('jobs')", $prioritize, 'Application should update the Nextcloud jobs table for unrun CoBudget jobs');
 		$t->assertContains("eq('last_run'", $prioritize, 'Application should only prioritize jobs that have never run');
 		$t->assertContains("set('last_checked'", $prioritize, 'Application should reset last_checked for WebCron prioritization');
+	},
+
+	'Global reset OCC command requires explicit confirmation and uses transactional deletes' => function(TestRunner $t): void {
+		$command = $t->read('lib/Command/ResetAllCommand.php');
+
+		$t->assertContains("setName('cobudget:reset-all')", $command, 'Reset command should expose the expected OCC name');
+		$t->assertContains("private const CONFIRMATION_TEXT = 'RESET-COBUDGET';", $command, 'Reset command should require an explicit confirmation token');
+		$t->assertContains("'confirm'", $command, 'Reset command should expose a confirmation option');
+		$t->assertContains("Command::FAILURE", $command, 'Reset command should fail without confirmation or on rollback');
+		$t->assertContains('$this->db->beginTransaction();', $command, 'Reset command should run inside a database transaction');
+		$t->assertContains('$this->db->commit();', $command, 'Reset command should commit only after all deletes succeeded');
+		$t->assertContains('$this->db->rollBack();', $command, 'Reset command should roll back failed resets');
+		$t->assertContains('array_reverse(self::TABLES)', $command, 'Reset command should delete tables in dependency-safe reverse order');
+		$t->assertContains("delete('preferences')", $command, 'Reset command should clear CoBudget user preferences');
+		$t->assertContains("deleteAppValue(self::APP_ID, \$key)", $command, 'Reset command should clear default-data seed markers');
+		$t->assertContains("'cobudget_entries'", $command, 'Reset command should include entries');
+		$t->assertContains("'cobudget_entry_attachments'", $command, 'Reset command should include attachment references');
+		$t->assertContains("'cobudget_settlements'", $command, 'Reset command should include settlements');
+		$t->assertContains("'cobudget_budget_goals'", $command, 'Reset command should include budget goals');
+		$t->assertNotContains('dropTable', $command, 'Reset command should not drop tables');
+		$t->assertNotContains('TRUNCATE', $command, 'Reset command should use portable deletes instead of truncate');
 	},
 
 	'Entry mutations validate foreign references and scope writes to active workspace' => function(TestRunner $t): void {
@@ -214,7 +238,8 @@ return [
 
 		$trait = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'projectUserMemberInActiveWorkspace');
 		$t->assertContains("eq('m.user_id'", $trait, 'Workspace guard should check the selected member user id');
-		$t->assertContains("eq('p.workspace_id'", $trait, 'Workspace guard should keep project member checks workspace-scoped');
+		$t->assertContains('projectVisibleForCurrentUser($projectId)', $trait, 'Project member checks should first require current-user project visibility');
+		$t->assertNotContains("eq('p.workspace_id'", $trait, 'Shared project member checks must not depend on the currently selected workspace');
 	},
 
 	'Dashboard endpoint bundles entries metrics and lookups in the active workspace' => function(TestRunner $t): void {
@@ -334,6 +359,7 @@ return [
 		$t->assertContains("'availableForecast' => \$this->buildAvailableForecast(\$selectedPeriod, \$summary, \$projection)", $summary, 'Analytics should include an available-money forecast');
 		$t->assertContains('buildBreakdowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include grouped breakdowns with trend comparisons and recent direction');
 		$t->assertContains('buildTagDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include Kennzeichen drilldowns with trend comparisons and recent direction');
+		$t->assertContains('buildHashtagDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include free #tag drilldowns with trend comparisons and recent direction');
 		$t->assertContains('buildOutliers($periodEntries)', $summary, 'Analytics should include high amount detection');
 		$t->assertContains('loadSharedProjectEntries($workspaceId, $sharesByProject', $summary, 'Analytics should load shared Bereich entries independently from personal totals');
 		$t->assertContains('buildSharedProjects($sharedProjectEntries, $sharesByProject)', $summary, 'Analytics should include compact shared Bereich summaries');
@@ -341,6 +367,7 @@ return [
 		$t->assertContains('buildUpcoming($upcomingEntries)', $summary, 'Analytics should include active reminders and planned payments');
 		$t->assertContains("'receiptChecks' => \$this->receiptsEnabled() ? \$this->buildReceiptChecks(\$periodEntries) : []", $summary, 'Analytics should expose missing-receipt checks when receipts are enabled');
 		$t->assertContains('BudgetSnapshotService', $t->read('lib/Controller/AnalyticsController.php'), 'Analytics should inject budget snapshots');
+		$t->assertContains('HashtagService', $t->read('lib/Controller/AnalyticsController.php'), 'Analytics should inject free hashtag service');
 		$t->assertNotContains('ICacheFactory', $t->read('lib/Controller/AnalyticsController.php'), 'Analytics should not return stale cached summaries');
 		$t->assertNotContains('readAnalyticsCache(', $summary, 'Analytics should compute live summaries');
 		$t->assertNotContains('cacheAnalyticsResponse(', $summary, 'Analytics should compute live summaries');
@@ -360,8 +387,11 @@ return [
 
 		$breakdowns = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildBreakdowns');
 		$t->assertContains("'tags'", $breakdowns, 'Analytics breakdowns should include Kennzeichen');
+		$t->assertContains("'hashtags'", $breakdowns, 'Analytics breakdowns should include free #tags from descriptions');
 		$t->assertContains('buildTagBreakdown($entries, \'expense\', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $breakdowns, 'Analytics should aggregate expense Kennzeichen with trend comparisons and direction windows');
 		$t->assertContains('buildTagBreakdown($entries, \'income\', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $breakdowns, 'Analytics should aggregate income Kennzeichen with trend comparisons and direction windows');
+		$t->assertContains('buildHashtagBreakdown($entries, \'expense\', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $breakdowns, 'Analytics should aggregate expense #tags with trend comparisons and direction windows');
+		$t->assertContains('buildHashtagBreakdown($entries, \'income\', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $breakdowns, 'Analytics should aggregate income #tags with trend comparisons and direction windows');
 
 		$tagBreakdown = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildTagBreakdown');
 		$t->assertContains('buildTagBreakdownRows($entries, $type)', $tagBreakdown, 'Analytics Kennzeichen breakdown should use reusable row aggregation');
@@ -370,6 +400,16 @@ return [
 		$tagBreakdownRows = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildTagBreakdownRows');
 		$t->assertContains('self::TAG_LABELS[$key]', $tagBreakdownRows, 'Analytics Kennzeichen breakdown should use stable labels');
 		$t->assertContains('$entry[\'personalCents\']', $tagBreakdownRows, 'Analytics Kennzeichen breakdown should use the personal share');
+
+		$hashtagBreakdown = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildHashtagBreakdown');
+		$t->assertContains('buildHashtagBreakdownRows($entries, $type)', $hashtagBreakdown, 'Analytics #tag breakdown should use reusable row aggregation');
+		$t->assertContains('withBreakdownTrends($rows, $comparisonRows, $directionRecentRows, $directionBaselineRows, $type)', $hashtagBreakdown, 'Analytics #tag breakdown should attach recent direction and comparison metadata');
+		$t->assertContains('withRestBucket($rows, 8)', $hashtagBreakdown, 'Analytics #tag breakdown should collapse long tails');
+
+		$hashtagBreakdownRows = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildHashtagBreakdownRows');
+		$t->assertContains('$entry[\'hashtags\']', $hashtagBreakdownRows, 'Analytics #tag breakdown should read parsed hashtags from entries');
+		$t->assertContains("'name' => '#' . \$name", $hashtagBreakdownRows, 'Analytics #tag breakdown should expose names with a visible hash prefix');
+		$t->assertContains('$entry[\'personalCents\']', $hashtagBreakdownRows, 'Analytics #tag breakdown should use the personal share');
 
 		$normalizeEntry = $t->methodBody('lib/Controller/AnalyticsController.php', 'normalizeAnalyticsEntry');
 		$t->assertContains('$categoryName === \'\' ? null', $normalizeEntry, 'Analytics should treat orphaned category ids without a joined name as uncategorized');
@@ -424,9 +464,18 @@ return [
 		$tagDrilldowns = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildTagDrilldowns');
 		$t->assertContains("'categories' => \$this->buildBreakdown", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should include category details');
 		$t->assertContains("'paymentPartners' => \$this->buildBreakdown", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should include contact details');
+		$t->assertContains("'hashtags' => \$this->buildHashtagBreakdown", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should include free #tag details');
 		$t->assertContains("'projects' => \$this->buildBreakdown", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should include Bereich details');
 
+		$hashtagDrilldowns = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildHashtagDrilldowns');
+		$t->assertContains('filterHashtagEntries', $hashtagDrilldowns, 'Analytics #tag drilldowns should filter entries by the selected #tag');
+		$t->assertContains("'categories' => \$this->buildBreakdown", $hashtagDrilldowns, 'Analytics #tag drilldowns should include category details');
+		$t->assertContains("'paymentPartners' => \$this->buildBreakdown", $hashtagDrilldowns, 'Analytics #tag drilldowns should include payment partner details');
+		$t->assertContains("'tags' => \$this->buildTagBreakdown", $hashtagDrilldowns, 'Analytics #tag drilldowns should include label details');
+		$t->assertContains("'projects' => \$this->buildBreakdown", $hashtagDrilldowns, 'Analytics #tag drilldowns should include Bereich details');
+
 		$loadEntries = $t->methodBody('lib/Controller/AnalyticsController.php', 'loadAnalyticsEntries');
+		$t->assertContains('attachHashtagsToEntries($entries)', $loadEntries, 'Analytics entries should be enriched with free #tags before summary aggregation');
 		$t->assertContains("eq('e.workspace_id'", $loadEntries, 'Analytics entries should be workspace-scoped');
 		$t->assertContains("lte('e.date'", $loadEntries, 'Analytics should ignore future-planned entries');
 		$t->assertContains("gte('e.date'", $loadEntries, 'Analytics entries should support bounded period start queries');
@@ -547,7 +596,7 @@ return [
 
 		$dashboardProjects = $t->methodBody('lib/Controller/EntryController.php', 'fetchDashboardProjects');
 		$t->assertContains('fetchProjectMembersByProjectIds($projectIds)', $dashboardProjects, 'Dashboard projects should bulk-load members');
-		$t->assertContains('fetchOpenExpenseEntriesByProjectIds($projectIds, $workspaceId)', $dashboardProjects, 'Dashboard projects should bulk-load open entries');
+		$t->assertContains('fetchOpenExpenseEntriesByProjectIds($projectIds)', $dashboardProjects, 'Dashboard projects should bulk-load open entries');
 		$t->assertNotContains("from('cobudget_entries')", $dashboardProjects, 'Dashboard project loop should not query entries per project');
 		$t->assertNotContains("from('cobudget_members')", $dashboardProjects, 'Dashboard project loop should not query members per project');
 
@@ -557,12 +606,69 @@ return [
 
 		$bulkEntries = $t->methodBody('lib/Controller/EntryController.php', 'fetchOpenExpenseEntriesByProjectIds');
 		$t->assertContains('PARAM_INT_ARRAY', $bulkEntries, 'Bulk project entry lookup should use integer array parameters');
-		$t->assertContains("eq('workspace_id'", $bulkEntries, 'Bulk project entry lookup should remain workspace-scoped');
+		$t->assertContains("in('project_id'", $bulkEntries, 'Bulk shared project entry lookup should be scoped by visible project ids');
+		$t->assertNotContains("eq('workspace_id'", $bulkEntries, 'Bulk shared project entry lookup must not hide member-visible projects from other workspaces');
 		$t->assertContains("eq('type'", $bulkEntries, 'Bulk project entry lookup should only load expenses for balances');
 		$t->assertContains("eq('is_settled'", $bulkEntries, 'Bulk project entry lookup should only load open entries');
 	},
 
-	'Project operations enforce active workspace and keep critical actions transactional' => function(TestRunner $t): void {
+	'Description hashtags are synced, filtered, exported and cleaned up' => function(TestRunner $t): void {
+		$migration = $t->read('lib/Migration/Version000003Date20260705000000.php');
+		foreach ([
+			"'cobudget_hashtags'",
+			"'cobudget_entry_hashtags'",
+			'cb_hash_ws_name',
+			'cb_ehash_entry_hash',
+			'workspace_id',
+			'normalized_name',
+			'display_name',
+			'hashtag_id',
+		] as $needle) {
+			$t->assertContains($needle, $migration, 'Hashtag migration should include ' . $needle);
+		}
+
+		$service = $t->read('lib/Service/HashtagService.php');
+		foreach ([
+			'extractFromText',
+			'syncEntryHashtags',
+			'deleteEntryHashtags',
+			'deleteHashtagsForEntries',
+			'deleteWorkspaceHashtags',
+			'attachHashtagsToEntries',
+			'fetchVisibleHashtagsForUser',
+			'cleanupUnusedHashtags',
+		] as $needle) {
+			$t->assertContains($needle, $service, 'HashtagService should provide ' . $needle);
+		}
+		$t->assertContains("delete('cobudget_entry_hashtags')", $service, 'HashtagService should delete old entry links before syncing edited descriptions');
+		$t->assertContains("delete('cobudget_hashtags')", $service, 'HashtagService should remove unused hashtag rows');
+		$t->assertContains('entryHashtagUsageCount($id)', $service, 'HashtagService should keep hashtag rows while other entries still use them');
+		$t->assertContains("eq('eh.workspace_id', 'h.workspace_id')", $service, 'Visible hashtag lookup should keep link rows workspace-scoped');
+		$t->assertContains("eq('e.workspace_id', 'h.workspace_id')", $service, 'Visible hashtag lookup should keep entry rows workspace-scoped');
+
+		$entry = $t->read('lib/Controller/EntryController.php');
+		$t->assertContains('syncEntryHashtags($id, $workspaceId', $entry, 'Entry creates and updates should resync description hashtags');
+		$t->assertContains('deleteEntryHashtags($id)', $entry, 'Entry deletes should remove hashtag links');
+		$t->assertContains('attachHashtagsToEntries($entries)', $entry, 'Entry payloads should include hashtags');
+		$t->assertContains('fetchVisibleHashtagsForUser($workspaceId', $entry, 'Entry list lookups should include visible hashtag filters');
+		$t->assertContains('exportHashtagLabels($entry)', $entry, 'CSV export should include hashtag labels');
+		$t->assertContains('hashtag_filter.workspace_id', $entry, 'Hashtag filters should stay workspace-scoped');
+
+		$backup = $t->read('lib/Service/BackupService.php');
+		$t->assertContains("'cobudget_hashtags'", $backup, 'BackupService should export hashtags');
+		$t->assertContains("'cobudget_entry_hashtags'", $backup, 'BackupService should export hashtag links');
+		$t->assertContains('Dieses Benutzer-Backup enthält Hashtags ausserhalb des Benutzer-Scopes', $backup, 'User restore should reject hashtags outside imported workspaces');
+		$t->assertContains('Dieses Benutzer-Backup enthält Hashtag-Zuordnungen ausserhalb des Benutzer-Scopes', $backup, 'User restore should reject orphan hashtag links');
+
+		$reset = $t->read('lib/Service/UserResetService.php');
+		$t->assertContains('deleteHashtagsForEntries', $reset, 'User reset should clean hashtag links for deleted entries');
+		$t->assertContains('deleteWorkspaceHashtags', $reset, 'User reset should clean workspace hashtags');
+
+		$cron = $t->read('lib/Cron/RecurringEntriesJob.php');
+		$t->assertContains('syncEntryHashtags($newEntryId', $cron, 'Recurring entries should copy description hashtags to the generated entry');
+	},
+
+	'Project operations enforce membership or owner visibility and keep critical actions transactional' => function(TestRunner $t): void {
 		foreach (['create', 'destroy', 'settle'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
 			$t->assertContains('beginTransaction()', $body, 'Project ' . $method . ' should start a transaction');
@@ -574,23 +680,27 @@ return [
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
 			$hasGuard = strpos($body, 'projectMemberInActiveWorkspace(') !== false
 				|| strpos($body, 'projectOwnerInActiveWorkspace(') !== false
+				|| strpos($body, 'projectVisibleForCurrentUser(') !== false
+				|| strpos($body, 'projectOwnerForCurrentUser(') !== false
 				|| strpos($body, 'requireProjectOwner(') !== false;
-			$t->assertTrue($hasGuard, 'Project ' . $method . ' should verify membership/ownership in active workspace');
+			$t->assertTrue($hasGuard, 'Project ' . $method . ' should verify membership/ownership visibility');
 		}
 
-		foreach (['update', 'destroy', 'archive', 'unarchive', 'addMember', 'removeMember', 'updateShares', 'settle'] as $method) {
+		foreach (['destroy', 'archive', 'unarchive', 'addMember', 'removeMember', 'updateShares', 'settle'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
 			$t->assertContains('requireProjectOwner($id)', $body, 'Project ' . $method . ' should require the area creator');
 		}
+		$update = $t->methodBody('lib/Controller/ProjectController.php', 'update');
+		$t->assertContains('projectOwnerForCurrentUser($id)', $update, 'Project update should require the area creator');
 
 		foreach (['show', 'settlements'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
-			$t->assertContains('projectMemberInActiveWorkspace($id)', $body, 'Project ' . $method . ' should remain readable for area members');
+			$t->assertContains('projectVisibleForCurrentUser($id)', $body, 'Project ' . $method . ' should remain readable for area members');
 		}
 
 		$settle = $t->methodBody('lib/Controller/ProjectController.php', 'settle');
 		$t->assertContains("update('cobudget_entries')", $settle, 'Project settle should update entries');
-		$t->assertContains("eq('workspace_id'", $settle, 'Project settle should only update entries in active workspace');
+		$t->assertContains('$workspaceId = (int)$project[\'workspace_id\']', $settle, 'Project settle should resolve the workspace from the owner-visible area');
 		$t->assertContains("eq('is_settled'", $settle, 'Project settle should only update unsettled entries');
 		$t->assertContains("set('settlement_id'", $settle, 'Project settle should link entries to a settlement snapshot');
 	},
@@ -619,7 +729,7 @@ return [
 		$t->assertTrue(($routeNames['project#settlements'] ?? null) === '/api/projects/{id}/settlements', 'Project settlement history route should exist');
 
 		$settlements = $t->methodBody('lib/Controller/ProjectController.php', 'settlements');
-		$t->assertContains('projectMemberInActiveWorkspace($id)', $settlements, 'Settlement history should require project membership');
+		$t->assertContains('projectVisibleForCurrentUser($id)', $settlements, 'Settlement history should require project membership');
 		$t->assertContains('settlementHistory($id, $workspaceId, null, true)', $settlements, 'Settlement history endpoint should include settlement entries');
 
 		$settle = $t->methodBody('lib/Controller/ProjectController.php', 'settle');
@@ -639,8 +749,8 @@ return [
 		$t->assertContains('loadSettlementEntries($settlementId, $projectId, $workspaceId)', $history, 'Settlement history should include entry tables when requested');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2') {
-			throw new \RuntimeException('Performance index migration should bump appinfo/info.xml to version 0.2');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
+			throw new \RuntimeException('Hashtag migration should bump appinfo/info.xml to version 0.3');
 		}
 	},
 
@@ -833,7 +943,7 @@ return [
 		$t->assertContains('templateOwnedInActiveWorkspace($id)', $destroy, 'Template delete should only delete owned active-workspace templates');
 		$t->assertContains("delete('cobudget_templates')", $destroy, 'Template delete should delete templates table');
 		$t->assertContains("eq('user_id'", $destroy, 'Template delete should scope by user_id');
-		$t->assertContains("eq('workspace_id'", $destroy, 'Template delete should scope by workspace_id');
+		$t->assertNotContains("eq('workspace_id'", $destroy, 'Template delete relies on the active-workspace ownership guard instead of duplicating the workspace predicate');
 
 		$markUsed = $t->methodBody('lib/Controller/TemplateController.php', 'markUsed');
 		$t->assertContains('templatesEnabled()', $markUsed, 'Template usage marker should respect the user setting');
@@ -841,11 +951,11 @@ return [
 		$t->assertContains("update('cobudget_templates')", $markUsed, 'Template usage marker should update templates table');
 		$t->assertContains('usage_count', $markUsed, 'Template usage marker should increment usage_count');
 		$t->assertContains("eq('user_id'", $markUsed, 'Template usage marker should scope by user_id');
-		$t->assertContains("eq('workspace_id'", $markUsed, 'Template usage marker should scope by workspace_id');
+		$t->assertNotContains("eq('workspace_id'", $markUsed, 'Template usage marker relies on the active-workspace ownership guard instead of duplicating the workspace predicate');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2') {
-			throw new \RuntimeException('Performance index migration should bump appinfo/info.xml to version 0.2');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
+			throw new \RuntimeException('Hashtag migration should bump appinfo/info.xml to version 0.3');
 		}
 	},
 
@@ -875,6 +985,8 @@ return [
 		$t->assertContains('ownedProjectIdsInWorkspace($id)', $destroy, 'Workspace delete should collect areas owned by the current user');
 		$t->assertContains('entryIdsForWorkspaceDelete($id, $projectIds)', $destroy, 'Workspace delete should collect current-user entries and all entries from owned areas');
 		$t->assertContains("deleteRowsByColumnValues('cobudget_entry_attachments', 'entry_id', \$entryIds)", $destroy, 'Workspace delete should remove attachments before entries');
+		$t->assertContains('deleteHashtagsForEntries($entryIds)', $destroy, 'Workspace delete should remove hashtag links for deleted entries');
+		$t->assertContains('deleteWorkspaceHashtags($id)', $destroy, 'Workspace delete should remove remaining hashtags through the hashtag service');
 		$t->assertContains("deleteRowsByColumnValues('cobudget_settlement_balances', 'settlement_id', \$settlementIds)", $destroy, 'Workspace delete should remove settlement balances');
 		$t->assertContains("deleteRowsByColumnValues('cobudget_settlement_transfers', 'settlement_id', \$settlementIds)", $destroy, 'Workspace delete should remove settlement transfers');
 		$t->assertContains("deleteRowsByColumnValues(\$table, 'project_id', \$projectIds)", $destroy, 'Workspace delete should remove project-scoped settings regardless of row user_id');
@@ -1087,6 +1199,8 @@ return [
 				'cobudget_settlement_transfers',
 				'cobudget_budget_goals',
 				'cobudget_budget_snapshots',
+				'cobudget_hashtags',
+				'cobudget_entry_hashtags',
 			] as $table) {
 				$t->assertContains("'" . $table . "'", $service, 'Full backup should export table ' . $table);
 			}
@@ -1189,7 +1303,9 @@ return [
 			$t->assertContains('createBackup($userId, self::SAFETY_BACKUP_FOLDER', $resetService, 'User reset should create a safety backup before deleting data');
 			$t->assertContains('blocking_shared_projects', $resetService, 'User reset preview should expose shared areas that block the reset');
 			$t->assertContains('countUnsettledProjectEntries', $resetService, 'User reset should block shared areas with open entries');
-			$t->assertContains('transferSettledSharedProject', $resetService, 'User reset should transfer fully settled shared areas to remaining members');
+			$t->assertContains('deletable_shared_projects', $resetService, 'User reset preview should report owned settled shared areas that will be deleted');
+			$t->assertContains('leaveSettledSharedProject', $resetService, 'User reset should leave settled shared areas created by another member');
+			$t->assertNotContains('transferSettledSharedProject', $resetService, 'User reset should not transfer owned shared areas to another member');
 			$t->assertContains("getUserValue(\$userId, self::APP_ID, 'delete_receipts_with_entry'", $resetService, 'User reset should respect the receipt file deletion setting');
 			$t->assertContains('resetUserSettings', $resetService, 'User reset should reset all user settings to defaults');
 			$t->assertContains('createDefaultWorkspaceForUser', $resetService, 'User reset should recreate a default main workspace');
@@ -1379,8 +1495,8 @@ return [
 
 			$infoXml = $t->read('appinfo/info.xml');
 			$t->assertContains('OCA\\CoBudget\\Cron\\BudgetSnapshotJob', $infoXml, 'Budget snapshot job should be listed in app metadata');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2') {
-				throw new \RuntimeException('Performance index migration should bump appinfo/info.xml to version 0.2');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
+				throw new \RuntimeException('Hashtag migration should bump appinfo/info.xml to version 0.3');
 			}
 		},
 
@@ -1409,7 +1525,7 @@ return [
 			}
 
 			$download = $t->methodBody('lib/Controller/EntryController.php', 'downloadAttachment');
-			$t->assertContains('workspaceBelongsToUser($workspaceId)', $download, 'Attachment display with explicit workspace should require workspace ownership');
+			$t->assertContains('$workspaceId !== null && (int)$workspaceId !== $activeWorkspaceId', $download, 'Attachment display with explicit workspace should reject mismatched workspaces');
 			$t->assertContains('fetchEntryAttachment($attachmentId, $id, (int)$activeWorkspaceId)', $download, 'Attachment display should load the exact entry/workspace attachment row');
 			$t->assertContains('new FileDisplayResponse', $download, 'Attachment display should use inline file responses');
 
@@ -1535,8 +1651,8 @@ return [
 			$t->assertContains("'split_mode' => \$qb->createNamedParameter(\$splitMode)", $templateCreate, 'Template create should persist split mode');
 
 			$infoXml = $t->read('appinfo/info.xml');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2') {
-				throw new \RuntimeException('Performance index migration should bump appinfo/info.xml to version 0.2');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
+				throw new \RuntimeException('Hashtag migration should bump appinfo/info.xml to version 0.3');
 			}
 		},
 	];

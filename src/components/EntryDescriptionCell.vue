@@ -1,8 +1,18 @@
 <template>
 	<div>
 		<div class="desc-text">
-			<span v-if="entry.description" class="main-title desktop-only">{{ entry.description }}</span>
-			<span v-if="entry.description" class="main-title mobile-only">{{ entry.description }}</span>
+			<span v-if="entry.description" class="main-title desktop-only">
+				<template v-for="(part, index) in descriptionParts" :key="`desktop-desc-${index}`">
+					<span v-if="part.isTag" class="description-hashtag">#{{ part.text }}</span>
+					<span v-else>{{ part.text }}</span>
+				</template>
+			</span>
+			<span v-if="entry.description" class="main-title mobile-only">
+				<template v-for="(part, index) in descriptionParts" :key="`mobile-desc-${index}`">
+					<span v-if="part.isTag" class="description-hashtag">#{{ part.text }}</span>
+					<span v-else>{{ part.text }}</span>
+				</template>
+			</span>
 			<span v-if="entry.is_important && enableImportantPayments" class="entry-badge badge-important">{{ $texts.labels.important() }}</span>
 			<span v-if="entry.needs_review && enableReviewPayments" class="entry-badge badge-review">{{ $texts.labels.review() }}</span>
 			<span v-if="entry.is_fixed_cost && enableFixedCosts" class="entry-badge badge-fixed">{{ $texts.labels.fixedCosts() }}</span>
@@ -93,6 +103,39 @@ export default {
 			type: String,
 			default: ''
 		}
+	},
+	computed: {
+		descriptionParts() {
+			const text = String(this.entry.description || '')
+			if (!text) {
+				return []
+			}
+
+			const parts = []
+			const regex = /(^|[^\p{L}\p{N}_])#([\p{L}\p{N}_][\p{L}\p{N}_-]{0,63})/gu
+			let lastIndex = 0
+			let match
+
+			while ((match = regex.exec(text)) !== null) {
+				const prefix = match[1] || ''
+				const tagStart = match.index + prefix.length
+				const tagText = match[2] || ''
+				const tagEnd = tagStart + tagText.length + 1
+
+				if (tagStart > lastIndex) {
+					parts.push({ text: text.slice(lastIndex, tagStart), isTag: false })
+				}
+
+				parts.push({ text: tagText, isTag: true })
+				lastIndex = tagEnd
+			}
+
+			if (lastIndex < text.length) {
+				parts.push({ text: text.slice(lastIndex), isTag: false })
+			}
+
+			return parts.length > 0 ? parts : [{ text, isTag: false }]
+		}
 	}
 }
 </script>
@@ -103,15 +146,18 @@ export default {
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 8px;
-	font-weight: 500;
+	font-weight: 400;
 }
 
 .main-title {
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	font-size: var(--cobudget-font-ui);
-	font-weight: 600;
 	white-space: normal;
 	word-break: break-word;
+	font-weight: 400;
+}
+
+.description-hashtag {
+	color: var(--cobudget-primary, var(--color-primary, #0082c9));
+	font-weight: 600;
 }
 
 .project-chip {

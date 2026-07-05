@@ -2,12 +2,20 @@
 	<div class="personal-dashboard">
 		<AppPageHeader :title="pageTitle">
 			<template #actions>
-				<NcButton v-if="canExportEntries" :aria-label="$texts.common.exportCsv()" :title="isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv()" variant="tertiary" class="filter-toggle-btn cobudget-toolbar-icon-button" :disabled="isExporting" @click="exportEntries">
+				<NcActions class="mobile-header-actions-menu">
+					<NcActionButton :close-after-click="true" icon="icon-search" @click="showFilterPanel = true">
+						{{ $texts.filters.search() }}
+					</NcActionButton>
+					<NcActionButton v-if="canExportEntries" :close-after-click="true" icon="icon-download" :disabled="isExporting" @click="exportEntries">
+						{{ isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv() }}
+					</NcActionButton>
+				</NcActions>
+				<NcButton v-if="canExportEntries" :aria-label="$texts.common.exportCsv()" :title="isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv()" variant="tertiary" class="filter-toggle-btn cobudget-toolbar-icon-button desktop-header-action" :disabled="isExporting" @click="exportEntries">
 					<template #icon>
 						<DownloadIcon :size="20" />
 					</template>
 				</NcButton>
-				<NcPopover placement="bottom-end">
+				<NcPopover placement="bottom-end" class="desktop-header-action">
 					<template #trigger>
 							<NcButton :aria-label="$texts.filters.search()" :title="$texts.filters.search()" variant="tertiary" class="filter-toggle-btn cobudget-toolbar-icon-button" :class="{ 'is-active': hasActiveFilters }">
 							<template #icon>
@@ -22,6 +30,7 @@
 							:categories="categories" 
 							:projects="projects"
 							:paymentPartners="paymentPartners"
+							:hashtags="hashtags"
 							:initialFilters="filters"
 							@update:filters="onFiltersUpdate"
 						/>
@@ -61,6 +70,35 @@
 				</div>
 			</template>
 		</AppPageHeader>
+
+		<Teleport to="body">
+			<div
+				v-if="showFilterPanel"
+				class="cobudget-filter-sheet-backdrop"
+				role="presentation"
+				@keydown.esc.stop.prevent="showFilterPanel = false"
+				@click.self="showFilterPanel = false">
+				<section class="cobudget-filter-sheet" role="dialog" aria-modal="true" :aria-label="$texts.filters.search()">
+					<div class="cobudget-filter-sheet__header">
+						<h3>{{ $texts.filters.search() }}</h3>
+						<NcButton :aria-label="$texts.common.close()" :title="$texts.common.close()" variant="tertiary" class="cobudget-toolbar-icon-button" @click="showFilterPanel = false">
+							<template #icon>
+								<CloseIcon :size="22" />
+							</template>
+						</NcButton>
+					</div>
+					<TableFilters
+						:showStatusFilter="false"
+						:categories="categories"
+						:projects="projects"
+						:paymentPartners="paymentPartners"
+						:hashtags="hashtags"
+						:initialFilters="filters"
+						@update:filters="onFiltersUpdate"
+					/>
+				</section>
+			</div>
+		</Teleport>
 
 		<DraggableScroller class="stats-row">
 			<div
@@ -427,11 +465,14 @@ import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
+import CloseIcon from 'vue-material-design-icons/Close.vue'
 import DeleteIcon from 'vue-material-design-icons/Delete.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import ArrowRightIcon from 'vue-material-design-icons/ArrowRight.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
 import TableFilters from '../components/TableFilters.vue'
@@ -505,6 +546,8 @@ export default {
 	name: 'TransactionsView',
 	components: {
 		NcButton,
+		NcActions,
+		NcActionButton,
 		NcEmptyContent,
 		TableFilters,
 		PlusIcon,
@@ -520,6 +563,7 @@ export default {
 		ReceiptTextCheckOutlineIcon,
 		CalendarSyncIcon,
 		ChevronDownIcon,
+		CloseIcon,
 		DeleteIcon,
 		DownloadIcon,
 		ArrowLeftIcon,
@@ -544,6 +588,7 @@ export default {
 			projects: [],
 			categories: [],
 			paymentPartners: [],
+			hashtags: [],
 			filters: {
 				search: '',
 				type: 'all',
@@ -555,6 +600,7 @@ export default {
 				dateTo: null,
 				timeRange: 'all',
 				tags: 'all',
+				hashtagId: null,
 				hasReminder: 'all',
 				hasAttachment: 'all'
 			},
@@ -578,6 +624,7 @@ export default {
 				   this.filters.categoryId !== null ||
 				   this.filters.projectId !== null ||
 				   this.filters.paymentPartnerId !== null ||
+				   this.filters.hashtagId !== null ||
 				   this.filters.timeRange !== 'all' ||
 				   this.filters.tags !== 'all' ||
 				   this.filters.hasReminder !== 'all' ||
@@ -858,6 +905,7 @@ export default {
 		onSettingsClosed() {
 			this.categories = [];
 			this.paymentPartners = [];
+			this.hashtags = [];
 			this.fetchData();
 		},
 		handleRouteQueryChange() {
@@ -877,6 +925,7 @@ export default {
 				dateTo: null,
 				timeRange: 'all',
 				tags: 'all',
+				hashtagId: null,
 				hasReminder: 'all',
 				hasAttachment: 'all'
 			};
@@ -1005,6 +1054,7 @@ export default {
 				isTaxRelevant: isTaxRelevant,
 				hasReminder: hasReminder,
 				hasAttachment: hasAttachment,
+				hashtagId: this.filters.hashtagId,
 				isFuturePayments: this.filters.tags === 'future'
 			};
 
@@ -1038,6 +1088,9 @@ export default {
 				}
 				if (Array.isArray(lookups.paymentPartners)) {
 					this.paymentPartners = lookups.paymentPartners.sort((a, b) => a.name.localeCompare(b.name));
+				}
+				if (Array.isArray(lookups.hashtags)) {
+					this.hashtags = lookups.hashtags.sort((a, b) => String(a.displayName || a.name || '').localeCompare(String(b.displayName || b.name || ''), undefined, { sensitivity: 'base' }));
 				}
 				await this.fetchBudgetGoals()
 			} catch (e) {
@@ -1356,6 +1409,10 @@ export default {
 
 .filter-popover-content {
 	padding: 8px;
+}
+
+.mobile-header-actions-menu {
+	display: none !important;
 }
 
 :deep(.v-popper__arrow-container),
@@ -1831,6 +1888,14 @@ th.col-desc {
 }
 
 @media (max-width: 768px) {
+	.desktop-header-action {
+		display: none !important;
+	}
+
+	.mobile-header-actions-menu {
+		display: inline-flex !important;
+	}
+
 	.table-container {
 		border: none;
 		background: transparent;

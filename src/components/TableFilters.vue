@@ -59,6 +59,15 @@
 					<option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
 				</select>
 			</div>
+
+			<!-- 4. Freie Hashtags aus Beschreibungen -->
+			<div class="filter-group" v-if="hashtags && hashtags.length > 0">
+				<select v-model="localFilters.hashtagId" @change="emitFilters" class="form-control">
+					<option :value="null">{{ $texts.filters.allHashtags() }}</option>
+					<option v-for="tag in hashtags" :key="tag.id" :value="tag.id">#{{ tag.displayName || tag.name }}</option>
+				</select>
+			</div>
+
 			<!-- 4. Status Dropdown -->
 			<div class="filter-group" v-if="showStatusFilter">
 				<select v-model="localFilters.status" @change="emitFilters" class="form-control">
@@ -124,6 +133,10 @@ export default {
 			type: Array,
 			default: () => []
 		},
+		hashtags: {
+			type: Array,
+			default: () => []
+		},
 		initialFilters: {
 			type: Object,
 			default: () => ({
@@ -137,6 +150,7 @@ export default {
 				dateTo: null,
 				timeRange: 'all',
 				tags: 'all',
+				hashtagId: null,
 				recurring: 'all',
 				hasReminder: 'all',
 				hasAttachment: 'all'
@@ -161,6 +175,7 @@ export default {
 				   this.localFilters.categoryId !== null ||
 				   this.localFilters.projectId !== null ||
 				   this.localFilters.paymentPartnerId !== null ||
+				   this.localFilters.hashtagId !== null ||
 				   this.localFilters.timeRange !== 'all' ||
 				   this.localFilters.tags !== 'all' ||
 				   this.localFilters.hasReminder !== 'all' ||
@@ -205,6 +220,7 @@ export default {
 				dateTo: null,
 				timeRange: 'all',
 				tags: 'all',
+				hashtagId: null,
 				recurring: this.initialFilters.recurring !== undefined ? this.initialFilters.recurring : 'all',
 				hasReminder: 'all',
 				hasAttachment: 'all'

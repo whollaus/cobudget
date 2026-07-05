@@ -33,6 +33,8 @@ class BackupService {
 		'cobudget_payment_partners',
 		'cobudget_templates',
 		'cobudget_entries',
+		'cobudget_hashtags',
+		'cobudget_entry_hashtags',
 		'cobudget_entry_attachments',
 		'cobudget_settlements',
 		'cobudget_settlement_balances',
@@ -138,6 +140,21 @@ class BackupService {
 			'reminder_notified',
 			'reminder_text',
 			'workspace_id',
+		],
+		'cobudget_hashtags' => [
+			'id',
+			'workspace_id',
+			'normalized_name',
+			'display_name',
+			'created_at',
+			'updated_at',
+		],
+		'cobudget_entry_hashtags' => [
+			'id',
+			'entry_id',
+			'hashtag_id',
+			'workspace_id',
+			'created_at',
 		],
 		'cobudget_entry_attachments' => [
 			'id',
@@ -245,6 +262,10 @@ class BackupService {
 		['sourceTable' => 'cobudget_entries', 'column' => 'payment_partner_id', 'targetTable' => 'cobudget_payment_partners'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'settlement_id', 'targetTable' => 'cobudget_settlements'],
+		['sourceTable' => 'cobudget_hashtags', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
+		['sourceTable' => 'cobudget_entry_hashtags', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
+		['sourceTable' => 'cobudget_entry_hashtags', 'column' => 'hashtag_id', 'targetTable' => 'cobudget_hashtags'],
+		['sourceTable' => 'cobudget_entry_hashtags', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_entry_attachments', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entry_attachments', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_settlements', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
@@ -1069,6 +1090,16 @@ class BackupService {
 		$this->clearSkippedUserRestoreReferences($tables, 'category_id', $skippedReferenceIds['cobudget_categories']);
 		$this->clearSkippedUserRestoreReferences($tables, 'payment_partner_id', $skippedReferenceIds['cobudget_payment_partners']);
 
+		$entryIds = array_fill_keys($this->ids($tables['cobudget_entries'] ?? []), true);
+		$tables['cobudget_entry_hashtags'] = array_values(array_filter($tables['cobudget_entry_hashtags'] ?? [], static function (array $row) use ($entryIds): bool {
+			return isset($entryIds[(int)($row['entry_id'] ?? 0)]);
+		}));
+
+		$hashtagIds = array_fill_keys($this->idsFromColumn($tables['cobudget_entry_hashtags'] ?? [], 'hashtag_id'), true);
+		$tables['cobudget_hashtags'] = array_values(array_filter($tables['cobudget_hashtags'] ?? [], static function (array $row) use ($hashtagIds): bool {
+			return isset($hashtagIds[(int)($row['id'] ?? 0)]);
+		}));
+
 		return $tables;
 	}
 
@@ -1181,6 +1212,8 @@ class BackupService {
 			'cobudget_payment_partners' => 'Zahlungspartner',
 			'cobudget_templates' => 'Vorlagen',
 			'cobudget_entries' => 'Zahlungen',
+			'cobudget_hashtags' => 'Hashtags',
+			'cobudget_entry_hashtags' => 'Hashtag-Zuordnungen',
 			'cobudget_entry_attachments' => 'Beleg-Pfade',
 			'cobudget_settlements' => 'Abrechnungen',
 			'cobudget_settlement_balances' => 'Abrechnungssalden',
@@ -1289,6 +1322,28 @@ class BackupService {
 			}
 			if ($entryId > 0) {
 				$entryIds[$entryId] = true;
+			}
+		}
+
+		$workspaceIds = array_fill_keys($this->ids($tables['cobudget_workspaces'] ?? []), true);
+		$hashtagIds = [];
+		foreach ($tables['cobudget_hashtags'] ?? [] as $hashtag) {
+			$hashtagId = (int)($hashtag['id'] ?? 0);
+			$workspaceId = (int)($hashtag['workspace_id'] ?? 0);
+			if ($workspaceId <= 0 || !isset($workspaceIds[$workspaceId])) {
+				throw new \InvalidArgumentException('Dieses Benutzer-Backup enthält Hashtags ausserhalb des Benutzer-Scopes. Bitte verwende ein vollständiges Backup.');
+			}
+			if ($hashtagId > 0) {
+				$hashtagIds[$hashtagId] = true;
+			}
+		}
+
+		foreach ($tables['cobudget_entry_hashtags'] ?? [] as $link) {
+			$entryId = (int)($link['entry_id'] ?? 0);
+			$hashtagId = (int)($link['hashtag_id'] ?? 0);
+			$workspaceId = (int)($link['workspace_id'] ?? 0);
+			if ($entryId <= 0 || !isset($entryIds[$entryId]) || $hashtagId <= 0 || !isset($hashtagIds[$hashtagId]) || $workspaceId <= 0 || !isset($workspaceIds[$workspaceId])) {
+				throw new \InvalidArgumentException('Dieses Benutzer-Backup enthält Hashtag-Zuordnungen ausserhalb des Benutzer-Scopes. Bitte verwende ein vollständiges Backup.');
 			}
 		}
 
@@ -1468,6 +1523,8 @@ class BackupService {
 		$projectIds = $this->fetchProjectIdsForUser($userId, $workspaceIds);
 		$entries = $this->fetchEntries($userId, $workspaceIds, $projectIds);
 		$entryIds = $this->ids($entries);
+		$entryHashtags = $this->fetchRowsByIds('cobudget_entry_hashtags', 'entry_id', $entryIds);
+		$hashtagIds = $this->idsFromColumn($entryHashtags, 'hashtag_id');
 		$settlements = $this->fetchRowsByIds('cobudget_settlements', 'project_id', $projectIds);
 		$settlementIds = $this->ids($settlements);
 
@@ -1481,6 +1538,8 @@ class BackupService {
 				'cobudget_payment_partners' => $this->fetchPaymentPartners($userId, $workspaceIds, $projectIds),
 				'cobudget_templates' => $this->fetchTemplates($userId, $workspaceIds, $projectIds),
 				'cobudget_entries' => $entries,
+				'cobudget_hashtags' => $this->fetchRowsByIds('cobudget_hashtags', 'id', $hashtagIds),
+				'cobudget_entry_hashtags' => $entryHashtags,
 				'cobudget_entry_attachments' => $this->fetchRowsByIds('cobudget_entry_attachments', 'entry_id', $entryIds),
 				'cobudget_settlements' => $settlements,
 				'cobudget_settlement_balances' => $this->fetchRowsByIds('cobudget_settlement_balances', 'settlement_id', $settlementIds),
@@ -1734,6 +1793,10 @@ class BackupService {
 
 	private function ids(array $rows): array {
 		return array_values(array_unique(array_map(static fn (array $row): int => (int)$row['id'], $rows)));
+	}
+
+	private function idsFromColumn(array $rows, string $column): array {
+		return array_values(array_unique(array_map(static fn (array $row): int => (int)($row[$column] ?? 0), $rows)));
 	}
 
 	private function nullableId($value): ?int {

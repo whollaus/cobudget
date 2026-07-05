@@ -160,23 +160,26 @@ return [
 		$paymentPartner = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'paymentPartnerAvailableInActiveWorkspace');
 
 		foreach ([
-			'project member lookup' => $member,
-			'project owner lookup' => $owner,
 			'entry visibility lookup' => $entry,
 			'category lookup' => $category,
 			'payment partner lookup' => $paymentPartner,
 		] as $label => $body) {
-			$t->assertContains('$workspaceId = $this->getWorkspaceId()', $body, $label . ' should resolve the active workspace centrally');
 			$t->assertContains('workspace_id', $body, $label . ' should scope queries by workspace');
 			$t->assertContains('$this->userId', $body, $label . ' should include the current user in the guard');
 		}
+		$t->assertContains('projectVisibleForCurrentUser($projectId)', $member, 'Project member lookup should use current-user project visibility');
+		$t->assertNotContains('$workspaceId = $this->getWorkspaceId()', $member, 'Project member lookup should not depend on the selected workspace');
+		$t->assertContains('projectOwnerForCurrentUser($projectId)', $owner, 'Project owner lookup should use owner visibility');
 
-		$t->assertContains('innerJoin(\'p\', \'cobudget_members\', \'m\'', $member, 'Project member lookup should require an actual member row');
-		$t->assertContains('owner_id', $owner, 'Project owner lookup should require the current user to be the owner');
+		$visibleProject = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'projectVisibleForCurrentUser');
+		$t->assertContains('innerJoin(\'p\', \'cobudget_members\', \'m\'', $visibleProject, 'Project visibility should require an actual member row');
+		$t->assertContains('m.user_id', $visibleProject, 'Project visibility should require the current user member row');
+		$ownerVisibleProject = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'projectOwnerForCurrentUser');
+		$t->assertContains('owner_id', $ownerVisibleProject, 'Project owner lookup should require the current user to be the owner');
 		$t->assertContains('leftJoin(\'e\', \'cobudget_members\', \'m\'', $entry, 'Entry visibility should allow shared-area entries only through membership');
 		$t->assertContains('e.user_id', $entry, 'Entry visibility should still allow personal entries owned by the user');
-		$t->assertContains('$projectId !== null && !$this->projectMemberInActiveWorkspace($projectId)', $category, 'Project categories should require project membership');
-		$t->assertContains('$projectId !== null && !$this->projectMemberInActiveWorkspace($projectId)', $paymentPartner, 'Project payment partners should require project membership');
+		$t->assertContains('projectWorkspaceIdForCurrentUser($projectId)', $category, 'Project categories should resolve workspace through project membership');
+		$t->assertContains('projectWorkspaceIdForCurrentUser($projectId)', $paymentPartner, 'Project payment partners should resolve workspace through project membership');
 		$t->assertContains('is_hidden', $category, 'Global categories should ignore hidden rows');
 		$t->assertContains('is_hidden', $paymentPartner, 'Global payment partners should ignore hidden rows');
 	},
@@ -199,8 +202,8 @@ return [
 			$t->assertContains('entryVisibleInActiveWorkspace($id)', $body, $label . ' should require visible payment access');
 		}
 
-		$t->assertContains('workspaceBelongsToUser($workspaceId)', $download, 'Attachment download with explicit workspace should reject workspaces not owned by the user');
-		$t->assertContains('$this->workspaceId = $workspaceId', $download, 'Attachment download should switch to the explicitly authorized workspace before checking entry visibility');
+		$t->assertContains('$workspaceId !== null && (int)$workspaceId !== $activeWorkspaceId', $download, 'Attachment download with explicit workspace should reject mismatched workspaces');
+		$t->assertNotContains('$this->workspaceId = $workspaceId', $download, 'Attachment download should not switch the active workspace for member-visible shared entries');
 		$t->assertContains('fetchEntryAttachment($attachmentId, $id, (int)$activeWorkspaceId)', $download, 'Attachment download should fetch the exact attachment row for entry and workspace');
 		$t->assertContains('fetchEntryAttachment($attachmentId, $id, (int)$workspaceId)', $destroy, 'Attachment delete should fetch the exact attachment row for entry and workspace');
 		$t->assertContains('$this->deleteAttachmentRow($attachmentId, $id, (int)$workspaceId)', $destroy, 'Attachment delete should scope row deletion by attachment, entry, and workspace');
@@ -225,7 +228,7 @@ return [
 		$t->assertContains('private const TAG_COLUMNS = [', $t->read('lib/Controller/BudgetController.php'), 'Budget criteria should use a central tag allow-list');
 		$t->assertContains('array_key_exists($tag, self::TAG_COLUMNS) ? $tag : \'\'', $normalizeRule, 'Budget criteria should drop unknown tags');
 		$t->assertContains('$allowed = array_keys(self::TAG_COLUMNS)', $tagList, 'Legacy budget tag lists should use the same tag allow-list');
-		$t->assertContains('!$this->projectMemberInActiveWorkspace($rule[\'projectId\'])', $validate, 'Budget project criteria should require membership in the active workspace');
+		$t->assertContains('!$this->projectMemberInActiveWorkspace($rule[\'projectId\'])', $validate, 'Budget project criteria should require area membership');
 		$t->assertContains('!$this->categorySelectableForBudget($rule[\'categoryId\'], $workspaceId)', $validate, 'Budget category criteria should require a selectable expense category');
 		$t->assertContains('c.type', $categorySelectable, 'Budget category selection should only allow expense categories');
 		$t->assertContains('c.workspace_id', $categorySelectable, 'Budget category selection should scope personal/project categories by workspace');
@@ -248,7 +251,7 @@ return [
 		$count = $t->methodBody('lib/Controller/ProjectController.php', 'settlementEntryCount');
 		$entries = $t->methodBody('lib/Controller/ProjectController.php', 'loadSettlementEntries');
 
-		$t->assertContains('projectMemberInActiveWorkspace($id)', $settlements, 'Settlement history endpoint should be visible only to area members');
+		$t->assertContains('projectVisibleForCurrentUser($id)', $settlements, 'Settlement history endpoint should be visible only to area members');
 		$t->assertContains('settlementHistory($id, $workspaceId, null, true)', $settlements, 'Settlement history endpoint should include entry groups for each settlement');
 		$t->assertContains('cobudget_settlements', $history, 'Settlement history should read settlement group headers');
 		$t->assertContains('project_id', $history, 'Settlement history should scope groups by project');

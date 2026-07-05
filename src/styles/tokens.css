@@ -850,6 +850,60 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 	margin: 0 !important;
 }
 
+.cobudget-filter-sheet-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 10050;
+	display: flex;
+	align-items: flex-start;
+	justify-content: flex-end;
+	padding: calc(var(--body-container-margin, 0px) + 70px) 16px 16px;
+	background: rgba(0, 0, 0, 0.18);
+	box-sizing: border-box;
+}
+
+.cobudget-filter-sheet {
+	width: min(420px, 100%);
+	max-height: min(720px, calc(100vh - 96px));
+	overflow: auto;
+	border: 1px solid var(--cobudget-border);
+	border-radius: var(--cobudget-radius-lg);
+	background: var(--cobudget-surface);
+	box-shadow: var(--cobudget-shadow-lg);
+	padding: 16px;
+	box-sizing: border-box;
+	color: var(--cobudget-text);
+}
+
+.cobudget-filter-sheet__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.cobudget-filter-sheet__header h3 {
+	margin: 0;
+	color: var(--cobudget-text);
+	font-size: var(--cobudget-font-lg);
+	font-weight: 700;
+}
+
+@media (max-width: 768px) {
+	.cobudget-filter-sheet-backdrop {
+		align-items: flex-end;
+		justify-content: stretch;
+		padding: 12px;
+	}
+
+	.cobudget-filter-sheet {
+		width: 100%;
+		max-height: min(80vh, 720px);
+		border-radius: var(--cobudget-radius-lg);
+	}
+}
+
 .cobudget-page-title-with-back {
 	display: inline-flex;
 	align-items: center;

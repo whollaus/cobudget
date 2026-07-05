@@ -43,8 +43,21 @@ class TemplateController extends Controller {
 				->from('cobudget_templates', 't')
 				->leftJoin('t', 'cobudget_categories', 'c', $qb->expr()->eq('t.category_id', 'c.id'))
 				->leftJoin('t', 'cobudget_payment_partners', 'p', $qb->expr()->eq('t.payment_partner_id', 'p.id'))
+				->leftJoin('t', 'cobudget_members', 'm', $qb->expr()->andX(
+					$qb->expr()->eq('t.project_id', 'm.project_id'),
+					$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
+				))
 				->where($qb->expr()->eq('t.user_id', $qb->createNamedParameter($this->userId)))
-				->andWhere($qb->expr()->eq('t.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+				->andWhere($qb->expr()->orX(
+					$qb->expr()->andX(
+						$qb->expr()->isNull('t.project_id'),
+						$qb->expr()->eq('t.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
+					),
+					$qb->expr()->andX(
+						$qb->expr()->isNotNull('t.project_id'),
+						$qb->expr()->isNotNull('m.user_id')
+					)
+				))
 				->orderBy('t.usage_count', 'DESC')
 				->addOrderBy('t.name', 'ASC');
 
@@ -113,7 +126,11 @@ class TemplateController extends Controller {
 				$isFixedCost = false;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
+			$workspaceId = $this->workspaceIdForEntryScope($projectId);
+			if ($workspaceId === null) {
+				return $this->errorResponse('Area not found or no permission', Http::STATUS_BAD_REQUEST);
+			}
+
 			$qb = $this->db->getQueryBuilder();
 			$qb->insert('cobudget_templates')
 				->values([
@@ -165,12 +182,10 @@ class TemplateController extends Controller {
 					return new DataResponse(['error' => 'Template not found or no permission'], Http::STATUS_NOT_FOUND);
 				}
 
-			$workspaceId = $this->getWorkspaceId();
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('cobudget_templates')
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id)))
-				->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)));
 			
 			$deleted = $qb->executeStatement();
 
@@ -202,13 +217,11 @@ class TemplateController extends Controller {
 				return new DataResponse(['error' => 'Template not found or no permission'], Http::STATUS_NOT_FOUND);
 			}
 
-			$workspaceId = $this->getWorkspaceId();
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('cobudget_templates')
 				->set('usage_count', $qb->createFunction('COALESCE(usage_count, 0) + 1'))
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)));
 			$updated = $qb->executeStatement();
 
 			if ($updated === 0) {

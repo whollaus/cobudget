@@ -3,6 +3,7 @@
 namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\BudgetSnapshotService;
+use OCA\CoBudget\Service\HashtagService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -41,15 +42,17 @@ class AnalyticsController extends Controller {
 	private IConfig $config;
 	private IUserManager $userManager;
 	private BudgetSnapshotService $budgetSnapshotService;
+	private HashtagService $hashtagService;
 	private ?string $userId;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IConfig $config, IUserSession $userSession, IUserManager $userManager, BudgetSnapshotService $budgetSnapshotService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IConfig $config, IUserSession $userSession, IUserManager $userManager, BudgetSnapshotService $budgetSnapshotService, HashtagService $hashtagService, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$this->config = $config;
 		$this->userManager = $userManager;
 		$this->budgetSnapshotService = $budgetSnapshotService;
+		$this->hashtagService = $hashtagService;
 		$this->l10n = $l10n;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
@@ -115,6 +118,7 @@ class AnalyticsController extends Controller {
 				'categoryDrilldowns' => $this->buildCategoryDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 				'paymentPartnerDrilldowns' => $this->buildPaymentPartnerDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 				'tagDrilldowns' => $this->buildTagDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'hashtagDrilldowns' => $this->buildHashtagDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 				'projectDrilldowns' => $this->buildProjectDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 				'outliers' => $this->buildOutliers($periodEntries),
 				'sharedProjects' => $this->buildSharedProjects($sharedProjectEntries, $sharesByProject),
@@ -136,12 +140,12 @@ class AnalyticsController extends Controller {
 				$qb->expr()->eq('e.project_id', 'm.project_id'),
 				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
 			))
-			->where($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
+			->where($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->orX(
 				$qb->expr()->andX(
 					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId))
+					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
+					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 				),
 				$qb->expr()->isNotNull('m.user_id')
 			))
@@ -190,12 +194,12 @@ class AnalyticsController extends Controller {
 				$qb->expr()->eq('e.project_id', 'm.project_id'),
 				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
 			))
-			->where($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
+			->where($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->orX(
 				$qb->expr()->andX(
 					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId))
+					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
+					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 				),
 				$qb->expr()->isNotNull('m.user_id')
 			));
@@ -223,7 +227,7 @@ class AnalyticsController extends Controller {
 			}
 		}
 
-		return $entries;
+		return $this->hashtagService->attachHashtagsToEntries($entries);
 	}
 
 	private function attachAnalyticsAttachmentFlags(array $entries, int $workspaceId): array {
@@ -241,8 +245,7 @@ class AnalyticsController extends Controller {
 			$qb = $this->db->getQueryBuilder();
 			$qb->select('entry_id')
 				->from('cobudget_entry_attachments')
-				->where($qb->expr()->in('entry_id', $qb->createNamedParameter($idChunk, IQueryBuilder::PARAM_INT_ARRAY)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				->where($qb->expr()->in('entry_id', $qb->createNamedParameter($idChunk, IQueryBuilder::PARAM_INT_ARRAY)));
 			$result = $qb->executeQuery();
 			$rows = $result->fetchAll();
 			$result->closeCursor();
@@ -327,8 +330,7 @@ class AnalyticsController extends Controller {
 				$qb->expr()->eq('e.project_id', 'm.project_id'),
 				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
 			))
-			->where($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->eq('e.type', $qb->createNamedParameter('expense')))
+			->where($qb->expr()->eq('e.type', $qb->createNamedParameter('expense')))
 			->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($start, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lt('e.date', $qb->createNamedParameter($end, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
@@ -410,8 +412,7 @@ class AnalyticsController extends Controller {
 				$qb->expr()->eq('e.project_id', 'm.project_id'),
 				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
 			))
-			->where($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->orX(
+			->where($qb->expr()->orX(
 				$qb->expr()->gt('e.date', $qb->createNamedParameter($now, \PDO::PARAM_INT)),
 				$qb->expr()->isNotNull('e.recurrence_next_date'),
 				$qb->expr()->andX(
@@ -422,7 +423,8 @@ class AnalyticsController extends Controller {
 			->andWhere($qb->expr()->orX(
 				$qb->expr()->andX(
 					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId))
+					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
+					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 				),
 				$qb->expr()->isNotNull('m.user_id')
 			))
@@ -533,7 +535,6 @@ class AnalyticsController extends Controller {
 				$qb->expr()->eq('p.id', 'me.project_id'),
 				$qb->expr()->eq('me.user_id', $qb->createNamedParameter($this->userId))
 			))
-			->where($qb->expr()->eq('p.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 			->orderBy('m.project_id', 'ASC')
 			->addOrderBy('m.id', 'ASC');
 		$result = $qb->executeQuery();
@@ -1078,6 +1079,10 @@ class AnalyticsController extends Controller {
 				'expense' => $this->buildTagBreakdown($entries, 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 				'income' => $this->buildTagBreakdown($entries, 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 			],
+			'hashtags' => [
+				'expense' => $this->buildHashtagBreakdown($entries, 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'income' => $this->buildHashtagBreakdown($entries, 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+			],
 			'projects' => [
 				'expense' => $this->buildBreakdown($entries, 'projectId', 'projectName', 'Persönlich', 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 				'income' => $this->buildBreakdown($entries, 'projectId', 'projectName', 'Persönlich', 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
@@ -1114,6 +1119,7 @@ class AnalyticsController extends Controller {
 					'label' => (string)($category['name'] ?? 'Kategorie'),
 					'paymentPartners' => $this->buildBreakdown($categoryEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 					'tags' => $this->buildTagBreakdown($categoryEntries, $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
+					'hashtags' => $this->buildHashtagBreakdown($categoryEntries, $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 					'projects' => $this->buildBreakdown($categoryEntries, 'projectId', 'projectName', 'Persönlich', $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 				];
 			}
@@ -1151,6 +1157,7 @@ class AnalyticsController extends Controller {
 					'label' => (string)($paymentPartner['name'] ?? 'Zahlungspartner'),
 					'categories' => $this->buildBreakdown($paymentPartnerEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
 					'tags' => $this->buildTagBreakdown($paymentPartnerEntries, $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
+					'hashtags' => $this->buildHashtagBreakdown($paymentPartnerEntries, $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
 					'projects' => $this->buildBreakdown($paymentPartnerEntries, 'projectId', 'projectName', 'Persönlich', $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
 				];
 			}
@@ -1189,7 +1196,46 @@ class AnalyticsController extends Controller {
 					'label' => $this->l10n->t($label),
 					'categories' => $this->buildBreakdown($tagEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
 					'paymentPartners' => $this->buildBreakdown($tagEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
+					'hashtags' => $this->buildHashtagBreakdown($tagEntries, $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
 					'projects' => $this->buildBreakdown($tagEntries, 'projectId', 'projectName', 'Persönlich', $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
+				];
+			}
+		}
+
+		return $result;
+	}
+
+	private function buildHashtagDrilldowns(array $entries, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
+		$result = [
+			'expense' => [],
+			'income' => [],
+		];
+
+		foreach (['expense', 'income'] as $type) {
+			$hashtags = $this->buildHashtagBreakdown($entries, $type);
+			foreach ($hashtags as $hashtag) {
+				$key = (string)($hashtag['key'] ?? $hashtag['id'] ?? '');
+				if ($key === '' || $key === 'rest') {
+					continue;
+				}
+
+				$hashtagEntries = $this->filterHashtagEntries($entries, $type, $key);
+				if ($hashtagEntries === []) {
+					continue;
+				}
+
+				$comparisonHashtagEntries = $this->filterHashtagEntries($comparisonEntries, $type, $key);
+				$directionRecentHashtagEntries = $this->filterHashtagEntries($directionRecentEntries, $type, $key);
+				$directionBaselineHashtagEntries = $this->filterHashtagEntries($directionBaselineEntries, $type, $key);
+
+				$result[$type][$key] = [
+					'id' => $hashtag['id'] ?? null,
+					'key' => $key,
+					'label' => (string)($hashtag['name'] ?? '#Tag'),
+					'categories' => $this->buildBreakdown($hashtagEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
+					'paymentPartners' => $this->buildBreakdown($hashtagEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
+					'tags' => $this->buildTagBreakdown($hashtagEntries, $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
+					'projects' => $this->buildBreakdown($hashtagEntries, 'projectId', 'projectName', 'Persönlich', $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
 				];
 			}
 		}
@@ -1227,6 +1273,7 @@ class AnalyticsController extends Controller {
 					'categories' => $this->buildBreakdown($projectEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
 					'paymentPartners' => $this->buildBreakdown($projectEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
 					'tags' => $this->buildTagBreakdown($projectEntries, $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
+					'hashtags' => $this->buildHashtagBreakdown($projectEntries, $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
 				];
 			}
 		}
@@ -1281,6 +1328,74 @@ class AnalyticsController extends Controller {
 		});
 
 		return $rows;
+	}
+
+	private function buildHashtagBreakdown(array $entries, string $type, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
+		$rows = $this->buildHashtagBreakdownRows($entries, $type);
+		$comparisonRows = $this->buildHashtagBreakdownRows($comparisonEntries, $type);
+		$directionRecentRows = $this->buildHashtagBreakdownRows($directionRecentEntries, $type);
+		$directionBaselineRows = $this->buildHashtagBreakdownRows($directionBaselineEntries, $type);
+		$rows = $this->withBreakdownTrends($rows, $comparisonRows, $directionRecentRows, $directionBaselineRows, $type);
+
+		return $this->withRestBucket($rows, 8);
+	}
+
+	private function buildHashtagBreakdownRows(array $entries, string $type): array {
+		$rows = [];
+		foreach ($entries as $entry) {
+			if ($entry['type'] !== $type) {
+				continue;
+			}
+
+			foreach ($entry['hashtags'] ?? [] as $hashtag) {
+				$id = (int)($hashtag['id'] ?? 0);
+				$name = trim((string)($hashtag['displayName'] ?? $hashtag['name'] ?? ''));
+				if ($id <= 0 || $name === '') {
+					continue;
+				}
+
+				$key = (string)$id;
+				if (!isset($rows[$key])) {
+					$rows[$key] = [
+						'id' => $id,
+						'key' => $key,
+						'name' => '#' . $name,
+						'amountCents' => 0,
+						'count' => 0,
+					];
+				}
+
+				$rows[$key]['amountCents'] += (int)$entry['personalCents'];
+				$rows[$key]['count']++;
+			}
+		}
+
+		usort($rows, static function(array $a, array $b): int {
+			$amountCompare = $b['amountCents'] <=> $a['amountCents'];
+			if ($amountCompare !== 0) {
+				return $amountCompare;
+			}
+
+			return strcasecmp((string)$a['name'], (string)$b['name']);
+		});
+
+		return $rows;
+	}
+
+	private function filterHashtagEntries(array $entries, string $type, string $key): array {
+		return array_values(array_filter($entries, static function(array $entry) use ($type, $key): bool {
+			if (($entry['type'] ?? '') !== $type) {
+				return false;
+			}
+
+			foreach ($entry['hashtags'] ?? [] as $hashtag) {
+				if ((string)((int)($hashtag['id'] ?? 0)) === $key) {
+					return true;
+				}
+			}
+
+			return false;
+		}));
 	}
 
 	private function buildBreakdown(array $entries, string $idKey, string $nameKey, string $fallbackName, string $type, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {

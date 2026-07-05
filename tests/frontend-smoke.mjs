@@ -728,6 +728,9 @@ assertNotContains(entryTable, 'Abgerechnet in:', 'EntryTable shared-project tool
 const tableFilters = read('src/components/TableFilters.vue')
 assertContains(tableFilters, '$texts.filters.allPaymentPartners()', 'TableFilters neutral paymentPartner filter label')
 assertContains(tableFilters, '$texts.filters.allLabels()', 'TableFilters uses Labels wording')
+assertContains(tableFilters, '$texts.filters.allHashtags()', 'TableFilters exposes free hashtag filtering')
+assertContains(tableFilters, 'hashtagId', 'TableFilters tracks selected free hashtag filter')
+assertContains(tableFilters, 'hashtags', 'TableFilters receives visible free hashtags')
 assertContains(tableFilters, 'v-if="$enableReceipts"', 'TableFilters hides receipt filters when receipts are disabled')
 assertContains(tableFilters, 'hasAttachment', 'TableFilters exposes receipt filtering')
 assertContains(tableFilters, '$texts.filters.allReceipts()', 'TableFilters receipt filter all option')
@@ -744,6 +747,8 @@ assertBefore(tableFilters, 'value="childRelated"', 'value="subscription"', 'Tabl
 assertBefore(tableFilters, 'value="subscription"', 'value="taxRelevant"', 'TableFilters order subscriptions before tax relevant')
 
 const entryDescriptionCell = read('src/components/EntryDescriptionCell.vue')
+assertContains(entryDescriptionCell, 'descriptionParts', 'EntryDescriptionCell splits description text into hashtag-aware parts')
+assertContains(entryDescriptionCell, 'description-hashtag', 'EntryDescriptionCell highlights free hashtags in descriptions')
 assertContains(entryDescriptionCell, 'entry.is_child_related && enableChildRelated', 'EntryDescriptionCell child Kennzeichen badge')
 assertContains(entryDescriptionCell, 'entry.is_important && enableImportantPayments', 'EntryDescriptionCell important Kennzeichen badge')
 assertContains(entryDescriptionCell, 'entry.needs_review && enableReviewPayments', 'EntryDescriptionCell review Kennzeichen badge')

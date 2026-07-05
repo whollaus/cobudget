@@ -6,6 +6,7 @@ use OCA\CoBudget\AppInfo\Application as CoBudgetApplication;
 use OCA\CoBudget\Command\CheckDataIntegrityCommand;
 use OCA\CoBudget\Command\CreateBackupCommand;
 use OCA\CoBudget\Command\CreateFullBackupCommand;
+use OCA\CoBudget\Command\ResetAllCommand;
 use OCA\CoBudget\Command\RestoreBackupCommand;
 use OCA\CoBudget\Command\RestoreFullBackupCommand;
 
@@ -18,6 +19,7 @@ foreach ([
 	CreateBackupCommand::class,
 	CreateFullBackupCommand::class,
 	CheckDataIntegrityCommand::class,
+	ResetAllCommand::class,
 	RestoreBackupCommand::class,
 	RestoreFullBackupCommand::class,
 ] as $commandClass) {

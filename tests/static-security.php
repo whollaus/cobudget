@@ -96,7 +96,7 @@ try {
 	$assertContains($routes, "'/api/entries/export'", 'Routes expose entry CSV export URL');
 
 	$project = $read('lib/Controller/ProjectController.php');
-	$assertContains($project, 'projectMemberInActiveWorkspace($id)', 'ProjectController member workspace guard');
+	$assertContains($project, 'projectVisibleForCurrentUser($id)', 'ProjectController member visibility guard');
 	$assertContains($project, 'projectOwnerInActiveWorkspace($id)', 'ProjectController owner workspace guard');
 	$assertContains($project, 'updateShares', 'ProjectController exposes configurable member shares');
 	$assertContains($project, "set('share_basis_points'", 'ProjectController persists member shares');
@@ -253,6 +253,10 @@ try {
 	$assertContains($backupService, '$safetyBackup = $this->createFullBackup(', 'Full restore creates a safety backup first');
 	$assertContains($backupService, "'safety_backup' => \$safetyBackup", 'Restore responses include the safety backup');
 	$assertContains($backupService, "'cobudget_budget_snapshots'", 'BackupService exports budget snapshots');
+	$assertContains($backupService, "'cobudget_hashtags'", 'BackupService exports hashtags');
+	$assertContains($backupService, "'cobudget_entry_hashtags'", 'BackupService exports entry hashtag links');
+	$assertContains($backupService, 'Dieses Benutzer-Backup enthält Hashtags ausserhalb des Benutzer-Scopes', 'User restore rejects hashtags outside imported workspaces');
+	$assertContains($backupService, 'Dieses Benutzer-Backup enthält Hashtag-Zuordnungen ausserhalb des Benutzer-Scopes', 'User restore rejects orphan hashtag links');
 	$assertContains($backupService, 'fetchBudgetSnapshots($userId, $workspaceIds)', 'User backup includes budget snapshots');
 
 	$userResetService = $read('lib/Service/UserResetService.php');
@@ -261,7 +265,9 @@ try {
 	$assertContains($userResetService, 'createBackup($userId, self::SAFETY_BACKUP_FOLDER', 'User reset creates a safety backup before deleting data');
 	$assertContains($userResetService, 'blocking_shared_projects', 'User reset reports shared areas that block reset');
 	$assertContains($userResetService, 'countUnsettledProjectEntries', 'User reset blocks shared areas with open entries');
-	$assertContains($userResetService, 'transferSettledSharedProject', 'User reset transfers settled shared areas to another member');
+	$assertContains($userResetService, 'deletable_shared_projects', 'User reset preview reports owned settled shared areas that will be deleted');
+	$assertContains($userResetService, 'leaveSettledSharedProject', 'User reset leaves settled shared areas created by another member');
+	$assertNotContains($userResetService, 'transferSettledSharedProject', 'User reset must not transfer owned shared areas to another member');
 	$assertContains($userResetService, "'delete_receipts_with_entry'", 'User reset honors the receipt file deletion setting');
 	$assertContains($userResetService, 'resetUserSettings', 'User reset clears user settings back to defaults');
 	$assertContains($userResetService, 'createDefaultWorkspaceForUser', 'User reset recreates a default workspace');
@@ -328,9 +334,13 @@ try {
 
 	$analytics = $read('lib/Controller/AnalyticsController.php');
 	$assertContains($analytics, 'BudgetSnapshotService', 'AnalyticsController injects budget snapshot service');
+	$assertContains($analytics, 'HashtagService', 'AnalyticsController injects free hashtag service');
 	$assertContains($analytics, "'budgetHistory'", 'AnalyticsController exposes budget snapshot history');
 	$assertContains($analytics, "'availableForecast'", 'AnalyticsController exposes an available-money forecast');
+	$assertContains($analytics, "'hashtagDrilldowns'", 'AnalyticsController exposes free hashtag drilldowns');
 	$assertContains($analytics, 'buildAvailableForecast($selectedPeriod, $summary, $projection)', 'AnalyticsController builds available-money forecasts from the existing projection');
+	$assertContains($analytics, 'buildHashtagBreakdown', 'AnalyticsController builds free hashtag analytics breakdowns');
+	$assertContains($analytics, 'buildHashtagDrilldowns', 'AnalyticsController supports hashtag drilldowns');
 	$assertContains($analytics, "'rangeLowCents'", 'AnalyticsController exposes a cautious low forecast range');
 	$assertContains($analytics, "'rangeHighCents'", 'AnalyticsController exposes a cautious high forecast range');
 	$assertContains($analytics, 'loadAnalyticsEntryDates($workspaceId)', 'AnalyticsController builds period options with a lightweight date query');
@@ -353,7 +363,7 @@ try {
 	$assertContains($entry, 'receiptsEnabled()', 'EntryController gates attachment APIs behind receipt settings');
 	$assertContains($entry, 'cobudget_entry_attachments', 'EntryController stores attachment metadata in a dedicated table');
 	$assertContains($entry, 'entryVisibleInActiveWorkspace($id)', 'EntryController keeps attachment APIs tied to visible active-workspace entries');
-	$assertContains($entry, 'workspaceBelongsToUser($workspaceId)', 'EntryController validates explicit workspace ids for attachment display');
+	$assertContains($entry, '$workspaceId !== null && (int)$workspaceId !== $activeWorkspaceId', 'EntryController validates explicit workspace ids for attachment display');
 	$assertContains($entry, 'FileDisplayResponse', 'EntryController displays receipt files inline where possible');
 	$assertContains($entry, '@NoCSRFRequired', 'EntryController receipt display avoids browser CSRF failures');
 	$assertContains($entry, "'receipt_storage_folder'", 'EntryController uses the configured receipt storage folder');
@@ -436,10 +446,28 @@ try {
 		$assertContains($performanceMigration, $indexName, 'Performance migration should keep index ' . $indexName);
 	}
 
+	$hashtagMigration = $read('lib/Migration/Version000003Date20260705000000.php');
+	$assertContains($hashtagMigration, 'cobudget_hashtags', 'Hashtag migration creates hashtag table');
+	$assertContains($hashtagMigration, 'cobudget_entry_hashtags', 'Hashtag migration creates entry link table');
+	$assertContains($hashtagMigration, 'cb_hash_ws_name', 'Hashtag migration prevents duplicate hashtag names per workspace');
+	$assertContains($hashtagMigration, 'cb_ehash_entry_hash', 'Hashtag migration prevents duplicate links per entry');
+
+	$hashtagService = $read('lib/Service/HashtagService.php');
+	$assertContains($hashtagService, 'extractFromText', 'HashtagService extracts hashtags from descriptions');
+	$assertContains($hashtagService, 'syncEntryHashtags', 'HashtagService syncs hashtag links after entry saves');
+	$assertContains($hashtagService, 'deleteEntryHashtags', 'HashtagService removes entry hashtag links');
+	$assertContains($hashtagService, 'cleanupUnusedHashtags', 'HashtagService removes unused hashtag rows');
+	$assertContains($hashtagService, 'deleteWorkspaceHashtags', 'HashtagService removes workspace hashtags on workspace delete');
+
 	$entryController = $read('lib/Controller/EntryController.php');
 	$assertContains($entryController, 'fetchProjectMembersByProjectIds', 'Entry dashboard should bulk-load project members');
 	$assertContains($entryController, 'fetchOpenExpenseEntriesByProjectIds', 'Entry dashboard should bulk-load open project entries');
 	$assertContains($entryController, 'PARAM_INT_ARRAY', 'Entry dashboard bulk queries should use array parameters');
+	$assertContains($entryController, 'syncEntryHashtags', 'EntryController should sync hashtags after create/update');
+	$assertContains($entryController, 'deleteEntryHashtags', 'EntryController should delete hashtag links before deleting entries');
+	$assertContains($entryController, 'attachHashtagsToEntries', 'EntryController should include hashtags in entry payloads');
+	$assertContains($entryController, 'exportHashtagLabels', 'EntryController CSV export should include hashtags');
+	$assertContains($entryController, 'hashtag_filter.workspace_id', 'EntryController hashtag filter should stay workspace-scoped');
 
 	$categoryController = $read('lib/Controller/CategoryController.php');
 	$assertContains($categoryController, 'DEFAULT_GLOBAL_CATEGORIES', 'CategoryController defines global starter categories');
@@ -464,8 +492,8 @@ try {
 	$assertContains($paymentPartnerController, 'DEFAULT_PAYMENT_PARTNERS_SEEDED_KEY', 'Payment partner seeding is guarded by an app setting');
 
 	$infoXml = $read('appinfo/info.xml');
-	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2') {
-		$failures[] = 'Performance index migration should bump appinfo/info.xml to version 0.2';
+	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
+		$failures[] = 'Hashtag migration should bump appinfo/info.xml to version 0.3';
 	}
 	$assertContains($infoXml, 'max-version="33"', 'App metadata should allow the deployed Nextcloud 33 server');
 

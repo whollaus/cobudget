@@ -4,6 +4,7 @@ namespace OCA\CoBudget\AppInfo;
 use OCA\CoBudget\Command\CreateBackupCommand;
 use OCA\CoBudget\Command\CreateFullBackupCommand;
 use OCA\CoBudget\Command\CheckDataIntegrityCommand;
+use OCA\CoBudget\Command\ResetAllCommand;
 use OCA\CoBudget\Command\RestoreBackupCommand;
 use OCA\CoBudget\Command\RestoreFullBackupCommand;
 use OCA\CoBudget\Cron\BackupJob;
@@ -30,6 +31,7 @@ class Application extends App implements IBootstrap {
 		$context->registerCommand(CreateBackupCommand::class);
 		$context->registerCommand(CreateFullBackupCommand::class);
 		$context->registerCommand(CheckDataIntegrityCommand::class);
+		$context->registerCommand(ResetAllCommand::class);
 		$context->registerCommand(RestoreBackupCommand::class);
 		$context->registerCommand(RestoreFullBackupCommand::class);
 	}

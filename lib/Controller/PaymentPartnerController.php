@@ -106,8 +106,8 @@ class PaymentPartnerController extends Controller {
 			}
 
 			$this->ensureDefaultGlobalPaymentPartners();
-			$workspaceId = $this->getWorkspaceId();
-			if ($projectId !== null && !$this->projectMemberInActiveWorkspace($projectId)) {
+			$workspaceId = $this->projectWorkspaceIdForCurrentUser($projectId);
+			if ($workspaceId === null) {
 				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 			}
 			$hiddenJson = $this->config->getUserValue($this->userId, 'cobudget', 'hidden_payment_partners', '[]');
@@ -159,8 +159,8 @@ class PaymentPartnerController extends Controller {
 			}
 
 			$this->ensureDefaultGlobalPaymentPartners();
-			$workspaceId = $this->getWorkspaceId();
-			if ($projectId !== null && !$this->projectMemberInActiveWorkspace($projectId)) {
+			$workspaceId = $this->projectWorkspaceIdForCurrentUser($projectId);
+			if ($workspaceId === null) {
 				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 			}
 			$hiddenJson = $this->config->getUserValue($this->userId, 'cobudget', 'hidden_payment_partners', '[]');
@@ -246,9 +246,12 @@ class PaymentPartnerController extends Controller {
 					return $validationError;
 				}
 
-				$workspaceId = $this->getWorkspaceId();
 				if ($ownerError = $this->requireProjectOwnerForScopedMutation($projectId)) {
 					return $ownerError;
+				}
+				$workspaceId = $this->projectWorkspaceIdForCurrentUser($projectId);
+				if ($workspaceId === null) {
+					return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 				}
 
 				if ($existingPaymentPartner = $this->findVisibleScopedNameMatch('cobudget_payment_partners', $name, $workspaceId, null, $projectId, $type)) {
@@ -299,12 +302,12 @@ class PaymentPartnerController extends Controller {
 					return $validationError;
 				}
 
-			$workspaceId = $this->getWorkspaceId();
 			$paymentPartner = $this->editablePaymentPartnerInActiveWorkspace($id);
 
 			if (!$paymentPartner) {
 				return $this->errorResponse('Payment partner not found or not editable', Http::STATUS_NOT_FOUND);
 			}
+			$workspaceId = (int)$paymentPartner['workspace_id'];
 
 				$projectId = $paymentPartner['project_id'] === null || $paymentPartner['project_id'] === '' ? null : (int)$paymentPartner['project_id'];
 				if ($ownerError = $this->requireProjectOwnerForScopedMutation($projectId)) {
@@ -415,7 +418,7 @@ class PaymentPartnerController extends Controller {
 					return $this->errorResponse('Payment partner not found or not deletable', Http::STATUS_NOT_FOUND);
 				}
 
-			$workspaceId = $this->getWorkspaceId();
+			$workspaceId = (int)$paymentPartner['workspace_id'];
 			$projectId = $paymentPartner['project_id'] === null || $paymentPartner['project_id'] === '' ? null : (int)$paymentPartner['project_id'];
 			if ($ownerError = $this->requireProjectOwnerForScopedMutation($projectId)) {
 				return $ownerError;

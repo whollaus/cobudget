@@ -145,7 +145,7 @@
 						</div>
 					</div>
 
-					<div v-if="breakdownSections.length > 1 || activeCategoryDrilldownLabel || activePaymentPartnerDrilldownLabel || activeTagDrilldownLabel || activeProjectDrilldownLabel" class="breakdown-toolbar no-print">
+					<div v-if="breakdownSections.length > 1 || activeCategoryDrilldownLabel || activePaymentPartnerDrilldownLabel || activeTagDrilldownLabel || activeHashtagDrilldownLabel || activeProjectDrilldownLabel" class="breakdown-toolbar no-print">
 						<div v-if="breakdownSections.length > 1" class="dimension-switch" role="tablist" :aria-label="$texts.analytics.selectFocus()">
 							<button
 								v-for="section in breakdownSections"
@@ -165,6 +165,9 @@
 						</button>
 						<button v-if="activeTagDrilldownLabel" type="button" class="drilldown-clear-button" @click="clearTagDrilldown(true)">
 							{{ $texts.analytics.showAllLabels() }}
+						</button>
+						<button v-if="activeHashtagDrilldownLabel" type="button" class="drilldown-clear-button" @click="clearHashtagDrilldown(true)">
+							{{ $texts.analytics.showAllHashtags() }}
 						</button>
 						<button v-if="activeProjectDrilldownLabel" type="button" class="drilldown-clear-button" @click="clearProjectDrilldown(true)">
 							{{ $texts.analytics.showAllAreas() }}
@@ -479,6 +482,7 @@ const emptyAnalytics = () => ({
 		categories: { expense: [], income: [] },
 		paymentPartners: { expense: [], income: [] },
 		tags: { expense: [], income: [] },
+		hashtags: { expense: [], income: [] },
 		projects: { expense: [], income: [] }
 	},
 	categoryDrilldowns: {
@@ -490,6 +494,10 @@ const emptyAnalytics = () => ({
 		income: {}
 	},
 	tagDrilldowns: {
+		expense: {},
+		income: {}
+	},
+	hashtagDrilldowns: {
 		expense: {},
 		income: {}
 	},
@@ -542,6 +550,7 @@ export default {
 			activeCategoryDrilldown: null,
 			activePaymentPartnerDrilldown: null,
 			activeTagDrilldown: null,
+			activeHashtagDrilldown: null,
 			activeProjectDrilldown: null
 		}
 	},
@@ -762,6 +771,15 @@ export default {
 		activeTagDrilldownLabel() {
 			return this.activeTagDrilldownData?.label || ''
 		},
+		activeHashtagDrilldownData() {
+			if (!this.activeHashtagDrilldown) {
+				return null
+			}
+			return this.analytics.hashtagDrilldowns?.[this.breakdownType]?.[this.activeHashtagDrilldown] || null
+		},
+		activeHashtagDrilldownLabel() {
+			return this.activeHashtagDrilldownData?.label || ''
+		},
 		activeProjectDrilldownData() {
 			if (!this.activeProjectDrilldown) {
 				return null
@@ -780,6 +798,9 @@ export default {
 			}
 			if (this.activeTagDrilldownData) {
 				return this.getTagDrilldownSections(this.breakdownType, this.activeTagDrilldownData)
+			}
+			if (this.activeHashtagDrilldownData) {
+				return this.getHashtagDrilldownSections(this.breakdownType, this.activeHashtagDrilldownData)
 			}
 			if (this.activeProjectDrilldownData) {
 				return this.getProjectDrilldownSections(this.breakdownType, this.activeProjectDrilldownData)
@@ -899,6 +920,14 @@ export default {
 						items: breakdowns.tags?.[type] || []
 					},
 					{
+						key: 'hashtags',
+						title: this.$texts.analytics.breakdownBy(typeLabel, this.$texts.analytics.hashtags()),
+						shortTitle: this.$texts.analytics.hashtags(),
+						type,
+						totalCents: this.breakdownTotalCents(type),
+						items: breakdowns.hashtags?.[type] || []
+					},
+					{
 						key: 'projects',
 						title: this.$texts.analytics.breakdownBy(typeLabel, this.$texts.analytics.areas()),
 						shortTitle: this.$texts.analytics.areas(),
@@ -939,6 +968,14 @@ export default {
 						items: drilldown?.tags || []
 					},
 					{
+						key: 'hashtags',
+						title: this.$texts.analytics.breakdownInCategory(typeLabel, label, this.$texts.analytics.hashtags()),
+						shortTitle: this.$texts.analytics.hashtags(),
+						type,
+						totalCents,
+						items: drilldown?.hashtags || []
+					},
+					{
 						key: 'projects',
 						title: this.$texts.analytics.breakdownInCategory(typeLabel, label, this.$texts.analytics.areas()),
 						shortTitle: this.$texts.analytics.areas(),
@@ -977,6 +1014,14 @@ export default {
 						type,
 						totalCents,
 						items: drilldown?.tags || []
+					},
+					{
+						key: 'hashtags',
+						title: this.$texts.analytics.breakdownWithPaymentPartner(typeLabel, label, this.$texts.analytics.hashtags()),
+						shortTitle: this.$texts.analytics.hashtags(),
+						type,
+						totalCents,
+						items: drilldown?.hashtags || []
 					},
 					{
 						key: 'projects',
@@ -1026,6 +1071,14 @@ export default {
 					totalCents,
 					hideIfSingle: true,
 					items: drilldown?.projects || []
+				},
+				{
+					key: 'hashtags',
+					title: this.$texts.analytics.breakdownWithLabel(typeLabel, label, this.$texts.analytics.hashtags()),
+					shortTitle: this.$texts.analytics.hashtags(),
+					type,
+					totalCents,
+					items: drilldown?.hashtags || []
 				}
 			]
 
@@ -1036,6 +1089,54 @@ export default {
 				}))
 				.filter(section => section.items.length > 0)
 				.filter(section => !section.hideIfSingle || section.items.length > 1)
+			},
+			getHashtagDrilldownSections(type, drilldown) {
+				const typeLabel = this.formatBreakdownTypeLabel(type)
+				const label = drilldown?.label || this.$texts.analytics.hashtag()
+				const totalCents = this.breakdownItemsTotal(drilldown?.categories || [])
+				const sections = [
+					{
+						key: 'categories',
+						title: this.$texts.analytics.breakdownWithHashtag(typeLabel, label, this.$texts.analytics.categories()),
+						shortTitle: this.$texts.analytics.categories(),
+						type,
+						totalCents,
+						items: drilldown?.categories || []
+					},
+					{
+						key: 'paymentPartners',
+						title: this.$texts.analytics.breakdownWithHashtag(typeLabel, label, this.$texts.analytics.paymentPartners()),
+						shortTitle: this.$texts.analytics.paymentPartners(),
+						type,
+						totalCents,
+						items: drilldown?.paymentPartners || []
+					},
+					{
+						key: 'tags',
+						title: this.$texts.analytics.breakdownWithHashtag(typeLabel, label, this.$texts.analytics.labels()),
+						shortTitle: this.$texts.analytics.labels(),
+						type,
+						totalCents,
+						items: drilldown?.tags || []
+					},
+					{
+						key: 'projects',
+						title: this.$texts.analytics.breakdownWithHashtag(typeLabel, label, this.$texts.analytics.areas()),
+						shortTitle: this.$texts.analytics.areas(),
+						type,
+						totalCents,
+						hideIfSingle: true,
+						items: drilldown?.projects || []
+					}
+				]
+
+				return sections
+					.map(section => ({
+						...section,
+						items: Array.isArray(section.items) ? section.items : []
+					}))
+					.filter(section => section.items.length > 0)
+					.filter(section => !section.hideIfSingle || section.items.length > 1)
 			},
 			getProjectDrilldownSections(type, drilldown) {
 				const typeLabel = this.formatBreakdownTypeLabel(type)
@@ -1065,6 +1166,14 @@ export default {
 					type,
 					totalCents,
 					items: drilldown?.tags || []
+				},
+				{
+					key: 'hashtags',
+					title: this.$texts.analytics.breakdownInArea(typeLabel, label, this.$texts.analytics.hashtags()),
+					shortTitle: this.$texts.analytics.hashtags(),
+					type,
+					totalCents,
+					items: drilldown?.hashtags || []
 				}
 			]
 
@@ -1081,27 +1190,27 @@ export default {
 		breakdownGridClass(sections) {
 			const keys = new Set(sections.map(section => section.key))
 			return {
-				'has-tags-and-projects': keys.has('tags') && keys.has('projects'),
+				'has-tags-and-projects': this.hasStackedBreakdownSections(sections),
 				'has-three-breakdown-columns': sections.length >= 3
 			}
 		},
 		hasStackedBreakdownSections(sections) {
 			const keys = new Set(sections.map(section => section.key))
-			return keys.has('tags') && keys.has('projects')
+			return ['tags', 'hashtags', 'projects'].filter(key => keys.has(key)).length >= 2
 		},
 		mainBreakdownSections(sections) {
 			if (!this.hasStackedBreakdownSections(sections)) {
 				return sections
 			}
 
-			return sections.filter(section => section.key !== 'tags' && section.key !== 'projects')
+			return sections.filter(section => !['tags', 'hashtags', 'projects'].includes(section.key))
 		},
 		stackedBreakdownSections(sections) {
 			if (!this.hasStackedBreakdownSections(sections)) {
 				return []
 			}
 
-			return sections.filter(section => section.key === 'tags' || section.key === 'projects')
+			return sections.filter(section => ['tags', 'hashtags', 'projects'].includes(section.key))
 		},
 		buildBudgetInsightItems() {
 			return this.budgetHistoryItems
@@ -1134,7 +1243,7 @@ export default {
 		},
 		buildTrendInsightItems() {
 			const sections = this.getBreakdownSections('expense')
-				.filter(section => ['categories', 'paymentPartners', 'tags', 'projects'].includes(section.key))
+				.filter(section => ['categories', 'paymentPartners', 'tags', 'hashtags', 'projects'].includes(section.key))
 			const candidates = []
 
 			sections.forEach(section => {
@@ -1241,6 +1350,9 @@ export default {
 				if (this.activeTagDrilldown && !this.activeTagDrilldownData) {
 					this.clearTagDrilldown()
 				}
+				if (this.activeHashtagDrilldown && !this.activeHashtagDrilldownData) {
+					this.clearHashtagDrilldown()
+				}
 				if (this.activeProjectDrilldown && !this.activeProjectDrilldownData) {
 					this.clearProjectDrilldown()
 				}
@@ -1275,6 +1387,11 @@ export default {
 				&& !!item.id
 				&& !!this.analytics.tagDrilldowns?.[this.breakdownType]?.[item.id]
 		},
+		isHashtagDrilldownRow(section, item) {
+			const key = this.breakdownItemKey(item)
+			return section.key === 'hashtags'
+				&& !!this.analytics.hashtagDrilldowns?.[this.breakdownType]?.[key]
+		},
 		isProjectDrilldownRow(section, item) {
 			const key = this.breakdownItemKey(item)
 			return section.key === 'projects'
@@ -1284,6 +1401,7 @@ export default {
 			return this.isCategoryDrilldownRow(section, item)
 				|| this.isPaymentPartnerDrilldownRow(section, item)
 				|| this.isTagDrilldownRow(section, item)
+				|| this.isHashtagDrilldownRow(section, item)
 				|| this.isProjectDrilldownRow(section, item)
 		},
 		selectBreakdownDrilldown(section, item) {
@@ -1297,6 +1415,10 @@ export default {
 			}
 			if (this.isTagDrilldownRow(section, item)) {
 				this.selectTagDrilldown(section, item)
+				return
+			}
+			if (this.isHashtagDrilldownRow(section, item)) {
+				this.selectHashtagDrilldown(section, item)
 				return
 			}
 			if (this.isProjectDrilldownRow(section, item)) {
@@ -1327,6 +1449,14 @@ export default {
 			this.activeTagDrilldown = item.id
 			this.selectedBreakdownDimension = 'categories'
 		},
+		selectHashtagDrilldown(section, item) {
+			if (!this.isHashtagDrilldownRow(section, item)) {
+				return
+			}
+			this.clearAllDrilldowns()
+			this.activeHashtagDrilldown = this.breakdownItemKey(item)
+			this.selectedBreakdownDimension = 'categories'
+		},
 		selectProjectDrilldown(section, item) {
 			if (!this.isProjectDrilldownRow(section, item)) {
 				return
@@ -1339,6 +1469,7 @@ export default {
 			this.activeCategoryDrilldown = null
 			this.activePaymentPartnerDrilldown = null
 			this.activeTagDrilldown = null
+			this.activeHashtagDrilldown = null
 			this.activeProjectDrilldown = null
 		},
 		normalizeBreakdownDimension() {
@@ -1366,6 +1497,12 @@ export default {
 			this.activeTagDrilldown = null
 			if (returnToTags) {
 				this.selectedBreakdownDimension = 'tags'
+			}
+		},
+		clearHashtagDrilldown(returnToHashtags = false) {
+			this.activeHashtagDrilldown = null
+			if (returnToHashtags) {
+				this.selectedBreakdownDimension = 'hashtags'
 			}
 		},
 		clearProjectDrilldown(returnToProjects = false) {

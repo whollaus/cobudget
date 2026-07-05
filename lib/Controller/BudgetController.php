@@ -345,6 +345,7 @@ class BudgetController extends Controller {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('c.id')
 			->from('cobudget_categories', 'c')
+			->leftJoin('c', 'cobudget_projects', 'pr', $qb->expr()->eq('c.project_id', 'pr.id'))
 			->leftJoin('c', 'cobudget_members', 'm', $qb->expr()->andX(
 				$qb->expr()->eq('c.project_id', 'm.project_id'),
 				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
@@ -362,8 +363,8 @@ class BudgetController extends Controller {
 					$qb->expr()->isNull('c.project_id')
 				),
 				$qb->expr()->andX(
-					$qb->expr()->eq('c.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)),
 					$qb->expr()->isNotNull('c.project_id'),
+					$qb->expr()->eq('c.workspace_id', 'pr.workspace_id'),
 					$qb->expr()->isNotNull('m.user_id')
 				)
 			))
@@ -536,14 +537,14 @@ class BudgetController extends Controller {
 				$qb->expr()->eq('e.project_id', 'm.project_id'),
 				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
 			))
-			->where($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->eq('e.type', $qb->createNamedParameter('expense')))
+			->where($qb->expr()->eq('e.type', $qb->createNamedParameter('expense')))
 			->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($yearStart, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->orX(
 				$qb->expr()->andX(
 					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId))
+					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
+					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 				),
 				$qb->expr()->isNotNull('m.user_id')
 			));
@@ -564,7 +565,6 @@ class BudgetController extends Controller {
 				$qb->expr()->eq('p.id', 'me.project_id'),
 				$qb->expr()->eq('me.user_id', $qb->createNamedParameter($this->userId))
 			))
-			->where($qb->expr()->eq('p.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 			->orderBy('m.project_id', 'ASC')
 			->addOrderBy('m.id', 'ASC');
 		$result = $qb->executeQuery();

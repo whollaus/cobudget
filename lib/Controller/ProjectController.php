@@ -179,15 +179,12 @@ class ProjectController extends Controller {
 				return $error;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
-
 			$qb = $this->db->getQueryBuilder();
 			$qb->select('p.*')
 				->from('cobudget_projects', 'p')
 				->innerJoin('p', 'cobudget_members', 'm',
 					$qb->expr()->eq('p.id', 'm.project_id'))
-				->where($qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)))
-				->andWhere($qb->expr()->eq('p.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				->where($qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)));
 
 			$result = $qb->executeQuery();
 			$projects = $result->fetchAll();
@@ -201,7 +198,7 @@ class ProjectController extends Controller {
 				$project['is_owner'] = (string)$project['owner_id'] === (string)$this->userId;
 				$project['member_count'] = count($members);
 				$project['my_share_basis_points'] = $shares[(string)$this->userId] ?? 10000;
-				$project['personal_balance'] = $this->calculatePersonalBalance($projectId, $workspaceId, (string)$this->userId, $members);
+				$project['personal_balance'] = $this->calculatePersonalBalance($projectId, (int)$project['workspace_id'], (string)$this->userId, $members);
 			}
 
 			return new DataResponse($projects);
@@ -297,10 +294,15 @@ class ProjectController extends Controller {
 			}
 			$color = $this->normalizeOptionalString($color, 32);
 
-			$workspaceId = $this->getWorkspaceId();
 			if ($ownerError = $this->requireProjectOwner($id)) {
 				return $ownerError;
 			}
+
+			$project = $this->projectOwnerForCurrentUser($id);
+			if (!$project) {
+				return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+			}
+			$workspaceId = (int)$project['workspace_id'];
 
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('cobudget_projects')
@@ -333,7 +335,11 @@ class ProjectController extends Controller {
 					return $ownerError;
 				}
 
-			$workspaceId = $this->getWorkspaceId();
+				$project = $this->projectOwnerForCurrentUser($id);
+				if (!$project) {
+					return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+				}
+				$workspaceId = (int)$project['workspace_id'];
 
 			// Check for entries
 			$qb = $this->db->getQueryBuilder();
@@ -427,7 +433,11 @@ class ProjectController extends Controller {
 					return $ownerError;
 				}
 
-			$workspaceId = $this->getWorkspaceId();
+				$project = $this->projectOwnerForCurrentUser($id);
+				if (!$project) {
+					return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+				}
+				$workspaceId = (int)$project['workspace_id'];
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('cobudget_projects')
 				->set('is_archived', $qb->createNamedParameter(true, \PDO::PARAM_BOOL))
@@ -458,7 +468,11 @@ class ProjectController extends Controller {
 					return $ownerError;
 				}
 
-			$workspaceId = $this->getWorkspaceId();
+				$project = $this->projectOwnerForCurrentUser($id);
+				if (!$project) {
+					return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+				}
+				$workspaceId = (int)$project['workspace_id'];
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('cobudget_projects')
 				->set('is_archived', $qb->createNamedParameter(false, \PDO::PARAM_BOOL))
@@ -485,24 +499,11 @@ class ProjectController extends Controller {
 				return $validationError;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
-			if (!$this->projectMemberInActiveWorkspace($id)) {
+			$project = $this->projectVisibleForCurrentUser($id);
+			if (!$project) {
 				return new DataResponse(['error' => 'Forbidden'], Http::STATUS_FORBIDDEN);
 			}
-
-			// Get project details
-			$qbProj = $this->db->getQueryBuilder();
-			$qbProj->select('*')
-				->from('cobudget_projects')
-				->where($qbProj->expr()->eq('id', $qbProj->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qbProj->expr()->eq('workspace_id', $qbProj->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-			$resultProj = $qbProj->executeQuery();
-			$project = $resultProj->fetch();
-			$resultProj->closeCursor();
-
-			if (!$project) {
-				return new DataResponse(['error' => 'Project not found'], Http::STATUS_NOT_FOUND);
-			}
+			$workspaceId = (int)$project['workspace_id'];
 
 			$project['is_owner'] = (string)$project['owner_id'] === (string)$this->userId;
 			$members = $this->projectMembers($id);
@@ -535,10 +536,11 @@ class ProjectController extends Controller {
 				return $validationError;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
-			if (!$this->projectMemberInActiveWorkspace($id)) {
+			$project = $this->projectVisibleForCurrentUser($id);
+			if (!$project) {
 				return new DataResponse(['error' => 'Forbidden'], Http::STATUS_FORBIDDEN);
 			}
+			$workspaceId = (int)$project['workspace_id'];
 
 			$project = $this->projectHeader($id, $workspaceId);
 			if (!$project) {
@@ -657,19 +659,14 @@ class ProjectController extends Controller {
 					return $validationError;
 				}
 
-			$workspaceId = $this->getWorkspaceId();
 			if ($ownerError = $this->requireProjectOwner($id)) {
 				return $ownerError;
 			}
 
-			$qb = $this->db->getQueryBuilder();
-			$qb->select('owner_id')
-				->from('cobudget_projects')
-				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-			$result = $qb->executeQuery();
-			$project = $result->fetch();
-			$result->closeCursor();
+			$project = $this->projectOwnerForCurrentUser($id);
+			if (!$project) {
+				return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+			}
 
 			// Cannot remove the owner
 			if ($userId === $project['owner_id']) {
@@ -784,7 +781,11 @@ class ProjectController extends Controller {
 				return $ownerError;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
+			$project = $this->projectOwnerForCurrentUser($id);
+			if (!$project) {
+				return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+			}
+			$workspaceId = (int)$project['workspace_id'];
 			$members = $this->projectMembers($id);
 			$balanceSnapshot = $this->calculateBalanceSnapshotCents($id, $workspaceId, $members);
 			$transfers = $this->calculateRepaymentTransfers($balanceSnapshot);
@@ -878,8 +879,13 @@ class ProjectController extends Controller {
 	 * Positive = they are owed money, Negative = they owe money
 	 */
 	private function calculateBalances(int $projectId, array $members): array {
+		$workspaceId = $this->projectWorkspaceIdForCurrentUser($projectId);
+		if ($workspaceId === null) {
+			return [];
+		}
+
 		return $this->balanceSnapshotForResponse(
-			$this->calculateBalanceSnapshotCents($projectId, $this->getWorkspaceId(), $members)
+			$this->calculateBalanceSnapshotCents($projectId, $workspaceId, $members)
 		);
 	}
 
