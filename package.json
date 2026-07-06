@@ -1,6 +1,6 @@
 {
   "name": "cobudget",
-  "version": "0.3.0",
+  "version": "0.3.5",
   "description": "Personal and shared budgeting for Nextcloud",
   "private": true,
   "scripts": {
@@ -10,7 +10,9 @@
     "test": "npm run test:php && npm run test:static-security && npm run test:frontend-smoke",
     "test:php": "php tests/php/run.php",
     "test:frontend-smoke": "node tests/frontend-smoke.mjs",
-    "test:static-security": "php tests/static-security.php"
+    "test:static-security": "php tests/static-security.php",
+    "release:zip": "cd .. && zip -qr /private/tmp/cobudget.zip cobudget/appinfo cobudget/css cobudget/img cobudget/js cobudget/lib cobudget/l10n cobudget/templates cobudget/composer.json -x '*.map' && mv /private/tmp/cobudget.zip cobudget.zip",
+    "release": "npm run build && npm run release:zip"
   },
   "dependencies": {
     "@nextcloud/axios": "^2.1.0",

@@ -18,9 +18,11 @@ use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\BackgroundJob\IJobList;
 use OCP\IDBConnection;
+use OCP\IConfig;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'cobudget';
+	private const ICON_CACHE_VERSION = 'app-svg-white-20260706';
 
 	public function __construct(array $urlParams = []) {
 		parent::__construct(self::APP_ID, $urlParams);
@@ -40,10 +42,12 @@ class Application extends App implements IBootstrap {
 		$container = $context->getServerContainer();
 		$jobList = $container->get(IJobList::class);
 		$db = $container->get(IDBConnection::class);
+		$config = $container->get(IConfig::class);
 		foreach ([RecurringEntriesJob::class, RemindersJob::class, BackupJob::class, BudgetSnapshotJob::class] as $jobClass) {
 			$this->ensureBackgroundJob($jobList, $jobClass);
 			$this->prioritizeUnrunWebCronJob($db, $jobClass);
 		}
+		$this->refreshThemingIconCache($config);
 	}
 
 	private function ensureBackgroundJob(IJobList $jobList, string $jobClass): void {
@@ -65,6 +69,25 @@ class Application extends App implements IBootstrap {
 			$qb->executeStatement();
 		} catch (\Throwable $e) {
 			// Keep app boot resilient if a future Nextcloud version changes the jobs table internals.
+		}
+	}
+
+	private function refreshThemingIconCache(IConfig $config): void {
+		try {
+			if ($config->getAppValue(self::APP_ID, 'theming_icon_cache_version', '') === self::ICON_CACHE_VERSION) {
+				return;
+			}
+
+			$current = $config->getAppValue('theming', 'cachebuster', '0');
+			$next = (string)max(time(), ((int)$current) + 1);
+			if ($next === $current) {
+				$next = (string)(((int)$next) + 1);
+			}
+
+			$config->setAppValue('theming', 'cachebuster', $next);
+			$config->setAppValue(self::APP_ID, 'theming_icon_cache_version', self::ICON_CACHE_VERSION);
+		} catch (\Throwable $e) {
+			// Icon cache refresh must never prevent the app from booting.
 		}
 	}
 }

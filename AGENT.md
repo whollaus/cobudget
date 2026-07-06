@@ -60,9 +60,16 @@ From `cobudget/`:
 
 ```sh
 npm run build
+npm run release:zip
 ```
 
-From the workspace root:
+Or rebuild and package in one step:
+
+```sh
+npm run release
+```
+
+The release script is equivalent to packaging the runtime app files from the workspace root:
 
 ```sh
 zip -qr /private/tmp/cobudget.zip \
@@ -79,6 +86,7 @@ mv /private/tmp/cobudget.zip cobudget.zip
 ```
 
 The release archive must keep the top-level `cobudget/` folder. The package filename can remain `cobudget.zip` because the technical app id is still `cobudget`.
+Repository-only assets such as `screenshots/`, tests, GitHub metadata, and development dependencies must not be included in the release ZIP.
 
 ## Version Rule
 

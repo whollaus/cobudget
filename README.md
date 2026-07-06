@@ -17,6 +17,18 @@ CoBudget is currently in a test phase.
 - App Store publication is planned later.
 - Backups are strongly recommended before every update.
 
+## Screenshots
+
+The screenshots below show the current alpha UI and may change during the test phase.
+
+![CoBudget payment overview](screenshots/screenshot1.jpg)
+
+![CoBudget shared areas](screenshots/screenshot2.jpg)
+
+![CoBudget analytics](screenshots/screenshot3.jpg)
+
+![CoBudget settings](screenshots/screenshot4.jpg)
+
 ## Features
 
 - Track income and expenses
@@ -69,6 +81,14 @@ Build production assets:
 ```sh
 npm run build
 ```
+
+Create the installable Nextcloud ZIP archive:
+
+```sh
+npm run release:zip
+```
+
+The release ZIP intentionally contains only the runtime app files. Documentation assets such as `screenshots/` are kept in the GitHub repository but are not included in the installable archive.
 
 Run the available test checks:
 
