@@ -3,6 +3,7 @@
 > [!WARNING]
 > CoBudget is an early alpha version. Features, data structures and workflows may still change at any time.
 > This is a vibe-coding project, and the codebase has not yet been fully manually reviewed line by line. Use it only with regular backups and do not rely on it as the only source for critical financial records.
+> During the alpha phase, updates or test data resets may require manual database corrections.
 
 CoBudget is a Nextcloud app for personal and shared household budgeting.
 
@@ -34,6 +35,7 @@ The screenshots below show the current alpha UI and may change during the test p
 - Track income and expenses
 - Organize payments by categories and payment partners
 - Add labels such as important, review, fixed costs, subscriptions, children and tax relevant
+- Add free-form `#tags` directly in the payment description
 - Create shared areas for household costs, trips or other shared budgets
 - Split shared area payments by configurable member percentages
 - Settle shared areas and keep settlement history
