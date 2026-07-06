@@ -27,6 +27,20 @@
 
 Use the local Nextcloud skill when changing Nextcloud-specific PHP, routing, Vue integration, app packaging, or design-system behavior.
 
+## GitHub And Public Documentation
+
+- Treat GitHub-facing files as part of every user-visible change:
+  - `README.md`
+  - `FEATURES.md`
+  - `CHANGELOG.md`
+  - `SECURITY.md`
+  - `.github/` files, when present
+  - `screenshots/` documentation assets, when screenshots are changed
+- Update `CHANGELOG.md` for notable feature, behavior, security, data model, backup/restore, migration, release-packaging, or public documentation changes.
+- Update `README.md` and `FEATURES.md` when functionality, terminology, requirements, warnings, screenshots, or user-facing workflows change.
+- Keep GitHub documentation in English.
+- Keep installable ZIP archives free of repository-only files such as `screenshots/`, `.github/`, tests, and development metadata.
+
 ## Workspace Rules
 
 - Normal app data is workspace-scoped.
