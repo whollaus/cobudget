@@ -9,6 +9,7 @@ This project follows semantic versioning as far as practical during the alpha ph
 ### Added
 
 - Added GitHub-ready project documentation, including README, feature overview, security notes, screenshots and alpha warnings.
+- Added GitHub Sponsors and Stripe support metadata for GitHub and Nextcloud.
 - Added personal and shared payment tracking with workspaces, shared areas, configurable area splits and settlement history.
 - Added categories, payment partners, labels and free-form `#tags` in payment descriptions.
 - Added receipts stored in Nextcloud Files with configurable receipt handling.

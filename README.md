@@ -114,6 +114,10 @@ Please report security issues through GitHub Issues for now.
 
 See [SECURITY.md](SECURITY.md) for details.
 
+## Support
+
+If CoBudget helps you, you can support development through [GitHub Sponsors](https://github.com/sponsors/whollaus) or [Stripe](https://donate.stripe.com/aFaeVdfARbPNe897bu5J600).
+
 ## License
 
 CoBudget is licensed under the GNU Affero General Public License v3.0 or later.
