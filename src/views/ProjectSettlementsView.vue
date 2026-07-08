@@ -80,12 +80,19 @@
 							:project-style-resolver="getProjectTagStyle"
 							:member-name-resolver="getMemberName"
 							@sort="noop"
-							@row-click="noop" />
+							@row-click="noop"
+							@history="openEntryHistory" />
 						<p v-else class="muted-text">{{ $texts.settlements.noEntries() }}</p>
 					</section>
 				</div>
 			</details>
 		</div>
+
+		<EntryHistoryModal
+			v-if="entryHistoryOpen"
+			:history="entryHistoryRows"
+			:loading="entryHistoryLoading"
+			@close="closeEntryHistory" />
 	</div>
 </template>
 
@@ -95,6 +102,7 @@ import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import EntryTable from '../components/EntryTable.vue'
+import EntryHistoryModal from '../components/EntryHistoryModal.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import { showRequestError } from '../services/notifications'
 
@@ -104,6 +112,7 @@ export default {
 		AppPageHeader,
 		ArrowLeftIcon,
 		EntryTable,
+		EntryHistoryModal,
 		NcButton,
 	},
 	props: ['id'],
@@ -114,6 +123,9 @@ export default {
 			loading: true,
 			error: '',
 			openSettlementId: null,
+			entryHistoryOpen: false,
+			entryHistoryLoading: false,
+			entryHistoryRows: [],
 		}
 	},
 	computed: {
@@ -147,6 +159,24 @@ export default {
 		},
 	},
 	methods: {
+		async openEntryHistory(entry) {
+			this.entryHistoryOpen = true
+			this.entryHistoryLoading = true
+			this.entryHistoryRows = []
+			try {
+				const response = await axios.get(generateUrl(`/apps/cobudget/api/entries/${entry.id}/history`))
+				this.entryHistoryRows = Array.isArray(response.data?.history) ? response.data.history : []
+			} catch (error) {
+				showRequestError(error, this.$texts.entry.historyFetchError(), 'Failed to fetch entry history')
+			} finally {
+				this.entryHistoryLoading = false
+			}
+		},
+		closeEntryHistory() {
+			this.entryHistoryOpen = false
+			this.entryHistoryLoading = false
+			this.entryHistoryRows = []
+		},
 		async fetchSettlements() {
 			this.loading = true
 			this.error = ''

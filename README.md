@@ -33,6 +33,7 @@ The screenshots below show the current alpha UI and may change during the test p
 ## Features
 
 - Track income and expenses
+- Review payment change history with changed fields, previous values and new values
 - Organize payments by categories and payment partners
 - Add labels such as important, review, fixed costs, subscriptions, children and tax relevant
 - Add free-form `#tags` directly in the payment description

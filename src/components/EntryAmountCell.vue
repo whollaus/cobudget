@@ -26,6 +26,16 @@
 				<PaperclipIcon :size="16" />
 			</span>
 		</TableTooltip>
+		<TableTooltip v-if="entry.has_history" :text="$texts.entry.showHistory()">
+			<button
+				type="button"
+				class="shared-icon history-icon"
+				:aria-label="$texts.entry.showHistory()"
+				@pointerdown.stop
+				@click.stop="$emit('history', entry)">
+				<HistoryIcon :size="16" />
+			</button>
+		</TableTooltip>
 		<TableTooltip v-if="sharedProjectTooltip" :text="sharedProjectTooltip">
 			<span class="shared-icon" :class="{ 'settled-icon': entry.is_settled }">
 				<CheckCircleOutlineIcon v-if="entry.is_settled" :size="16" />
@@ -48,6 +58,7 @@
 import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
 import BellRingIcon from 'vue-material-design-icons/BellRing.vue'
 import CheckCircleOutlineIcon from 'vue-material-design-icons/CheckCircleOutline.vue'
+import HistoryIcon from 'vue-material-design-icons/History.vue'
 import PaperclipIcon from 'vue-material-design-icons/Paperclip.vue'
 import SyncIcon from 'vue-material-design-icons/Sync.vue'
 import TableTooltip from './TableTooltip.vue'
@@ -59,6 +70,7 @@ export default {
 		AccountMultipleIcon,
 		BellRingIcon,
 		CheckCircleOutlineIcon,
+		HistoryIcon,
 		PaperclipIcon,
 		SyncIcon,
 		TableTooltip
@@ -89,6 +101,7 @@ export default {
 			default: false
 		}
 	},
+	emits: ['history'],
 	computed: {
 		signedAmount() {
 			const amount = Math.abs(parseFloat(this.amount || 0))
@@ -170,6 +183,21 @@ export default {
 
 .attachment-icon {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
+}
+
+.history-icon {
+	appearance: none;
+	padding: 2px;
+	border: 0;
+	border-radius: var(--border-radius-small, 4px);
+	background: transparent;
+	cursor: pointer;
+}
+
+.history-icon:hover,
+.history-icon:focus-visible {
+	background: var(--color-background-hover, #f5f5f5);
+	outline: none;
 }
 
 .amount-text {

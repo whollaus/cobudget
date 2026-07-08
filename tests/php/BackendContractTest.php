@@ -749,8 +749,8 @@ return [
 		$t->assertContains('loadSettlementEntries($settlementId, $projectId, $workspaceId)', $history, 'Settlement history should include entry tables when requested');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
-			throw new \RuntimeException('Hashtag migration should bump appinfo/info.xml to version 0.3');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
+			throw new \RuntimeException('Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer');
 		}
 	},
 
@@ -954,8 +954,8 @@ return [
 		$t->assertNotContains("eq('workspace_id'", $markUsed, 'Template usage marker relies on the active-workspace ownership guard instead of duplicating the workspace predicate');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
-			throw new \RuntimeException('Hashtag migration should bump appinfo/info.xml to version 0.3');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
+			throw new \RuntimeException('Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer');
 		}
 	},
 
@@ -1143,8 +1143,9 @@ return [
 			$t->assertContains('restoreReportTableRows(', $service, 'Restore report should list imported table rows');
 			$t->assertContains('restoreReportSettingsRows(', $service, 'Restore report should list imported settings');
 			$t->assertContains('backupTableLabel(', $service, 'Restore report should expose readable table labels');
-			$t->assertContains('filterUserRestoreTables($this->applyUserMapToTables($archive[\'tables\'], $userMap), $skippedRows)', $service, 'User restore should report skipped user-restore rows');
+			$t->assertContains('filterUserRestoreTables($this->applyUserMapToTables($archive[\'tables\'], $userMap), $skippedRows, $userId)', $service, 'User restore should report skipped user-restore rows');
 				$t->assertContains('assertUserRestoreScope($tables, $userId)', $service, 'User restore should reject backups containing shared areas outside the user scope before deleting current data');
+				$t->assertContains('assertProjectMemberConsistency($tables)', $service, 'Restore should reject manipulated shared-area user assignments before deleting current data');
 				$t->assertContains('assertRowsBelongToUser($tables', $service, 'User restore should reject non-project rows from another user before deleting current data');
 				$t->assertContains("'report' => \$this->buildRestoreReport('user'", $service, 'User restore response should include the restore report');
 			$t->assertContains("'report' => \$this->buildRestoreReport('system'", $service, 'Full restore response should include the restore report');
@@ -1495,8 +1496,8 @@ return [
 
 			$infoXml = $t->read('appinfo/info.xml');
 			$t->assertContains('OCA\\CoBudget\\Cron\\BudgetSnapshotJob', $infoXml, 'Budget snapshot job should be listed in app metadata');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
-				throw new \RuntimeException('Hashtag migration should bump appinfo/info.xml to version 0.3');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
+				throw new \RuntimeException('Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer');
 			}
 		},
 
@@ -1651,8 +1652,8 @@ return [
 			$t->assertContains("'split_mode' => \$qb->createNamedParameter(\$splitMode)", $templateCreate, 'Template create should persist split mode');
 
 			$infoXml = $t->read('appinfo/info.xml');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
-				throw new \RuntimeException('Hashtag migration should bump appinfo/info.xml to version 0.3');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
+				throw new \RuntimeException('Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer');
 			}
 		},
 	];

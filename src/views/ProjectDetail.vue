@@ -229,7 +229,8 @@
 				@row-click="onRowClick"
 				@edit="editEntry"
 				@duplicate="duplicateEntry"
-				@delete="deleteEntry">
+				@delete="deleteEntry"
+				@history="openEntryHistory">
 				<template #pagination>
 					<div class="pagination-footer" :class="{ 'pagination-footer--single': activePagination.total <= activePagination.limit }">
 						<NcButton v-if="activePagination.total > activePagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: activePagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevActivePage">
@@ -267,6 +268,12 @@
 				</template>
 			</NcEmptyContent>
 		</div>
+
+		<EntryHistoryModal
+			v-if="entryHistoryOpen"
+			:history="entryHistoryRows"
+			:loading="entryHistoryLoading"
+			@close="closeEntryHistory" />
 
 		<ConfirmModal
 			:show="showSettleConfirm"
@@ -315,6 +322,7 @@ import NcPopover from '@nextcloud/vue/components/NcPopover'
 import TableFilters from '../components/TableFilters.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import EntryTable from '../components/EntryTable.vue'
+import EntryHistoryModal from '../components/EntryHistoryModal.vue'
 import TableTooltip from '../components/TableTooltip.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import CheckAllIcon from 'vue-material-design-icons/CheckAll.vue'
@@ -347,7 +355,7 @@ import { downloadBlobResponse } from '../services/downloads'
 
 export default {
 	name: 'ProjectDetail',
-	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, TableTooltip, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, DeleteIcon, DownloadIcon, TableFilters, DraggableScroller },
+	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, EntryHistoryModal, TableTooltip, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, DeleteIcon, DownloadIcon, TableFilters, DraggableScroller },
 	props: ['id'],
 	data() {
 		return {
@@ -383,6 +391,9 @@ export default {
 				offset: 0,
 				total: 0
 			},
+			entryHistoryOpen: false,
+			entryHistoryLoading: false,
+			entryHistoryRows: [],
 			templatePopoverKey: 0,
 			confirmDialog: null
 		}
@@ -486,6 +497,24 @@ export default {
 		}
 	},
 	methods: {
+		async openEntryHistory(entry) {
+			this.entryHistoryOpen = true
+			this.entryHistoryLoading = true
+			this.entryHistoryRows = []
+			try {
+				const response = await axios.get(generateUrl(`/apps/cobudget/api/entries/${entry.id}/history`))
+				this.entryHistoryRows = Array.isArray(response.data?.history) ? response.data.history : []
+			} catch (error) {
+				showRequestError(error, this.$texts.entry.historyFetchError(), 'Failed to fetch entry history')
+			} finally {
+				this.entryHistoryLoading = false
+			}
+		},
+		closeEntryHistory() {
+			this.entryHistoryOpen = false
+			this.entryHistoryLoading = false
+			this.entryHistoryRows = []
+		},
 		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary' }) {
 			return new Promise(resolve => {
 				this.confirmDialog = {

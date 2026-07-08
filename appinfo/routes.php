@@ -12,6 +12,7 @@ return [
 		['name' => 'entry#update', 'url' => '/api/entries/{id}', 'verb' => 'PUT'],
 		['name' => 'entry#destroy', 'url' => '/api/entries/{id}', 'verb' => 'DELETE'],
 		['name' => 'entry#stopRecurrence', 'url' => '/api/entries/{id}/stop-recurrence', 'verb' => 'POST'],
+		['name' => 'entry#history', 'url' => '/api/entries/{id}/history', 'verb' => 'GET'],
 		['name' => 'entry#attachments', 'url' => '/api/entries/{id}/attachments', 'verb' => 'GET'],
 		['name' => 'entry#uploadAttachment', 'url' => '/api/entries/{id}/attachments', 'verb' => 'POST'],
 		['name' => 'entry#downloadAttachment', 'url' => '/api/entries/{id}/attachments/{attachmentId}/download', 'verb' => 'GET'],

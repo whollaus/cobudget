@@ -33,6 +33,7 @@ class BackupService {
 		'cobudget_payment_partners',
 		'cobudget_templates',
 		'cobudget_entries',
+		'cobudget_entry_history',
 		'cobudget_hashtags',
 		'cobudget_entry_hashtags',
 		'cobudget_entry_attachments',
@@ -141,6 +142,21 @@ class BackupService {
 			'reminder_text',
 			'workspace_id',
 		],
+		'cobudget_entry_history' => [
+			'id',
+			'entry_id',
+			'workspace_id',
+			'project_id',
+			'changed_by',
+			'changed_by_display_name',
+			'changed_at',
+			'change_group',
+			'field',
+			'old_value',
+			'new_value',
+			'old_display',
+			'new_display',
+		],
 		'cobudget_hashtags' => [
 			'id',
 			'workspace_id',
@@ -238,6 +254,7 @@ class BackupService {
 		'cobudget_payment_partners' => ['user_id'],
 		'cobudget_templates' => ['user_id'],
 		'cobudget_entries' => ['user_id'],
+		'cobudget_entry_history' => ['changed_by'],
 		'cobudget_entry_attachments' => ['owner_user_id'],
 		'cobudget_settlements' => ['created_by'],
 		'cobudget_settlement_balances' => ['user_id'],
@@ -262,6 +279,9 @@ class BackupService {
 		['sourceTable' => 'cobudget_entries', 'column' => 'payment_partner_id', 'targetTable' => 'cobudget_payment_partners'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'settlement_id', 'targetTable' => 'cobudget_settlements'],
+		['sourceTable' => 'cobudget_entry_history', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
+		['sourceTable' => 'cobudget_entry_history', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
+		['sourceTable' => 'cobudget_entry_history', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
 		['sourceTable' => 'cobudget_hashtags', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_entry_hashtags', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entry_hashtags', 'column' => 'hashtag_id', 'targetTable' => 'cobudget_hashtags'],
@@ -524,18 +544,20 @@ class BackupService {
 				$userMap[$sourceUserId] = $userId;
 			}
 			$skippedRows = [];
-			$tables = $this->filterUserRestoreTables($this->applyUserMapToTables($archive['tables'], $userMap), $skippedRows);
+			$tables = $this->filterUserRestoreTables($this->applyUserMapToTables($archive['tables'], $userMap), $skippedRows, $userId);
 			$settings = $this->normalizeUserSettings($archive['settings'], $tables, $userId);
 			$this->assertUserRestoreScope($tables, $userId);
 			$this->assertReferencedUsersExist($tables, [$userId]);
 			$this->assertBackupInternalReferences($tables);
+			$this->assertProjectMemberConsistency($tables);
 
 			$safetyBackup = $this->createBackup($userId, $folderOverride, $this->getSafetyBackupRetentionCount($userId));
 
 			$this->db->beginTransaction();
 			try {
 				$currentData = $this->collectBackupData($userId);
-				$this->deleteRowsByBackupData($this->filterUserRestoreTables($currentData['tables']));
+				$deleteSkippedRows = [];
+				$this->deleteRowsByBackupData($this->filterUserRestoreTables($currentData['tables'], $deleteSkippedRows, $userId));
 				$this->deleteSettingsForUsers([$userId]);
 				$this->insertTables($tables);
 				$this->restoreUserSettings($userId, $settings);
@@ -575,6 +597,7 @@ class BackupService {
 			$settings = $this->completeRestoreSettingsForTableUsers($settings, $tables);
 			$this->assertReferencedUsersExist($tables, array_keys($settings));
 			$this->assertBackupInternalReferences($tables);
+			$this->assertProjectMemberConsistency($tables);
 
 			$safetyBackup = $this->createFullBackup($storageUserId, $folderOverride, $this->getSafetyBackupRetentionCount($storageUserId));
 
@@ -1057,7 +1080,14 @@ class BackupService {
 		return $count > 1;
 	}
 
-	private function filterUserRestoreTables(array $tables, array &$skippedRows = []): array {
+	private function filterUserRestoreTables(array $tables, array &$skippedRows = [], ?string $userId = null): array {
+		if ($userId !== null) {
+			$skippedProjectIds = $this->sharedProjectIdsForUserRestore($tables, $userId);
+			if ($skippedProjectIds !== []) {
+				$this->removeSkippedProjectRows($tables, $skippedProjectIds, $skippedRows);
+			}
+		}
+
 		$skippedReferenceIds = [
 			'cobudget_categories' => [],
 			'cobudget_payment_partners' => [],
@@ -1101,6 +1131,174 @@ class BackupService {
 		}));
 
 		return $tables;
+	}
+
+	private function sharedProjectIdsForUserRestore(array $tables, string $userId): array {
+		$membersByProject = $this->memberUsersByProject($tables);
+		$skippedProjectIds = [];
+
+		foreach ($tables['cobudget_projects'] ?? [] as $project) {
+			$projectId = (int)($project['id'] ?? 0);
+			if ($projectId <= 0) {
+				continue;
+			}
+
+			if ((string)($project['owner_id'] ?? '') !== $userId) {
+				$skippedProjectIds[$projectId] = true;
+				continue;
+			}
+
+			$memberUsers = array_keys($membersByProject[$projectId] ?? []);
+			if (count($memberUsers) > 1) {
+				$skippedProjectIds[$projectId] = true;
+				continue;
+			}
+
+			foreach ($memberUsers as $memberUserId) {
+				if ($memberUserId !== $userId) {
+					$skippedProjectIds[$projectId] = true;
+					break;
+				}
+			}
+		}
+
+		return array_values(array_map('intval', array_keys($skippedProjectIds)));
+	}
+
+	private function memberUsersByProject(array $tables): array {
+		$membersByProject = [];
+		foreach ($tables['cobudget_members'] ?? [] as $member) {
+			$projectId = (int)($member['project_id'] ?? 0);
+			$memberUserId = trim((string)($member['user_id'] ?? ''));
+			if ($projectId <= 0 || $memberUserId === '') {
+				continue;
+			}
+			$membersByProject[$projectId][$memberUserId] = true;
+		}
+
+		return $membersByProject;
+	}
+
+	private function removeSkippedProjectRows(array &$tables, array $projectIds, array &$skippedRows): void {
+		$projectIdMap = array_fill_keys(array_map('intval', $projectIds), true);
+		if ($projectIdMap === []) {
+			return;
+		}
+
+		$reason = 'Geteilte Bereiche werden bei einem Benutzer-Restore nicht überschrieben.';
+		$entryIds = $this->idsFromRowsMatching($tables['cobudget_entries'] ?? [], static function (array $row) use ($projectIdMap): bool {
+			$projectId = (int)($row['project_id'] ?? 0);
+			return $projectId > 0 && isset($projectIdMap[$projectId]);
+		});
+		$settlementIds = $this->idsFromRowsMatching($tables['cobudget_settlements'] ?? [], static function (array $row) use ($projectIdMap): bool {
+			$projectId = (int)($row['project_id'] ?? 0);
+			return $projectId > 0 && isset($projectIdMap[$projectId]);
+		});
+
+		$this->removeRowsByColumnIds($tables, 'cobudget_projects', 'id', $projectIdMap, $skippedRows, $reason);
+		foreach ([
+			'cobudget_members',
+			'cobudget_categories',
+			'cobudget_payment_partners',
+			'cobudget_templates',
+			'cobudget_entries',
+			'cobudget_settlements',
+		] as $table) {
+			$this->removeRowsByColumnIds($tables, $table, 'project_id', $projectIdMap, $skippedRows, $reason);
+		}
+
+		$settlementIdMap = array_fill_keys(array_map('intval', $settlementIds), true);
+		if ($settlementIdMap !== []) {
+			$this->removeRowsByColumnIds($tables, 'cobudget_settlement_balances', 'settlement_id', $settlementIdMap, $skippedRows, $reason);
+			$this->removeRowsByColumnIds($tables, 'cobudget_settlement_transfers', 'settlement_id', $settlementIdMap, $skippedRows, $reason);
+		}
+
+		$entryIdMap = array_fill_keys(array_map('intval', $entryIds), true);
+		if ($entryIdMap !== []) {
+			$this->removeRowsByColumnIds($tables, 'cobudget_entry_history', 'entry_id', $entryIdMap, $skippedRows, $reason);
+			$this->removeRowsByColumnIds($tables, 'cobudget_entry_attachments', 'entry_id', $entryIdMap, $skippedRows, $reason);
+			$this->removeRowsByColumnIds($tables, 'cobudget_entry_hashtags', 'entry_id', $entryIdMap, $skippedRows, $reason);
+		}
+
+		$this->removeSkippedProjectBudgets($tables, $projectIdMap, $skippedRows);
+	}
+
+	private function removeRowsByColumnIds(array &$tables, string $table, string $column, array $idMap, array &$skippedRows, string $reason): void {
+		if ($idMap === [] || !isset($tables[$table])) {
+			return;
+		}
+
+		$removed = 0;
+		$tables[$table] = array_values(array_filter($tables[$table], function (array $row) use ($column, $idMap, &$removed): bool {
+			$value = $this->nullableId($row[$column] ?? null);
+			if ($value !== null && isset($idMap[$value])) {
+				$removed++;
+				return false;
+			}
+
+			return true;
+		}));
+
+		if ($removed > 0) {
+			$skippedRows[] = [
+				'table' => $table,
+				'label' => $this->backupTableLabel($table),
+				'count' => $removed,
+				'reason' => $reason,
+			];
+		}
+	}
+
+	private function removeSkippedProjectBudgets(array &$tables, array $projectIdMap, array &$skippedRows): void {
+		if ($projectIdMap === []) {
+			return;
+		}
+
+		$budgetGoalIds = $this->idsFromRowsMatching($tables['cobudget_budget_goals'] ?? [], fn (array $row): bool => $this->criteriaReferencesProject($row, $projectIdMap));
+		$budgetGoalIdMap = array_fill_keys(array_map('intval', $budgetGoalIds), true);
+		$this->removeRowsByColumnIds(
+			$tables,
+			'cobudget_budget_goals',
+			'id',
+			$budgetGoalIdMap,
+			$skippedRows,
+			'Budgetziele mit übersprungenen gemeinsamen Bereichen wurden nicht importiert.'
+		);
+
+		$budgetSnapshotIds = $this->idsFromRowsMatching($tables['cobudget_budget_snapshots'] ?? [], function (array $row) use ($projectIdMap, $budgetGoalIdMap): bool {
+			$budgetGoalId = $this->nullableId($row['budget_goal_id'] ?? null);
+			return ($budgetGoalId !== null && isset($budgetGoalIdMap[$budgetGoalId]))
+				|| $this->criteriaReferencesProject($row, $projectIdMap);
+		});
+		$budgetSnapshotIdMap = array_fill_keys(array_map('intval', $budgetSnapshotIds), true);
+		$this->removeRowsByColumnIds(
+			$tables,
+			'cobudget_budget_snapshots',
+			'id',
+			$budgetSnapshotIdMap,
+			$skippedRows,
+			'Budget-Historie mit übersprungenen gemeinsamen Bereichen wurde nicht importiert.'
+		);
+	}
+
+	private function criteriaReferencesProject(array $row, array $projectIdMap): bool {
+		$criteria = json_decode((string)($row['criteria_json'] ?? '{}'), true);
+		if (!is_array($criteria) || !isset($criteria['rules']) || !is_array($criteria['rules'])) {
+			return false;
+		}
+
+		foreach ($criteria['rules'] as $rule) {
+			if (!is_array($rule)) {
+				continue;
+			}
+
+			$projectId = $this->nullableId($rule['projectId'] ?? ($rule['project_id'] ?? null));
+			if ($projectId !== null && isset($projectIdMap[$projectId])) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private function clearSkippedUserRestoreReferences(array &$tables, string $column, array $ids): void {
@@ -1212,6 +1410,7 @@ class BackupService {
 			'cobudget_payment_partners' => 'Zahlungspartner',
 			'cobudget_templates' => 'Vorlagen',
 			'cobudget_entries' => 'Zahlungen',
+			'cobudget_entry_history' => 'Zahlungshistorie',
 			'cobudget_hashtags' => 'Hashtags',
 			'cobudget_entry_hashtags' => 'Hashtag-Zuordnungen',
 			'cobudget_entry_attachments' => 'Beleg-Pfade',
@@ -1252,6 +1451,112 @@ class BackupService {
 					);
 				}
 			}
+		}
+	}
+
+	private function assertProjectMemberConsistency(array $tables): void {
+		$projectWorkspaces = [];
+		$projectOwners = [];
+		foreach ($tables['cobudget_projects'] ?? [] as $project) {
+			$projectId = (int)($project['id'] ?? 0);
+			if ($projectId <= 0) {
+				continue;
+			}
+			$projectWorkspaces[$projectId] = (int)($project['workspace_id'] ?? 0);
+			$projectOwners[$projectId] = trim((string)($project['owner_id'] ?? ''));
+		}
+
+		$membersByProject = $this->memberUsersByProject($tables);
+		foreach ($projectOwners as $projectId => $ownerId) {
+			if ($ownerId !== '' && !isset($membersByProject[$projectId][$ownerId])) {
+				throw new \InvalidArgumentException('Backup enthält einen Bereich, dessen Ersteller nicht als Mitglied hinterlegt ist.');
+			}
+		}
+
+		foreach (['cobudget_categories', 'cobudget_payment_partners', 'cobudget_templates'] as $table) {
+			foreach ($tables[$table] ?? [] as $row) {
+				$this->assertProjectWorkspaceMatches($row, $projectWorkspaces, $table);
+			}
+		}
+
+		foreach ($tables['cobudget_entries'] ?? [] as $entry) {
+			$projectId = $this->nullableId($entry['project_id'] ?? null);
+			if ($projectId === null) {
+				continue;
+			}
+			$this->assertProjectWorkspaceMatches($entry, $projectWorkspaces, 'cobudget_entries');
+			$userId = trim((string)($entry['user_id'] ?? ''));
+			if ($userId === '' || !isset($membersByProject[$projectId][$userId])) {
+				throw new \InvalidArgumentException('Backup enthält eine Bereichszahlung für einen Benutzer, der kein Mitglied des Bereichs ist.');
+			}
+		}
+
+		$workspaceIds = array_fill_keys($this->ids($tables['cobudget_workspaces'] ?? []), true);
+		$entryIds = array_fill_keys($this->ids($tables['cobudget_entries'] ?? []), true);
+		foreach ($tables['cobudget_entry_history'] ?? [] as $history) {
+			$entryId = (int)($history['entry_id'] ?? 0);
+			$workspaceId = (int)($history['workspace_id'] ?? 0);
+			if ($entryId <= 0 || !isset($entryIds[$entryId]) || $workspaceId <= 0 || !isset($workspaceIds[$workspaceId])) {
+				throw new \InvalidArgumentException('Dieses Benutzer-Backup enthält Zahlungshistorie ohne passende Zahlung im Benutzer-Scope. Bitte verwende ein vollständiges Backup.');
+			}
+			$projectId = $this->nullableId($history['project_id'] ?? null);
+			if ($projectId !== null && !isset($projectWorkspaces[$projectId])) {
+				throw new \InvalidArgumentException('Dieses Benutzer-Backup enthält Zahlungshistorie für einen geteilten Bereich außerhalb des Benutzer-Restore-Scopes. Bitte verwende ein vollständiges Backup.');
+			}
+		}
+
+		$settlementProjects = [];
+		foreach ($tables['cobudget_settlements'] ?? [] as $settlement) {
+			$settlementId = (int)($settlement['id'] ?? 0);
+			$projectId = $this->nullableId($settlement['project_id'] ?? null);
+			if ($settlementId <= 0 || $projectId === null) {
+				continue;
+			}
+			$this->assertProjectWorkspaceMatches($settlement, $projectWorkspaces, 'cobudget_settlements');
+			$createdBy = trim((string)($settlement['created_by'] ?? ''));
+			if ($createdBy !== '' && !isset($membersByProject[$projectId][$createdBy])) {
+				throw new \InvalidArgumentException('Backup enthält eine Bereichsabrechnung von einem Benutzer, der kein Mitglied des Bereichs ist.');
+			}
+			$settlementProjects[$settlementId] = $projectId;
+		}
+
+		foreach ($tables['cobudget_settlement_balances'] ?? [] as $balance) {
+			$settlementId = (int)($balance['settlement_id'] ?? 0);
+			$projectId = $settlementProjects[$settlementId] ?? null;
+			if ($projectId === null) {
+				continue;
+			}
+			$userId = trim((string)($balance['user_id'] ?? ''));
+			if ($userId === '' || !isset($membersByProject[$projectId][$userId])) {
+				throw new \InvalidArgumentException('Backup enthält einen Abrechnungssaldo für einen Benutzer, der kein Mitglied des Bereichs ist.');
+			}
+		}
+
+		foreach ($tables['cobudget_settlement_transfers'] ?? [] as $transfer) {
+			$settlementId = (int)($transfer['settlement_id'] ?? 0);
+			$projectId = $settlementProjects[$settlementId] ?? null;
+			if ($projectId === null) {
+				continue;
+			}
+			foreach (['from_user_id', 'to_user_id'] as $column) {
+				$userId = trim((string)($transfer[$column] ?? ''));
+				if ($userId === '' || !isset($membersByProject[$projectId][$userId])) {
+					throw new \InvalidArgumentException('Backup enthält eine Rückzahlung für einen Benutzer, der kein Mitglied des Bereichs ist.');
+				}
+			}
+		}
+	}
+
+	private function assertProjectWorkspaceMatches(array $row, array $projectWorkspaces, string $table): void {
+		$projectId = $this->nullableId($row['project_id'] ?? null);
+		if ($projectId === null) {
+			return;
+		}
+
+		$rowWorkspaceId = $this->nullableId($row['workspace_id'] ?? null);
+		$projectWorkspaceId = $projectWorkspaces[$projectId] ?? null;
+		if ($rowWorkspaceId !== null && $projectWorkspaceId !== null && $rowWorkspaceId !== $projectWorkspaceId) {
+			throw new \InvalidArgumentException('Backup enthält Bereichsdaten mit falschem Workspace in ' . $table . '.');
 		}
 	}
 
@@ -1538,6 +1843,7 @@ class BackupService {
 				'cobudget_payment_partners' => $this->fetchPaymentPartners($userId, $workspaceIds, $projectIds),
 				'cobudget_templates' => $this->fetchTemplates($userId, $workspaceIds, $projectIds),
 				'cobudget_entries' => $entries,
+				'cobudget_entry_history' => $this->fetchRowsByIds('cobudget_entry_history', 'entry_id', $entryIds),
 				'cobudget_hashtags' => $this->fetchRowsByIds('cobudget_hashtags', 'id', $hashtagIds),
 				'cobudget_entry_hashtags' => $entryHashtags,
 				'cobudget_entry_attachments' => $this->fetchRowsByIds('cobudget_entry_attachments', 'entry_id', $entryIds),
@@ -1797,6 +2103,21 @@ class BackupService {
 
 	private function idsFromColumn(array $rows, string $column): array {
 		return array_values(array_unique(array_map(static fn (array $row): int => (int)($row[$column] ?? 0), $rows)));
+	}
+
+	private function idsFromRowsMatching(array $rows, callable $matches): array {
+		$ids = [];
+		foreach ($rows as $row) {
+			if (!$matches($row)) {
+				continue;
+			}
+			$id = (int)($row['id'] ?? 0);
+			if ($id > 0) {
+				$ids[] = $id;
+			}
+		}
+
+		return array_values(array_unique($ids));
 	}
 
 	private function nullableId($value): ?int {

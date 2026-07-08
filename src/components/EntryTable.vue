@@ -89,7 +89,8 @@
 							:currency="currency"
 							:amount-tooltip="amountTooltip(row.entry)"
 							:shared-project-tooltip="sharedProjectTooltip(row.entry)"
-							:show-settled-icon="isProjectMode && !!row.entry.is_settled" />
+							:show-settled-icon="isProjectMode && !!row.entry.is_settled"
+							@history="$emit('history', $event)" />
 					</td>
 					<td class="actions-cell" @click.stop>
 						<NcActions v-if="canActOnEntry(row.entry)" :key="`${actionsResetKey}-${row.entry.id}`" class="entry-actions">
@@ -227,7 +228,7 @@ export default {
 			default: idResolver
 		}
 	},
-	emits: ['delete', 'duplicate', 'edit', 'row-click', 'sort'],
+	emits: ['delete', 'duplicate', 'edit', 'history', 'row-click', 'sort'],
 	data() {
 		return {
 			actionsResetKey: 0

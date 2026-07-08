@@ -492,8 +492,8 @@ try {
 	$assertContains($paymentPartnerController, 'DEFAULT_PAYMENT_PARTNERS_SEEDED_KEY', 'Payment partner seeding is guarded by an app setting');
 
 	$infoXml = $read('appinfo/info.xml');
-	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.3') {
-		$failures[] = 'Hashtag migration should bump appinfo/info.xml to version 0.3';
+	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
+		$failures[] = 'Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer';
 	}
 	$assertContains($infoXml, 'max-version="33"', 'App metadata should allow the deployed Nextcloud 33 server');
 

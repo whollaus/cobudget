@@ -158,6 +158,7 @@ class UserResetService {
 					'solo_projects' => 0,
 					'shared_projects' => 0,
 					'entries' => 0,
+					'entry_history' => 0,
 					'attachments' => 0,
 					'attachment_files' => 0,
 					'categories' => 0,
@@ -218,6 +219,7 @@ class UserResetService {
 				$report['deleted']['attachments'] += $personalAttachments['rows'];
 				$report['deleted']['attachment_files'] += $personalAttachments['files'];
 				$this->hashtagService->deleteHashtagsForEntries($personalEntryIds);
+				$report['deleted']['entry_history'] += $this->deleteRowsByIds('cobudget_entry_history', $this->idsByColumnValues('cobudget_entry_history', 'entry_id', $personalEntryIds));
 				$report['deleted']['entries'] += $this->deleteRowsByIds('cobudget_entries', $personalEntryIds);
 
 				$report['deleted']['categories'] += $this->deleteUserScopedRows('cobudget_categories', $userId, $workspaceIds, $soloProjectIds);
@@ -323,6 +325,7 @@ class UserResetService {
 
 		$deleted = [
 			'entries' => 0,
+			'entry_history' => $this->deleteRowsByIds('cobudget_entry_history', $this->idsByColumnValues('cobudget_entry_history', 'entry_id', $entryIds)),
 			'attachments' => $attachmentReport['rows'],
 			'attachment_files' => $attachmentReport['files'],
 			'categories' => $this->deleteRowsByIntColumn('cobudget_categories', 'project_id', $projectId),

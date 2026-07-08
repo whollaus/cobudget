@@ -25,6 +25,59 @@ class EntryController extends Controller {
 
 	private const EXPORT_LIMIT = 50000;
 	private const EXPORT_ATTACHMENT_CHUNK_SIZE = 500;
+	private const ENTRY_HISTORY_CHUNK_SIZE = 500;
+	private const ENTRY_HISTORY_FIELDS = [
+		'type',
+		'amount_cents',
+		'currency',
+		'date',
+		'category_id',
+		'payment_partner_id',
+		'description',
+		'project_id',
+		'user_id',
+		'split_mode',
+		'recurrence_interval',
+		'recurrence_multiplier',
+		'recurrence_next_date',
+		'recurrence_end_date',
+		'is_subscription',
+		'is_fixed_cost',
+		'is_child_related',
+		'is_important',
+		'needs_review',
+		'is_tax_relevant',
+		'reminder_date',
+		'reminder_text',
+	];
+	private const ENTRY_HISTORY_BOOLEAN_FIELDS = [
+		'is_subscription',
+		'is_fixed_cost',
+		'is_child_related',
+		'is_important',
+		'needs_review',
+		'is_tax_relevant',
+	];
+	private const ENTRY_HISTORY_INTEGER_FIELDS = [
+		'amount_cents',
+		'date',
+		'category_id',
+		'payment_partner_id',
+		'project_id',
+		'recurrence_multiplier',
+		'recurrence_next_date',
+		'recurrence_end_date',
+		'reminder_date',
+	];
+	private const ENTRY_HISTORY_STRING_FIELDS = [
+		'type',
+		'currency',
+		'description',
+		'user_id',
+		'split_mode',
+		'recurrence_interval',
+		'reminder_text',
+	];
 
 	private IDBConnection $db;
 	private ?string $userId;
@@ -435,6 +488,7 @@ class EntryController extends Controller {
 		$entries = $result->fetchAll();
 		$result->closeCursor();
 		$entries = array_map(fn(array $entry): array => $this->normalizeEntryRow($entry), $entries);
+		$entries = $this->attachEntryHistoryFlags($entries, $workspaceId);
 		$entries = $this->attachEntryAttachmentDetails($entries, $workspaceId);
 		$entries = $this->hashtagService->attachHashtagsToEntries($entries);
 
@@ -703,6 +757,48 @@ class EntryController extends Controller {
 			$entry['attachments_count'] = $attachmentDetails['count'];
 			$entry['attachment_names'] = $attachmentDetails['names'];
 			$entry['attachment_paths'] = $attachmentDetails['paths'];
+			return $entry;
+		}, $entries);
+	}
+
+	private function attachEntryHistoryFlags(array $entries, int $workspaceId): array {
+		if ($entries === []) {
+			return $entries;
+		}
+
+		$ids = array_values(array_filter(array_map(static fn(array $entry): int => (int)($entry['id'] ?? 0), $entries)));
+		if ($ids === []) {
+			return $entries;
+		}
+
+		$counts = [];
+		foreach (array_chunk($ids, self::ENTRY_HISTORY_CHUNK_SIZE) as $idChunk) {
+			$qb = $this->db->getQueryBuilder();
+			$idFilter = $qb->expr()->orX();
+			foreach ($idChunk as $entryId) {
+				$idFilter->add($qb->expr()->eq('entry_id', $qb->createNamedParameter($entryId, \PDO::PARAM_INT)));
+			}
+
+			$qb->select('entry_id')
+				->selectAlias($qb->createFunction('COUNT(*)'), 'history_count')
+				->from('cobudget_entry_history')
+				->where($idFilter)
+				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+				->groupBy('entry_id');
+			$result = $qb->executeQuery();
+			$rows = $result->fetchAll();
+			$result->closeCursor();
+
+			foreach ($rows as $row) {
+				$counts[(int)$row['entry_id']] = (int)$row['history_count'];
+			}
+		}
+
+		return array_map(static function(array $entry) use ($counts): array {
+			$entryId = (int)($entry['id'] ?? 0);
+			$count = $counts[$entryId] ?? 0;
+			$entry['has_history'] = $count > 0;
+			$entry['history_count'] = $count;
 			return $entry;
 		}, $entries);
 	}
@@ -1445,6 +1541,33 @@ class EntryController extends Controller {
 				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
 			}
 
+			$updatedEntry = $entry;
+			$updatedEntry['user_id'] = $entryUserId;
+			$updatedEntry['project_id'] = $projectId;
+			$updatedEntry['workspace_id'] = $workspaceId;
+			$updatedEntry['type'] = $type;
+			$updatedEntry['amount'] = $this->centsToAmountString($amountCents);
+			$updatedEntry['amount_cents'] = $amountCents;
+			$updatedEntry['currency'] = $currency;
+			$updatedEntry['date'] = $date;
+			$updatedEntry['category_id'] = $categoryId;
+			$updatedEntry['description'] = $description ?? '';
+			$updatedEntry['payment_partner_id'] = $paymentPartnerId;
+			$updatedEntry['split_mode'] = $splitMode;
+			$updatedEntry['recurrence_interval'] = $recurrenceInterval;
+			$updatedEntry['recurrence_multiplier'] = $recurrenceMultiplier;
+			$updatedEntry['recurrence_next_date'] = $recurrenceNextDate;
+			$updatedEntry['recurrence_end_date'] = $recurrenceEndDate;
+			$updatedEntry['is_subscription'] = $isSubscription;
+			$updatedEntry['is_fixed_cost'] = $isFixedCost;
+			$updatedEntry['is_child_related'] = $isChildRelated;
+			$updatedEntry['is_important'] = $isImportant;
+			$updatedEntry['needs_review'] = $needsReview;
+			$updatedEntry['is_tax_relevant'] = $isTaxRelevant;
+			$updatedEntry['reminder_date'] = $reminderDate;
+			$updatedEntry['reminder_notified'] = $reminderNotified;
+			$updatedEntry['reminder_text'] = $reminderText;
+
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('cobudget_entries')
 				->set('user_id', $qb->createNamedParameter($entryUserId))
@@ -1475,6 +1598,7 @@ class EntryController extends Controller {
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($currentWorkspaceId, \PDO::PARAM_INT)));
 			$qb->executeStatement();
+			$this->recordEntryHistory($id, $workspaceId, $projectId, $entry, $updatedEntry);
 			$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
 
 			if ($recurrenceInterval !== null) {
@@ -1516,9 +1640,58 @@ class EntryController extends Controller {
 				->where($updateQb->expr()->eq('id', $updateQb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($updateQb->expr()->eq('workspace_id', $updateQb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 			$updateQb->executeStatement();
+			$updatedEntry = $entry;
+			$updatedEntry['recurrence_interval'] = null;
+			$updatedEntry['recurrence_multiplier'] = null;
+			$updatedEntry['recurrence_next_date'] = null;
+			$updatedEntry['recurrence_end_date'] = null;
+			$this->recordEntryHistory(
+				$id,
+				$workspaceId,
+				empty($entry['project_id']) ? null : (int)$entry['project_id'],
+				$entry,
+				$updatedEntry
+			);
 
 			return new DataResponse(['status' => 'success']);
 		} catch (\Exception $e) {
+			return $this->loggedErrorResponse($e);
+		}
+	}
+
+	/**
+	 * @NoAdminRequired
+	 */
+	public function history(int $id): DataResponse {
+		try {
+			if ($error = $this->authErrorResponse()) {
+				return $error;
+			}
+
+			if ($validationError = $this->validatePositiveId($id)) {
+				return $validationError;
+			}
+
+			$entry = $this->entryVisibleInActiveWorkspace($id);
+			if ($entry === null) {
+				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
+			}
+
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('*')
+				->from('cobudget_entry_history')
+				->where($qb->expr()->eq('entry_id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
+				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter((int)$entry['workspace_id'], \PDO::PARAM_INT)))
+				->orderBy('changed_at', 'DESC')
+				->addOrderBy('id', 'DESC');
+			$result = $qb->executeQuery();
+			$rows = $result->fetchAll();
+			$result->closeCursor();
+
+			return new DataResponse([
+				'history' => array_map(fn(array $row): array => $this->normalizeEntryHistoryRow($row), $rows),
+			]);
+		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -1752,6 +1925,7 @@ class EntryController extends Controller {
 
 			$this->deleteEntryAttachments($id, (int)$workspaceId);
 			$this->hashtagService->deleteEntryHashtags($id);
+			$this->deleteEntryHistory($id, (int)$workspaceId);
 
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('cobudget_entries')
@@ -1955,6 +2129,217 @@ class EntryController extends Controller {
 			->where($qb->expr()->eq('entry_id', $qb->createNamedParameter($entryId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 		$qb->executeStatement();
+	}
+
+	private function recordEntryHistory(int $entryId, int $workspaceId, ?int $projectId, array $oldEntry, array $newEntry): void {
+		$changes = [];
+		foreach (self::ENTRY_HISTORY_FIELDS as $field) {
+			$oldValue = $this->historyComparableValue($field, $oldEntry[$field] ?? null);
+			$newValue = $this->historyComparableValue($field, $newEntry[$field] ?? null);
+			if ($oldValue === $newValue) {
+				continue;
+			}
+
+			$changes[] = [
+				'field' => $field,
+				'old_value' => $oldValue,
+				'new_value' => $newValue,
+				'old_display' => $this->historyDisplayValue($field, $oldValue, $oldEntry),
+				'new_display' => $this->historyDisplayValue($field, $newValue, $newEntry),
+			];
+		}
+
+		if ($changes === []) {
+			return;
+		}
+
+		try {
+			$changeGroup = bin2hex(random_bytes(8));
+		} catch (\Throwable $e) {
+			$changeGroup = str_replace('.', '', uniqid('', true));
+		}
+
+		$changedBy = (string)$this->userId;
+		$changedByDisplayName = $this->displayNameForUserId($changedBy);
+		$changedAt = time();
+
+		foreach ($changes as $change) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->insert('cobudget_entry_history')
+				->values([
+					'entry_id' => $qb->createNamedParameter($entryId, \PDO::PARAM_INT),
+					'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
+					'project_id' => $qb->createNamedParameter($projectId, $projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+					'changed_by' => $qb->createNamedParameter($changedBy),
+					'changed_by_display_name' => $qb->createNamedParameter($changedByDisplayName),
+					'changed_at' => $qb->createNamedParameter($changedAt, \PDO::PARAM_INT),
+					'change_group' => $qb->createNamedParameter($changeGroup),
+					'field' => $qb->createNamedParameter($change['field']),
+					'old_value' => $qb->createNamedParameter($change['old_value'], $change['old_value'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
+					'new_value' => $qb->createNamedParameter($change['new_value'], $change['new_value'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
+					'old_display' => $qb->createNamedParameter($change['old_display']),
+					'new_display' => $qb->createNamedParameter($change['new_display']),
+				]);
+			$qb->executeStatement();
+		}
+	}
+
+	private function normalizeEntryHistoryRow(array $row): array {
+		$changedAt = (int)($row['changed_at'] ?? 0);
+
+		return [
+			'id' => (int)($row['id'] ?? 0),
+			'entry_id' => (int)($row['entry_id'] ?? 0),
+			'workspace_id' => (int)($row['workspace_id'] ?? 0),
+			'project_id' => empty($row['project_id']) ? null : (int)$row['project_id'],
+			'changed_by' => (string)($row['changed_by'] ?? ''),
+			'changed_by_display_name' => (string)($row['changed_by_display_name'] ?? $row['changed_by'] ?? ''),
+			'changed_at' => $changedAt,
+			'changed_at_display' => $changedAt > 0 ? date('d.m.Y H:i', $changedAt) : '-',
+			'change_group' => (string)($row['change_group'] ?? ''),
+			'field' => (string)($row['field'] ?? ''),
+			'field_label' => $this->historyFieldLabel((string)($row['field'] ?? '')),
+			'old_value' => $row['old_value'] ?? null,
+			'new_value' => $row['new_value'] ?? null,
+			'old_display' => (string)($row['old_display'] ?? '-'),
+			'new_display' => (string)($row['new_display'] ?? '-'),
+		];
+	}
+
+	private function deleteEntryHistory(int $entryId, int $workspaceId): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('cobudget_entry_history')
+			->where($qb->expr()->eq('entry_id', $qb->createNamedParameter($entryId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+		$qb->executeStatement();
+	}
+
+	private function historyComparableValue(string $field, $value): ?string {
+		if (in_array($field, self::ENTRY_HISTORY_BOOLEAN_FIELDS, true)) {
+			return $this->dbBool($value) ? '1' : '0';
+		}
+
+		if ($value === null || $value === '') {
+			return null;
+		}
+
+		if (in_array($field, self::ENTRY_HISTORY_INTEGER_FIELDS, true)) {
+			$intValue = (int)$value;
+			return $intValue > 0 || $field === 'amount_cents' || $field === 'recurrence_multiplier' ? (string)$intValue : null;
+		}
+
+		if (in_array($field, self::ENTRY_HISTORY_STRING_FIELDS, true)) {
+			$stringValue = trim((string)$value);
+			return $stringValue === '' ? null : $stringValue;
+		}
+
+		return (string)$value;
+	}
+
+	private function historyDisplayValue(string $field, ?string $value, array $entry): string {
+		if ($value === null || $value === '') {
+			return '-';
+		}
+
+		if ($field === 'amount_cents') {
+			$currency = trim((string)($entry['currency'] ?? 'EUR')) ?: 'EUR';
+			return number_format(((int)$value) / 100, 2, ',', '.') . ' ' . $currency;
+		}
+		if ($field === 'type') {
+			return $value === 'income' ? $this->l10n->t('Income') : $this->l10n->t('Expense');
+		}
+		if ($field === 'split_mode') {
+			return $this->normalizeSplitMode($value) === 'single_user'
+				? $this->l10n->t('Assigned fully to the selected user')
+				: $this->l10n->t('By area split');
+		}
+		if (in_array($field, self::ENTRY_HISTORY_BOOLEAN_FIELDS, true)) {
+			return $value === '1' ? $this->l10n->t('Yes') : $this->l10n->t('No');
+		}
+		if (in_array($field, ['date', 'recurrence_end_date'], true)) {
+			return $this->formatHistoryTimestamp($value);
+		}
+		if (in_array($field, ['recurrence_next_date', 'reminder_date'], true)) {
+			return $this->formatHistoryTimestamp($value, true);
+		}
+		if ($field === 'category_id') {
+			return $this->lookupHistoryName('cobudget_categories', (int)$value) ?? ('#' . $value);
+		}
+		if ($field === 'payment_partner_id') {
+			return $this->lookupHistoryName('cobudget_payment_partners', (int)$value) ?? ('#' . $value);
+		}
+		if ($field === 'project_id') {
+			return $this->lookupHistoryName('cobudget_projects', (int)$value) ?? ('#' . $value);
+		}
+		if ($field === 'user_id') {
+			return $this->displayNameForUserId($value);
+		}
+
+		return $value;
+	}
+
+	private function historyFieldLabel(string $field): string {
+		return match ($field) {
+			'type' => $this->l10n->t('Type'),
+			'amount_cents' => $this->l10n->t('Amount'),
+			'currency' => $this->l10n->t('Currency'),
+			'date' => $this->l10n->t('Date'),
+			'category_id' => $this->l10n->t('Category'),
+			'payment_partner_id' => $this->l10n->t('Payment partner'),
+			'description' => $this->l10n->t('Description'),
+			'project_id' => $this->l10n->t('Area'),
+			'user_id' => $this->l10n->t('Paid/received by'),
+			'split_mode' => $this->l10n->t('Split'),
+			'recurrence_interval' => $this->l10n->t('Recurrence'),
+			'recurrence_multiplier' => $this->l10n->t('Recurrence count'),
+			'recurrence_next_date' => $this->l10n->t('Next recurrence'),
+			'recurrence_end_date' => $this->l10n->t('Recurs until'),
+			'is_subscription' => $this->l10n->t('Subscription'),
+			'is_fixed_cost' => $this->l10n->t('Fixed costs'),
+			'is_child_related' => $this->l10n->t('Children'),
+			'is_important' => $this->l10n->t('Important'),
+			'needs_review' => $this->l10n->t('Review'),
+			'is_tax_relevant' => $this->l10n->t('Tax-relevant'),
+			'reminder_date' => $this->l10n->t('Reminder'),
+			'reminder_text' => $this->l10n->t('Reminder text'),
+			default => $field,
+		};
+	}
+
+	private function displayNameForUserId(string $userId): string {
+		$userId = trim($userId);
+		if ($userId === '') {
+			return '-';
+		}
+
+		$user = $this->userManager->get($userId);
+		return $user ? $user->getDisplayName() : $userId;
+	}
+
+	private function lookupHistoryName(string $table, int $id): ?string {
+		if ($id <= 0) {
+			return null;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('name')
+			->from($table)
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
+			->setMaxResults(1);
+		$result = $qb->executeQuery();
+		$name = $result->fetchOne();
+		$result->closeCursor();
+
+		return is_string($name) && $name !== '' ? $name : null;
+	}
+
+	private function formatHistoryTimestamp(?string $value, bool $includeTime = false): string {
+		$timestamp = (int)($value ?? 0);
+		if ($timestamp <= 0) {
+			return '-';
+		}
+
+		return date($includeTime ? 'd.m.Y H:i' : 'd.m.Y', $timestamp);
 	}
 
 	private function setEntryRecurrenceSeriesId(int $entryId, int $seriesId, int $workspaceId): void {

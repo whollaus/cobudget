@@ -17,14 +17,16 @@ return [
 		$t->assertContains('$this->assertBackupArchive($archive, \'user\')', $restore, 'User restore should only accept user backups');
 		$t->assertContains('$userMap = $this->normalizeUserMap($userMap)', $restore, 'User restore should normalize explicit user mappings');
 		$t->assertContains('$userMap[$sourceUserId] = $userId', $restore, 'User restore should auto-map the backup owner to the target user');
-		$t->assertContains('filterUserRestoreTables($this->applyUserMapToTables($archive[\'tables\'], $userMap), $skippedRows)', $restore, 'User restore should apply user mapping before filtering user-scope tables');
+		$t->assertContains('filterUserRestoreTables($this->applyUserMapToTables($archive[\'tables\'], $userMap), $skippedRows, $userId)', $restore, 'User restore should apply user mapping before filtering user-scope tables');
 		$t->assertContains('$this->assertUserRestoreScope($tables, $userId)', $restore, 'User restore should reject shared or foreign data before deleting current rows');
 		$t->assertContains('$this->assertReferencedUsersExist($tables, [$userId])', $restore, 'User restore should reject unknown mapped users before writing rows');
 		$t->assertContains('$this->assertBackupInternalReferences($tables)', $restore, 'User restore should reject internally orphaned backup rows before writing rows');
+		$t->assertContains('$this->assertProjectMemberConsistency($tables)', $restore, 'User restore should reject manipulated shared-area user assignments before writing rows');
 		$t->assertContains('$safetyBackup = $this->createBackup($userId, $folderOverride, $this->getSafetyBackupRetentionCount($userId))', $restore, 'User restore should create a safety backup before destructive changes');
 		$t->assertContains('$this->db->beginTransaction()', $restore, 'User restore should run destructive changes inside a transaction');
 		$t->assertContains('$currentData = $this->collectBackupData($userId)', $restore, 'User restore should delete the target user scope based on current collected data');
-		$t->assertContains('$this->deleteRowsByBackupData($this->filterUserRestoreTables($currentData[\'tables\']))', $restore, 'User restore should filter current data with the same user-restore scope before deleting rows');
+		$t->assertContains('$deleteSkippedRows = []', $restore, 'User restore should keep delete-time shared-area skips separate from the restore report');
+		$t->assertContains('$this->deleteRowsByBackupData($this->filterUserRestoreTables($currentData[\'tables\'], $deleteSkippedRows, $userId))', $restore, 'User restore should filter current data with the same user-restore scope before deleting rows');
 		$t->assertContains('$this->deleteSettingsForUsers([$userId])', $restore, 'User restore should delete only the target user settings');
 		$t->assertContains('buildRestoreReport(\'user\', $fileName, $tables, [$userId => $settings], $userMap, $skippedRows)', $restore, 'User restore should return a restore report with user mappings and skipped rows');
 
@@ -55,6 +57,7 @@ return [
 		$t->assertContains('$settings = $this->completeRestoreSettingsForTableUsers($settings, $tables)', $restore, 'Full restore should generate default settings for users referenced only by tables');
 		$t->assertContains('$this->assertReferencedUsersExist($tables, array_keys($settings))', $restore, 'Full restore should reject missing mapped users before destructive changes');
 		$t->assertContains('$this->assertBackupInternalReferences($tables)', $restore, 'Full restore should reject internally orphaned backup rows before destructive changes');
+		$t->assertContains('$this->assertProjectMemberConsistency($tables)', $restore, 'Full restore should reject manipulated shared-area user assignments before destructive changes');
 		$t->assertContains('$safetyBackup = $this->createFullBackup($storageUserId, $folderOverride, $this->getSafetyBackupRetentionCount($storageUserId))', $restore, 'Full restore should create a full safety backup first');
 		$t->assertContains('$this->deleteAllBackupTables()', $restore, 'Full restore may delete all app tables only after archive validation and safety backup');
 		$t->assertContains('$this->deleteAllCoBudgetSettings()', $restore, 'Full restore should delete all CoBudget settings as part of system restore');
@@ -98,8 +101,39 @@ return [
 		$t->assertContains('cobudget_settlement_balances', $service, 'Backup internal reference validation should cover settlement balances');
 		$t->assertContains('cobudget_budget_snapshots', $service, 'Backup internal reference validation should cover budget snapshots');
 		$t->assertContains('Backup enthält verwaiste Referenzen', $internalReferences, 'Backup restore should fail with a clear message for internally orphaned rows');
+		$t->assertContains('sharedProjectIdsForUserRestore($tables, $userId)', $filterUserRestoreTables, 'User restore should detect shared areas before importing rows');
+		$t->assertContains('removeSkippedProjectRows($tables, $skippedProjectIds, $skippedRows)', $filterUserRestoreTables, 'User restore should remove shared-area rows from the user restore scope');
 		$t->assertContains('$this->clearSkippedUserRestoreReferences($tables, \'category_id\', $skippedReferenceIds[\'cobudget_categories\'])', $filterUserRestoreTables, 'User restore should clear references to skipped global categories');
 		$t->assertContains('$this->clearSkippedUserRestoreReferences($tables, \'payment_partner_id\', $skippedReferenceIds[\'cobudget_payment_partners\'])', $filterUserRestoreTables, 'User restore should clear references to skipped global payment partners');
+	},
+
+	'Backup restore validates shared-area membership and skips shared rows on user restore' => function(TestRunner $t): void {
+		$service = $t->read('lib/Service/BackupService.php');
+		$sharedIds = $t->methodBody('lib/Service/BackupService.php', 'sharedProjectIdsForUserRestore');
+		$removeShared = $t->methodBody('lib/Service/BackupService.php', 'removeSkippedProjectRows');
+		$validateMembers = $t->methodBody('lib/Service/BackupService.php', 'assertProjectMemberConsistency');
+		$validateWorkspace = $t->methodBody('lib/Service/BackupService.php', 'assertProjectWorkspaceMatches');
+
+		$t->assertContains('Geteilte Bereiche werden bei einem Benutzer-Restore nicht überschrieben.', $service, 'User restore should explain why shared areas are skipped');
+		$t->assertContains('count($memberUsers) > 1', $sharedIds, 'User restore should treat multi-member areas as shared data');
+		$t->assertContains('$memberUserId !== $userId', $sharedIds, 'User restore should skip areas whose only member is not the target user');
+		foreach ([
+			'cobudget_members',
+			'cobudget_categories',
+			'cobudget_payment_partners',
+			'cobudget_templates',
+			'cobudget_entries',
+			'cobudget_settlements',
+		] as $table) {
+			$t->assertContains("'" . $table . "'", $removeShared, 'Shared-area skip should remove dependent ' . $table . ' rows');
+		}
+		$t->assertContains('cobudget_entry_attachments', $removeShared, 'Shared-area skip should preserve current shared receipt paths by not deleting them');
+		$t->assertContains('removeSkippedProjectBudgets($tables, $projectIdMap, $skippedRows)', $removeShared, 'Shared-area skip should not broaden budget criteria after skipped shared areas');
+		$t->assertContains('criteriaReferencesProject($row, $projectIdMap)', $service, 'Shared-area skip should detect budget criteria that reference skipped areas');
+		$t->assertContains('Budgetziele mit übersprungenen gemeinsamen Bereichen wurden nicht importiert.', $service, 'Shared-area skip should report skipped budget goals');
+		$t->assertContains('Bereichszahlung für einen Benutzer, der kein Mitglied des Bereichs ist', $validateMembers, 'Restore should reject entries whose paying user is not an area member');
+		$t->assertContains('Bereichsdaten mit falschem Workspace', $validateWorkspace, 'Restore should reject project-scoped data with mismatching workspaces');
+		$t->assertContains('Rückzahlung für einen Benutzer, der kein Mitglied des Bereichs ist', $validateMembers, 'Restore should reject settlement transfers for non-members');
 	},
 
 	'Delete and repair paths remove dependent data before parent rows disappear' => function(TestRunner $t): void {

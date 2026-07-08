@@ -6,7 +6,7 @@
     <summary>Personal and shared budgeting for Nextcloud</summary>
     <description><![CDATA[CoBudget is a Nextcloud app for tracking personal and shared household finances.
     It helps you manage payments, budgets, receipts, workspaces, shared areas, settlements and financial insights directly inside Nextcloud.]]></description>
-    <version>0.3.5</version>
+    <version>0.3.6</version>
     <licence>agpl</licence>
     <author>Wolfgang</author>
     <namespace>CoBudget</namespace>

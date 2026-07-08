@@ -400,6 +400,7 @@
 				@row-click="onRowClick"
 				@edit="editEntry"
 				@duplicate="duplicateEntry"
+				@history="openEntryHistory"
 				@delete="deleteEntry">
 				<template #pagination>
 					<div class="pagination-footer" :class="{ 'pagination-footer--single': pagination.total <= pagination.limit }">
@@ -438,6 +439,11 @@
 				</template>
 			</NcEmptyContent>
 		</div>
+		<EntryHistoryModal
+			v-if="entryHistoryOpen"
+			:history="entryHistoryRows"
+			:loading="entryHistoryLoading"
+			@close="closeEntryHistory" />
 		<ConfirmModal
 			:show="!!confirmDialog"
 			:title="confirmDialog ? confirmDialog.title : ''"
@@ -479,6 +485,7 @@ import TableFilters from '../components/TableFilters.vue'
 import DraggableScroller from '../components/DraggableScroller.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import EntryTable from '../components/EntryTable.vue'
+import EntryHistoryModal from '../components/EntryHistoryModal.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import { normalizeEntryPageSize, shouldIgnorePaginationKeydown } from '../services/pagination'
 import { showRequestError, showToast } from '../services/notifications'
@@ -572,6 +579,7 @@ export default {
 		DraggableScroller,
 		ConfirmModal,
 		EntryTable,
+		EntryHistoryModal,
 		AppPageHeader,
 	},
 	data() {
@@ -589,6 +597,9 @@ export default {
 			categories: [],
 			paymentPartners: [],
 			hashtags: [],
+			entryHistoryOpen: false,
+			entryHistoryLoading: false,
+			entryHistoryRows: [],
 			filters: {
 				search: '',
 				type: 'all',
@@ -864,6 +875,24 @@ export default {
 		'$route.query.hasAttachment': 'handleRouteQueryChange'
 	},
 	methods: {
+		async openEntryHistory(entry) {
+			this.entryHistoryOpen = true
+			this.entryHistoryLoading = true
+			this.entryHistoryRows = []
+			try {
+				const response = await axios.get(generateUrl(`/apps/cobudget/api/entries/${entry.id}/history`))
+				this.entryHistoryRows = Array.isArray(response.data?.history) ? response.data.history : []
+			} catch (error) {
+				showRequestError(error, this.$texts.entry.historyFetchError(), 'Failed to fetch entry history')
+			} finally {
+				this.entryHistoryLoading = false
+			}
+		},
+		closeEntryHistory() {
+			this.entryHistoryOpen = false
+			this.entryHistoryLoading = false
+			this.entryHistoryRows = []
+		},
 		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary' }) {
 			return new Promise(resolve => {
 				this.confirmDialog = {

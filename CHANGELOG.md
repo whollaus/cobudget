@@ -4,6 +4,17 @@ All notable changes to CoBudget will be documented in this file.
 
 This project follows semantic versioning as far as practical during the alpha phase.
 
+## [0.3.6] - 2026-07-06
+
+### Added
+
+- Added payment change history for edited payments, including changed fields, previous values and new values.
+
+### Changed
+
+- Polished the payment history modal to match the app modal/table style more closely.
+- Added German translations for payment history labels and related history values.
+
 ## [0.3.5] - 2026-07-06
 
 ### Added

@@ -10,6 +10,7 @@ CoBudget is a Nextcloud app for personal and shared household budgeting.
 
 - Create income and expense entries.
 - Add date, amount, description, category and payment partner.
+- Review change history for edited payments, including changed fields and previous values.
 - Mark entries with labels for important payments, payments to review, fixed costs, subscriptions, children and tax relevant payments.
 - Add free-form `#tags` directly in the description field.
 - Attach receipts and invoices.

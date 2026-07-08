@@ -183,6 +183,7 @@ class WorkspaceController extends Controller {
 				$this->deleteRowsByWorkspaceAndUser('cobudget_entry_attachments', 'owner_user_id', $id);
 				$this->hashtagService->deleteHashtagsForEntries($entryIds);
 				$this->hashtagService->deleteWorkspaceHashtags($id);
+				$this->deleteRowsByColumnValues('cobudget_entry_history', 'entry_id', $entryIds);
 				$this->deleteRowsByColumnValues('cobudget_settlement_balances', 'settlement_id', $settlementIds);
 				$this->deleteRowsByColumnValues('cobudget_settlement_transfers', 'settlement_id', $settlementIds);
 				$this->deleteRowsByIds('cobudget_entries', $entryIds);
