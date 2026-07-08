@@ -17,6 +17,9 @@ class BackupJob extends TimedJob {
 	private const APP_ID = 'cobudget';
 	private const LAST_AUTO_BACKUP_KEY = 'backup_last_auto_at';
 	private const BACKUP_LOCK_KEY = 'backup_running_since';
+	private const FULL_LAST_AUTO_BACKUP_KEY = 'full_backup_last_auto_at';
+	private const FULL_BACKUP_LOCK_USER = '__cobudget_full_backup__';
+	private const FULL_BACKUP_LOCK_KEY = 'full_backup_running_since';
 
 	public function __construct(
 		ITimeFactory $timeFactory,
@@ -31,6 +34,8 @@ class BackupJob extends TimedJob {
 
 	protected function run($argument): void {
 		$now = time();
+		$this->runFullBackup($now);
+
 		foreach ($this->scheduledUserIds() as $userId) {
 			$schedule = $this->backupService->getBackupSchedule($userId);
 			if ($schedule === 'none') {
@@ -55,6 +60,33 @@ class BackupJob extends TimedJob {
 			} finally {
 				$this->releaseUserBackupLock($userId, $backupLock);
 			}
+		}
+	}
+
+	private function runFullBackup(int $now): void {
+		$settings = $this->backupService->getFullBackupSettings();
+		$schedule = (string)$settings['schedule'];
+		if ($schedule === 'none') {
+			return;
+		}
+
+		$lastRun = (int)$this->config->getAppValue(self::APP_ID, self::FULL_LAST_AUTO_BACKUP_KEY, '0');
+		if (!$this->isDue($schedule, $lastRun, $now)) {
+			return;
+		}
+
+		$backupLock = $this->acquireFullBackupLock(time());
+		if ($backupLock === null) {
+			return;
+		}
+
+		try {
+			$this->backupService->createConfiguredFullBackup();
+			$this->config->setAppValue(self::APP_ID, self::FULL_LAST_AUTO_BACKUP_KEY, (string)time());
+		} catch (\Throwable $e) {
+			$this->logger->error('Failed to create automatic full CoBudget backup: ' . $e->getMessage(), ['app' => self::APP_ID]);
+		} finally {
+			$this->releaseFullBackupLock($backupLock);
 		}
 	}
 
@@ -136,6 +168,15 @@ class BackupJob extends TimedJob {
 
 	private function acquireUserBackupLock(string $userId, int $now): ?string {
 		$this->deleteStaleUserBackupLock($userId, $now);
+		return $this->acquireBackupLock($userId, self::BACKUP_LOCK_KEY, $now);
+	}
+
+	private function acquireFullBackupLock(int $now): ?string {
+		$this->deleteStaleFullBackupLock($now);
+		return $this->acquireBackupLock(self::FULL_BACKUP_LOCK_USER, self::FULL_BACKUP_LOCK_KEY, $now);
+	}
+
+	private function acquireBackupLock(string $userId, string $configKey, int $now): ?string {
 		$lockValue = (string)$now;
 
 		$qb = $this->db->getQueryBuilder();
@@ -144,7 +185,7 @@ class BackupJob extends TimedJob {
 				->values([
 					'userid' => $qb->createNamedParameter($userId),
 					'appid' => $qb->createNamedParameter(self::APP_ID),
-					'configkey' => $qb->createNamedParameter(self::BACKUP_LOCK_KEY),
+					'configkey' => $qb->createNamedParameter($configKey),
 					'configvalue' => $qb->createNamedParameter($lockValue),
 				]);
 			$qb->executeStatement();
@@ -156,22 +197,38 @@ class BackupJob extends TimedJob {
 	}
 
 	private function deleteStaleUserBackupLock(string $userId, int $now): void {
+		$this->deleteStaleBackupLock($userId, self::BACKUP_LOCK_KEY, $now);
+	}
+
+	private function deleteStaleFullBackupLock(int $now): void {
+		$this->deleteStaleBackupLock(self::FULL_BACKUP_LOCK_USER, self::FULL_BACKUP_LOCK_KEY, $now);
+	}
+
+	private function deleteStaleBackupLock(string $userId, string $configKey, int $now): void {
 		$staleBefore = (string)($now - self::BACKUP_LOCK_TTL_SECONDS);
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete('preferences')
 			->where($qb->expr()->eq('userid', $qb->createNamedParameter($userId)))
 			->andWhere($qb->expr()->eq('appid', $qb->createNamedParameter(self::APP_ID)))
-			->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter(self::BACKUP_LOCK_KEY)))
+			->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter($configKey)))
 			->andWhere($qb->expr()->lt('configvalue', $qb->createNamedParameter($staleBefore)));
 		$qb->executeStatement();
 	}
 
 	private function releaseUserBackupLock(string $userId, string $lockValue): void {
+		$this->releaseBackupLock($userId, self::BACKUP_LOCK_KEY, $lockValue);
+	}
+
+	private function releaseFullBackupLock(string $lockValue): void {
+		$this->releaseBackupLock(self::FULL_BACKUP_LOCK_USER, self::FULL_BACKUP_LOCK_KEY, $lockValue);
+	}
+
+	private function releaseBackupLock(string $userId, string $configKey, string $lockValue): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete('preferences')
 			->where($qb->expr()->eq('userid', $qb->createNamedParameter($userId)))
 			->andWhere($qb->expr()->eq('appid', $qb->createNamedParameter(self::APP_ID)))
-			->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter(self::BACKUP_LOCK_KEY)))
+			->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter($configKey)))
 			->andWhere($qb->expr()->eq('configvalue', $qb->createNamedParameter($lockValue)));
 		$qb->executeStatement();
 	}

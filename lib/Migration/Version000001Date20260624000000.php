@@ -26,6 +26,9 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$this->createSettlements($schema);
 		$this->createBudgetGoals($schema);
 		$this->createBudgetSnapshots($schema);
+		$this->createHashtags($schema);
+		$this->createEntryHistory($schema);
+		$this->addPerformanceIndexes($schema);
 
 		return $schema;
 	}
@@ -135,6 +138,7 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table->addColumn('payment_partner_id', 'integer', ['notnull' => false]);
 		$table->addColumn('description', 'string', ['notnull' => true, 'length' => 512, 'default' => '']);
 		$table->addColumn('split_mode', 'string', ['notnull' => true, 'length' => 32, 'default' => 'project_shares']);
+		$table->addColumn('split_user_id', 'string', ['notnull' => false, 'length' => 64]);
 		$table->addColumn('is_settled', 'boolean', ['notnull' => true, 'default' => false]);
 		$table->addColumn('settled_at', 'integer', ['notnull' => false]);
 		$table->addColumn('settlement_id', 'integer', ['notnull' => false]);
@@ -181,6 +185,7 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table->addColumn('payment_partner_id', 'integer', ['notnull' => false]);
 		$table->addColumn('project_id', 'integer', ['notnull' => false]);
 		$table->addColumn('split_mode', 'string', ['notnull' => true, 'length' => 32, 'default' => 'project_shares']);
+		$table->addColumn('split_user_id', 'string', ['notnull' => false, 'length' => 64]);
 		$table->addColumn('is_subscription', 'boolean', ['notnull' => true, 'default' => false]);
 		$table->addColumn('is_fixed_cost', 'boolean', ['notnull' => true, 'default' => false]);
 		$table->addColumn('is_child_related', 'boolean', ['notnull' => true, 'default' => false]);
@@ -311,5 +316,192 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table->addIndex(['user_id', 'workspace_id'], 'cb_bsnap_user_ws');
 		$table->addIndex(['budget_goal_id', 'period_start', 'period_end'], 'cb_bsnap_goal_period');
 		$table->addIndex(['workspace_id', 'period_start'], 'cb_bsnap_ws_period');
+	}
+
+	private function createHashtags(ISchemaWrapper $schema): void {
+		if (!$schema->hasTable('cobudget_hashtags')) {
+			$table = $schema->createTable('cobudget_hashtags');
+			$table->addColumn('id', 'integer', [
+				'autoincrement' => true,
+				'notnull' => true,
+				'unsigned' => true,
+			]);
+			$table->addColumn('workspace_id', 'integer', [
+				'notnull' => true,
+			]);
+			$table->addColumn('normalized_name', 'string', [
+				'notnull' => true,
+				'length' => 64,
+			]);
+			$table->addColumn('display_name', 'string', [
+				'notnull' => true,
+				'length' => 64,
+			]);
+			$table->addColumn('created_at', 'integer', [
+				'notnull' => true,
+				'default' => 0,
+			]);
+			$table->addColumn('updated_at', 'integer', [
+				'notnull' => true,
+				'default' => 0,
+			]);
+			$table->setPrimaryKey(['id']);
+			$table->addUniqueIndex(['workspace_id', 'normalized_name'], 'cb_hash_ws_name');
+			$table->addIndex(['workspace_id', 'display_name'], 'cb_hash_ws_display');
+		}
+
+		if (!$schema->hasTable('cobudget_entry_hashtags')) {
+			$table = $schema->createTable('cobudget_entry_hashtags');
+			$table->addColumn('id', 'integer', [
+				'autoincrement' => true,
+				'notnull' => true,
+				'unsigned' => true,
+			]);
+			$table->addColumn('entry_id', 'integer', [
+				'notnull' => true,
+			]);
+			$table->addColumn('hashtag_id', 'integer', [
+				'notnull' => true,
+			]);
+			$table->addColumn('workspace_id', 'integer', [
+				'notnull' => true,
+			]);
+			$table->addColumn('created_at', 'integer', [
+				'notnull' => true,
+				'default' => 0,
+			]);
+			$table->setPrimaryKey(['id']);
+			$table->addUniqueIndex(['entry_id', 'hashtag_id'], 'cb_ehash_entry_hash');
+			$table->addIndex(['workspace_id', 'hashtag_id'], 'cb_ehash_ws_hash');
+			$table->addIndex(['entry_id'], 'cb_ehash_entry');
+			$table->addIndex(['hashtag_id'], 'cb_ehash_hash');
+		}
+	}
+
+	private function createEntryHistory(ISchemaWrapper $schema): void {
+		if ($schema->hasTable('cobudget_entry_history')) {
+			return;
+		}
+
+		$table = $schema->createTable('cobudget_entry_history');
+		$table->addColumn('id', 'integer', [
+			'autoincrement' => true,
+			'notnull' => true,
+			'unsigned' => true,
+		]);
+		$table->addColumn('entry_id', 'integer', [
+			'notnull' => true,
+			'unsigned' => true,
+		]);
+		$table->addColumn('workspace_id', 'integer', [
+			'notnull' => true,
+			'unsigned' => true,
+		]);
+		$table->addColumn('project_id', 'integer', [
+			'notnull' => false,
+			'unsigned' => true,
+		]);
+		$table->addColumn('changed_by', 'string', [
+			'notnull' => true,
+			'length' => 64,
+		]);
+		$table->addColumn('changed_by_display_name', 'string', [
+			'notnull' => false,
+			'length' => 255,
+		]);
+		$table->addColumn('changed_at', 'integer', [
+			'notnull' => true,
+			'default' => 0,
+		]);
+		$table->addColumn('change_group', 'string', [
+			'notnull' => true,
+			'length' => 64,
+		]);
+		$table->addColumn('field', 'string', [
+			'notnull' => true,
+			'length' => 64,
+		]);
+		$table->addColumn('old_value', 'text', [
+			'notnull' => false,
+		]);
+		$table->addColumn('new_value', 'text', [
+			'notnull' => false,
+		]);
+		$table->addColumn('old_display', 'text', [
+			'notnull' => false,
+		]);
+		$table->addColumn('new_display', 'text', [
+			'notnull' => false,
+		]);
+		$table->setPrimaryKey(['id']);
+		$table->addIndex(['entry_id', 'workspace_id'], 'cb_ehist_entry_ws');
+		$table->addIndex(['workspace_id', 'changed_at'], 'cb_ehist_ws_time');
+		$table->addIndex(['project_id'], 'cb_ehist_project');
+	}
+
+	private function addPerformanceIndexes(ISchemaWrapper $schema): void {
+		$this->addEntryIndexes($schema);
+		$this->addProjectIndexes($schema);
+		$this->addLookupIndexes($schema);
+		$this->addAttachmentAndSettlementIndexes($schema);
+		$this->addBudgetIndexes($schema);
+	}
+
+	private function addEntryIndexes(ISchemaWrapper $schema): void {
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'date', 'id'], 'cb_ent_ws_date_id');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'type', 'date'], 'cb_ent_ws_type_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'project_id', 'is_settled', 'date'], 'cb_ent_ws_pr_set_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'user_id', 'date'], 'cb_ent_ws_user_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'category_id', 'date'], 'cb_ent_ws_cat_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'payment_partner_id', 'date'], 'cb_ent_ws_pp_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'recurrence_next_date'], 'cb_ent_ws_recur');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'reminder_date', 'reminder_notified'], 'cb_ent_ws_remind');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'is_important', 'date'], 'cb_ent_ws_imp_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'needs_review', 'date'], 'cb_ent_ws_review_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'is_fixed_cost', 'date'], 'cb_ent_ws_fix_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'is_subscription', 'date'], 'cb_ent_ws_sub_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'is_child_related', 'date'], 'cb_ent_ws_child_dt');
+		$this->addIndexIfMissing($schema, 'cobudget_entries', ['workspace_id', 'is_tax_relevant', 'date'], 'cb_ent_ws_tax_dt');
+	}
+
+	private function addProjectIndexes(ISchemaWrapper $schema): void {
+		$this->addIndexIfMissing($schema, 'cobudget_projects', ['workspace_id', 'is_archived'], 'cb_proj_ws_arch');
+		$this->addIndexIfMissing($schema, 'cobudget_members', ['user_id', 'project_id'], 'cb_mem_user_proj');
+		$this->addIndexIfMissing($schema, 'cobudget_members', ['project_id', 'user_id'], 'cb_mem_proj_user');
+	}
+
+	private function addLookupIndexes(ISchemaWrapper $schema): void {
+		$this->addIndexIfMissing($schema, 'cobudget_categories', ['workspace_id', 'type', 'user_id', 'is_hidden'], 'cb_cat_ws_type_user');
+		$this->addIndexIfMissing($schema, 'cobudget_categories', ['workspace_id', 'project_id', 'type'], 'cb_cat_ws_proj_type');
+		$this->addIndexIfMissing($schema, 'cobudget_payment_partners', ['workspace_id', 'type', 'user_id', 'is_hidden'], 'cb_pp_ws_type_user');
+		$this->addIndexIfMissing($schema, 'cobudget_payment_partners', ['workspace_id', 'project_id', 'type'], 'cb_pp_ws_proj_type');
+		$this->addIndexIfMissing($schema, 'cobudget_templates', ['workspace_id', 'user_id', 'usage_count'], 'cb_tpl_ws_user_use');
+	}
+
+	private function addAttachmentAndSettlementIndexes(ISchemaWrapper $schema): void {
+		$this->addIndexIfMissing($schema, 'cobudget_entry_attachments', ['workspace_id', 'entry_id'], 'cb_att_ws_entry');
+		$this->addIndexIfMissing($schema, 'cobudget_settlements', ['workspace_id', 'project_id', 'created_at'], 'cb_set_ws_proj_time');
+		$this->addIndexIfMissing($schema, 'cobudget_settlement_balances', ['settlement_id', 'user_id'], 'cb_setbal_set_user');
+		$this->addIndexIfMissing($schema, 'cobudget_settlement_transfers', ['settlement_id', 'from_user_id'], 'cb_settr_set_from');
+		$this->addIndexIfMissing($schema, 'cobudget_settlement_transfers', ['settlement_id', 'to_user_id'], 'cb_settr_set_to');
+	}
+
+	private function addBudgetIndexes(ISchemaWrapper $schema): void {
+		$this->addIndexIfMissing($schema, 'cobudget_budget_goals', ['workspace_id', 'user_id', 'updated_at'], 'cb_budget_ws_user_upd');
+		$this->addIndexIfMissing($schema, 'cobudget_budget_snapshots', ['workspace_id', 'user_id', 'period_start'], 'cb_bsnap_ws_user_per');
+		$this->addIndexIfMissing($schema, 'cobudget_budget_snapshots', ['budget_goal_id', 'created_at'], 'cb_bsnap_goal_time');
+	}
+
+	private function addIndexIfMissing(ISchemaWrapper $schema, string $tableName, array $columns, string $indexName): void {
+		if (!$schema->hasTable($tableName)) {
+			return;
+		}
+
+		$table = $schema->getTable($tableName);
+		if ($table->hasIndex($indexName)) {
+			return;
+		}
+
+		$table->addIndex($columns, $indexName);
 	}
 }

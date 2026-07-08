@@ -14,7 +14,7 @@ use OCP\IUserManager;
 class UserResetService {
 	private const APP_ID = 'cobudget';
 	private const CONFIRMATION_TEXT = 'RESET';
-	private const SAFETY_BACKUP_FOLDER = 'CoBudget/Backups';
+	private const SAFETY_BACKUP_FOLDER = 'CoBudget/Export';
 	private const SAFETY_BACKUP_RETENTION = 8;
 	private const RESET_LOCK_KEY = 'reset_running_since';
 	private const RESET_LOCK_TTL_SECONDS = 6 * 60 * 60;

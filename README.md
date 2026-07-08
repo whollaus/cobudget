@@ -46,7 +46,7 @@ The screenshots below show the current alpha UI and may change during the test p
 - View analytics for spending, income, trends, labels, areas and budget signals
 - Use workspaces to separate independent data pools
 - Export payments as CSV
-- Create and restore backups
+- Create personal exports and admin full backups/restore
 - Support light, dark and system theme modes
 
 See [FEATURES.md](FEATURES.md) for a more detailed overview.
@@ -85,13 +85,40 @@ Build production assets:
 npm run build
 ```
 
-Create the installable Nextcloud ZIP archive:
+Create the installable release archive:
 
 ```sh
-npm run release:zip
+npm run release
 ```
 
-The release ZIP intentionally contains only the runtime app files. Documentation assets such as `screenshots/` are kept in the GitHub repository but are not included in the installable archive.
+This builds the frontend and creates the release archive in the workspace root:
+
+- `cobudget.tar.gz` for manual testing and future Nextcloud App Store releases
+
+The release archive intentionally contains only runtime app files. Documentation assets such as `screenshots/` are kept in the GitHub repository but are not included in installable archives.
+
+## GitHub Releases
+
+Regular pushes to `main` only run checks. A public GitHub release is created only when a version tag is pushed.
+
+Before creating a tag, make sure the version matches in:
+
+- `appinfo/info.xml`
+- `package.json`
+- the tag name, for example `v0.1.0`
+
+Release command flow:
+
+```sh
+git add .
+git commit -m "Prepare release 0.1.0"
+git push
+
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The tag workflow runs the tests, builds `cobudget.tar.gz`, creates `SHA256SUMS` and publishes both files as GitHub release assets.
 
 Run the available test checks:
 

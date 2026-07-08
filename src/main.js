@@ -5,6 +5,7 @@ import axios from './services/http'
 import { generateUrl } from '@nextcloud/router'
 import { normalizeEntryPageSize } from './services/pagination'
 import { applyThemeMode, normalizeThemeMode } from './services/themeMode'
+import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { formatInputAmount, formatMoney, formatMoneyFromCents, formatSignedMoney, parseAmount } from './utils/formatMoney'
 import { installTexts } from './l10n/texts'
 import './styles/tokens.css'
@@ -79,6 +80,68 @@ async function resolveDefaultStartRoute(defaultStartPage, enableProjects = true)
 	return resolveProjectStartRoute(defaultStartPage)
 }
 
+function normalizeWorkspace(workspace) {
+	if (!workspace || typeof workspace !== 'object' || workspace.error || workspace.id === undefined || workspace.id === null) {
+		return null
+	}
+
+	const workspaceId = parseInt(workspace.id, 10)
+	if (!Number.isFinite(workspaceId) || workspaceId <= 0) {
+		return null
+	}
+
+	return {
+		...workspace,
+		id: workspaceId,
+		is_default: workspace.is_default === true || workspace.is_default === 1 || workspace.is_default === '1'
+	}
+}
+
+function normalizeWorkspaces(payload) {
+	if (Array.isArray(payload)) {
+		return payload.map(normalizeWorkspace).filter(Boolean)
+	}
+	if (payload && typeof payload === 'object' && Array.isArray(payload.workspaces)) {
+		return payload.workspaces.map(normalizeWorkspace).filter(Boolean)
+	}
+	if (payload && typeof payload === 'object') {
+		return Object.values(payload).map(normalizeWorkspace).filter(Boolean)
+	}
+	return []
+}
+
+async function prepareWorkspaceContext(enableWorkspaces) {
+	if (!enableWorkspaces) {
+		clearWorkspaceId()
+		return
+	}
+
+	try {
+		const response = await axios.get(generateUrl('/apps/cobudget/api/workspaces'), {
+			headers: { Accept: 'application/json' },
+			params: { _t: Date.now() },
+			skipWorkspaceHeader: true
+		})
+		const workspaces = normalizeWorkspaces(response.data)
+		if (workspaces.length === 0) {
+			clearWorkspaceId()
+			return
+		}
+
+		const storedWorkspaceId = readWorkspaceId()
+		const validStoredWorkspace = storedWorkspaceId && workspaces.some(workspace => workspace.id === storedWorkspaceId)
+		if (validStoredWorkspace) {
+			writeWorkspaceId(storedWorkspaceId)
+			return
+		}
+
+		const defaultWorkspace = workspaces.find(workspace => workspace.is_default) || workspaces[0]
+		writeWorkspaceId(defaultWorkspace.id)
+	} catch (e) {
+		clearWorkspaceId()
+	}
+}
+
 async function init() {
 	const app = createApp(App)
 	app.use(router)
@@ -116,6 +179,7 @@ async function init() {
 		app.config.globalProperties.$defaultStartPage = res.data.default_start_page || 'personal'
 		app.config.globalProperties.$entriesPerPage = normalizeEntryPageSize(res.data.entries_per_page)
 		app.config.globalProperties.$themeMode = applyThemeMode(res.data.theme_mode)
+		await prepareWorkspaceContext(app.config.globalProperties.$enableWorkspaces)
 
 		router.beforeEach(to => {
 			if (!app.config.globalProperties.$enableProjects && projectRouteNames.includes(to.name)) {

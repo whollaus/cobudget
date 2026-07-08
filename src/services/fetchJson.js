@@ -1,5 +1,6 @@
 import { generateUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
+import { readWorkspaceId } from './workspaceStorage'
 
 const APP_ID = 'cobudget'
 
@@ -34,7 +35,7 @@ export async function fetchJson(path, options = {}) {
 		requestHeaders.requesttoken = requestToken;
 	}
 
-	const workspaceId = localStorage.getItem('cobudget_workspace_id');
+	const workspaceId = readWorkspaceId();
 	if (!skipWorkspaceHeader && workspaceId) {
 		requestHeaders['X-Workspace-Id'] = workspaceId;
 	}

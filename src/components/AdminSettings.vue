@@ -72,6 +72,131 @@
 				</div>
 			</div>
 		</div>
+
+		<div class="admin-backup-card">
+			<div class="integrity-card-header">
+				<div>
+					<h3>{{ $texts.admin.fullBackups() }}</h3>
+					<p>{{ $texts.admin.fullBackupsHint() }}</p>
+				</div>
+				<div class="integrity-actions">
+					<NcButton
+						type="primary"
+						:disabled="fullBackupCreating || !fullBackupStorageUser.trim()"
+						@click="createFullBackupNow">
+						{{ fullBackupCreating ? $texts.admin.fullBackupCreating() : $texts.admin.fullBackupCreateNow() }}
+					</NcButton>
+				</div>
+			</div>
+
+			<p v-if="fullBackupSettingsLoading" class="integrity-status">
+				{{ $texts.admin.fullBackupSettingsLoading() }}
+			</p>
+			<div v-else class="admin-backup-settings-grid">
+				<label class="admin-backup-field">
+					{{ $texts.admin.fullBackupStorageUser() }}
+					<span>{{ $texts.admin.fullBackupStorageUserHint() }}</span>
+					<input
+						v-model="fullBackupStorageUser"
+						class="form-control"
+						type="text"
+						:placeholder="$texts.admin.fullBackupStorageUserPlaceholder()">
+				</label>
+				<label class="admin-backup-field">
+					{{ $texts.admin.fullBackupFolder() }}
+					<span>{{ $texts.admin.fullBackupFolderHint() }}</span>
+					<input
+						v-model="fullBackupStorageFolder"
+						class="form-control"
+						type="text">
+				</label>
+				<label class="admin-backup-field">
+					{{ $texts.admin.fullBackupRetention() }}
+					<span>{{ $texts.admin.fullBackupRetentionHint() }}</span>
+					<input
+						v-model.number="fullBackupRetentionCount"
+						class="form-control"
+						type="number"
+						min="1"
+						max="100">
+				</label>
+				<label class="admin-backup-field">
+					{{ $texts.admin.fullBackupSchedule() }}
+					<span>{{ $texts.admin.fullBackupScheduleHint() }}</span>
+					<select v-model="fullBackupSchedule" class="form-control">
+						<option value="none">{{ $texts.admin.fullBackupScheduleNone() }}</option>
+						<option value="daily">{{ $texts.admin.fullBackupScheduleDaily() }}</option>
+						<option value="weekly">{{ $texts.admin.fullBackupScheduleWeekly() }}</option>
+						<option value="monthly">{{ $texts.admin.fullBackupScheduleMonthly() }}</option>
+					</select>
+				</label>
+				<div class="admin-backup-save-action">
+					<NcButton
+						type="primary"
+						:disabled="fullBackupSettingsSaving"
+						@click="saveFullBackupSettings">
+						{{ fullBackupSettingsSaving ? $texts.common.saveBusy() : $texts.common.save() }}
+					</NcButton>
+				</div>
+			</div>
+			<div v-if="!fullBackupSettingsLoading" class="admin-backup-list">
+				<div class="admin-backup-list-header">
+					<div>
+						<h4>{{ $texts.admin.fullBackupLastBackups() }}</h4>
+						<p>{{ $texts.admin.fullBackupRestoreOccHint() }}</p>
+					</div>
+				</div>
+				<p v-if="fullBackups.length === 0" class="integrity-status">
+					{{ $texts.admin.fullBackupNoBackups() }}
+				</p>
+				<ul v-else class="admin-backup-items">
+					<li
+						v-for="backup in fullBackups"
+						:key="backup.file_name"
+						class="admin-backup-item">
+						<div class="admin-backup-info">
+							<strong>{{ formatBackupDate(backup.created_at) }}</strong>
+							<span>{{ backup.file_name }}</span>
+							<small>{{ backup.file_path }} · {{ formatBackupSize(backup.file_size) }}</small>
+							<details class="admin-backup-occ">
+								<summary>{{ $texts.admin.fullBackupRestoreOccCommand() }}</summary>
+								<code>{{ fullBackupOccCommand(backup) }}</code>
+							</details>
+						</div>
+						<div class="admin-backup-item-actions">
+							<NcButton
+								type="tertiary-no-background"
+								class="admin-backup-icon-button"
+								:aria-label="$texts.admin.fullBackupDeleteAria(backup.file_name)"
+								:title="$texts.admin.fullBackupDeleteAria(backup.file_name)"
+								:disabled="fullBackupDeletingFileName === backup.file_name || !!fullBackupRestoringFileName"
+								@click="deleteFullBackup(backup)">
+								<template #icon>
+									<DeleteOutlineIcon :size="20" />
+								</template>
+							</NcButton>
+							<NcButton
+								type="tertiary-no-background"
+								class="admin-backup-icon-button"
+								:aria-label="$texts.admin.fullBackupDownloadAria(backup.file_name)"
+								:title="$texts.admin.fullBackupDownloadAria(backup.file_name)"
+								:disabled="!!fullBackupRestoringFileName"
+								@click="downloadFullBackup(backup)">
+								<template #icon>
+									<DownloadIcon :size="20" />
+								</template>
+							</NcButton>
+							<NcButton
+								type="secondary"
+								:disabled="!!fullBackupRestoringFileName"
+								@click="openFullBackupRestore(backup)">
+								{{ $texts.admin.fullBackupRestore() }}
+							</NcButton>
+						</div>
+					</li>
+				</ul>
+			</div>
+		</div>
 		
 		<div class="settings-grid">
 			<!-- Kategorien -->
@@ -196,6 +321,52 @@
 				</div>
 			</div>
 		</Teleport>
+		<Teleport to="body">
+			<div
+				v-if="fullBackupRestoreCandidate"
+				class="settings-modal-backdrop"
+				tabindex="-1"
+				@click.self="closeFullBackupRestoreModal"
+				@keydown.esc.stop.prevent="closeFullBackupRestoreModal">
+				<div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="admin-full-backup-restore-title">
+					<div class="modal-header">
+						<h2 id="admin-full-backup-restore-title">{{ $texts.admin.fullBackupRestoreTitle() }}</h2>
+						<button
+							type="button"
+							class="settings-modal-close-button"
+							:aria-label="$texts.common.close()"
+							:title="$texts.common.close()"
+							:disabled="!!fullBackupRestoringFileName"
+							@click="closeFullBackupRestoreModal">
+							<CloseIcon :size="22" aria-hidden="true" />
+						</button>
+					</div>
+					<p class="modal-note">
+						{{ $texts.admin.fullBackupRestoreMessage(fullBackupRestoreCandidate.file_name) }}
+					</p>
+					<div class="form-group">
+						<label for="admin-full-backup-restore-confirm">{{ $texts.admin.fullBackupRestoreConfirmation() }}</label>
+						<input
+							id="admin-full-backup-restore-confirm"
+							v-model="fullBackupRestoreConfirmation"
+							class="form-control"
+							type="text"
+							autocomplete="off"
+							:placeholder="$texts.admin.fullBackupRestoreConfirmHint()">
+					</div>
+					<ModalActions
+						primary-type="button"
+						primary-variant="danger"
+						:cancel-disabled="!!fullBackupRestoringFileName"
+						:primary-disabled="!canRestoreFullBackup"
+						:primary-busy="!!fullBackupRestoringFileName"
+						:primary-label="$texts.admin.fullBackupRestore()"
+						:primary-busy-label="$texts.admin.fullBackupRestoring()"
+						@cancel="closeFullBackupRestoreModal"
+						@primary="confirmFullBackupRestore" />
+				</div>
+			</div>
+		</Teleport>
 		<ConfirmModal
 			:show="!!confirmDialog"
 			:title="confirmDialog ? confirmDialog.title : ''"
@@ -217,6 +388,8 @@ import ModalActions from './ModalActions.vue'
 import SettingsItemActions from './SettingsItemActions.vue'
 import SettingsList from './SettingsList.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
+import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
+import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import { extractError, showRequestError, showToast } from '../services/notifications'
 
 const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-icon-picker" */ './IconPicker.vue'))
@@ -230,7 +403,9 @@ export default {
 		ModalActions,
 		SettingsItemActions,
 		SettingsList,
-		CloseIcon
+		CloseIcon,
+		DeleteOutlineIcon,
+		DownloadIcon,
 	},
 	data() {
 		return {
@@ -253,6 +428,18 @@ export default {
 			integrityLoading: false,
 			integrityRepairing: false,
 			integrityMergingKey: '',
+			fullBackupSettingsLoading: false,
+			fullBackupSettingsSaving: false,
+			fullBackupCreating: false,
+			fullBackupStorageUser: '',
+			fullBackupStorageFolder: 'CoBudget/Backups',
+			fullBackupRetentionCount: 7,
+			fullBackupSchedule: 'none',
+			fullBackups: [],
+			fullBackupRestoreCandidate: null,
+			fullBackupRestoreConfirmation: '',
+			fullBackupRestoringFileName: '',
+			fullBackupDeletingFileName: '',
 			confirmDialog: null
 		}
 	},
@@ -303,11 +490,17 @@ export default {
 			return this.integrityReport
 				&& this.integrityOrphanCount === 0
 				&& this.integrityDuplicateCount === 0;
+		},
+		canRestoreFullBackup() {
+			return !!this.fullBackupRestoreCandidate
+				&& this.fullBackupRestoreConfirmation === 'RESTORE'
+				&& !this.fullBackupRestoringFileName;
 		}
 	},
 	mounted() {
 		this.fetchData()
 		this.fetchIntegrityReport()
+		this.fetchFullBackupSettings()
 	},
 	methods: {
 		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary' }) {
@@ -425,6 +618,161 @@ export default {
 				return this.$texts.admin.typeExpense();
 			}
 			return this.$texts.admin.typeNone();
+		},
+		applyFullBackupSettings(settings) {
+			this.fullBackupStorageUser = settings?.storage_user_id || '';
+			this.fullBackupStorageFolder = settings?.storage_folder || 'CoBudget/Backups';
+			this.fullBackupRetentionCount = Number(settings?.retention_count || 7);
+			this.fullBackupSchedule = settings?.schedule || 'none';
+		},
+		normalizeFullBackups(backups) {
+			return Array.isArray(backups) ? backups : [];
+		},
+		applyFullBackupResponse(data) {
+			this.applyFullBackupSettings(data?.settings || {});
+			this.fullBackups = this.normalizeFullBackups(data?.backups);
+		},
+		async fetchFullBackupSettings() {
+			this.fullBackupSettingsLoading = true;
+			try {
+				const response = await axios.get(generateUrl('/apps/cobudget/api/admin/full-backup/settings'), { skipWorkspaceHeader: true });
+				this.applyFullBackupResponse(response.data || {});
+			} catch (e) {
+				showRequestError(e, this.$texts.admin.fullBackupLoadError(), 'Failed to fetch full backup settings');
+			} finally {
+				this.fullBackupSettingsLoading = false;
+			}
+		},
+		async saveFullBackupSettings() {
+			this.fullBackupSettingsSaving = true;
+			try {
+				const response = await axios.post(generateUrl('/apps/cobudget/api/admin/full-backup/settings'), {
+					storage_user_id: this.fullBackupStorageUser.trim(),
+					storage_folder: this.fullBackupStorageFolder.trim(),
+					retention_count: this.fullBackupRetentionCount,
+					schedule: this.fullBackupSchedule
+				}, { skipWorkspaceHeader: true });
+				this.applyFullBackupResponse(response.data || {});
+				showToast(this.$texts.admin.fullBackupSettingsSaved());
+			} catch (e) {
+				showRequestError(e, this.$texts.admin.fullBackupSaveError(), 'Failed to save full backup settings');
+			} finally {
+				this.fullBackupSettingsSaving = false;
+			}
+		},
+		async createFullBackupNow() {
+			this.fullBackupCreating = true;
+			try {
+				const response = await axios.post(generateUrl('/apps/cobudget/api/admin/full-backup'), {}, { skipWorkspaceHeader: true });
+				this.applyFullBackupResponse(response.data || {});
+				const filePath = response.data?.backup?.file_path || '';
+				showToast(filePath ? this.$texts.admin.fullBackupCreated(filePath) : this.$texts.admin.fullBackupCreatedToast());
+			} catch (e) {
+				showRequestError(e, this.$texts.admin.fullBackupCreateError(), 'Failed to create full backup');
+			} finally {
+				this.fullBackupCreating = false;
+			}
+		},
+		downloadFullBackup(backup) {
+			if (!backup?.file_name) {
+				return;
+			}
+			window.location.href = generateUrl(`/apps/cobudget/api/admin/full-backup/${encodeURIComponent(backup.file_name)}/download`);
+		},
+		async deleteFullBackup(backup) {
+			if (!backup?.file_name) {
+				return;
+			}
+			const confirmed = await this.openConfirm({
+				title: this.$texts.admin.fullBackupDeleteTitle(),
+				message: this.$texts.admin.fullBackupDeleteMessage(backup.file_name),
+				confirmLabel: this.$texts.admin.fullBackupDeleteConfirm(),
+				confirmVariant: 'danger'
+			});
+			if (!confirmed) {
+				return;
+			}
+			this.fullBackupDeletingFileName = backup.file_name;
+			try {
+				const response = await axios.delete(generateUrl(`/apps/cobudget/api/admin/full-backup/${encodeURIComponent(backup.file_name)}`), { skipWorkspaceHeader: true });
+				this.applyFullBackupResponse(response.data || {});
+				showToast(this.$texts.admin.fullBackupDeleted());
+			} catch (e) {
+				showRequestError(e, this.$texts.admin.fullBackupDeleteError(), 'Failed to delete full backup');
+			} finally {
+				this.fullBackupDeletingFileName = '';
+			}
+		},
+		openFullBackupRestore(backup) {
+			this.fullBackupRestoreCandidate = backup;
+			this.fullBackupRestoreConfirmation = '';
+		},
+		closeFullBackupRestoreModal() {
+			if (this.fullBackupRestoringFileName) {
+				return;
+			}
+			this.fullBackupRestoreCandidate = null;
+			this.fullBackupRestoreConfirmation = '';
+		},
+		async confirmFullBackupRestore() {
+			if (!this.canRestoreFullBackup) {
+				return;
+			}
+			const fileName = this.fullBackupRestoreCandidate.file_name;
+			this.fullBackupRestoringFileName = fileName;
+			try {
+				const response = await axios.post(generateUrl('/apps/cobudget/api/admin/full-backup/restore'), {
+					file_name: fileName,
+					confirmation: this.fullBackupRestoreConfirmation
+				}, { skipWorkspaceHeader: true });
+				this.applyFullBackupResponse(response.data || {});
+				this.fullBackupRestoreCandidate = null;
+				this.fullBackupRestoreConfirmation = '';
+				showToast(this.$texts.admin.fullBackupRestored());
+			} catch (e) {
+				showRequestError(e, this.$texts.admin.fullBackupRestoreError(), 'Failed to restore full backup');
+			} finally {
+				this.fullBackupRestoringFileName = '';
+			}
+		},
+		formatBackupDate(timestamp) {
+			const numericTimestamp = Number(timestamp || 0);
+			if (!numericTimestamp) {
+				return this.$texts.common.unknownDate();
+			}
+			return new Intl.DateTimeFormat(undefined, {
+				dateStyle: 'medium',
+				timeStyle: 'short'
+			}).format(new Date(numericTimestamp * 1000));
+		},
+		formatBackupSize(size) {
+			const bytes = Number(size || 0);
+			if (bytes <= 0) {
+				return '0 B';
+			}
+			const units = ['B', 'KB', 'MB', 'GB'];
+			let value = bytes;
+			let unitIndex = 0;
+			while (value >= 1024 && unitIndex < units.length - 1) {
+				value /= 1024;
+				unitIndex += 1;
+			}
+			return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+		},
+		shellQuote(value) {
+			return `"${String(value || '').replace(/(["\\$`])/g, '\\$1')}"`;
+		},
+		fullBackupOccCommand(backup) {
+			return [
+				'occ',
+				'cobudget:backup:restore-full',
+				'--user',
+				this.shellQuote(this.fullBackupStorageUser),
+				'--folder',
+				this.shellQuote(this.fullBackupStorageFolder),
+				'--file',
+				this.shellQuote(backup?.file_name || '')
+			].join(' ');
 		},
 		normalizeAdminItems(items) {
 			return (items || []).map(item => ({
@@ -639,7 +987,8 @@ export default {
 	gap: 30px;
 }
 
-.integrity-card {
+.integrity-card,
+.admin-backup-card {
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	border: 1px solid var(--cobudget-border, #ddd);
 	border-radius: var(--border-radius-large, 8px);
@@ -654,13 +1003,15 @@ export default {
 	justify-content: space-between;
 }
 
-.integrity-card h3 {
+.integrity-card h3,
+.admin-backup-card h3 {
 	font-size: var(--cobudget-font-lg);
 	font-weight: 700;
 	margin: 0 0 6px 0;
 }
 
-.integrity-card p {
+.integrity-card p,
+.admin-backup-card p {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
 	line-height: 1.45;
 	margin: 0;
@@ -672,6 +1023,144 @@ export default {
 	flex-wrap: wrap;
 	gap: 8px;
 	justify-content: flex-end;
+}
+
+.admin-backup-settings-grid {
+	align-items: end;
+	display: grid;
+	gap: 16px;
+	grid-template-columns: minmax(220px, 2fr) minmax(180px, 1.5fr) minmax(130px, 0.7fr) minmax(160px, 0.9fr) auto;
+	margin-top: 18px;
+}
+
+.admin-backup-field {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	display: grid;
+	font-size: var(--cobudget-font-compact);
+	font-weight: 600;
+	gap: 6px;
+	min-width: 0;
+}
+
+.admin-backup-field span {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	font-size: var(--cobudget-font-sm);
+	font-weight: 400;
+	line-height: 1.35;
+}
+
+.admin-backup-field .form-control {
+	min-width: 0;
+}
+
+.admin-backup-save-action {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.admin-backup-list {
+	border-top: 1px solid var(--cobudget-border, #ddd);
+	margin-top: 20px;
+	padding-top: 18px;
+}
+
+.admin-backup-list-header {
+	align-items: flex-start;
+	display: flex;
+	gap: 16px;
+	justify-content: space-between;
+	margin-bottom: 14px;
+}
+
+.admin-backup-list-header h4 {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-size: var(--cobudget-font-md);
+	font-weight: 700;
+	margin: 0 0 4px 0;
+}
+
+.admin-backup-items {
+	display: grid;
+	gap: 12px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.admin-backup-item {
+	align-items: center;
+	background: var(--cobudget-surface, var(--color-main-background, #fff));
+	border: 1px solid var(--cobudget-border, #ddd);
+	border-radius: var(--border-radius-large, 8px);
+	display: flex;
+	gap: 16px;
+	justify-content: space-between;
+	padding: 18px 20px;
+}
+
+.admin-backup-info {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+
+.admin-backup-info strong {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-size: var(--cobudget-font-md);
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.admin-backup-info span {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+.admin-backup-info small {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	font-size: var(--cobudget-font-sm);
+	overflow-wrap: anywhere;
+}
+
+.admin-backup-item-actions {
+	align-items: center;
+	display: flex;
+	flex: 0 0 auto;
+	gap: 10px;
+	justify-content: flex-end;
+}
+
+.admin-backup-icon-button {
+
+}
+
+.admin-backup-occ {
+	margin-top: 4px;
+}
+
+.admin-backup-occ summary {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	cursor: pointer;
+	font-size: var(--cobudget-font-sm);
+	width: max-content;
+	max-width: 100%;
+}
+
+.admin-backup-occ code {
+	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
+	border: 1px solid var(--cobudget-border, #ddd);
+	border-radius: var(--border-radius, 6px);
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	display: block;
+	font-size: var(--cobudget-font-xs);
+	line-height: 1.45;
+	margin-top: 8px;
+	max-width: 100%;
+	overflow-x: auto;
+	padding: 8px 10px;
+	white-space: normal;
+	word-break: break-word;
 }
 
 .integrity-status {
@@ -1011,6 +1500,23 @@ export default {
 
 	.integrity-actions,
 	.integrity-merge-actions {
+		justify-content: flex-start;
+	}
+
+	.admin-backup-settings-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.admin-backup-save-action {
+		justify-content: flex-start;
+	}
+
+	.admin-backup-item {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.admin-backup-item-actions {
 		justify-content: flex-start;
 	}
 }

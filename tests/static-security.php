@@ -70,6 +70,8 @@ try {
 	$assertContains($entry, 'validateSplitMode($splitMode)', 'EntryController validates split mode');
 	$assertContains($entry, "'amount_cents'", 'EntryController writes amount_cents');
 	$assertContains($entry, "'split_mode'", 'EntryController writes split_mode');
+	$assertContains($entry, "'split_user_id'", 'EntryController writes split_user_id');
+	$assertContains($entry, 'validateProjectSplitUser($projectId, $splitMode, $splitUserId, $entryUserId)', 'EntryController validates split target membership');
 	$assertContains($entry, 'normalizeAmountRow($entry)', 'EntryController normalizes amount API output');
 	$assertContains($entry, 'public function dashboard(', 'EntryController exposes bundled dashboard endpoint');
 	$assertContains($entry, 'public function exportCsv(', 'EntryController exposes CSV export endpoint');
@@ -128,6 +130,8 @@ try {
 	$assertContains($template, 'catch (\\Throwable $e)', 'TemplateController JSON error catch');
 	$assertContains($template, "'amount_cents'", 'TemplateController writes amount_cents');
 	$assertContains($template, "'split_mode'", 'TemplateController writes split_mode');
+	$assertContains($template, "'split_user_id'", 'TemplateController writes split_user_id');
+	$assertContains($template, 'validateProjectSplitUser($projectId, $splitMode, $splitUserId, (string)$this->userId)', 'TemplateController validates split target membership');
 	$assertContains($template, 'markUsed', 'TemplateController exposes template usage marker');
 	$assertContains($template, 'usage_count', 'TemplateController tracks template usage');
 
@@ -135,7 +139,11 @@ try {
 	$assertContains($workspace, 'beginTransaction()', 'WorkspaceController transactional delete');
 	$assertContains($workspace, 'owner_id', 'WorkspaceController project owner scope');
 	$assertContains($workspace, 'user_id', 'WorkspaceController user scope');
-	$assertContains($workspace, 'entryIdsForWorkspaceDelete', 'WorkspaceController collects all entries that must be removed');
+	$assertContains($workspace, 'workspaceDeleteHasSharedProjectData($projectIds)', 'WorkspaceController blocks shared areas before deleting workspaces');
+	$assertContains($workspace, 'projectIdsWithOtherMembers', 'WorkspaceController detects other members before workspace delete');
+	$assertContains($workspace, 'projectIdsWithOtherUserEntries', 'WorkspaceController detects other-user area entries before workspace delete');
+	$assertContains($workspace, 'STATUS_CONFLICT', 'WorkspaceController reports shared workspace delete as a conflict');
+	$assertContains($workspace, 'entryIdsForWorkspaceDelete', 'WorkspaceController collects removable entries after shared-area checks pass');
 	$assertContains($workspace, 'cobudget_entry_attachments', 'WorkspaceController removes attachment rows before deleting entries');
 	$assertContains($workspace, 'cobudget_settlement_balances', 'WorkspaceController removes settlement balance rows for deleted areas');
 	$assertContains($workspace, 'cobudget_settlement_transfers', 'WorkspaceController removes settlement transfer rows for deleted areas');
@@ -183,6 +191,7 @@ try {
 	$assertContains($recurringJob, "'workspace_id'", 'RecurringEntriesJob preserves workspace_id');
 	$assertContains($recurringJob, "'amount_cents'", 'RecurringEntriesJob preserves amount_cents');
 	$assertContains($recurringJob, "'split_mode'", 'RecurringEntriesJob preserves split_mode');
+	$assertContains($recurringJob, "'split_user_id'", 'RecurringEntriesJob preserves split_user_id');
 	$assertContains($recurringJob, "'recurrence_series_id'", 'RecurringEntriesJob preserves recurrence series id');
 	$assertContains($recurringJob, 'deactivateCurrentSeriesHead($entry)', 'RecurringEntriesJob deactivates the previous series head');
 	$assertContains($recurringJob, 'recurrenceSeriesIdFromRow($entry)', 'RecurringEntriesJob resolves the recurrence series id');
@@ -221,15 +230,19 @@ try {
 	$assertContains($backupService, "'show_workspace_switcher' => 'yes'", 'BackupService tracks workspace switcher settings defaults');
 	$assertContains($backupService, "'currency' => 'EUR'", 'BackupService defaults currency to EUR when no user preference exists');
 	$assertContains($backupService, "'hidden_workspaces' => '[]'", 'BackupService tracks hidden workspace settings defaults');
-	$assertContains($backupService, 'settingsDefaultForUser($userId, $key)', 'User backup includes effective defaulted settings values');
+	$assertContains($backupService, 'settingsDefaultForUser($userId, $key)', 'Personal export includes effective defaulted settings values');
 	$assertContains($backupService, "if (\$key === 'enable_workspaces' && \$this->userHasManagedWorkspaces(\$userId))", 'BackupService exports workspace feature enabled when extra workspaces exist');
-	$assertContains($backupService, 'backupContainsUserManagedWorkspaces($tables, $userId)', 'Restore recovers workspace-enabled state when extra workspaces exist despite older default no settings');
+	$assertContains($backupService, 'backupContainsUserManagedWorkspaces($tables, $userId)', 'Full restore recovers workspace-enabled state when extra workspaces exist despite older default no settings');
 	$assertContains($backupService, 'normalizeFullSettings($archive[\'settings\'], $tables)', 'Full restore normalizes settings with table context');
 	$assertContains($backupService, 'fetchAllSettings($userIds)', 'Full backup includes effective settings for every exported user');
 	$assertContains($backupService, 'createFullBackup(string $storageUserId', 'BackupService exposes full backup creation');
-	$assertContains($backupService, 'deleteBackup(string $userId', 'BackupService exposes backup deletion');
-	$assertContains($backupService, 'inspectBackup(string $userId', 'BackupService exposes backup inspection before restore');
-	$assertContains($backupService, 'restoreBackup(string $userId', 'BackupService exposes user backup restore');
+	$assertContains($backupService, 'deleteBackup(string $userId', 'BackupService exposes personal export deletion');
+	$assertContains($backupService, 'inspectBackup(string $userId', 'BackupService exposes personal export inspection');
+	$assertContains($backupService, 'restoreBackup(string $userId', 'BackupService exposes empty-state personal export restore');
+	$assertContains($backupService, "'restore_mode' => 'empty_personal_import'", 'Personal export manifest documents the empty-state import mode');
+	$assertContains($backupService, 'assertPersonalImportTargetIsEmpty($userId)', 'Personal export restore refuses non-empty target users');
+	$assertContains($backupService, '$safetyBackup = $this->createBackup($userId', 'Personal export restore creates a safety export before importing');
+	$assertContains($backupService, 'insertTablesWithGeneratedIds($tables)', 'Personal export restore imports rows with generated local IDs');
 	$assertContains($backupService, 'restoreFullBackup(string $storageUserId', 'BackupService exposes full backup restore');
 	$assertContains($backupService, 'collectFullBackupData()', 'BackupService collects full backup data');
 	$assertContains($backupService, 'fetchAllSettings($userIds)', 'Full backup includes effective CoBudget settings');
@@ -239,29 +252,26 @@ try {
 	$assertContains($backupService, 'deleteAllBackupTables()', 'Full restore deletes existing app tables');
 	$assertContains($backupService, 'deleteAllCoBudgetSettings()', 'Full restore deletes existing app settings');
 	$assertContains($backupService, 'assertReferencedUsersExist(', 'Restore validates referenced users');
-	$assertContains($backupService, 'assertUserRestoreScope($tables, $userId)', 'User restore validates shared-area scope before deleting data');
-	$assertContains($backupService, 'private function assertUserRestoreScope', 'BackupService has a user restore shared-area guard');
-	$assertContains($backupService, 'assertRowsBelongToUser($tables', 'BackupService rejects non-project user rows outside the restore user');
-	$assertContains($backupService, 'Dieses Benutzer-Backup enthält Zahlungen aus einem fremden gemeinsamen Bereich', 'User restore rejects foreign shared-area payments');
-	$assertContains($backupService, 'Dieses Benutzer-Backup enthält Beleg-Pfade ohne passende Zahlung', 'User restore rejects attachment paths outside imported entries');
-	$assertContains($backupService, 'Dieses Benutzer-Backup enthält Abrechnungsdaten ohne passende Abrechnung', 'User restore rejects orphan settlement rows outside imported settlements');
-	$assertContains($backupService, "eq('owner_id'", 'User backup areas are owner-scoped');
+	$assertNotContains($backupService, 'assertUserRestoreScope($tables, $userId)', 'Personal export restore should not run a partial user restore path');
+	$assertNotContains($backupService, 'private function assertUserRestoreScope', 'BackupService should not keep the removed user restore shared-area guard');
+	$assertContains($backupService, "eq('owner_id'", 'Personal export areas are owner-scoped');
 	$assertContains($backupService, 'applyUserMapToTables(', 'Restore supports user mapping');
 	$assertContains($backupService, 'buildBackupUserRows(', 'Backup inspection returns user mapping rows');
 	$assertContains($backupService, 'backupContainsWorkspaces(', 'Restore recovers workspace settings from older workspace backups');
-	$assertContains($backupService, '$safetyBackup = $this->createBackup(', 'User restore creates a safety backup first');
+	$assertContains($backupService, '$safetyBackup = $this->createBackup(', 'Personal export restore creates a safety export before the empty-state import');
 	$assertContains($backupService, '$safetyBackup = $this->createFullBackup(', 'Full restore creates a safety backup first');
 	$assertContains($backupService, "'safety_backup' => \$safetyBackup", 'Restore responses include the safety backup');
 	$assertContains($backupService, "'cobudget_budget_snapshots'", 'BackupService exports budget snapshots');
 	$assertContains($backupService, "'cobudget_hashtags'", 'BackupService exports hashtags');
 	$assertContains($backupService, "'cobudget_entry_hashtags'", 'BackupService exports entry hashtag links');
-	$assertContains($backupService, 'Dieses Benutzer-Backup enthält Hashtags ausserhalb des Benutzer-Scopes', 'User restore rejects hashtags outside imported workspaces');
-	$assertContains($backupService, 'Dieses Benutzer-Backup enthält Hashtag-Zuordnungen ausserhalb des Benutzer-Scopes', 'User restore rejects orphan hashtag links');
-	$assertContains($backupService, 'fetchBudgetSnapshots($userId, $workspaceIds)', 'User backup includes budget snapshots');
+	$assertContains($backupService, "'split_user_id'", 'BackupService exports and imports split target users');
+	$assertContains($backupService, 'personalImportEntryShareCents(', 'Personal import converts shared entries through personal share calculation');
+	$assertContains($backupService, '$splitTargetUserId === $sourceUserId', 'Personal import keeps single-user entries only when the source user is the split target');
+	$assertContains($backupService, 'fetchBudgetSnapshots($userId, $workspaceIds)', 'Personal export includes budget snapshots');
 
 	$userResetService = $read('lib/Service/UserResetService.php');
 	$assertContains($userResetService, "CONFIRMATION_TEXT = 'RESET'", 'User reset requires an explicit RESET confirmation');
-	$assertContains($userResetService, "SAFETY_BACKUP_FOLDER = 'CoBudget/Backups'", 'User reset creates the safety backup in the default backup folder');
+	$assertContains($userResetService, "SAFETY_BACKUP_FOLDER = 'CoBudget/Export'", 'User reset creates the safety export in the personal export folder');
 	$assertContains($userResetService, 'createBackup($userId, self::SAFETY_BACKUP_FOLDER', 'User reset creates a safety backup before deleting data');
 	$assertContains($userResetService, 'blocking_shared_projects', 'User reset reports shared areas that block reset');
 	$assertContains($userResetService, 'countUnsettledProjectEntries', 'User reset blocks shared areas with open entries');
@@ -277,12 +287,22 @@ try {
 	$assertContains($fullBackupCommand, "addOption('user'", 'Full backup command requires a storage user option');
 	$assertContains($fullBackupCommand, 'createFullBackup(', 'Full backup command calls BackupService full backup');
 
+	$adminBackupController = $read('lib/Controller/AdminBackupController.php');
+	$assertContains($adminBackupController, 'loggedErrorResponse(', 'Admin backup controller should centralize logged generic API errors');
+	$assertContains($adminBackupController, 'int $status = Http::STATUS_INTERNAL_SERVER_ERROR', 'Admin backup controller should preserve validation status codes while returning generic messages');
+	$assertContains($adminBackupController, 'Http::STATUS_BAD_REQUEST)', 'Admin backup validation errors should keep HTTP 400');
+	$assertNotContains($adminBackupController, 'errorResponse($e->getMessage()', 'Admin backup controller should not expose raw exception messages to clients');
+	$assertNotContains($adminBackupController, "['error' => \$e->getMessage()", 'Admin backup controller should not expose raw exception messages in JSON responses');
+
 	$userRestoreCommand = $read('lib/Command/RestoreBackupCommand.php');
 	$assertContains($userRestoreCommand, "setName('cobudget:backup:restore')", 'User restore command has the expected OCC name');
-	$assertContains($userRestoreCommand, "addOption('map-user'", 'User restore command supports user mapping');
+	$assertContains($userRestoreCommand, "addArgument('user'", 'User restore command requires a target user');
+	$assertContains($userRestoreCommand, "addArgument('file'", 'User restore command requires an export file');
+	$assertContains($userRestoreCommand, "addOption('folder'", 'User restore command supports an optional export folder');
 	$assertContains($userRestoreCommand, "addOption('force'", 'User restore command requires explicit force');
-	$assertContains($userRestoreCommand, 'restoreBackup(', 'User restore command calls BackupService restore');
-	$assertContains($userRestoreCommand, 'Sicherheitsbackup:', 'User restore command prints the safety backup');
+	$assertContains($userRestoreCommand, 'Bestehende CoBudget-Daten blockieren den Import.', 'User restore command explains the empty-target restriction');
+	$assertContains($userRestoreCommand, 'restoreBackup(', 'User restore command calls the guarded personal export restore');
+	$assertContains($userRestoreCommand, 'Sicherheitsexport:', 'User restore command prints the safety export created before import');
 
 	$fullRestoreCommand = $read('lib/Command/RestoreFullBackupCommand.php');
 	$assertContains($fullRestoreCommand, "setName('cobudget:backup:restore-full')", 'Full restore command has the expected OCC name');
@@ -369,6 +389,17 @@ try {
 	$assertContains($entry, "'receipt_storage_folder'", 'EntryController uses the configured receipt storage folder');
 	$assertContains($entry, "'receipt_folder_grouping'", 'EntryController uses the configured receipt folder grouping');
 	$assertContains($entry, "'delete_receipts_with_entry'", 'EntryController honors configured receipt file deletion behavior');
+	$assertContains($entry, 'DEFAULT_ATTACHMENT_MAX_SIZE_BYTES = 10485760', 'EntryController keeps a safe default receipt upload size');
+	$assertContains($entry, 'ATTACHMENT_MAX_SIZE_CONFIG_KEY', 'EntryController allows overriding receipt upload size through system config');
+	$assertContains($entry, 'ATTACHMENT_ALLOWED_TYPES_CONFIG_KEY', 'EntryController allows overriding receipt upload types through system config');
+	$assertContains($entry, 'DEFAULT_ATTACHMENT_MIME_TYPES', 'EntryController keeps a safe default receipt upload type allow-list');
+	$assertContains($entry, 'BLOCKED_ATTACHMENT_MIME_TYPES', 'EntryController blocks risky browser-executable receipt MIME types');
+	$assertContains($entry, 'validateUploadedAttachment($upload)', 'EntryController validates receipt uploads before reading file content');
+	$assertContains($entry, 'isSafeAttachmentMimeType($mimeType)', 'EntryController filters configured receipt MIME types through a safe allow-list');
+	$assertContains($entry, 'detectUploadedAttachmentMimeType', 'EntryController sniffs receipt MIME types');
+	$assertContains($entry, 'finfo_file', 'EntryController uses finfo for receipt MIME detection when available');
+	$assertContains($entry, 'HTTP_PAYLOAD_TOO_LARGE', 'EntryController returns a 413-style response for oversized receipt uploads');
+	$assertContains($entry, 'HTTP_UNSUPPORTED_MEDIA_TYPE', 'EntryController returns a 415-style response for unsupported receipt uploads');
 
 	$user = $read('lib/Controller/UserController.php');
 	$assertContains($user, "'enable_budget_goals'", 'User settings expose budget goal feature toggle');
@@ -381,6 +412,13 @@ try {
 	$assertContains($user, "'US' => 'USD'", 'User settings default US locale to USD');
 	$assertContains($user, 'effectiveCurrency()', 'User settings expose an effective currency default');
 	$assertContains($user, 'detectCurrencyFromLocale()', 'User settings persist a detected currency when saving empty currency');
+	$assertContains($user, 'USER_SEARCH_MIN_LENGTH = 3', 'User search requires a minimum query length to reduce enumeration');
+	$assertContains($user, 'USER_SEARCH_LIMIT = 10', 'User search keeps result sets small');
+	$assertContains($user, 'sharedProjectsEnabled()', 'User search is only active when shared areas are enabled');
+	$assertContains($user, 'userSearchAllowed()', 'User search respects Nextcloud enumeration policy');
+	$assertContains($user, 'shareapi_allow_share_dialog_user_enumeration', 'User search honors the Nextcloud user enumeration config');
+	$assertContains($user, 'mb_strlen($term) < self::USER_SEARCH_MIN_LENGTH', 'User search rejects too-short queries');
+	$assertContains($user, 'search($term, self::USER_SEARCH_LIMIT)', 'User search uses the constrained limit');
 
 	$notifier = $read('lib/Notification/Notifier.php');
 	$l10nDe = $read('l10n/de.js');
@@ -423,13 +461,14 @@ try {
 	$assertContains($initialMigration, 'cb_ent_rec_series', 'Initial migration indexes recurrence_series_id');
 	$assertContains($initialMigration, 'share_basis_points', 'Initial migration stores member shares');
 	$assertContains($initialMigration, 'split_mode', 'Initial migration stores split mode');
+	$assertContains($initialMigration, 'split_user_id', 'Initial migration stores split target user');
 	$assertContains($initialMigration, 'settlement_id', 'Initial migration adds entry settlement_id');
 	$assertContains($initialMigration, 'cobudget_settlements', 'Initial migration creates settlement table');
 	$assertContains($initialMigration, 'cobudget_settlement_balances', 'Initial migration creates balance snapshot table');
 	$assertContains($initialMigration, 'cobudget_settlement_transfers', 'Initial migration creates transfer snapshot table');
 	$assertContains($initialMigration, 'usage_count', 'Initial migration adds template usage_count');
 
-	$performanceMigration = $read('lib/Migration/Version000002Date20260703000000.php');
+	$performanceMigration = $read('lib/Migration/Version000001Date20260624000000.php');
 	foreach ([
 		'cb_ent_ws_date_id',
 		'cb_ent_ws_type_dt',
@@ -446,11 +485,11 @@ try {
 		$assertContains($performanceMigration, $indexName, 'Performance migration should keep index ' . $indexName);
 	}
 
-	$hashtagMigration = $read('lib/Migration/Version000003Date20260705000000.php');
-	$assertContains($hashtagMigration, 'cobudget_hashtags', 'Hashtag migration creates hashtag table');
-	$assertContains($hashtagMigration, 'cobudget_entry_hashtags', 'Hashtag migration creates entry link table');
-	$assertContains($hashtagMigration, 'cb_hash_ws_name', 'Hashtag migration prevents duplicate hashtag names per workspace');
-	$assertContains($hashtagMigration, 'cb_ehash_entry_hash', 'Hashtag migration prevents duplicate links per entry');
+	$hashtagMigration = $read('lib/Migration/Version000001Date20260624000000.php');
+	$assertContains($hashtagMigration, 'cobudget_hashtags', 'Initial migration creates hashtag table');
+	$assertContains($hashtagMigration, 'cobudget_entry_hashtags', 'Initial migration creates entry hashtag link table');
+	$assertContains($hashtagMigration, 'cb_hash_ws_name', 'Initial migration prevents duplicate hashtag names per workspace');
+	$assertContains($hashtagMigration, 'cb_ehash_entry_hash', 'Initial migration prevents duplicate links per entry');
 
 	$hashtagService = $read('lib/Service/HashtagService.php');
 	$assertContains($hashtagService, 'extractFromText', 'HashtagService extracts hashtags from descriptions');
@@ -492,8 +531,8 @@ try {
 	$assertContains($paymentPartnerController, 'DEFAULT_PAYMENT_PARTNERS_SEEDED_KEY', 'Payment partner seeding is guarded by an app setting');
 
 	$infoXml = $read('appinfo/info.xml');
-	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
-		$failures[] = 'Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer';
+	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
+		$failures[] = 'Initial public baseline should keep appinfo/info.xml on the 0.1 release line';
 	}
 	$assertContains($infoXml, 'max-version="33"', 'App metadata should allow the deployed Nextcloud 33 server');
 

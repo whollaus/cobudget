@@ -144,7 +144,7 @@ class ProjectController extends Controller {
 		}
 
 		$qbEntries = $this->db->getQueryBuilder();
-		$qbEntries->select('user_id', 'amount', 'amount_cents', 'type', 'split_mode')
+		$qbEntries->select('user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 			->from('cobudget_entries')
 			->where($qbEntries->expr()->eq('project_id', $qbEntries->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qbEntries->expr()->eq('workspace_id', $qbEntries->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -895,7 +895,7 @@ class ProjectController extends Controller {
 		}
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('user_id', 'amount', 'amount_cents', 'type', 'split_mode')
+		$qb->select('user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -928,8 +928,9 @@ class ProjectController extends Controller {
 			}
 
 			if ($this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user') {
-				if (isset($fairShare[$entryUserId])) {
-					$fairShare[$entryUserId] += $amountCents;
+				$splitTargetUserId = $this->entrySplitTargetUserId($entry);
+				if (isset($fairShare[$splitTargetUserId])) {
+					$fairShare[$splitTargetUserId] += $amountCents;
 				}
 				continue;
 			}
@@ -1256,7 +1257,7 @@ class ProjectController extends Controller {
 		$currentUserId = (string)$this->userId;
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('user_id', 'type', 'amount', 'amount_cents', 'split_mode', 'is_settled', 'is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant')
+		$qb->select('user_id', 'type', 'amount', 'amount_cents', 'split_mode', 'split_user_id', 'is_settled', 'is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))

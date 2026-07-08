@@ -165,6 +165,9 @@ class CategoryController extends Controller {
 		}
 	}
 
+	/**
+	 * @NoAdminRequired
+	 */
 	public function settingsData(?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {

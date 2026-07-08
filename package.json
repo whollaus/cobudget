@@ -1,6 +1,6 @@
 {
   "name": "cobudget",
-  "version": "0.3.6",
+  "version": "0.1.1",
   "description": "Personal and shared budgeting for Nextcloud",
   "private": true,
   "scripts": {
@@ -11,8 +11,8 @@
     "test:php": "php tests/php/run.php",
     "test:frontend-smoke": "node tests/frontend-smoke.mjs",
     "test:static-security": "php tests/static-security.php",
-    "release:zip": "cd .. && zip -qr /private/tmp/cobudget.zip cobudget/appinfo cobudget/css cobudget/img cobudget/js cobudget/lib cobudget/l10n cobudget/templates cobudget/composer.json -x '*.map' && mv /private/tmp/cobudget.zip cobudget.zip",
-    "release": "npm run build && npm run release:zip"
+    "release:tar": "cd .. && tar --exclude='*.map' -czf /private/tmp/cobudget.tar.gz cobudget/appinfo cobudget/css cobudget/img cobudget/js cobudget/lib cobudget/l10n cobudget/templates cobudget/composer.json && mv /private/tmp/cobudget.tar.gz cobudget.tar.gz",
+    "release": "npm run build && npm run release:tar"
   },
   "dependencies": {
     "@nextcloud/axios": "^2.1.0",

@@ -647,7 +647,7 @@ trait WorkspaceAwareTrait {
 	protected function entryShareCentsForUser(array $entry, string $userId, int $amountCents, array $shareBasisPointsByUserId): int {
 		$splitMode = $this->normalizeSplitMode($entry['split_mode'] ?? null);
 		if ($splitMode === 'single_user') {
-			return (string)($entry['user_id'] ?? '') === $userId ? $amountCents : 0;
+			return $this->entrySplitTargetUserId($entry) === $userId ? $amountCents : 0;
 		}
 
 		if (!isset($shareBasisPointsByUserId[$userId])) {
@@ -655,6 +655,37 @@ trait WorkspaceAwareTrait {
 		}
 
 		return $this->distributeAmountCents($amountCents, $shareBasisPointsByUserId)[$userId] ?? 0;
+	}
+
+	protected function normalizeSplitUserId(?string $splitUserId): ?string {
+		$splitUserId = trim((string)$splitUserId);
+		return $splitUserId === '' ? null : $splitUserId;
+	}
+
+	protected function entrySplitTargetUserId(array $entry): string {
+		return $this->normalizeSplitUserId($entry['split_user_id'] ?? null) ?? (string)($entry['user_id'] ?? '');
+	}
+
+	protected function validateProjectSplitUser(?int $projectId, string $splitMode, ?string &$splitUserId, string $fallbackUserId): ?DataResponse {
+		$splitUserId = $this->normalizeSplitUserId($splitUserId);
+		if ($projectId === null || $this->normalizeSplitMode($splitMode) !== 'single_user') {
+			$splitUserId = null;
+			return null;
+		}
+
+		if ($splitUserId === null) {
+			$splitUserId = trim($fallbackUserId);
+		}
+
+		if ($splitUserId === '') {
+			return $this->errorResponse('Split target is required', Http::STATUS_BAD_REQUEST);
+		}
+
+		if (!$this->projectUserMemberInActiveWorkspace($projectId, $splitUserId)) {
+			return $this->errorResponse('Split target is not a member of this area', Http::STATUS_FORBIDDEN);
+		}
+
+		return null;
 	}
 
 	protected function validateRequiredUserId(string &$userId): ?DataResponse {

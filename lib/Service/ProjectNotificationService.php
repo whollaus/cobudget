@@ -215,7 +215,7 @@ class ProjectNotificationService {
 		$shareBasisPoints = $this->memberShareBasisPoints($projectId, $members);
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('user_id', 'amount', 'amount_cents', 'currency', 'split_mode')
+		$qb->select('user_id', 'amount', 'amount_cents', 'currency', 'split_mode', 'split_user_id')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -242,8 +242,9 @@ class ProjectNotificationService {
 			$currency = (string)($entry['currency'] ?: $currency);
 
 			if ($this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user') {
-				if (isset($fairShare[$userId])) {
-					$fairShare[$userId] += $amountCents;
+				$splitTargetUserId = $this->entrySplitTargetUserId($entry);
+				if (isset($fairShare[$splitTargetUserId])) {
+					$fairShare[$splitTargetUserId] += $amountCents;
 				}
 				continue;
 			}
@@ -372,6 +373,11 @@ class ProjectNotificationService {
 
 	private function normalizeSplitMode(?string $splitMode): string {
 		return $splitMode === 'single_user' ? 'single_user' : 'project_shares';
+	}
+
+	private function entrySplitTargetUserId(array $entry): string {
+		$splitUserId = trim((string)($entry['split_user_id'] ?? ''));
+		return $splitUserId !== '' ? $splitUserId : (string)($entry['user_id'] ?? '');
 	}
 
 	private function balanceDirection(int $balanceCents): string {

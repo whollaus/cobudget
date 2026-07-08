@@ -41,7 +41,7 @@ class RestoreFullBackupCommand extends Command {
 			return self::FAILURE;
 		}
 		if (!$input->getOption('force')) {
-			$output->writeln('<error>Full-Restore ist destruktiv. Bitte mit --force ausdrücklich bestätigen.</error>');
+			$output->writeln('<error>Full-Restore überschreibt alle aktuellen CoBudget-Daten mit dem Backup. Bitte mit --force ausdrücklich bestätigen.</error>');
 			return self::FAILURE;
 		}
 

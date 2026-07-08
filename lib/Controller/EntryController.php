@@ -26,6 +26,31 @@ class EntryController extends Controller {
 	private const EXPORT_LIMIT = 50000;
 	private const EXPORT_ATTACHMENT_CHUNK_SIZE = 500;
 	private const ENTRY_HISTORY_CHUNK_SIZE = 500;
+	private const DEFAULT_ATTACHMENT_MAX_SIZE_BYTES = 10485760;
+	private const ATTACHMENT_MAX_SIZE_CONFIG_KEY = 'cobudget.attachment_max_size_bytes';
+	private const ATTACHMENT_ALLOWED_TYPES_CONFIG_KEY = 'cobudget.attachment_allowed_types';
+	private const ATTACHMENT_ALLOWED_MIME_TYPES_CONFIG_KEY = 'cobudget.attachment_allowed_mime_types';
+	private const ATTACHMENT_ALLOWED_EXTENSIONS_CONFIG_KEY = 'cobudget.attachment_allowed_extensions';
+	private const HTTP_PAYLOAD_TOO_LARGE = 413;
+	private const HTTP_UNSUPPORTED_MEDIA_TYPE = 415;
+	private const DEFAULT_ATTACHMENT_MIME_TYPES = [
+		'application/pdf' => ['pdf'],
+		'image/jpeg' => ['jpg', 'jpeg'],
+		'image/png' => ['png'],
+		'image/webp' => ['webp'],
+		'image/gif' => ['gif'],
+		'image/heic' => ['heic'],
+		'image/heif' => ['heif'],
+	];
+	private const BLOCKED_ATTACHMENT_MIME_TYPES = [
+		'application/javascript',
+		'application/xhtml+xml',
+		'application/xml',
+		'image/svg+xml',
+		'text/html',
+		'text/javascript',
+		'text/xml',
+	];
 	private const ENTRY_HISTORY_FIELDS = [
 		'type',
 		'amount_cents',
@@ -37,6 +62,7 @@ class EntryController extends Controller {
 		'project_id',
 		'user_id',
 		'split_mode',
+		'split_user_id',
 		'recurrence_interval',
 		'recurrence_multiplier',
 		'recurrence_next_date',
@@ -75,6 +101,7 @@ class EntryController extends Controller {
 		'description',
 		'user_id',
 		'split_mode',
+		'split_user_id',
 		'recurrence_interval',
 		'reminder_text',
 	];
@@ -428,7 +455,7 @@ class EntryController extends Controller {
 		bool $isFuture
 	): array {
 		$qb = $this->buildVisibleEntriesQuery($workspaceId);
-		$qb->select('e.id', 'e.user_id', 'e.type', 'e.amount', 'e.amount_cents', 'e.project_id', 'e.split_mode', 'e.is_subscription', 'e.is_fixed_cost', 'e.is_child_related', 'e.is_important', 'e.needs_review', 'e.is_tax_relevant', 'e.date', 'e.recurrence_next_date');
+		$qb->select('e.id', 'e.user_id', 'e.type', 'e.amount', 'e.amount_cents', 'e.project_id', 'e.split_mode', 'e.split_user_id', 'e.is_subscription', 'e.is_fixed_cost', 'e.is_child_related', 'e.is_important', 'e.needs_review', 'e.is_tax_relevant', 'e.date', 'e.recurrence_next_date');
 		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
 		$qb->groupBy('e.id');
 
@@ -991,7 +1018,7 @@ class EntryController extends Controller {
 		$entriesByProject = [];
 		foreach (array_chunk($projectIds, 500) as $chunk) {
 			$qb = $this->db->getQueryBuilder();
-			$qb->select('project_id', 'user_id', 'amount', 'amount_cents', 'type', 'split_mode')
+			$qb->select('project_id', 'user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 				->from('cobudget_entries')
 				->where($qb->expr()->in('project_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
 				->andWhere($qb->expr()->eq('type', $qb->createNamedParameter('expense')))
@@ -1146,7 +1173,7 @@ class EntryController extends Controller {
 		}
 
 		if ($this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user') {
-			return ((string)($entry['user_id'] ?? '') === (string)$this->userId) ? $amountCents : 0;
+			return $this->entrySplitTargetUserId($entry) === (string)$this->userId ? $amountCents : 0;
 		}
 
 		$shareBasisPoints = $projectShareBasisPoints[$projectId] ?? 10000;
@@ -1385,7 +1412,8 @@ class EntryController extends Controller {
 		?string $reminderText = null,
 		?int $recurrenceParentId = null,
 		?string $userId = null,
-		?string $splitMode = null
+		?string $splitMode = null,
+		?string $splitUserId = null
 	): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -1405,6 +1433,9 @@ class EntryController extends Controller {
 			}
 			$entryUserId = $userId;
 			if ($validationError = $this->validateEntryUserId($projectId, $entryUserId)) {
+				return $validationError;
+			}
+			if ($validationError = $this->validateProjectSplitUser($projectId, $splitMode, $splitUserId, $entryUserId)) {
 				return $validationError;
 			}
 			if ($type !== 'expense') {
@@ -1428,6 +1459,7 @@ class EntryController extends Controller {
 					'description' => $qb->createNamedParameter($description ?? ''),
 					'payment_partner_id' => $qb->createNamedParameter($paymentPartnerId, $paymentPartnerId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
 					'split_mode' => $qb->createNamedParameter($splitMode),
+					'split_user_id' => $qb->createNamedParameter($splitUserId, $splitUserId === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
 					'is_settled' => $qb->createNamedParameter(false, \PDO::PARAM_BOOL),
 					'recurrence_interval' => $qb->createNamedParameter($recurrenceInterval, $recurrenceInterval === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
 					'recurrence_multiplier' => $qb->createNamedParameter($recurrenceMultiplier, $recurrenceMultiplier === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
@@ -1500,7 +1532,8 @@ class EntryController extends Controller {
 		bool $reminderNotified = false,
 		?string $reminderText = null,
 		?string $userId = null,
-		?string $splitMode = null
+		?string $splitMode = null,
+		?string $splitUserId = null
 		): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -1520,6 +1553,9 @@ class EntryController extends Controller {
 			}
 			$entryUserId = $userId;
 			if ($validationError = $this->validateEntryUserId($projectId, $entryUserId)) {
+				return $validationError;
+			}
+			if ($validationError = $this->validateProjectSplitUser($projectId, $splitMode, $splitUserId, $entryUserId)) {
 				return $validationError;
 			}
 			if ($type !== 'expense') {
@@ -1554,6 +1590,7 @@ class EntryController extends Controller {
 			$updatedEntry['description'] = $description ?? '';
 			$updatedEntry['payment_partner_id'] = $paymentPartnerId;
 			$updatedEntry['split_mode'] = $splitMode;
+			$updatedEntry['split_user_id'] = $splitUserId;
 			$updatedEntry['recurrence_interval'] = $recurrenceInterval;
 			$updatedEntry['recurrence_multiplier'] = $recurrenceMultiplier;
 			$updatedEntry['recurrence_next_date'] = $recurrenceNextDate;
@@ -1582,6 +1619,7 @@ class EntryController extends Controller {
 				->set('description', $qb->createNamedParameter($description ?? ''))
 				->set('payment_partner_id', $qb->createNamedParameter($paymentPartnerId, $paymentPartnerId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT))
 				->set('split_mode', $qb->createNamedParameter($splitMode))
+				->set('split_user_id', $qb->createNamedParameter($splitUserId, $splitUserId === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR))
 				->set('recurrence_interval', $qb->createNamedParameter($recurrenceInterval, $recurrenceInterval === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR))
 				->set('recurrence_multiplier', $qb->createNamedParameter($recurrenceMultiplier, $recurrenceMultiplier === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT))
 				->set('recurrence_next_date', $qb->createNamedParameter($recurrenceNextDate, $recurrenceNextDate === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT))
@@ -1753,15 +1791,13 @@ class EntryController extends Controller {
 				return $this->errorResponse('No file uploaded', Http::STATUS_BAD_REQUEST);
 			}
 
-			if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-				return $this->errorResponse('File could not be uploaded', Http::STATUS_BAD_REQUEST);
+			$attachmentValidation = $this->validateUploadedAttachment($upload);
+			if ($attachmentValidation['error'] instanceof DataResponse) {
+				return $attachmentValidation['error'];
 			}
+			$detectedMimeType = (string)$attachmentValidation['mimeType'];
 
 			$tmpPath = (string)$upload['tmp_name'];
-			if (!is_uploaded_file($tmpPath) && !is_file($tmpPath)) {
-				return $this->errorResponse('File could not be read', Http::STATUS_BAD_REQUEST);
-			}
-
 			$content = file_get_contents($tmpPath);
 			if ($content === false) {
 				return $this->errorResponse('File could not be read', Http::STATUS_BAD_REQUEST);
@@ -1778,7 +1814,7 @@ class EntryController extends Controller {
 			$file->putContent($content);
 
 			$relativePath = trim($folderPath . '/' . $fileName, '/');
-			$mimeType = method_exists($file, 'getMimeType') ? (string)$file->getMimeType() : (string)($upload['type'] ?? '');
+			$mimeType = $detectedMimeType;
 			$fileSize = method_exists($file, 'getSize') ? (int)$file->getSize() : (int)($upload['size'] ?? strlen($content));
 			$fileId = method_exists($file, 'getId') ? $file->getId() : null;
 
@@ -2044,6 +2080,224 @@ class EntryController extends Controller {
 		return mb_substr($fileName, 0, 120);
 	}
 
+	private function validateUploadedAttachment(array $upload): array {
+		if (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+			return [
+				'error' => $this->errorResponse('File could not be uploaded', Http::STATUS_BAD_REQUEST),
+				'mimeType' => null,
+			];
+		}
+
+		$tmpPath = (string)($upload['tmp_name'] ?? '');
+		if ($tmpPath === '' || (!is_uploaded_file($tmpPath) && !is_file($tmpPath))) {
+			return [
+				'error' => $this->errorResponse('File could not be read', Http::STATUS_BAD_REQUEST),
+				'mimeType' => null,
+			];
+		}
+
+		$fileSize = (int)($upload['size'] ?? 0);
+		if ($fileSize <= 0 && is_file($tmpPath)) {
+			$actualSize = filesize($tmpPath);
+			if ($actualSize !== false) {
+				$fileSize = (int)$actualSize;
+			}
+		}
+
+		if ($fileSize <= 0) {
+			return [
+				'error' => $this->errorResponse('File is empty', Http::STATUS_BAD_REQUEST),
+				'mimeType' => null,
+			];
+		}
+
+		if ($fileSize > $this->attachmentMaxSizeBytes()) {
+			return [
+				'error' => $this->errorResponse('File is too large', self::HTTP_PAYLOAD_TOO_LARGE),
+				'mimeType' => null,
+			];
+		}
+
+		$mimeType = $this->detectUploadedAttachmentMimeType($upload);
+		$allowedMimeTypes = $this->allowedAttachmentMimeTypes();
+		if (!array_key_exists($mimeType, $allowedMimeTypes)) {
+			return [
+				'error' => $this->errorResponse('File type is not allowed', self::HTTP_UNSUPPORTED_MEDIA_TYPE),
+				'mimeType' => null,
+			];
+		}
+
+		$extension = strtolower(pathinfo((string)($upload['name'] ?? ''), PATHINFO_EXTENSION));
+		if ($extension === '' || !in_array($extension, $allowedMimeTypes[$mimeType], true)) {
+			return [
+				'error' => $this->errorResponse('File type is not allowed', self::HTTP_UNSUPPORTED_MEDIA_TYPE),
+				'mimeType' => null,
+			];
+		}
+
+		return [
+			'error' => null,
+			'mimeType' => $mimeType,
+		];
+	}
+
+	private function attachmentMaxSizeBytes(): int {
+		$value = $this->config->getSystemValue(self::ATTACHMENT_MAX_SIZE_CONFIG_KEY, self::DEFAULT_ATTACHMENT_MAX_SIZE_BYTES);
+		$parsed = $this->parseByteSize($value);
+
+		return $parsed > 0 ? $parsed : self::DEFAULT_ATTACHMENT_MAX_SIZE_BYTES;
+	}
+
+	private function parseByteSize(mixed $value): int {
+		if (is_int($value)) {
+			return $value;
+		}
+		if (is_float($value)) {
+			return (int)$value;
+		}
+		if (!is_string($value)) {
+			return 0;
+		}
+
+		$value = trim($value);
+		if ($value === '') {
+			return 0;
+		}
+		if (is_numeric($value)) {
+			return (int)$value;
+		}
+		if (preg_match('/^(\d+(?:\.\d+)?)\s*([kmgt])b?$/i', $value, $matches) !== 1) {
+			return 0;
+		}
+
+		$size = (float)$matches[1];
+		$unit = strtolower($matches[2]);
+		$multipliers = [
+			'k' => 1024,
+			'm' => 1024 ** 2,
+			'g' => 1024 ** 3,
+			't' => 1024 ** 4,
+		];
+
+		return (int)round($size * ($multipliers[$unit] ?? 1));
+	}
+
+	private function allowedAttachmentMimeTypes(): array {
+		$configuredTypes = $this->config->getSystemValue(self::ATTACHMENT_ALLOWED_TYPES_CONFIG_KEY, null);
+		$typeMap = $this->configuredAttachmentTypeMap($configuredTypes);
+		if ($typeMap !== []) {
+			return $typeMap;
+		}
+
+		$allowedMimeTypes = self::DEFAULT_ATTACHMENT_MIME_TYPES;
+		$mimeFilter = $this->configList($this->config->getSystemValue(self::ATTACHMENT_ALLOWED_MIME_TYPES_CONFIG_KEY, null));
+		if ($mimeFilter !== null) {
+			$mimeFilter = array_values(array_filter(
+				$mimeFilter,
+				fn(string $mimeType): bool => $this->isSafeAttachmentMimeType($mimeType)
+			));
+			$allowedMimeTypes = array_intersect_key($allowedMimeTypes, array_flip($mimeFilter));
+		}
+
+		$extensionFilter = $this->configList($this->config->getSystemValue(self::ATTACHMENT_ALLOWED_EXTENSIONS_CONFIG_KEY, null));
+		if ($extensionFilter !== null) {
+			$extensionLookup = array_flip($extensionFilter);
+			$allowedMimeTypes = array_map(
+				static fn(array $extensions): array => array_values(array_filter(
+					$extensions,
+					static fn(string $extension): bool => isset($extensionLookup[$extension])
+				)),
+				$allowedMimeTypes
+			);
+			$allowedMimeTypes = array_filter($allowedMimeTypes, static fn(array $extensions): bool => $extensions !== []);
+		}
+
+		return $allowedMimeTypes !== [] ? $allowedMimeTypes : self::DEFAULT_ATTACHMENT_MIME_TYPES;
+	}
+
+	private function configuredAttachmentTypeMap(mixed $configuredTypes): array {
+		if (!is_array($configuredTypes)) {
+			return [];
+		}
+
+		$types = [];
+		foreach ($configuredTypes as $mimeType => $extensions) {
+			$mimeType = strtolower(trim((string)$mimeType));
+			if (!$this->isSafeAttachmentMimeType($mimeType)) {
+				continue;
+			}
+
+			$normalizedExtensions = $this->normalizeAttachmentExtensions($extensions);
+			if ($normalizedExtensions === []) {
+				continue;
+			}
+
+			$types[$mimeType] = $normalizedExtensions;
+		}
+
+		return $types;
+	}
+
+	private function configList(mixed $value): ?array {
+		if ($value === null) {
+			return null;
+		}
+
+		if (is_string($value)) {
+			$value = preg_split('/[,\s]+/', $value) ?: [];
+		}
+		if (!is_array($value)) {
+			return [];
+		}
+
+		$items = [];
+		foreach ($value as $item) {
+			$item = strtolower(trim((string)$item));
+			if ($item !== '') {
+				$items[] = ltrim($item, '.');
+			}
+		}
+
+		return array_values(array_unique($items));
+	}
+
+	private function normalizeAttachmentExtensions(mixed $extensions): array {
+		$extensions = $this->configList($extensions);
+		if ($extensions === null) {
+			return [];
+		}
+
+		return array_values(array_unique(array_filter(
+			$extensions,
+			static fn(string $extension): bool => preg_match('/^[a-z0-9]+$/', $extension) === 1
+		)));
+	}
+
+	private function isValidMimeType(string $mimeType): bool {
+		return preg_match('/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/', $mimeType) === 1;
+	}
+
+	private function isSafeAttachmentMimeType(string $mimeType): bool {
+		return $this->isValidMimeType($mimeType)
+			&& !in_array($mimeType, self::BLOCKED_ATTACHMENT_MIME_TYPES, true);
+	}
+
+	private function detectUploadedAttachmentMimeType(array $upload): string {
+		$tmpPath = (string)($upload['tmp_name'] ?? '');
+		if ($tmpPath !== '' && is_file($tmpPath) && function_exists('finfo_open')) {
+			$fileInfo = finfo_open(FILEINFO_MIME_TYPE);
+			if ($fileInfo !== false) {
+				$detected = finfo_file($fileInfo, $tmpPath);
+				finfo_close($fileInfo);
+				if (is_string($detected) && $detected !== '') {
+					return strtolower($detected);
+				}
+			}
+		}
+
+		return strtolower(trim((string)($upload['type'] ?? 'application/octet-stream')));
+	}
+
 	private function uniqueAttachmentFileName(string $fileName, int $entryId): string {
 		$timestamp = date('Ymd-His');
 		$extension = '';
@@ -2274,6 +2528,9 @@ class EntryController extends Controller {
 		if ($field === 'user_id') {
 			return $this->displayNameForUserId($value);
 		}
+		if ($field === 'split_user_id') {
+			return $this->displayNameForUserId($value);
+		}
 
 		return $value;
 	}
@@ -2290,6 +2547,7 @@ class EntryController extends Controller {
 			'project_id' => $this->l10n->t('Area'),
 			'user_id' => $this->l10n->t('Paid/received by'),
 			'split_mode' => $this->l10n->t('Split'),
+			'split_user_id' => $this->l10n->t('Split target'),
 			'recurrence_interval' => $this->l10n->t('Recurrence'),
 			'recurrence_multiplier' => $this->l10n->t('Recurrence count'),
 			'recurrence_next_date' => $this->l10n->t('Next recurrence'),

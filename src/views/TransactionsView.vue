@@ -1373,7 +1373,8 @@ export default {
 			const p = this.projects.find(p => String(p.id) === String(entry.project_id));
 			if (entry.split_mode === 'single_user') {
 				const currentUserId = window.OC?.currentUser?.uid || '';
-				return entry.user_id === currentUserId ? parseFloat(entry.amount) : 0;
+				const splitTargetUserId = entry.split_user_id || entry.user_id;
+				return splitTargetUserId === currentUserId ? parseFloat(entry.amount) : 0;
 			}
 			const shareBasisPoints = p && p.my_share_basis_points !== undefined ? parseInt(p.my_share_basis_points, 10) : 10000;
 			return parseFloat(entry.amount) * (shareBasisPoints / 10000);

@@ -77,6 +77,7 @@ class RecurringEntriesJob extends TimedJob {
 						'description' => $insertQb->createNamedParameter($entry['description']),
 						'payment_partner_id' => $insertQb->createNamedParameter($entry['payment_partner_id'] ?? null, ($entry['payment_partner_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
 						'split_mode' => $insertQb->createNamedParameter($entry['split_mode'] ?? 'project_shares'),
+						'split_user_id' => $insertQb->createNamedParameter($entry['split_user_id'] ?? null, ($entry['split_user_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
 						'is_settled' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
 						'is_subscription' => $insertQb->createNamedParameter($this->dbBool($entry['is_subscription'] ?? false), \PDO::PARAM_BOOL),
 						'is_fixed_cost' => $insertQb->createNamedParameter($this->dbBool($entry['is_fixed_cost'] ?? false), \PDO::PARAM_BOOL),

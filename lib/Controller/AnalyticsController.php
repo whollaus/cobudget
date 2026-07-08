@@ -175,6 +175,7 @@ class AnalyticsController extends Controller {
 			'e.payment_partner_id',
 			'e.project_id',
 			'e.split_mode',
+			'e.split_user_id',
 			'e.is_settled',
 			'e.is_subscription',
 			'e.is_fixed_cost',
@@ -321,6 +322,7 @@ class AnalyticsController extends Controller {
 			'e.date',
 			'e.project_id',
 			'e.split_mode',
+			'e.split_user_id',
 			'e.is_settled',
 			'pr.name AS project_name'
 		)
@@ -388,6 +390,7 @@ class AnalyticsController extends Controller {
 			'e.payment_partner_id',
 			'e.project_id',
 			'e.split_mode',
+			'e.split_user_id',
 			'e.is_settled',
 			'e.is_subscription',
 			'e.is_fixed_cost',

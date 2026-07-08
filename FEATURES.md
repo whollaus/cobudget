@@ -83,12 +83,14 @@ Analytics show where money is going and how financial trends develop.
 
 ## Backup And Restore
 
-- Create backups from the settings UI.
-- Create user-scoped and full backups via OCC commands.
-- Restore backups with confirmation.
-- Create an automatic safety backup before restore.
+- Create personal exports from the settings UI.
+- Schedule regular personal exports in Nextcloud Files.
+- Create personal exports and full backups via OCC commands.
+- Restore full admin backups with confirmation.
+- Create an automatic full safety backup before full restore.
 - Preserve receipt paths without embedding the files.
-- Support user mapping for server transfers.
+- Support user mapping for full server transfers.
+- Keep personal exports export-only so they cannot overwrite shared data in existing installations.
 
 ## Admin Settings
 

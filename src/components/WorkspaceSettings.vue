@@ -112,6 +112,7 @@
 
 <script>
 import axios from '../services/http'
+import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -135,7 +136,7 @@ export default {
 		return {
 			loading: true,
 			workspaces: [],
-			activeWorkspaceId: parseInt(localStorage.getItem('cobudget_workspace_id'), 10) || null,
+			activeWorkspaceId: readWorkspaceId(),
 			newWorkspaceName: '',
 			workspaceToRename: null,
 			renameWorkspaceName: '',
@@ -166,7 +167,7 @@ export default {
 			return error?.response?.data?.error || error?.message || fallback;
 		},
 		readActiveWorkspaceId() {
-			return parseInt(localStorage.getItem('cobudget_workspace_id'), 10) || null;
+			return readWorkspaceId();
 		},
 		isActiveWorkspace(workspace) {
 			return workspace && workspace.id === this.activeWorkspaceId;
@@ -175,7 +176,7 @@ export default {
 			if (!workspace || this.isActiveWorkspace(workspace)) {
 				return;
 			}
-			localStorage.setItem('cobudget_workspace_id', String(workspace.id));
+			writeWorkspaceId(workspace.id);
 			this.activeWorkspaceId = workspace.id;
 			window.setTimeout(() => window.location.reload(), 100);
 		},
@@ -355,9 +356,9 @@ export default {
 				}
 
 				this.workspaces = this.normalizeWorkspaces(this.workspaces).filter(item => item.id !== workspace.id);
-			const activeId = parseInt(localStorage.getItem('cobudget_workspace_id'), 10);
+			const activeId = readWorkspaceId();
 			if (activeId === workspace.id) {
-				localStorage.removeItem('cobudget_workspace_id');
+				clearWorkspaceId();
 					this.showSuccessMessage(this.$texts.workspaces.deleted());
 					window.setTimeout(() => window.location.reload(), 400);
 					return;

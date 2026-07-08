@@ -39,7 +39,7 @@ Use the local Nextcloud skill when changing Nextcloud-specific PHP, routing, Vue
 - Update `CHANGELOG.md` for notable feature, behavior, security, data model, backup/restore, migration, release-packaging, or public documentation changes.
 - Update `README.md` and `FEATURES.md` when functionality, terminology, requirements, warnings, screenshots, or user-facing workflows change.
 - Keep GitHub documentation in English.
-- Keep installable ZIP archives free of repository-only files such as `screenshots/`, `.github/`, tests, and development metadata.
+- Keep installable release archives free of repository-only files such as `screenshots/`, `.github/`, tests, and development metadata.
 
 ## Workspace Rules
 
@@ -74,7 +74,7 @@ From `cobudget/`:
 
 ```sh
 npm run build
-npm run release:zip
+npm run release:tar
 ```
 
 Or rebuild and package in one step:
@@ -86,7 +86,7 @@ npm run release
 The release script is equivalent to packaging the runtime app files from the workspace root:
 
 ```sh
-zip -qr /private/tmp/cobudget.zip \
+tar --exclude="*.map" -czf /private/tmp/cobudget.tar.gz \
   cobudget/appinfo \
   cobudget/css \
   cobudget/img \
@@ -94,13 +94,14 @@ zip -qr /private/tmp/cobudget.zip \
   cobudget/lib \
   cobudget/l10n \
   cobudget/templates \
-  cobudget/composer.json \
-  -x "*.map"
-mv /private/tmp/cobudget.zip cobudget.zip
+  cobudget/composer.json
+mv /private/tmp/cobudget.tar.gz cobudget.tar.gz
 ```
 
-The release archive must keep the top-level `cobudget/` folder. The package filename can remain `cobudget.zip` because the technical app id is still `cobudget`.
-Repository-only assets such as `screenshots/`, tests, GitHub metadata, and development dependencies must not be included in the release ZIP.
+The release archive is `cobudget.tar.gz` for manual testing, GitHub releases, and future Nextcloud App Store releases.
+The release archive must keep the top-level `cobudget/` folder. Repository-only assets such as `screenshots/`, tests, GitHub metadata, and development dependencies must not be included in release archives.
+
+GitHub releases are created only from pushed tags matching `v*`, for example `v0.1.0`. The tag version must match `appinfo/info.xml`.
 
 ## Version Rule
 
@@ -108,15 +109,18 @@ Do not bump `appinfo/info.xml` for ordinary frontend, PHP controller, CSS, docum
 
 Bump the app version only when a database migration, install schema, repair step, or upgrade behavior changes.
 
+The public alpha baseline starts at `0.1.0`. The internal pre-release migration history was squashed into the first install schema before publication, so old internal test installations should be reset/reinstalled instead of upgraded through those removed migrations.
+
 ## Backups
 
-- `occ cobudget:backup:create <userId>` creates a user-scoped backup with `scope: user` in the manifest.
-- `occ cobudget:backup:create-full --user <storageUserId>` creates a system-scoped backup with `scope: system` in the manifest and stores it in the specified user's Nextcloud Files.
-- `occ cobudget:backup:restore <userId> <fileName> --force` restores a user-scoped backup from that user's backup folder and replaces the CoBudget data visible to that user.
-- `occ cobudget:backup:restore-full --user <storageUserId> --file <fileName> --force` restores a system-scoped backup and replaces all CoBudget app tables/settings.
+- `occ cobudget:backup:create <userId>` creates a personal export with `scope: user`, `type: personal_export`, and `restore_supported: false` in the manifest.
+- Personal exports can be created manually or regularly from the user settings. They preserve the user's own perspective and are not restored into existing CoBudget data.
+- `occ cobudget:backup:restore <userId> <fileName> --force` is intentionally disabled for personal exports and points users to Admin full restore instead.
+- `occ cobudget:backup:create-full --user <storageUserId>` creates a system-scoped full backup with `scope: system` in the manifest and stores it in the specified user's Nextcloud Files.
+- `occ cobudget:backup:restore-full --user <storageUserId> --file <fileName> --force` restores a system-scoped full backup and replaces all CoBudget app tables/settings.
 - Full restore supports repeated `--map-user oldUser:newUser` options for server transfers where user IDs changed.
 - Full backups export every CoBudget table and the CoBudget user settings for all referenced users. Attachment files are not embedded; only their stored paths are exported.
-- Keep user backups and full backups as separate filename families: `cobudget-backup-...zip` and `cobudget-full-backup-...zip`.
+- Keep personal exports and full backups as separate filename families: `cobudget-personal-export-...zip` and `cobudget-full-backup-...zip`. Legacy `cobudget-backup-...zip` files may remain listable/downloadable for compatibility.
 
 ## Background Jobs
 
@@ -139,5 +143,5 @@ Before handing off a build:
 - Run `php tests/static-security.php` after security- or workspace-related changes.
 - Run `npm run test:frontend-smoke` after Vue routing, bundle splitting, or deep-selector changes.
 - Run `npm run build`.
-- Repack `cobudget.zip`.
+- Repack `cobudget.tar.gz` with `npm run release` when preparing a user-test or store-style archive.
 - Manually verify Workspaces, entries, projects, categories/payment partners, templates, and recurring payments in Nextcloud when possible.

@@ -57,6 +57,93 @@
 	--cobudget-mobile-touch-size: 44px;
 }
 
+#app-navigation a[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue a[href*="/settings/admin/cobudget"] img,
+#app-navigation a[href*="settings/admin/cobudget"] img,
+#app-navigation-vue a[href*="settings/admin/cobudget"] img,
+#app-navigation a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation a[href*="settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue a[href*="settings/admin/cobudget"] .app-navigation-entry-icon {
+	filter: brightness(0) !important;
+}
+
+#app-navigation a.active[href*="/settings/admin/cobudget"] img,
+#app-navigation a[href*="/settings/admin/cobudget"][aria-current="page"] img,
+#app-navigation li.active a[href*="/settings/admin/cobudget"] img,
+#app-navigation .active a[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue a.active[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue a.router-link-active[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue a[href*="/settings/admin/cobudget"][aria-current="page"] img,
+#app-navigation-vue li.active a[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue li.selected a[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue li[aria-current="page"] a[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue li[aria-selected="true"] a[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue .active a[href*="/settings/admin/cobudget"] img,
+#app-navigation-vue .selected a[href*="/settings/admin/cobudget"] img,
+#app-navigation a.active[href*="settings/admin/cobudget"] img,
+#app-navigation a[href*="settings/admin/cobudget"][aria-current="page"] img,
+#app-navigation li.active a[href*="settings/admin/cobudget"] img,
+#app-navigation li.selected a[href*="settings/admin/cobudget"] img,
+#app-navigation li[aria-current="page"] a[href*="settings/admin/cobudget"] img,
+#app-navigation li[aria-selected="true"] a[href*="settings/admin/cobudget"] img,
+#app-navigation .active a[href*="settings/admin/cobudget"] img,
+#app-navigation .selected a[href*="settings/admin/cobudget"] img,
+#app-navigation-vue a.active[href*="settings/admin/cobudget"] img,
+#app-navigation-vue a.router-link-active[href*="settings/admin/cobudget"] img,
+#app-navigation-vue a[href*="settings/admin/cobudget"][aria-current="page"] img,
+#app-navigation-vue li.active a[href*="settings/admin/cobudget"] img,
+#app-navigation-vue li.selected a[href*="settings/admin/cobudget"] img,
+#app-navigation-vue li[aria-current="page"] a[href*="settings/admin/cobudget"] img,
+#app-navigation-vue li[aria-selected="true"] a[href*="settings/admin/cobudget"] img,
+#app-navigation-vue .active a[href*="settings/admin/cobudget"] img,
+#app-navigation-vue .selected a[href*="settings/admin/cobudget"] img,
+#app-navigation a.active[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation a[href*="/settings/admin/cobudget"][aria-current="page"] .app-navigation-entry-icon,
+#app-navigation li.active a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation .active a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue a.active[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue a.router-link-active[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue a[href*="/settings/admin/cobudget"][aria-current="page"] .app-navigation-entry-icon,
+#app-navigation-vue li.active a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue li.selected a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue li[aria-current="page"] a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue li[aria-selected="true"] a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue .active a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
+#app-navigation-vue .selected a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon {
+	filter: brightness(0) invert(1) !important;
+}
+
+#app-navigation img[src*="cobudget"],
+#app-navigation-vue img[src*="cobudget"],
+#app-navigation .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation-vue .app-navigation-entry-icon[style*="cobudget"] {
+	filter: brightness(0) !important;
+}
+
+#app-navigation .active img[src*="cobudget"],
+#app-navigation .selected img[src*="cobudget"],
+#app-navigation [aria-current="page"] img[src*="cobudget"],
+#app-navigation [aria-selected="true"] img[src*="cobudget"],
+#app-navigation a[aria-current="page"] img[src*="cobudget"],
+#app-navigation-vue .active img[src*="cobudget"],
+#app-navigation-vue .selected img[src*="cobudget"],
+#app-navigation-vue [aria-current="page"] img[src*="cobudget"],
+#app-navigation-vue [aria-selected="true"] img[src*="cobudget"],
+#app-navigation-vue a[aria-current="page"] img[src*="cobudget"],
+#app-navigation .active .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation .selected .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation [aria-current="page"] .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation [aria-selected="true"] .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation a[aria-current="page"] .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation-vue .active .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation-vue .selected .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation-vue [aria-current="page"] .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation-vue [aria-selected="true"] .app-navigation-entry-icon[style*="cobudget"],
+#app-navigation-vue a[aria-current="page"] .app-navigation-entry-icon[style*="cobudget"] {
+	filter: brightness(0) invert(1) !important;
+}
+
 @media (prefers-color-scheme: dark) {
 	:root {
 		--cobudget-error-light: rgba(209, 52, 56, 0.2);

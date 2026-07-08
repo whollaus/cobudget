@@ -49,6 +49,12 @@ return [
 			'integrity#inspect' => true,
 			'integrity#repair' => true,
 			'integrity#merge' => true,
+			'admin_backup#settings' => true,
+			'admin_backup#saveSettings' => true,
+			'admin_backup#create' => true,
+			'admin_backup#destroy' => true,
+			'admin_backup#download' => true,
+			'admin_backup#restore' => true,
 		];
 
 		$controllerClassName = static fn(string $controller): string => str_replace(' ', '', ucwords(str_replace('_', ' ', $controller)));
@@ -72,6 +78,7 @@ return [
 			'CategoryController.php' => ['adminIndex', 'adminCreate', 'adminUpdate', 'adminUpdateIcon', 'adminHide', 'adminUnhide', 'adminDestroy'],
 			'PaymentPartnerController.php' => ['adminIndex', 'adminCreate', 'adminUpdate', 'adminHide', 'adminUnhide', 'adminDestroy'],
 			'IntegrityController.php' => ['inspect', 'repair', 'merge'],
+			'AdminBackupController.php' => ['settings', 'saveSettings', 'create', 'destroy', 'download', 'restore'],
 		] as $file => $methods) {
 			$source = $t->read('lib/Controller/' . $file);
 			$t->assertContains('IGroupManager', $source, $file . ' should inject the Nextcloud admin group manager');
@@ -82,6 +89,20 @@ return [
 				$body = $t->methodBody('lib/Controller/' . $file, $method);
 				$t->assertContains('requireAdmin()', $body, $file . '::' . $method . ' should require admin rights');
 			}
+		}
+	},
+
+	'Personal settings endpoints are available to normal users' => function(TestRunner $t): void {
+		foreach ([
+			'CategoryController.php' => 'settingsData',
+			'PaymentPartnerController.php' => 'settingsData',
+		] as $file => $method) {
+			$source = $t->read('lib/Controller/' . $file);
+			$t->assertMatches(
+				'/\/\*\*[\s\S]*@NoAdminRequired[\s\S]*\*\/\s*public function\s+' . preg_quote($method, '/') . '\s*\(/',
+				$source,
+				$file . '::' . $method . ' should not be treated as an admin-only settings endpoint'
+			);
 		}
 	},
 
@@ -483,6 +504,7 @@ return [
 		$t->assertContains("isNull('e.project_id')", $loadEntries, 'Analytics should include personal entries only by owner');
 		$t->assertContains("isNotNull('m.user_id')", $loadEntries, 'Analytics should include shared Bereich entries for members');
 		$t->assertContains("'e.is_settled'", $loadEntries, 'Analytics should expose settlement state for shared Bereich summaries');
+		$t->assertContains("'e.split_user_id'", $loadEntries, 'Analytics entries should expose explicit single-user split targets');
 
 		$entriesForRange = $t->methodBody('lib/Controller/AnalyticsController.php', 'entriesForAnalyticsRange');
 		$t->assertContains('filterEntriesByRange($loadedEntries, $start, $end)', $entriesForRange, 'Analytics should avoid duplicate DB reads when a range is inside already loaded entries');
@@ -493,6 +515,7 @@ return [
 		$t->assertContains("gte('e.date'", $loadShared, 'Shared Bereich analytics should respect the selected period start');
 		$t->assertContains("lt('e.date'", $loadShared, 'Shared Bereich analytics should respect the selected period end');
 		$t->assertContains('entryShareCentsForUser($row', $loadShared, 'Shared Bereich analytics should calculate the current user share even when it is zero');
+		$t->assertContains("'e.split_user_id'", $loadShared, 'Shared Bereich analytics should expose explicit single-user split targets');
 
 		$sharedProjects = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildSharedProjects');
 		$t->assertContains("(\$entry['type'] ?? '') !== 'expense'", $sharedProjects, 'Shared Bereich analytics should focus on expenses paid in shared areas');
@@ -570,7 +593,7 @@ return [
 	},
 
 	'Performance migration adds compound indexes and dashboard bulk loads project data' => function(TestRunner $t): void {
-		$migration = $t->read('lib/Migration/Version000002Date20260703000000.php');
+		$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
 		foreach ([
 			'cb_ent_ws_date_id',
 			'cb_ent_ws_type_dt',
@@ -592,7 +615,7 @@ return [
 		] as $indexName) {
 			$t->assertContains($indexName, $migration, 'Performance migration should add compound index ' . $indexName);
 		}
-		$t->assertContains('addIndexIfMissing', $migration, 'Performance migration should be safe to rerun');
+		$t->assertContains('addIndexIfMissing', $migration, 'Initial migration index setup should be safe to rerun');
 
 		$dashboardProjects = $t->methodBody('lib/Controller/EntryController.php', 'fetchDashboardProjects');
 		$t->assertContains('fetchProjectMembersByProjectIds($projectIds)', $dashboardProjects, 'Dashboard projects should bulk-load members');
@@ -613,7 +636,7 @@ return [
 	},
 
 	'Description hashtags are synced, filtered, exported and cleaned up' => function(TestRunner $t): void {
-		$migration = $t->read('lib/Migration/Version000003Date20260705000000.php');
+		$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
 		foreach ([
 			"'cobudget_hashtags'",
 			"'cobudget_entry_hashtags'",
@@ -624,7 +647,7 @@ return [
 			'display_name',
 			'hashtag_id',
 		] as $needle) {
-			$t->assertContains($needle, $migration, 'Hashtag migration should include ' . $needle);
+			$t->assertContains($needle, $migration, 'Initial migration should include hashtag schema item ' . $needle);
 		}
 
 		$service = $t->read('lib/Service/HashtagService.php');
@@ -654,11 +677,11 @@ return [
 		$t->assertContains('exportHashtagLabels($entry)', $entry, 'CSV export should include hashtag labels');
 		$t->assertContains('hashtag_filter.workspace_id', $entry, 'Hashtag filters should stay workspace-scoped');
 
-		$backup = $t->read('lib/Service/BackupService.php');
-		$t->assertContains("'cobudget_hashtags'", $backup, 'BackupService should export hashtags');
-		$t->assertContains("'cobudget_entry_hashtags'", $backup, 'BackupService should export hashtag links');
-		$t->assertContains('Dieses Benutzer-Backup enthält Hashtags ausserhalb des Benutzer-Scopes', $backup, 'User restore should reject hashtags outside imported workspaces');
-		$t->assertContains('Dieses Benutzer-Backup enthält Hashtag-Zuordnungen ausserhalb des Benutzer-Scopes', $backup, 'User restore should reject orphan hashtag links');
+			$backup = $t->read('lib/Service/BackupService.php');
+			$t->assertContains("'cobudget_hashtags'", $backup, 'BackupService should export hashtags');
+			$t->assertContains("'cobudget_entry_hashtags'", $backup, 'BackupService should export hashtag links');
+			$t->assertContains("'restore_supported' => true", $backup, 'Personal exports should advertise the guarded empty-state import');
+			$t->assertContains("'restore_mode' => 'empty_personal_import'", $backup, 'Personal exports should document the empty-state restore mode');
 
 		$reset = $t->read('lib/Service/UserResetService.php');
 		$t->assertContains('deleteHashtagsForEntries', $reset, 'User reset should clean hashtag links for deleted entries');
@@ -749,8 +772,8 @@ return [
 		$t->assertContains('loadSettlementEntries($settlementId, $projectId, $workspaceId)', $history, 'Settlement history should include entry tables when requested');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
-			throw new \RuntimeException('Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
+			throw new \RuntimeException('Initial public baseline should keep appinfo/info.xml on the 0.1 release line');
 		}
 	},
 
@@ -954,12 +977,12 @@ return [
 		$t->assertNotContains("eq('workspace_id'", $markUsed, 'Template usage marker relies on the active-workspace ownership guard instead of duplicating the workspace predicate');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
-			throw new \RuntimeException('Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
+			throw new \RuntimeException('Initial public baseline should keep appinfo/info.xml on the 0.1 release line');
 		}
 	},
 
-	'Workspace delete removes user workspace data and owned shared-area trees' => function(TestRunner $t): void {
+	'Workspace delete removes personal workspace data and blocks shared areas' => function(TestRunner $t): void {
 		$source = $t->read('lib/Controller/WorkspaceController.php');
 		$destroy = $t->methodBody('lib/Controller/WorkspaceController.php', 'destroy');
 		$t->assertContains("from('cobudget_workspaces')", $destroy, 'Workspace delete should verify workspace row first');
@@ -980,10 +1003,15 @@ return [
 			$t->assertContains($table, $source, 'Workspace delete should handle ' . $table);
 		}
 		foreach (['cobudget_entry_attachments', 'cobudget_settlements', 'cobudget_settlement_balances', 'cobudget_settlement_transfers', 'cobudget_members'] as $table) {
-			$t->assertContains($table, $source, 'Workspace delete should remove dependent shared-area rows from ' . $table);
+			$t->assertContains($table, $source, 'Workspace delete should handle dependent area rows from ' . $table);
 		}
 		$t->assertContains('ownedProjectIdsInWorkspace($id)', $destroy, 'Workspace delete should collect areas owned by the current user');
-		$t->assertContains('entryIdsForWorkspaceDelete($id, $projectIds)', $destroy, 'Workspace delete should collect current-user entries and all entries from owned areas');
+		$t->assertContains('workspaceDeleteHasSharedProjectData($projectIds)', $destroy, 'Workspace delete should block shared areas before deleting project data');
+		$t->assertContains('STATUS_CONFLICT', $destroy, 'Workspace delete should report shared areas as a conflict instead of deleting them');
+		$t->assertContains('projectIdsWithOtherMembers', $source, 'Workspace delete should detect owned areas with other members');
+		$t->assertContains('projectIdsWithOtherUserEntries', $source, 'Workspace delete should detect stale entries from other users in owned areas');
+		$t->assertContains("neq('user_id'", $source, 'Workspace delete should identify other users before deleting area rows');
+		$t->assertContains('entryIdsForWorkspaceDelete($id, $projectIds)', $destroy, 'Workspace delete should collect current-user entries only after shared-area checks pass');
 		$t->assertContains("deleteRowsByColumnValues('cobudget_entry_attachments', 'entry_id', \$entryIds)", $destroy, 'Workspace delete should remove attachments before entries');
 		$t->assertContains('deleteHashtagsForEntries($entryIds)', $destroy, 'Workspace delete should remove hashtag links for deleted entries');
 		$t->assertContains('deleteWorkspaceHashtags($id)', $destroy, 'Workspace delete should remove remaining hashtags through the hashtag service');
@@ -1009,6 +1037,7 @@ return [
 		$t->assertContains('rollBack()', $run, 'Recurring job should roll back transaction');
 		$t->assertContains("'amount_cents'", $run, 'Recurring job should preserve amount_cents');
 		$t->assertContains("'split_mode'", $run, 'Recurring job should preserve split_mode');
+		$t->assertContains("'split_user_id'", $run, 'Recurring job should preserve split target user');
 		$t->assertContains("'workspace_id'", $run, 'Recurring job should preserve workspace_id');
 		foreach (["'is_child_related'", "'is_important'", "'needs_review'", "'is_tax_relevant'"] as $column) {
 			$t->assertContains($column, $run, 'Recurring job should preserve Kennzeichen column ' . $column);
@@ -1091,21 +1120,27 @@ return [
 			$t->assertContains('return null;', $currentSlot, 'Backup job should wait until 03:00 before the daily window opens');
 
 			$lock = $t->methodBody('lib/Cron/BackupJob.php', 'acquireUserBackupLock');
-			$t->assertContains("insert('preferences')", $lock, 'Backup lock should be acquired atomically through the preferences unique key');
 			$t->assertContains('deleteStaleUserBackupLock($userId, $now)', $lock, 'Backup lock should clear stale locks before acquiring');
-			$t->assertContains('return null;', $lock, 'Backup lock should skip when another backup is already running');
+			$t->assertContains('acquireBackupLock($userId, self::BACKUP_LOCK_KEY, $now)', $lock, 'User backup lock should use the shared atomic lock helper');
+
+			$sharedLock = $t->methodBody('lib/Cron/BackupJob.php', 'acquireBackupLock');
+			$t->assertContains("insert('preferences')", $sharedLock, 'Backup lock should be acquired atomically through the preferences unique key');
+			$t->assertContains('return null;', $sharedLock, 'Backup lock should skip when another backup is already running');
 
 			$release = $t->methodBody('lib/Cron/BackupJob.php', 'releaseUserBackupLock');
-			$t->assertContains("delete('preferences')", $release, 'Backup lock release should remove the preferences lock row');
-			$t->assertContains("eq('configvalue'", $release, 'Backup lock release should only remove the matching lock token');
+			$t->assertContains('releaseBackupLock($userId, self::BACKUP_LOCK_KEY, $lockValue)', $release, 'User backup lock release should use the shared lock helper');
+
+			$sharedRelease = $t->methodBody('lib/Cron/BackupJob.php', 'releaseBackupLock');
+			$t->assertContains("delete('preferences')", $sharedRelease, 'Backup lock release should remove the preferences lock row');
+			$t->assertContains("eq('configvalue'", $sharedRelease, 'Backup lock release should only remove the matching lock token');
 		},
 
 		'Backup service and OCC commands distinguish backup and restore scopes' => function(TestRunner $t): void {
 			$service = $t->read('lib/Service/BackupService.php');
-			$t->assertContains('private const USER_BACKUP_FILE_PATTERN', $service, 'Backup service should keep a user-backup filename family');
+			$t->assertContains('private const USER_EXPORT_FILE_PATTERN', $service, 'Backup service should keep a personal-export filename family');
 			$t->assertContains('private const FULL_BACKUP_FILE_PATTERN', $service, 'Backup service should keep a full-backup filename family');
 			$t->assertNotContains('LEGACY_BACKUP_FOLDER', $service, 'Technical reset should not keep old backup folder compatibility');
-			$t->assertContains("private const USER_BACKUP_FILE_PATTERN = '/^cobudget-backup-", $service, 'Backup service should only accept new CoBudget backup names');
+			$t->assertContains("private const USER_EXPORT_FILE_PATTERN = '/^(?:cobudget-personal-export|cobudget-backup)-", $service, 'Backup service should accept new personal-export names and legacy user-backup names for download/list compatibility');
 			$t->assertContains('private const BACKUP_TABLES', $service, 'Backup service should keep an explicit list of exported CoBudget tables');
 			$t->assertContains('private const USER_COLUMNS', $service, 'Backup service should know all user reference columns for restore mapping');
 			$t->assertContains('private const RESTORE_LOCK_KEY', $service, 'Backup service should define a restore lock key');
@@ -1114,23 +1149,32 @@ return [
 			$t->assertContains("'enable_workspaces' => 'no'", $service, 'Backup settings defaults should include the workspace feature flag');
 			$t->assertContains("'show_workspace_switcher' => 'yes'", $service, 'Backup settings defaults should include the workspace switcher flag');
 			$t->assertContains("'hidden_workspaces' => '[]'", $service, 'Backup settings defaults should include hidden workspace ids');
-			$t->assertContains('settingsDefaultForUser($userId, $key)', $service, 'User backup should export effective per-user settings defaults');
+			$t->assertContains('settingsDefaultForUser($userId, $key)', $service, 'Personal export should export effective per-user settings defaults');
 			$t->assertContains("if (\$key === 'enable_workspaces' && \$this->userHasManagedWorkspaces(\$userId))", $service, 'Workspace backup default should stay enabled when extra workspaces exist');
 			$t->assertContains('backupContainsUserManagedWorkspaces($tables, $userId)', $service, 'Restore should recover workspace-enabled state when extra workspaces exist even if older backups stored the default no');
-			$t->assertContains('public function createBackup(string $userId', $service, 'Backup service should expose user-scoped backups');
+			$t->assertContains('public function createBackup(string $userId', $service, 'Backup service should expose personal exports');
 			$t->assertContains('public function createFullBackup(string $storageUserId', $service, 'Backup service should expose system-scoped backups');
+			$t->assertContains('public function createConfiguredFullBackup(): array', $service, 'Backup service should create full backups from admin settings');
+			$t->assertContains('public function listConfiguredFullBackups(): array', $service, 'Backup service should list configured full backups for the admin UI');
+			$t->assertContains('public function restoreConfiguredFullBackup(string $fileName, string $confirmation): array', $service, 'Backup service should restore configured full backups from the admin UI');
+			$t->assertContains("if (\$confirmation !== 'RESTORE')", $service, 'Admin full backup restore should require explicit RESTORE confirmation');
+			$t->assertContains('preg_match(self::FULL_BACKUP_FILE_PATTERN, $fileName)', $service, 'Admin full backup restore should only accept full-backup filenames');
 			$t->assertContains('public function listBackups(string $userId', $service, 'Backup service should expose backup listing');
 			$t->assertContains('backupLookupFolders($userId)', $service, 'Backup listing should use the configured CoBudget backup folder');
-			$t->assertContains('public function deleteBackup(string $userId', $service, 'Backup service should expose user-scoped backup deletion');
+			$t->assertContains('public function deleteBackup(string $userId', $service, 'Backup service should expose personal export deletion');
 			$t->assertContains('public function inspectBackup(string $userId', $service, 'Backup service should expose restore inspection');
-			$t->assertContains('public function restoreBackup(string $userId', $service, 'Backup service should expose user-scoped restores');
+			$t->assertContains('public function restoreBackup(string $userId', $service, 'Backup service should expose guarded personal export restore');
 			$t->assertContains('public function restoreFullBackup(string $storageUserId', $service, 'Backup service should expose system-scoped restores');
-			$t->assertContains("'scope' => 'user'", $service, 'User backup manifest should declare scope user');
+			$t->assertContains("'scope' => 'user'", $service, 'Personal export manifest should declare scope user');
+			$t->assertContains("'type' => 'personal_export'", $service, 'Personal export manifest should declare the export type');
+			$t->assertContains("'export_mode' => 'personal_share'", $service, 'Personal export manifest should clarify its reduced user perspective');
+			$t->assertContains("'restore_supported' => true", $service, 'Personal export manifest should mark guarded restore as supported');
+			$t->assertContains("'restore_mode' => 'empty_personal_import'", $service, 'Personal export manifest should document the empty-state restore mode');
 			$t->assertContains("'scope' => 'system'", $service, 'Full backup manifest should declare scope system');
 			$t->assertContains("'storage_user_id' => \$storageUserId", $service, 'Full backup manifest should record the storage user');
 			$t->assertContains('collectFullBackupData()', $service, 'Full backup should collect all app data');
 			$t->assertContains('fetchAllSettings($userIds)', $service, 'Full backup should export all effective CoBudget user settings');
-			$t->assertContains('self::SETTINGS_DEFAULTS[$key]', $service, 'User backup should include defaulted settings values');
+			$t->assertContains('self::SETTINGS_DEFAULTS[$key]', $service, 'Personal export should include defaulted settings values');
 			$t->assertContains('fetchAllSettings($userIds)', $service, 'Full backup should include effective settings for every exported user');
 			$t->assertContains('backupContainsWorkspaces(', $service, 'Restore should recover workspace-enabled state for older backups with workspace data');
 			$t->assertContains('normalizeFullSettings($archive[\'settings\'], $tables)', $service, 'Full restore should normalize workspace settings with table context');
@@ -1143,11 +1187,18 @@ return [
 			$t->assertContains('restoreReportTableRows(', $service, 'Restore report should list imported table rows');
 			$t->assertContains('restoreReportSettingsRows(', $service, 'Restore report should list imported settings');
 			$t->assertContains('backupTableLabel(', $service, 'Restore report should expose readable table labels');
-			$t->assertContains('filterUserRestoreTables($this->applyUserMapToTables($archive[\'tables\'], $userMap), $skippedRows, $userId)', $service, 'User restore should report skipped user-restore rows');
-				$t->assertContains('assertUserRestoreScope($tables, $userId)', $service, 'User restore should reject backups containing shared areas outside the user scope before deleting current data');
-				$t->assertContains('assertProjectMemberConsistency($tables)', $service, 'Restore should reject manipulated shared-area user assignments before deleting current data');
-				$t->assertContains('assertRowsBelongToUser($tables', $service, 'User restore should reject non-project rows from another user before deleting current data');
-				$t->assertContains("'report' => \$this->buildRestoreReport('user'", $service, 'User restore response should include the restore report');
+			$t->assertContains('assertPersonalImportTargetIsEmpty($userId)', $service, 'Personal export restore should reject non-empty target users');
+			$t->assertContains('preparePersonalImportTables(', $service, 'Personal export restore should sanitize the reduced personal export before import');
+			$t->assertContains('personalImportEntryShareCents(', $service, 'Personal export restore should calculate the importing user share for shared entries');
+			$t->assertContains('roundPersonalImportShareCents(', $service, 'Personal export restore should round the importing user share directly');
+			$t->assertContains('intdiv(($amountCents * $share * 2) + $totalShare, $totalShare * 2)', $service, 'Personal export restore should round half cents up, e.g. 52.87 at 50% to 26.44');
+			$t->assertContains("'shared_data_restore_mode' => \$containsOtherUsers ? 'personal_share' : 'direct'", $service, 'Personal export inspect should announce personal-share restore mode for shared data');
+			$t->assertContains('insertTablesWithGeneratedIds($tables)', $service, 'Personal export restore should insert imported rows with generated local IDs');
+			$t->assertNotContains('filterUserRestoreTables(', $service, 'Personal export restore should not keep partial user restore filtering');
+			$t->assertNotContains('assertUserRestoreScope(', $service, 'Personal export restore should not keep partial user restore scope checks');
+			$t->assertNotContains('assertRowsBelongToUser(', $service, 'Personal export restore should not keep partial user restore row checks');
+			$t->assertContains("'report' => \$this->buildRestoreReport('user'", $service, 'Personal export restore should return an import protocol');
+			$t->assertContains('assertProjectMemberConsistency($tables)', $service, 'Full restore should reject manipulated shared-area user assignments before deleting current data');
 			$t->assertContains("'report' => \$this->buildRestoreReport('system'", $service, 'Full restore response should include the restore report');
 			$t->assertContains("'cobudget_entry_attachments' => 'Beleg-Pfade'", $service, 'Restore report should identify attachment rows as receipt paths');
 			$t->assertContains("'files_copied' => false", $service, 'Restore report should clarify that receipt files are not copied');
@@ -1158,10 +1209,10 @@ return [
 			$t->assertContains('private const BACKUP_TABLE_COLUMNS', $service, 'Backup restore should keep a strict per-table column allowlist');
 			$t->assertContains('normalizeTableRows($table', $service, 'Backup restore should validate imported row columns per table while reading the archive');
 			$t->assertContains('filterBackupRowColumns($table, $row)', $service, 'Backup restore should not insert raw backup JSON columns');
-			$t->assertContains('assertBackupArchive($archive, \'user\')', $service, 'User restore should validate the whole backup archive');
+			$t->assertContains('assertBackupArchive($archive, \'user\')', $service, 'Personal export inspection should validate the whole export archive');
 			$t->assertContains('assertBackupArchive($archive, \'system\')', $service, 'Full restore should validate the whole backup archive');
 			$t->assertContains('synchronizeAutoincrementSequences(', $service, 'Restore should synchronize PostgreSQL sequences after explicit IDs');
-			$t->assertContains('$safetyBackup = $this->createBackup(', $service, 'User restore should create a safety backup before replacing data');
+			$t->assertContains('$safetyBackup = $this->createBackup($userId, null, $this->getSafetyBackupRetentionCount($userId))', $service, 'Personal export restore should create a personal safety export before importing');
 			$t->assertContains('$safetyBackup = $this->createFullBackup(', $service, 'Full restore should create a safety backup before replacing data');
 			$t->assertContains("'safety_backup' => \$safetyBackup", $service, 'Restore responses should expose the safety backup');
 			$t->assertContains('acquireRestoreLock()', $service, 'Restore should acquire a lock before replacing data');
@@ -1172,20 +1223,25 @@ return [
 			$insertRow = $t->methodBody('lib/Service/BackupService.php', 'insertRow');
 			$t->assertContains('$row = $this->filterBackupRowColumns($table, $row);', $insertRow, 'Backup insert should re-check the allowlist before writing rows');
 			$userProjectScope = $t->methodBody('lib/Service/BackupService.php', 'fetchProjectIdsForUser');
-			$t->assertContains("eq('owner_id'", $userProjectScope, 'User backups should include only areas owned by the user');
-			$t->assertNotContains('cobudget_members', $userProjectScope, 'User backups must not include areas only because the user is a member');
-			$t->assertNotContains('workspace_id', $userProjectScope, 'User backups must not include foreign-owned areas through workspace scope');
-				$userEntriesScope = $t->methodBody('lib/Service/BackupService.php', 'fetchEntries');
-				$t->assertContains("isNull('project_id')", $userEntriesScope, 'User backups should keep personal entries separate from shared area entries');
-				$t->assertNotContains("in('workspace_id'", $userEntriesScope, 'User backups must not include shared area entries through workspace scope');
-				foreach (['fetchCategories', 'fetchPaymentPartners', 'fetchTemplates', 'fetchBudgetGoals', 'fetchBudgetSnapshots'] as $method) {
-					$methodScope = $t->methodBody('lib/Service/BackupService.php', $method);
-					$t->assertNotContains("in('workspace_id'", $methodScope, 'User backups must not include ' . $method . ' rows through workspace scope');
-				}
-				foreach (['fetchBudgetGoals', 'fetchBudgetSnapshots'] as $method) {
-					$methodScope = $t->methodBody('lib/Service/BackupService.php', $method);
-					$t->assertContains("eq('user_id'", $methodScope, 'User backup ' . $method . ' rows should stay user-scoped');
-				}
+			$t->assertContains("eq('owner_id'", $userProjectScope, 'Personal exports should include areas owned by the user');
+			$t->assertContains('cobudget_members', $userProjectScope, 'Personal exports should include shared areas where the user is a member');
+			$t->assertNotContains('workspace_id', $userProjectScope, 'Personal exports must not include foreign-owned areas through workspace scope');
+					$userEntriesScope = $t->methodBody('lib/Service/BackupService.php', 'fetchEntries');
+					$t->assertContains('$personalRows = $qb->expr()->andX(', $userEntriesScope, 'Personal exports should keep personal entries separate from shared area entries');
+					$t->assertContains("in('project_id'", $userEntriesScope, 'Personal exports should collect all shared-area entries for later share reduction');
+					$t->assertNotContains("in('workspace_id'", $userEntriesScope, 'Personal exports must not include shared area entries through workspace scope');
+					$collectPersonalExport = $t->methodBody('lib/Service/BackupService.php', 'collectBackupData');
+					$t->assertContains('$tables = $this->preparePersonalExportTables($tables, $userId)', $collectPersonalExport, 'Personal exports must reduce shared-area raw rows before the archive is written');
+					$preparePersonalExport = $t->methodBody('lib/Service/BackupService.php', 'preparePersonalExportTables');
+					$t->assertContains('preparePersonalImportTables($tables, $userId, $userId)', $preparePersonalExport, 'Personal exports should use the same personal-share sanitizer as restore, with the exporting user as source');
+					foreach (['fetchCategories', 'fetchPaymentPartners', 'fetchTemplates', 'fetchBudgetGoals', 'fetchBudgetSnapshots'] as $method) {
+						$methodScope = $t->methodBody('lib/Service/BackupService.php', $method);
+						$t->assertNotContains("in('workspace_id'", $methodScope, 'Personal exports must not include ' . $method . ' rows through workspace scope');
+					}
+					foreach (['fetchBudgetGoals', 'fetchBudgetSnapshots'] as $method) {
+						$methodScope = $t->methodBody('lib/Service/BackupService.php', $method);
+						$t->assertContains("eq('user_id'", $methodScope, 'Personal export ' . $method . ' rows should stay user-scoped');
+					}
 				foreach ([
 				'cobudget_workspaces',
 				'cobudget_projects',
@@ -1207,9 +1263,9 @@ return [
 			}
 
 			$userCommand = $t->read('lib/Command/CreateBackupCommand.php');
-			$t->assertContains("setName('cobudget:backup:create')", $userCommand, 'User backup command should keep its OCC name');
-			$t->assertContains('addArgument(\'user\'', $userCommand, 'User backup command should require a user argument');
-			$t->assertContains('createBackup(', $userCommand, 'User backup command should call createBackup');
+			$t->assertContains("setName('cobudget:backup:create')", $userCommand, 'Personal export command should keep its OCC name');
+			$t->assertContains('addArgument(\'user\'', $userCommand, 'Personal export command should require a user argument');
+			$t->assertContains('createBackup(', $userCommand, 'Personal export command should call createBackup');
 
 			$fullCommand = $t->read('lib/Command/CreateFullBackupCommand.php');
 			$t->assertContains("setName('cobudget:backup:create-full')", $fullCommand, 'Full backup command should expose the requested OCC name');
@@ -1218,16 +1274,17 @@ return [
 			$t->assertContains('createFullBackup(', $fullCommand, 'Full backup command should call createFullBackup');
 
 			$userRestoreCommand = $t->read('lib/Command/RestoreBackupCommand.php');
-			$t->assertContains("setName('cobudget:backup:restore')", $userRestoreCommand, 'User restore command should expose the expected OCC name');
-			$t->assertContains('addArgument(\'user\'', $userRestoreCommand, 'User restore command should require a target user');
-			$t->assertContains('addArgument(\'file\'', $userRestoreCommand, 'User restore command should require a backup file');
-			$t->assertContains("addOption('map-user'", $userRestoreCommand, 'User restore command should support user mapping');
-			$t->assertContains("addOption('force'", $userRestoreCommand, 'User restore command should require an explicit force option');
-			$t->assertContains('restoreBackup(', $userRestoreCommand, 'User restore command should call restoreBackup');
-			$t->assertContains('Sicherheitsbackup:', $userRestoreCommand, 'User restore command should print the safety backup file');
-			$t->assertContains('Restore-Protokoll:', $userRestoreCommand, 'User restore command should print the restore report');
-			$t->assertContains('User-Mapping:', $userRestoreCommand, 'User restore command should print mapped users');
-			$t->assertContains('Beleg-Pfade:', $userRestoreCommand, 'User restore command should print receipt path import notes');
+			$t->assertContains("setName('cobudget:backup:restore')", $userRestoreCommand, 'Legacy personal restore command should keep the expected OCC name');
+			$t->assertContains('addArgument(\'user\'', $userRestoreCommand, 'Legacy personal restore command should keep the target user argument for compatibility');
+			$t->assertContains('addArgument(\'file\'', $userRestoreCommand, 'Legacy personal restore command should keep the backup file argument for compatibility');
+			$t->assertContains("addOption('folder'", $userRestoreCommand, 'Personal restore command should support a custom export folder');
+			$t->assertContains("addOption('force'", $userRestoreCommand, 'Legacy personal restore command should keep explicit force options for compatibility');
+			$t->assertContains('Bestehende CoBudget-Daten blockieren den Import.', $userRestoreCommand, 'Personal restore command should explain that imports require an empty target');
+			$t->assertContains('restoreBackup(', $userRestoreCommand, 'Personal restore command should call the guarded restore service');
+			$t->assertContains('Sicherheitsexport:', $userRestoreCommand, 'Personal restore command should print the safety export');
+			$t->assertNotContains('Restore-Protokoll:', $userRestoreCommand, 'Legacy personal restore command should not print a restore report');
+			$t->assertNotContains('User-Mapping:', $userRestoreCommand, 'Legacy personal restore command should not print mapped users');
+			$t->assertNotContains('Beleg-Pfade:', $userRestoreCommand, 'Legacy personal restore command should not print receipt path import notes');
 
 			$fullRestoreCommand = $t->read('lib/Command/RestoreFullBackupCommand.php');
 			$t->assertContains("setName('cobudget:backup:restore-full')", $fullRestoreCommand, 'Full restore command should expose the expected OCC name');
@@ -1253,35 +1310,54 @@ return [
 			$t->assertContains('@NoCSRFRequired', $backupController, 'Backup download may be opened directly by the browser');
 			$t->assertContains('authErrorResponse()', $backupDownload, 'Backup download should still require an authenticated user');
 			$t->assertContains('getBackupFile((string)$this->userId, $fileName)', $backupDownload, 'Backup download should be scoped to the current user backup folder');
-			$t->assertContains('Backup konnte nicht heruntergeladen werden.', $backupDownload, 'Backup download should return a generic validation error');
-			$t->assertContains('Backup wurde nicht gefunden.', $backupDownload, 'Backup download should return a generic not-found error');
-			$t->assertContains("getParam('confirmation', '')", $backupController, 'Backup restore API should require a server-side confirmation token');
-			$t->assertContains("!== 'RESTORE'", $backupController, 'Backup restore API should require the RESTORE confirmation text');
+			$t->assertContains('Persönlicher Export konnte nicht heruntergeladen werden.', $backupDownload, 'Personal export download should return a generic validation error');
+			$t->assertContains('Persönlicher Export wurde nicht gefunden.', $backupDownload, 'Personal export download should return a generic not-found error');
+			$t->assertContains("getParam('confirmation', '')", $backupController, 'Personal export restore API should require explicit RESTORE confirmation');
+			$t->assertContains("!== 'RESTORE'", $backupController, 'Personal export restore API should validate the RESTORE confirmation');
+			$t->assertContains('restoreBackup((string)$this->userId, $fileName)', $backupController, 'Personal export restore API should call the guarded restore service');
+			$t->assertContains('Persönlicher Export konnte nicht wiederhergestellt werden.', $backupController, 'Personal export restore API should return generic restore errors');
 			$t->assertContains('use Psr\\Log\\LoggerInterface;', $backupController, 'Backup controller should use the Nextcloud logger abstraction');
 			$t->assertContains('private LoggerInterface $logger', $backupController, 'Backup controller should inject a logger for internal exception details');
 			$t->assertContains('loggedErrorResponse(', $backupController, 'Backup controller should centralize logged generic API errors');
 			$t->assertContains('$this->logger->error(', $backupController, 'Backup controller should log internal exception details');
-			$t->assertContains('Backup konnte nicht erstellt werden.', $backupController, 'Backup create errors should return a generic client message');
-			$t->assertContains('Backup konnte nicht wiederhergestellt werden.', $backupController, 'Backup restore errors should return a generic client message');
+			$t->assertContains('Persönlicher Export konnte nicht erstellt werden.', $backupController, 'Personal export create errors should return a generic client message');
 			$t->assertNotContains('errorResponse($e->getMessage()', $backupController, 'Backup controller should not expose raw exception messages to clients');
 			$t->assertNotContains("['error' => \$e->getMessage()", $backupController, 'Backup controller should not expose raw exception messages in JSON responses');
+
+			$adminBackupController = $t->read('lib/Controller/AdminBackupController.php');
+			$t->assertContains('private LoggerInterface $logger', $adminBackupController, 'Admin backup controller should inject a logger for internal exception details');
+			$t->assertContains('loggedErrorResponse(', $adminBackupController, 'Admin backup controller should centralize logged generic API errors');
+			$t->assertContains('int $status = Http::STATUS_INTERNAL_SERVER_ERROR', $adminBackupController, 'Admin backup controller should preserve validation status codes while returning generic messages');
+			$t->assertContains('Http::STATUS_BAD_REQUEST)', $adminBackupController, 'Admin backup validation errors should keep HTTP 400');
+			$t->assertNotContains('errorResponse($e->getMessage()', $adminBackupController, 'Admin backup controller should not expose raw exception messages to clients');
+			$t->assertNotContains("['error' => \$e->getMessage()", $adminBackupController, 'Admin backup controller should not expose raw exception messages in JSON responses');
 
 			$backupService = $t->read('lib/Service/BackupService.php');
 			$t->assertContains('private const BACKUP_TABLE_COLUMNS', $backupService, 'Backup restore should define strict table-column allow-lists');
 			$t->assertContains('filterBackupRowColumns($table, $row)', $backupService, 'Backup restore should filter every imported row through the allow-list');
 			$t->assertContains('Backup enthält eine nicht erlaubte Spalte', $backupService, 'Backup restore should reject unexpected backup columns');
 			$t->assertContains('$row = $this->filterBackupRowColumns($table, $row)', $backupService, 'Backup restore should re-check columns before inserting rows');
+			$t->assertContains('public function personalRestoreState(string $userId)', $backupService, 'Personal export list should expose whether restore is possible before opening the modal');
+			$t->assertContains("'can_restore' => false", $backupService, 'Personal export list should disable restore for non-empty target users');
+			$t->assertContains('$tables = $this->preparePersonalImportTables($archive[\'tables\'], $userId, $sourceUserId)', $backupService, 'Personal restore should normalize multi-user exports before importing rows');
+			$t->assertContains('personalImportEntryShareCents(', $backupService, 'Personal restore should import shared entries only with the source user share');
+			$t->assertContains('roundPersonalImportShareCents(', $backupService, 'Personal restore should use direct half-up rounding for personal shares');
+			$t->assertContains('personalArchiveRestoreInfo($archive, $sourceUserId, $userId)', $backupService, 'Personal export inspect should expose shared-data restore warnings');
 
 			$settingsView = $t->read('src/views/SettingsView.vue');
 			$texts = $t->read('src/l10n/texts.js');
-			$t->assertContains("confirmation: 'RESTORE'", $settingsView, 'Settings restore request should send the server-side confirmation token');
-			$t->assertContains('RESTORE_REPORT_STORAGE_KEY', $settingsView, 'Settings restore UI should persist the report across the required reload');
-			$t->assertContains('restoreReport', $settingsView, 'Settings restore UI should display the restore report');
-			$t->assertContains("restoreReport: () => tx('Restore report')", $texts, 'Settings restore report title should be centralized in l10n texts');
-			$t->assertContains('restoreReport = response.data?.restore?.report', $settingsView, 'Settings restore UI should read the API restore report');
-			$t->assertContains('storeRestoreReport(this.restoreReport)', $settingsView, 'Settings restore UI should store the report before reloading');
-			$t->assertContains('restoreUserMappings', $settingsView, 'Settings restore UI should show user mappings');
-			$t->assertContains('restoreSkippedRows', $settingsView, 'Settings restore UI should show skipped rows');
+			$t->assertContains("confirmation: 'RESTORE'", $settingsView, 'Personal export settings should send explicit restore confirmation');
+			$t->assertContains('backup.can_restore === false', $settingsView, 'Personal export settings should disable restore when the target user is not empty');
+			$t->assertContains("/inspect`),", $settingsView, 'Personal export settings should inspect the archive before confirming restore');
+			$t->assertContains('restoreBackupSharedDataImportMode', $texts, 'Personal export settings should explain personal-share restore mode for shared data');
+			$t->assertNotContains('RESTORE_REPORT_STORAGE_KEY', $settingsView, 'Personal export settings should not keep a restore report state');
+			$t->assertNotContains('restoreReport = response.data?.restore?.report', $settingsView, 'Personal export settings should not read user restore reports');
+			$t->assertNotContains('storeRestoreReport(this.restoreReport)', $settingsView, 'Personal export settings should not store user restore reports');
+			$t->assertNotContains('restoreUserMappings', $settingsView, 'Personal export settings should not show user mappings');
+			$t->assertNotContains('restoreSkippedRows', $settingsView, 'Personal export settings should not show skipped rows');
+			$t->assertContains('$texts.settings.createBackupNow()', $settingsView, 'Settings should expose manual personal export creation');
+			$t->assertContains('$texts.settings.latestBackups()', $settingsView, 'Settings should list personal exports');
+			$t->assertContains("backups: () => tx('Personal export')", $texts, 'Settings personal export title should be centralized in l10n texts');
 		},
 
 		'User reset creates a safety backup and protects shared areas' => function(TestRunner $t): void {
@@ -1299,7 +1375,7 @@ return [
 
 			$resetService = $t->read('lib/Service/UserResetService.php');
 			$t->assertContains("CONFIRMATION_TEXT = 'RESET'", $resetService, 'User reset should require the exact RESET confirmation text');
-			$t->assertContains("SAFETY_BACKUP_FOLDER = 'CoBudget/Backups'", $resetService, 'User reset should write safety backups to the default backup folder');
+			$t->assertContains("SAFETY_BACKUP_FOLDER = 'CoBudget/Export'", $resetService, 'User reset should write safety exports to the personal export folder');
 			$t->assertContains('SAFETY_BACKUP_RETENTION = 8', $resetService, 'User reset should keep a conservative safety-backup retention');
 			$t->assertContains('createBackup($userId, self::SAFETY_BACKUP_FOLDER', $resetService, 'User reset should create a safety backup before deleting data');
 			$t->assertContains('blocking_shared_projects', $resetService, 'User reset preview should expose shared areas that block the reset');
@@ -1318,7 +1394,7 @@ return [
 			$t->assertContains('/apps/cobudget/api/settings/reset-preview', $settingsView, 'Settings reset UI should load the reset preview');
 			$t->assertContains('/apps/cobudget/api/settings/reset', $settingsView, 'Settings reset UI should call the reset endpoint');
 			$t->assertContains("requiredText: 'RESET'", $settingsView, 'Settings reset UI should require explicit RESET entry');
-			$t->assertContains("window.localStorage?.removeItem('cobudget_workspace_id')", $settingsView, 'Settings reset UI should clear stale active workspace selection');
+			$t->assertContains('clearWorkspaceId()', $settingsView, 'Settings reset UI should clear stale active workspace selection through the shared storage helper');
 		},
 
 		'Data integrity command reports orphan references and duplicate visible names' => function(TestRunner $t): void {
@@ -1467,6 +1543,7 @@ return [
 			$t->assertContains("eq('e.type'", $entries, 'Budget entries should include only expenses');
 			$t->assertContains("eq('e.user_id'", $entries, 'Budget personal entries should be scoped to the current user');
 			$t->assertContains("isNotNull('m.user_id')", $entries, 'Budget shared entries should require project membership');
+			$t->assertContains("'e.split_user_id'", $entries, 'Budget entries should expose explicit single-user split targets');
 
 			$entryPersonalCents = $t->methodBody('lib/Controller/BudgetController.php', 'entryPersonalCents');
 			$t->assertContains('entryShareCentsForUser', $entryPersonalCents, 'Budget evaluation should use the same personal-share helper as dashboards');
@@ -1485,6 +1562,7 @@ return [
 			$t->assertContains("cobudget_budget_snapshots", $snapshotService, 'Budget snapshot service should write the snapshot table');
 			$t->assertContains("'period_closed'", $snapshotService, 'Budget snapshot service should distinguish closed periods');
 			$t->assertContains('entryShareCentsForUser', $snapshotService, 'Budget snapshots should evaluate personal shares');
+			$t->assertContains("'e.split_user_id'", $snapshotService, 'Budget snapshots should include explicit single-user split targets');
 			$t->assertContains('snapshotExists', $snapshotService, 'Budget snapshot cron should avoid duplicate closed-period snapshots');
 
 			$snapshotHistory = $t->methodBody('lib/Service/BudgetSnapshotService.php', 'history');
@@ -1496,8 +1574,8 @@ return [
 
 			$infoXml = $t->read('appinfo/info.xml');
 			$t->assertContains('OCA\\CoBudget\\Cron\\BudgetSnapshotJob', $infoXml, 'Budget snapshot job should be listed in app metadata');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
-				throw new \RuntimeException('Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
+				throw new \RuntimeException('Initial public baseline should keep appinfo/info.xml on the 0.1 release line');
 			}
 		},
 
@@ -1624,10 +1702,13 @@ return [
 			$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
 			$t->assertContains("'share_basis_points'", $migration, 'Flexible shares migration should add member share_basis_points');
 			$t->assertContains("'split_mode'", $migration, 'Flexible shares migration should add entry/template split_mode');
+			$t->assertContains("'split_user_id'", $migration, 'Flexible shares migration should add entry/template split target users');
 
 			$trait = $t->read('lib/Controller/WorkspaceAwareTrait.php');
 			$t->assertContains('normalizeSplitMode', $trait, 'Workspace trait should normalize split mode');
 			$t->assertContains('validateSplitMode', $trait, 'Workspace trait should validate split mode');
+			$t->assertContains('entrySplitTargetUserId', $trait, 'Workspace trait should resolve single-user split targets');
+			$t->assertContains('validateProjectSplitUser', $trait, 'Workspace trait should validate single-user split targets');
 			$t->assertContains('memberShareBasisPoints', $trait, 'Workspace trait should normalize member shares');
 			$t->assertContains('distributeAmountCents', $trait, 'Workspace trait should distribute cents without losing remainders');
 			$t->assertContains('entryShareCentsForUser', $trait, 'Workspace trait should calculate one users entry share');
@@ -1641,19 +1722,28 @@ return [
 
 			$entryCreate = $t->methodBody('lib/Controller/EntryController.php', 'create');
 			$t->assertContains('validateSplitMode($splitMode)', $entryCreate, 'Entry create should accept and validate splitMode');
+			$t->assertContains('validateProjectSplitUser($projectId, $splitMode, $splitUserId, $entryUserId)', $entryCreate, 'Entry create should validate single-user split targets');
 			$t->assertContains("'split_mode' => \$qb->createNamedParameter(\$splitMode)", $entryCreate, 'Entry create should persist split mode');
+			$t->assertContains("'split_user_id' => \$qb->createNamedParameter(\$splitUserId", $entryCreate, 'Entry create should persist split target');
+
+			$entryUpdate = $t->methodBody('lib/Controller/EntryController.php', 'update');
+			$t->assertContains('validateProjectSplitUser($projectId, $splitMode, $splitUserId, $entryUserId)', $entryUpdate, 'Entry update should validate single-user split targets');
+			$t->assertContains("set('split_user_id'", $entryUpdate, 'Entry update should persist split target');
 
 			$entryPersonalAmount = $t->methodBody('lib/Controller/EntryController.php', 'entryPersonalAmountCents');
 			$t->assertContains("normalizeSplitMode(\$entry['split_mode']", $entryPersonalAmount, 'Dashboard personal amount should inspect split mode');
+			$t->assertContains('entrySplitTargetUserId($entry)', $entryPersonalAmount, 'Dashboard personal amount should honor explicit split target user');
 			$t->assertContains('$projectShareBasisPoints[$projectId]', $entryPersonalAmount, 'Dashboard personal amount should use fetched share map');
 
 			$templateCreate = $t->methodBody('lib/Controller/TemplateController.php', 'create');
 			$t->assertContains('validateSplitMode($splitMode)', $templateCreate, 'Template create should accept and validate splitMode');
+			$t->assertContains('validateProjectSplitUser($projectId, $splitMode, $splitUserId, (string)$this->userId)', $templateCreate, 'Template create should validate single-user split targets');
 			$t->assertContains("'split_mode' => \$qb->createNamedParameter(\$splitMode)", $templateCreate, 'Template create should persist split mode');
+			$t->assertContains("'split_user_id' => \$qb->createNamedParameter(\$splitUserId", $templateCreate, 'Template create should persist split target');
 
 			$infoXml = $t->read('appinfo/info.xml');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.3(?:\.|$)/', $versionMatch[1]) !== 1) {
-				throw new \RuntimeException('Hashtag migration should keep appinfo/info.xml on the 0.3 release line or newer');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
+				throw new \RuntimeException('Initial public baseline should keep appinfo/info.xml on the 0.1 release line');
 			}
 		},
 	];

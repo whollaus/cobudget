@@ -104,7 +104,8 @@ class TemplateController extends Controller {
 		bool $isImportant = false,
 		bool $needsReview = false,
 		bool $isTaxRelevant = false,
-		?string $splitMode = null
+		?string $splitMode = null,
+		?string $splitUserId = null
 	): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -119,6 +120,9 @@ class TemplateController extends Controller {
 					return $validationError;
 				}
 			if ($validationError = $this->validateSplitMode($splitMode)) {
+				return $validationError;
+			}
+			if ($validationError = $this->validateProjectSplitUser($projectId, $splitMode, $splitUserId, (string)$this->userId)) {
 				return $validationError;
 			}
 			if ($type !== 'expense') {
@@ -144,6 +148,7 @@ class TemplateController extends Controller {
 					'payment_partner_id' => $qb->createNamedParameter($paymentPartnerId),
 					'project_id' => $qb->createNamedParameter($projectId),
 					'split_mode' => $qb->createNamedParameter($splitMode),
+					'split_user_id' => $qb->createNamedParameter($splitUserId, $splitUserId === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
 					'is_subscription' => $qb->createNamedParameter($isSubscription, \PDO::PARAM_BOOL),
 					'is_fixed_cost' => $qb->createNamedParameter($isFixedCost, \PDO::PARAM_BOOL),
 					'is_child_related' => $qb->createNamedParameter($isChildRelated, \PDO::PARAM_BOOL),

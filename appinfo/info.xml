@@ -5,14 +5,27 @@
     <name>CoBudget</name>
     <summary>Personal and shared budgeting for Nextcloud</summary>
     <description><![CDATA[CoBudget is a Nextcloud app for tracking personal and shared household finances.
+
+    Early alpha warning: Features, data structures and workflows can still change. Manual database corrections may be required during the alpha phase.
+
     It helps you manage payments, budgets, receipts, workspaces, shared areas, settlements and financial insights directly inside Nextcloud.]]></description>
-    <version>0.3.6</version>
-    <licence>agpl</licence>
+    <version>0.1.1</version>
+    <licence>AGPL-3.0-or-later</licence>
     <author>Wolfgang</author>
     <namespace>CoBudget</namespace>
-    <category>finance</category>
     <category>organization</category>
+    <website>https://github.com/whollaus/cobudget</website>
+    <documentation>
+        <user>https://github.com/whollaus/cobudget#readme</user>
+        <admin>https://github.com/whollaus/cobudget#readme</admin>
+        <developer>https://github.com/whollaus/cobudget/blob/main/CONTRIBUTING.md</developer>
+    </documentation>
     <bugs>https://github.com/whollaus/cobudget/issues</bugs>
+    <repository>https://github.com/whollaus/cobudget</repository>
+    <screenshot>https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot1.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot2.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot3.jpg</screenshot>
+    <screenshot>https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot4.jpg</screenshot>
     <donation title="Support CoBudget on GitHub Sponsors">https://github.com/sponsors/whollaus</donation>
     <donation title="Support CoBudget with Stripe" type="stripe">https://donate.stripe.com/aFaeVdfARbPNe897bu5J600</donation>
     <dependencies>

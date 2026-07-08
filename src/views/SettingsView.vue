@@ -379,7 +379,7 @@
 				<div class="setting-item">
 					<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.backupFolder() }}</label>
 					<p class="setting-desc">{{ $texts.settings.backupFolderDescription() }}</p>
-					<input type="text" class="form-control" v-model="backupStorageFolder" placeholder="CoBudget/Backups" />
+					<input type="text" class="form-control" v-model="backupStorageFolder" placeholder="CoBudget/Export" />
 				</div>
 				<div class="setting-item">
 					<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.retainCount() }}</label>
@@ -409,70 +409,6 @@
 				</NcButton>
 			</div>
 
-			<div v-if="restoreReport" class="restore-report">
-				<div class="restore-report-header">
-					<div>
-						<h4>{{ $texts.settings.restoreReport() }}</h4>
-						<p>
-							{{ $texts.settings.restoreReportRestored(restoreReport.file_name || 'Backup') }}
-							{{ $texts.settings.safetyBackupCreated() }}
-						</p>
-					</div>
-					<button type="button" class="restore-report-close" :aria-label="$texts.settings.restoreReportClose()" @click="restoreReport = null">
-						×
-					</button>
-				</div>
-				<div class="restore-report-summary">
-					<div>
-						<span>{{ $texts.settings.imported() }}</span>
-						<strong>{{ $texts.common.rows(restoreReport.imported_total || 0) }}</strong>
-					</div>
-					<div>
-						<span>{{ $texts.settings.settings() }}</span>
-						<strong>{{ $texts.common.values(restoreReport.settings_total || 0) }}</strong>
-					</div>
-					<div>
-						<span>{{ $texts.settings.receiptPaths() }}</span>
-						<strong>{{ restoreReport.attachment_paths?.count || 0 }}</strong>
-					</div>
-				</div>
-				<div class="restore-report-grid">
-					<div class="restore-report-block">
-						<h5>{{ $texts.settings.imported() }}</h5>
-						<ul v-if="restoreImportedTables.length">
-							<li v-for="row in restoreImportedTables" :key="row.table">
-								<span>{{ row.label || row.table }}</span>
-								<strong>{{ row.count }}</strong>
-							</li>
-						</ul>
-						<p v-else>{{ $texts.settings.nothingImported() }}</p>
-					</div>
-					<div class="restore-report-block">
-						<h5>{{ $texts.settings.userMapping() }}</h5>
-						<ul v-if="restoreUserMappings.length">
-							<li v-for="row in restoreUserMappings" :key="`${row.source_user_id}-${row.target_user_id}`">
-								<span>{{ row.source_display_name || row.source_user_id }}</span>
-								<strong>→ {{ row.target_display_name || row.target_user_id }}</strong>
-							</li>
-						</ul>
-						<p v-else>{{ $texts.settings.noUserMapping() }}</p>
-					</div>
-					<div class="restore-report-block">
-						<h5>{{ $texts.settings.skipped() }}</h5>
-						<ul v-if="restoreSkippedRows.length">
-							<li v-for="row in restoreSkippedRows" :key="`${row.table}-${row.reason}`">
-								<span>{{ row.label || row.table }} · {{ row.reason }}</span>
-								<strong>{{ row.count }}</strong>
-							</li>
-						</ul>
-						<p v-else>{{ $texts.settings.nothingSkipped() }}</p>
-					</div>
-				</div>
-				<p v-if="restoreReport.attachment_paths?.count" class="restore-report-note">
-					{{ $texts.settings.receiptPathsNote() }}
-				</p>
-			</div>
-
 			<div class="backup-list">
 				<div class="backup-list-header">
 					<h4>{{ $texts.settings.latestBackups() }}</h4>
@@ -487,16 +423,16 @@
 							<small>{{ backup.file_path }} · {{ formatFileSize(backup.file_size) }}</small>
 						</div>
 						<div class="backup-item-actions">
-              <NcButton
-                  type="error"
-                  :aria-label="$texts.settings.deleteBackupAria(backup.file_name)"
-                  :title="$texts.settings.deleteBackupAria(backup.file_name)"
-                  :disabled="backupActionsDisabled"
-                  @click="deleteBackup(backup)">
-                <template #icon>
-                  <DeleteOutlineIcon :size="20" />
-                </template>
-              </NcButton>
+							<NcButton
+								type="error"
+								:aria-label="$texts.settings.deleteBackupAria(backup.file_name)"
+								:title="$texts.settings.deleteBackupAria(backup.file_name)"
+								:disabled="backupActionsDisabled"
+								@click="deleteBackup(backup)">
+								<template #icon>
+									<DeleteOutlineIcon :size="20" />
+								</template>
+							</NcButton>
 							<NcButton
 								:aria-label="$texts.settings.downloadBackupAria(backup.file_name)"
 								:title="$texts.settings.downloadBackupAria(backup.file_name)"
@@ -506,12 +442,15 @@
 									<DownloadIcon :size="20" />
 								</template>
 							</NcButton>
-							<NcButton
-								type="error"
-								:disabled="backupActionsDisabled"
-								@click="restoreBackup(backup)">
-								{{ backupRestoringFileName === backup.file_name ? $texts.settings.restoringBackup() : $texts.settings.restoreBackup() }}
-							</NcButton>
+							<span
+								class="backup-restore-action"
+								:title="backup.can_restore === false ? $texts.settings.restoreBackupBlocked() : ''">
+								<NcButton
+									:disabled="backupActionsDisabled || backup.can_restore === false"
+									@click="restoreBackup(backup)">
+									{{ backupRestoringFileName === backup.file_name ? $texts.settings.restoringBackup() : $texts.settings.restoreBackup() }}
+								</NcButton>
+							</span>
 						</div>
 					</li>
 				</ul>
@@ -584,42 +523,6 @@
 			:wide="!!(confirmDialog && confirmDialog.wide)"
 			@confirm="resolveConfirm(true)"
 			@cancel="resolveConfirm(false)">
-			<div v-if="confirmDialog && confirmDialog.kind === 'restoreBackup'" class="restore-preview">
-				<p class="restore-preview-note">
-					{{ $texts.settings.restoreSafetyNote() }}
-				</p>
-				<p v-if="confirmDialog.analysis && confirmDialog.analysis.scope !== 'user'" class="restore-preview-warning">
-					{{ $texts.settings.systemBackupWarning() }}
-				</p>
-				<div v-else class="restore-user-map">
-					<div class="restore-user-map-header">
-						<span>{{ $texts.settings.usersInBackup() }}</span>
-						<span>{{ $texts.settings.restoreAs() }}</span>
-					</div>
-					<div v-for="row in confirmDialog.userMappings" :key="row.source_user_id" class="restore-user-map-row">
-						<div class="restore-user-source">
-							<strong>{{ row.source_display_name || row.source_user_id }}</strong>
-							<small>{{ row.source_user_id }}</small>
-							<span v-if="!row.exists" class="restore-status missing">{{ $texts.settings.missingOnServer() }}</span>
-							<span v-else class="restore-status exists">{{ $texts.settings.existsOnServer() }}</span>
-						</div>
-						<div class="restore-user-target">
-							<input
-								v-if="!row.locked"
-								v-model.trim="row.target_user_id"
-								class="form-control"
-								type="text"
-								:placeholder="$texts.settings.targetUserId()" />
-							<div v-else class="restore-user-target-fixed">
-								<strong>{{ row.target_display_name || row.target_user_id }}</strong>
-								<small>{{ row.target_user_id }}</small>
-							</div>
-							<small v-if="row.locked" class="restore-user-hint">{{ $texts.settings.autoMappedUser() }}</small>
-							<small v-else-if="!row.target_user_id" class="restore-user-hint error">{{ $texts.settings.targetUserRequired() }}</small>
-						</div>
-					</div>
-				</div>
-			</div>
 			<div v-if="confirmDialog && confirmDialog.requiredText" class="confirm-text-block">
 				<label for="settings-confirm-text">
 					{{ $texts.settings.confirmationExact(confirmDialog.requiredText) }}
@@ -646,6 +549,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import { showSuccess, showInfo } from '@nextcloud/dialogs'
 import { ENTRY_PAGE_SIZE_OPTIONS, normalizeEntryPageSize } from '../services/pagination'
 import { applyThemeMode, normalizeThemeMode } from '../services/themeMode'
+import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
 import ModalActions from '../components/ModalActions.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import SettingsItemActions from '../components/SettingsItemActions.vue'
@@ -660,7 +564,6 @@ import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 
 const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-icon-picker" */ '../components/IconPicker.vue'))
-const RESTORE_REPORT_STORAGE_KEY = 'cobudget:lastRestoreReport'
 
 export default {
 	name: 'SettingsView',
@@ -709,16 +612,15 @@ export default {
 			receiptStorageFolder: 'CoBudget/Belege',
 			receiptFolderGrouping: 'year',
 			deleteReceiptsWithEntry: false,
-			backupStorageFolder: 'CoBudget/Backups',
+			backupStorageFolder: 'CoBudget/Export',
 			backupRetentionCount: 7,
 			backupSchedule: 'none',
 			backups: [],
 			backupsLoading: false,
 			backupCreating: false,
-			backupRestoringFileName: '',
 			backupDeletingFileName: '',
+			backupRestoringFileName: '',
 			resetRunning: false,
-			restoreReport: null,
 			projects: [],
 			categories: [],
 			paymentPartners: [],
@@ -739,7 +641,7 @@ export default {
 	},
 	computed: {
 		backupActionsDisabled() {
-			return !!this.backupRestoringFileName || !!this.backupDeletingFileName;
+			return !!this.backupDeletingFileName || !!this.backupRestoringFileName;
 		},
 		activeProjects() {
 			return this.projects
@@ -795,45 +697,13 @@ export default {
 			if (this.confirmDialog.requiredText && this.confirmDialog.confirmationText !== this.confirmDialog.requiredText) {
 				return false;
 			}
-			if (this.confirmDialog.kind === 'restoreBackup') {
-				return this.canConfirmRestoreBackup(this.confirmDialog);
-			}
 			return true;
-		},
-		restoreImportedTables() {
-			return (this.restoreReport?.imported_tables || []).filter(row => Number(row.count || 0) > 0);
-		},
-		restoreUserMappings() {
-			return this.restoreReport?.user_mappings || [];
-		},
-		restoreSkippedRows() {
-			return this.restoreReport?.skipped || [];
 		}
 	},
 	mounted() {
-		this.restoreReport = this.consumeStoredRestoreReport()
 		this.fetchData()
 	},
 	methods: {
-		consumeStoredRestoreReport() {
-			try {
-				const raw = window.sessionStorage?.getItem(RESTORE_REPORT_STORAGE_KEY);
-				window.sessionStorage?.removeItem(RESTORE_REPORT_STORAGE_KEY);
-				return raw ? JSON.parse(raw) : null;
-			} catch (e) {
-				return null;
-			}
-		},
-		storeRestoreReport(report) {
-			if (!report) {
-				return;
-			}
-			try {
-				window.sessionStorage?.setItem(RESTORE_REPORT_STORAGE_KEY, JSON.stringify(report));
-			} catch (e) {
-				// The report is helpful, but restore must not fail because storage is unavailable.
-			}
-		},
 		openConfirm({
 			title,
 			message,
@@ -841,9 +711,7 @@ export default {
 			confirmVariant = 'primary',
 			requiredText = '',
 			kind = '',
-			wide = false,
-			analysis = null,
-			userMappings = []
+			wide = false
 		}) {
 			return new Promise(resolve => {
 				this.confirmDialog = {
@@ -855,8 +723,6 @@ export default {
 					confirmationText: '',
 					kind,
 					wide,
-					analysis,
-					userMappings,
 					resolve
 				};
 			});
@@ -864,48 +730,82 @@ export default {
 		resolveConfirm(confirmed) {
 			const dialog = this.confirmDialog;
 			const resolver = dialog?.resolve;
-			const payload = confirmed && dialog?.kind === 'restoreBackup'
-				? { userMap: this.userMapFromRestoreDialog(dialog) }
-				: confirmed;
 			this.confirmDialog = null;
 			if (resolver) {
-				resolver(payload);
+				resolver(confirmed);
 			}
-		},
-		canConfirmRestoreBackup(dialog) {
-			if (!dialog.analysis || dialog.analysis.scope !== 'user') {
-				return false;
-			}
-			return (dialog.userMappings || []).every(row => String(row.target_user_id || '').trim() !== '');
-		},
-		userMapFromRestoreDialog(dialog) {
-			const userMap = {};
-			(dialog.userMappings || []).forEach(row => {
-				const source = String(row.source_user_id || '').trim();
-				const target = String(row.target_user_id || '').trim();
-				if (source && target && source !== target) {
-					userMap[source] = target;
-				}
-			});
-			return userMap;
-		},
-		createRestoreUserMappings(analysis) {
-			return (analysis?.users || []).map(user => {
-				const sourceUserId = String(user.id || '');
-				const needsMapping = !user.is_auto_mapped && !user.target_exists;
-				const targetUserId = needsMapping ? '' : String(user.suggested_target_id || sourceUserId);
-				return {
-					source_user_id: sourceUserId,
-					source_display_name: user.display_name || sourceUserId,
-					exists: !!user.exists,
-					target_user_id: targetUserId,
-					target_display_name: user.suggested_target_display_name || targetUserId,
-					locked: !!user.is_auto_mapped
-				};
-			});
 		},
 		extractError(error, fallback) {
 			return error?.response?.data?.error || error?.message || fallback;
+		},
+		normalizeBackupStorageFolder(folder) {
+			const normalized = String(folder || '').trim();
+			if (!normalized || normalized === 'CoBudget/Backups') {
+				return 'CoBudget/Export';
+			}
+
+			return normalized;
+		},
+		normalizeWorkspace(workspace) {
+			return {
+				...workspace,
+				id: Number(workspace?.id || 0),
+				is_default: workspace?.is_default === true || workspace?.is_default === 1 || workspace?.is_default === '1',
+			};
+		},
+		normalizeWorkspaces(payload) {
+			const rawWorkspaces = Array.isArray(payload)
+				? payload
+				: Array.isArray(payload?.workspaces)
+					? payload.workspaces
+					: [];
+			return rawWorkspaces
+				.map(workspace => this.normalizeWorkspace(workspace))
+				.filter(workspace => workspace.id > 0);
+		},
+		async ensureValidWorkspaceContext() {
+			if (!this.enableWorkspaces) {
+				clearWorkspaceId();
+				return;
+			}
+
+			try {
+				const response = await axios.get(generateUrl('/apps/cobudget/api/workspaces'), {
+					headers: { Accept: 'application/json' },
+					params: { _t: Date.now() },
+					skipWorkspaceHeader: true,
+				});
+				const workspaces = this.normalizeWorkspaces(response.data);
+				if (workspaces.length === 0) {
+					clearWorkspaceId();
+					return;
+				}
+
+				const storedWorkspaceId = readWorkspaceId();
+				if (storedWorkspaceId && workspaces.some(workspace => workspace.id === storedWorkspaceId)) {
+					writeWorkspaceId(storedWorkspaceId);
+					return;
+				}
+
+				const defaultWorkspace = workspaces.find(workspace => workspace.is_default) || workspaces[0];
+				writeWorkspaceId(defaultWorkspace.id);
+			} catch (e) {
+				console.error('Failed to validate workspace context', e);
+				clearWorkspaceId();
+			}
+		},
+		async fetchWorkspaceScopedWithRetry(url, config = {}) {
+			try {
+				return await axios.get(url, config);
+			} catch (error) {
+				if (error?.response?.status !== 403) {
+					throw error;
+				}
+
+				clearWorkspaceId();
+				await this.ensureValidWorkspaceContext();
+				return axios.get(url, config);
+			}
 		},
 		showError(message) {
 			if (window.OC && window.OC.Notification) {
@@ -1011,29 +911,43 @@ export default {
 			if (!backup?.file_name || this.backupActionsDisabled) {
 				return;
 			}
-			let analysis = null;
-			this.backupRestoringFileName = backup.file_name;
-			try {
-				const inspectResponse = await axios.get(generateUrl(`/apps/cobudget/api/backups/${encodeURIComponent(backup.file_name)}/inspect`), { skipWorkspaceHeader: true });
-				analysis = inspectResponse.data?.backup || null;
-			} catch (e) {
-				console.error('Failed to inspect backup', e);
-				this.showError(this.extractError(e, this.$texts.settings.backupInspectError()));
-				this.backupRestoringFileName = '';
+			if (backup.can_restore === false) {
+				this.showError(this.$texts.settings.restoreBackupBlocked());
 				return;
 			}
-			this.backupRestoringFileName = '';
-
+			let restoreInfo = null;
+			try {
+				const inspectResponse = await axios.get(
+					generateUrl(`/apps/cobudget/api/backups/${encodeURIComponent(backup.file_name)}/inspect`),
+					{ skipWorkspaceHeader: true }
+				);
+				restoreInfo = inspectResponse.data?.backup?.restore || null;
+			} catch (e) {
+				console.error('Failed to inspect personal export', e);
+				this.showError(this.extractError(e, this.$texts.settings.backupInspectError()));
+				return;
+			}
+			if (restoreInfo?.can_restore_personally === false) {
+				this.showError(this.$texts.settings.restoreBackupSharedDataBlocked());
+				return;
+			}
+			const message = [
+				this.$texts.settings.restoreBackupMessage(backup.file_name),
+				restoreInfo?.shared_data_restore_mode === 'personal_share'
+					? this.$texts.settings.restoreBackupSharedDataImportMode()
+					: '',
+				restoreInfo?.will_map_source_user
+					? this.$texts.settings.restoreBackupUserMapping(restoreInfo.source_user_id, restoreInfo.target_user_id)
+					: ''
+			].filter(Boolean).join('\n\n');
 			const confirmed = await this.openConfirm({
 				title: this.$texts.settings.restoreBackupTitle(),
-				message: this.$texts.settings.restoreBackupMessage(backup.file_name),
+				message,
 				confirmLabel: this.$texts.settings.restoreBackupConfirm(),
 				confirmVariant: 'danger',
 				requiredText: 'RESTORE',
 				kind: 'restoreBackup',
-				wide: true,
-				analysis,
-				userMappings: this.createRestoreUserMappings(analysis)
+				wide: true
 			});
 			if (!confirmed) {
 				return;
@@ -1043,23 +957,21 @@ export default {
 			try {
 				const response = await axios.post(
 					generateUrl(`/apps/cobudget/api/backups/${encodeURIComponent(backup.file_name)}/restore`),
-					{ confirmation: 'RESTORE', userMap: confirmed.userMap || {} },
+					{ confirmation: 'RESTORE' },
 					{ skipWorkspaceHeader: true }
 				);
 				this.backups = response.data?.backups || [];
-				this.restoreReport = response.data?.restore?.report || null;
-				this.storeRestoreReport(this.restoreReport);
-				this.showSuccessMessage(this.$texts.settings.backupRestoreSuccess());
-				window.setTimeout(() => window.location.reload(), 600);
+				this.showSuccessMessage(this.$texts.settings.backupRestored());
+				await this.fetchData();
 			} catch (e) {
-				console.error('Failed to restore backup', e);
+				console.error('Failed to restore personal export', e);
 				this.showError(this.extractError(e, this.$texts.settings.backupRestoreError()));
 			} finally {
 				this.backupRestoringFileName = '';
 			}
 		},
 		async saveBackupSettings(showMessage = true) {
-			const folder = this.backupStorageFolder.trim() || 'CoBudget/Backups';
+			const folder = this.normalizeBackupStorageFolder(this.backupStorageFolder);
 			const retention = Math.max(1, Math.min(100, Number(this.backupRetentionCount || 7)));
 			this.backupStorageFolder = folder;
 			this.backupRetentionCount = retention;
@@ -1144,7 +1056,7 @@ export default {
 					{ confirmation: 'RESET' },
 					{ skipWorkspaceHeader: true }
 				);
-				window.localStorage?.removeItem('cobudget_workspace_id');
+				clearWorkspaceId();
 				this.showSuccessMessage(this.$texts.settings.resetDone());
 				window.setTimeout(() => window.location.reload(), 600);
 			} catch (e) {
@@ -1206,21 +1118,22 @@ export default {
 				this.receiptStorageFolder = settingsRes.data.receipt_storage_folder || 'CoBudget/Belege';
 				this.receiptFolderGrouping = settingsRes.data.receipt_folder_grouping || 'year';
 				this.deleteReceiptsWithEntry = settingsRes.data.delete_receipts_with_entry ?? false;
-				this.backupStorageFolder = settingsRes.data.backup_storage_folder || 'CoBudget/Backups';
+				this.backupStorageFolder = this.normalizeBackupStorageFolder(settingsRes.data.backup_storage_folder);
 				this.backupRetentionCount = Number(settingsRes.data.backup_retention_count || 7);
 				this.backupSchedule = settingsRes.data.backup_schedule || 'none';
+				await this.fetchBackups();
+				await this.ensureValidWorkspaceContext();
 				if (this.enableProjects) {
-					const projectRes = await axios.get(generateUrl('/apps/cobudget/api/projects'));
+					const projectRes = await this.fetchWorkspaceScopedWithRetry(generateUrl('/apps/cobudget/api/projects'));
 					this.projects = Array.isArray(projectRes.data) ? projectRes.data : [];
 				} else {
 					this.projects = [];
 				}
 				this.normalizeDefaultStartPageForProjects();
-				const catRes = await axios.get(generateUrl('/apps/cobudget/api/categories/settings'));
+				const catRes = await this.fetchWorkspaceScopedWithRetry(generateUrl('/apps/cobudget/api/categories/settings'));
 				this.categories = (catRes.data || []).sort((a, b) => a.name.localeCompare(b.name));
-				const paymentPartnerRes = await axios.get(generateUrl('/apps/cobudget/api/payment-partners/settings'));
+				const paymentPartnerRes = await this.fetchWorkspaceScopedWithRetry(generateUrl('/apps/cobudget/api/payment-partners/settings'));
 				this.paymentPartners = (paymentPartnerRes.data || []).sort((a, b) => a.name.localeCompare(b.name));
-				await this.fetchBackups();
 			} catch (e) {
 				console.error('Failed to fetch personal data', e);
 				this.showError(this.extractError(e, this.$texts.settings.loadError()));
@@ -1466,7 +1379,7 @@ export default {
 					receipt_storage_folder: this.receiptStorageFolder.trim() || 'CoBudget/Belege',
 					receipt_folder_grouping: this.receiptFolderGrouping,
 					delete_receipts_with_entry: this.deleteReceiptsWithEntry,
-					backup_storage_folder: this.backupStorageFolder.trim() || 'CoBudget/Backups',
+					backup_storage_folder: this.normalizeBackupStorageFolder(this.backupStorageFolder),
 					backup_retention_count: Math.max(1, Math.min(100, Number(this.backupRetentionCount || 7))),
 					backup_schedule: this.backupSchedule || 'none'
 				}, { skipWorkspaceHeader: true });
@@ -1543,102 +1456,6 @@ export default {
 	margin-bottom: 8px;
 	font-weight: 700;
 	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.restore-preview {
-	margin-top: 18px;
-}
-
-.restore-preview-note {
-	margin: 0 0 14px;
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	line-height: 1.45;
-}
-
-.restore-preview-warning {
-	margin: 0;
-	padding: 12px 14px;
-	border: 1px solid var(--color-warning, #eca700);
-	border-radius: var(--border-radius-large, 8px);
-	background: var(--color-warning-light, #fff4ce);
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	font-weight: 600;
-}
-
-.restore-user-map {
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	overflow: hidden;
-}
-
-.restore-user-map-header,
-.restore-user-map-row {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-	gap: 16px;
-	align-items: center;
-}
-
-.restore-user-map-header {
-	padding: 10px 14px;
-	background: var(--cobudget-surface-muted, #f5f5f5);
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	font-weight: 700;
-	font-size: var(--cobudget-font-compact);
-	text-transform: uppercase;
-	letter-spacing: 0.02em;
-}
-
-.restore-user-map-row {
-	padding: 12px 14px;
-	border-top: 1px solid var(--cobudget-border, #ddd);
-}
-
-.restore-user-source,
-.restore-user-target,
-.restore-user-target-fixed {
-	display: flex;
-	flex-direction: column;
-	gap: 3px;
-	min-width: 0;
-}
-
-.restore-user-source strong,
-.restore-user-target-fixed strong {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.restore-user-source small,
-.restore-user-target-fixed small,
-.restore-user-hint {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-}
-
-.restore-user-hint.error {
-	color: var(--cobudget-error);
-}
-
-.restore-status {
-	width: fit-content;
-	padding: 2px 8px;
-	border: 1px solid transparent;
-	border-radius: 999px;
-	font-size: var(--cobudget-font-sm);
-	font-weight: 700;
-}
-
-.restore-status.exists {
-	background: var(--cobudget-success-light, #e7f7ed);
-	color: var(--cobudget-success, var(--color-success-text, #0a7a32));
-	border-color: var(--cobudget-success, var(--color-success-text, #0a7a32));
-}
-
-.restore-status.missing {
-	background: var(--cobudget-error-light);
-	color: var(--cobudget-error, var(--color-error-text, #c00));
-	border-color: var(--cobudget-error, var(--color-error-text, #c00));
 }
 
 .settings-mini-section {
@@ -1920,6 +1737,10 @@ export default {
 	justify-content: flex-end;
 	gap: 8px;
 	flex-shrink: 0;
+}
+
+.backup-restore-action {
+	display: inline-flex;
 }
 
 .reset-section {

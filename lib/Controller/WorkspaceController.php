@@ -176,6 +176,10 @@ class WorkspaceController extends Controller {
 			$this->db->beginTransaction();
 			try {
 				$projectIds = $this->ownedProjectIdsInWorkspace($id);
+				if ($this->workspaceDeleteHasSharedProjectData($projectIds)) {
+					$this->db->rollBack();
+					return new DataResponse(['error' => 'Workspace contains shared areas and cannot be deleted automatically.'], Http::STATUS_CONFLICT);
+				}
 				$entryIds = $this->entryIdsForWorkspaceDelete($id, $projectIds);
 				$settlementIds = $this->idsByColumnValues('cobudget_settlements', 'project_id', $projectIds);
 
@@ -231,6 +235,44 @@ class WorkspaceController extends Controller {
 			->andWhere($qb->expr()->eq('owner_id', $qb->createNamedParameter($this->userId)));
 
 		return $this->ids($qb->executeQuery()->fetchAll());
+	}
+
+	private function workspaceDeleteHasSharedProjectData(array $projectIds): bool {
+		$projectIds = $this->normalizeIds($projectIds);
+		if ($projectIds === []) {
+			return false;
+		}
+
+		return $this->projectIdsWithOtherMembers($projectIds) !== []
+			|| $this->projectIdsWithOtherUserEntries($projectIds) !== [];
+	}
+
+	private function projectIdsWithOtherMembers(array $projectIds): array {
+		return $this->projectIdsWithOtherUserRows('cobudget_members', $projectIds);
+	}
+
+	private function projectIdsWithOtherUserEntries(array $projectIds): array {
+		return $this->projectIdsWithOtherUserRows('cobudget_entries', $projectIds);
+	}
+
+	private function projectIdsWithOtherUserRows(string $table, array $projectIds): array {
+		$projectIds = $this->normalizeIds($projectIds);
+		if ($projectIds === []) {
+			return [];
+		}
+
+		$sharedProjectIds = [];
+		foreach (array_chunk($projectIds, 500) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->selectAlias('project_id', 'id')
+				->from($table)
+				->where($qb->expr()->in('project_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
+				->andWhere($qb->expr()->neq('user_id', $qb->createNamedParameter($this->userId)))
+				->groupBy('project_id');
+			$sharedProjectIds = array_merge($sharedProjectIds, $this->ids($qb->executeQuery()->fetchAll()));
+		}
+
+		return $this->normalizeIds($sharedProjectIds);
 	}
 
 	private function entryIdsForWorkspaceDelete(int $workspaceId, array $projectIds): array {

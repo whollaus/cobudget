@@ -29,9 +29,14 @@ class CreateFullBackupCommand extends Command {
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
+		$configuredSettings = $this->backupService->getFullBackupSettings();
 		$storageUserId = (string)$input->getOption('user');
+		$useConfiguredDefaults = $storageUserId === '';
 		if ($storageUserId === '') {
-			$output->writeln('<error>Bitte Speicher-Benutzer mit --user angeben.</error>');
+			$storageUserId = (string)$configuredSettings['storage_user_id'];
+		}
+		if ($storageUserId === '') {
+			$output->writeln('<error>Bitte Speicher-Benutzer mit --user angeben. Alternativ in den Admin-Einstellungen konfigurieren.</error>');
 			return self::FAILURE;
 		}
 		if (!$this->userManager->userExists($storageUserId)) {
@@ -45,8 +50,8 @@ class CreateFullBackupCommand extends Command {
 		try {
 			$backup = $this->backupService->createFullBackup(
 				$storageUserId,
-				is_string($folder) && $folder !== '' ? $folder : null,
-				$keep !== null ? (int)$keep : null
+				is_string($folder) && $folder !== '' ? $folder : ($useConfiguredDefaults ? (string)$configuredSettings['storage_folder'] : null),
+				$keep !== null ? (int)$keep : ($useConfiguredDefaults ? (int)$configuredSettings['retention_count'] : null)
 			);
 			$output->writeln('<info>Vollständiges CoBudget-Backup erstellt.</info>');
 			$output->writeln('Datei: ' . $backup['file_path']);

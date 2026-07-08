@@ -272,9 +272,14 @@
 								</div>
 								<div class="form-group detail-split-mode" v-if="showProjectSplitMode">
 									<label>{{ $texts.entry.split() }}</label>
-									<select v-model="entry.splitMode" class="form-control select-control">
+									<select v-model="splitModeChoice" class="form-control select-control">
 										<option value="project_shares">{{ $texts.entry.projectShares() }}</option>
-										<option value="single_user">{{ $texts.entry.singleUserSplit() }}</option>
+										<option
+											v-for="member in projectSplitOptions"
+											:key="`single-${member.id}`"
+											:value="`single_user:${member.id}`">
+											{{ $texts.entry.singleUserSplitTarget(member.displayName) }}
+										</option>
 									</select>
 								</div>
 							</div>
@@ -388,6 +393,7 @@ import CategoryIcon from './CategoryIcon.vue'
 import ModalActions from './ModalActions.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import { showRequestError, showToast } from '../services/notifications'
+import { readWorkspaceId } from '../services/workspaceStorage'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
@@ -420,6 +426,7 @@ export default {
 				projectId: this.projectId,
 				userId: window.OC?.currentUser?.uid || '',
 				splitMode: 'project_shares',
+				splitUserId: null,
 				date: new Date(),
 				recurrenceInterval: 'none',
 				recurrenceMultiplier: 1,
@@ -638,6 +645,9 @@ export default {
 				.map(member => this.normalizeProjectMember(member))
 				.filter(member => member.id !== '');
 		},
+		projectSplitOptions() {
+			return this.projectPayerOptions;
+		},
 		showProjectPayerSelect() {
 			return this.$enableSharedProjects && !this.isTemplateMode && !!this.entry.projectId && this.projectPayerOptions.length > 1;
 		},
@@ -647,19 +657,46 @@ export default {
 		projectPayerLabel() {
 			return this.entry.type === 'income' ? this.$texts.entry.receivedBy() : this.$texts.entry.paidBy();
 		},
+		splitModeChoice: {
+			get() {
+				if (this.entry.splitMode === 'single_user') {
+					const targetUserId = this.entry.splitUserId || this.entry.userId || this.currentUserId();
+					return `single_user:${targetUserId}`;
+				}
+
+				return 'project_shares';
+			},
+			set(value) {
+				const rawValue = String(value || '');
+				if (rawValue.startsWith('single_user:')) {
+					const userId = rawValue.slice('single_user:'.length);
+					this.entry.splitMode = 'single_user';
+					this.entry.splitUserId = userId || this.entry.userId || this.currentUserId();
+					return;
+				}
+
+				this.entry.splitMode = 'project_shares';
+				this.entry.splitUserId = null;
+			}
+		},
 		assignmentSummary() {
 			if (!this.selectedProject) {
 				return this.$texts.entry.personalAssignmentSummary();
 			}
 
 			if (this.entry.splitMode === 'single_user') {
-				return this.$texts.entry.areaOnlyUser(this.selectedProjectUserLabel);
+				return this.$texts.entry.areaOnlyUser(this.selectedSplitUserLabel);
 			}
 
 			return this.$texts.entry.areaAssigned(this.selectedProject.name, this.projectShareLabel(this.selectedProject));
 		},
 		selectedProjectUserLabel() {
 			const member = this.projectPayerOptions.find(option => option.id === this.entry.userId);
+			return member ? member.displayName : this.$texts.entry.selectedUser();
+		},
+		selectedSplitUserLabel() {
+			const splitUserId = this.entry.splitUserId || this.entry.userId;
+			const member = this.projectPayerOptions.find(option => option.id === splitUserId);
 			return member ? member.displayName : this.$texts.entry.selectedUser();
 		},
 		nextRecurrence() {
@@ -750,6 +787,7 @@ export default {
 			}
 
 			this.entry.splitMode = 'project_shares';
+			this.entry.splitUserId = null;
 			this.resetScopedLookups();
 			await this.fetchDataLists(projectId);
 			await this.ensureProjectMembers(projectId);
@@ -1008,12 +1046,14 @@ export default {
 				}
 				this.entry.userId = currentUserId;
 				this.entry.splitMode = 'project_shares';
+				this.entry.splitUserId = null;
 				return;
 			}
 
 			if (!this.entry.projectId) {
 				this.entry.userId = currentUserId;
 				this.entry.splitMode = 'project_shares';
+				this.entry.splitUserId = null;
 				return;
 			}
 
@@ -1021,24 +1061,54 @@ export default {
 			if (!members.length) {
 				this.entry.userId = currentUserId;
 				this.entry.splitMode = 'project_shares';
+				this.entry.splitUserId = null;
 				return;
 			}
 			if (members.length <= 1) {
 				this.entry.splitMode = 'project_shares';
+				this.entry.splitUserId = null;
 			}
 
 			const preferred = preferredUserId || this.entry.userId || currentUserId;
 			if (members.some(member => member.id === preferred)) {
 				this.entry.userId = preferred;
+				this.syncSplitUserWithProjectMembers(members);
 				return;
 			}
 
 			if (members.some(member => member.id === currentUserId)) {
 				this.entry.userId = currentUserId;
+				this.syncSplitUserWithProjectMembers(members);
 				return;
 			}
 
 			this.entry.userId = members[0].id;
+			this.syncSplitUserWithProjectMembers(members);
+		},
+		syncSplitUserWithProjectMembers(members) {
+			if (this.entry.splitMode !== 'single_user') {
+				this.entry.splitUserId = null;
+				return;
+			}
+
+			const fallbackUserId = this.entry.userId || this.currentUserId();
+			const selectedUserId = this.entry.splitUserId || fallbackUserId;
+			if (members.some(member => member.id === selectedUserId)) {
+				this.entry.splitUserId = selectedUserId;
+				return;
+			}
+
+			this.entry.splitUserId = fallbackUserId;
+		},
+		entrySplitModeForSave() {
+			return this.entry.projectId ? (this.entry.splitMode || 'project_shares') : 'project_shares';
+		},
+		entrySplitUserIdForSave() {
+			if (this.entrySplitModeForSave() !== 'single_user') {
+				return null;
+			}
+
+			return this.entry.splitUserId || this.entry.userId || this.currentUserId();
 		},
 		usageCount(item) {
 			return parseInt(item?.recent_usage_count, 10) || 0;
@@ -1284,6 +1354,7 @@ export default {
 					projectId: entryToEdit.project_id || null,
 					userId: entryToEdit.user_id || this.currentUserId(),
 					splitMode: entryToEdit.split_mode || 'project_shares',
+					splitUserId: entryToEdit.split_user_id || null,
 					date: entryToEdit.date ? new Date(entryToEdit.date * 1000) : new Date(),
 					recurrenceInterval: entryToEdit.recurrence_interval || 'none',
 					recurrenceMultiplier: entryToEdit.recurrence_multiplier || 1,
@@ -1318,6 +1389,7 @@ export default {
 					projectId: templateToLoad.project_id || defaultProjectId || this.projectId,
 					userId: this.currentUserId(),
 					splitMode: templateToLoad.split_mode || 'project_shares',
+					splitUserId: templateToLoad.split_user_id || null,
 					date: new Date(),
 					recurrenceInterval: 'none',
 					recurrenceMultiplier: 1,
@@ -1347,6 +1419,7 @@ export default {
 					projectId: entryToDuplicate.project_id || defaultProjectId || this.projectId,
 					userId: entryToDuplicate.user_id || this.currentUserId(),
 					splitMode: entryToDuplicate.split_mode || 'project_shares',
+					splitUserId: entryToDuplicate.split_user_id || null,
 					date: this.entryDateFromSource(entryToDuplicate),
 					recurrenceInterval: 'none',
 					recurrenceMultiplier: 1,
@@ -1394,6 +1467,7 @@ export default {
 					projectId: defaultProjectId || this.projectId,
 					userId: this.currentUserId(),
 					splitMode: 'project_shares',
+					splitUserId: null,
 					date: defaultDate,
 					recurrenceInterval: 'none',
 					recurrenceMultiplier: 1,
@@ -1511,7 +1585,7 @@ export default {
 				return '#';
 			}
 			const url = generateUrl(`/apps/cobudget/api/entries/${this.entry.id}/attachments/${attachment.id}/download`);
-			const workspaceId = localStorage.getItem('cobudget_workspace_id');
+			const workspaceId = readWorkspaceId();
 			return workspaceId ? `${url}?workspaceId=${encodeURIComponent(workspaceId)}` : url;
 		},
 		formatFileSize(size) {
@@ -1704,7 +1778,8 @@ export default {
 				paymentPartner: this.entry.paymentPartnerName || '',
 				project_id: this.entry.projectId || null,
 				user_id: this.entryUserIdForSave(),
-				split_mode: this.entry.projectId ? (this.entry.splitMode || 'project_shares') : 'project_shares',
+				split_mode: this.entrySplitModeForSave(),
+				split_user_id: this.entrySplitUserIdForSave(),
 				date: Math.floor(this.entry.date.getTime() / 1000),
 				is_subscription: false,
 				is_fixed_cost: false,
@@ -1830,7 +1905,8 @@ export default {
 					categoryId: categoryId,
 					projectId: this.entry.projectId,
 					userId: this.entryUserIdForSave(),
-					splitMode: this.entry.projectId ? (this.entry.splitMode || 'project_shares') : 'project_shares',
+					splitMode: this.entrySplitModeForSave(),
+					splitUserId: this.entrySplitUserIdForSave(),
 					currency: 'EUR',
 					date: Math.floor(this.entry.date.getTime() / 1000),
 					recurrenceInterval: this.entry.recurrenceInterval !== 'none' ? this.entry.recurrenceInterval : null,
@@ -1875,7 +1951,8 @@ export default {
 						categoryId: categoryId,
 						projectId: this.entry.projectId || null,
 						paymentPartnerId: paymentPartnerId,
-						splitMode: this.entry.projectId ? (this.entry.splitMode || 'project_shares') : 'project_shares',
+						splitMode: this.entrySplitModeForSave(),
+						splitUserId: this.entrySplitUserIdForSave(),
 						isSubscription: isExpense && this.entry.isSubscription,
 						isFixedCost: isExpense && this.entry.isFixedCost,
 						isChildRelated: this.entry.isChildRelated,

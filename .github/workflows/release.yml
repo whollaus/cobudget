@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build GitHub release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches app version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          APP_VERSION="$(php -r '$xml = simplexml_load_file("appinfo/info.xml"); echo (string) $xml->version;')"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
+            echo "Tag version $TAG_VERSION does not match appinfo/info.xml version $APP_VERSION"
+            exit 1
+          fi
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "Tag version $TAG_VERSION does not match package.json version $PACKAGE_VERSION"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build release archive
+        run: npm run release
+
+      - name: Verify release archive
+        run: |
+          test -f ../cobudget.tar.gz
+          tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/appinfo/info.xml$'
+          tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/js/'
+          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md|CHANGELOG\.md)'
+
+      - name: Create checksum
+        run: |
+          cd ..
+          sha256sum cobudget.tar.gz > SHA256SUMS
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PRERELEASE_FLAG=""
+          if grep -qi "alpha" README.md; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            ../cobudget.tar.gz \
+            ../SHA256SUMS \
+            --title "CoBudget $GITHUB_REF_NAME" \
+            --generate-notes \
+            $PRERELEASE_FLAG

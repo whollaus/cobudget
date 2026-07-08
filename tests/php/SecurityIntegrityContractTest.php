@@ -7,44 +7,38 @@ namespace CoBudget\Tests;
 use CoBudget\Tests\Support\TestRunner;
 
 return [
-	'User restore is scoped, mapped, reported, and protected by a safety backup' => function(TestRunner $t): void {
+	'Personal export restore is limited to empty target users while full restore stays protected' => function(TestRunner $t): void {
 		$restore = $t->methodBody('lib/Service/BackupService.php', 'restoreBackup');
-		$scope = $t->methodBody('lib/Service/BackupService.php', 'assertUserRestoreScope');
 		$collect = $t->methodBody('lib/Service/BackupService.php', 'collectBackupData');
 
-		$t->assertContains('$restoreLock = $this->acquireRestoreLock()', $restore, 'User restore should take a global restore lock');
-		$t->assertContains('$this->releaseRestoreLock($restoreLock)', $restore, 'User restore should always release the restore lock');
-		$t->assertContains('$this->assertBackupArchive($archive, \'user\')', $restore, 'User restore should only accept user backups');
-		$t->assertContains('$userMap = $this->normalizeUserMap($userMap)', $restore, 'User restore should normalize explicit user mappings');
-		$t->assertContains('$userMap[$sourceUserId] = $userId', $restore, 'User restore should auto-map the backup owner to the target user');
-		$t->assertContains('filterUserRestoreTables($this->applyUserMapToTables($archive[\'tables\'], $userMap), $skippedRows, $userId)', $restore, 'User restore should apply user mapping before filtering user-scope tables');
-		$t->assertContains('$this->assertUserRestoreScope($tables, $userId)', $restore, 'User restore should reject shared or foreign data before deleting current rows');
-		$t->assertContains('$this->assertReferencedUsersExist($tables, [$userId])', $restore, 'User restore should reject unknown mapped users before writing rows');
-		$t->assertContains('$this->assertBackupInternalReferences($tables)', $restore, 'User restore should reject internally orphaned backup rows before writing rows');
-		$t->assertContains('$this->assertProjectMemberConsistency($tables)', $restore, 'User restore should reject manipulated shared-area user assignments before writing rows');
-		$t->assertContains('$safetyBackup = $this->createBackup($userId, $folderOverride, $this->getSafetyBackupRetentionCount($userId))', $restore, 'User restore should create a safety backup before destructive changes');
-		$t->assertContains('$this->db->beginTransaction()', $restore, 'User restore should run destructive changes inside a transaction');
-		$t->assertContains('$currentData = $this->collectBackupData($userId)', $restore, 'User restore should delete the target user scope based on current collected data');
-		$t->assertContains('$deleteSkippedRows = []', $restore, 'User restore should keep delete-time shared-area skips separate from the restore report');
-		$t->assertContains('$this->deleteRowsByBackupData($this->filterUserRestoreTables($currentData[\'tables\'], $deleteSkippedRows, $userId))', $restore, 'User restore should filter current data with the same user-restore scope before deleting rows');
-		$t->assertContains('$this->deleteSettingsForUsers([$userId])', $restore, 'User restore should delete only the target user settings');
-		$t->assertContains('buildRestoreReport(\'user\', $fileName, $tables, [$userId => $settings], $userMap, $skippedRows)', $restore, 'User restore should return a restore report with user mappings and skipped rows');
+		$t->assertContains('$this->assertBackupArchive($archive, \'user\')', $restore, 'Personal export restore should only accept user exports');
+		$t->assertContains('$this->assertPersonalImportTargetIsEmpty($userId)', $restore, 'Personal export restore should refuse existing target data');
+		$t->assertContains('$tables = $this->preparePersonalImportTables($archive[\'tables\'], $userId, $sourceUserId)', $restore, 'Personal export restore should reduce shared data to the importing user share');
+		$t->assertContains('$this->assertPersonalImportContainsOnlyUser($tables, $userId)', $restore, 'Personal export restore should import only rows owned by the target user after normalization');
+		$t->assertContains('$safetyBackup = $this->createBackup($userId', $restore, 'Personal export restore should create a safety export before importing');
+		$t->assertContains('$this->db->beginTransaction()', $restore, 'Personal export restore should import atomically');
+		$t->assertContains('$this->deletePersonalImportTarget($userId)', $restore, 'Personal export restore should only delete the already-empty target scope');
+		$t->assertContains('$this->insertTablesWithGeneratedIds($tables)', $restore, 'Personal export restore should regenerate local row IDs');
+		$t->assertNotContains('deleteRowsByBackupData', $restore, 'Personal export restore should not delete current data');
 
-		$t->assertContains('if ((string)($project[\'owner_id\'] ?? \'\') !== $userId)', $scope, 'User restore should reject projects not owned by the target user');
-		$t->assertContains('gemeinsame Bereiche, die nicht diesem Benutzer gehoeren', $scope, 'User restore should explain shared out-of-scope project data');
-		$t->assertContains('$this->assertRowsBelongToUser($tables, \'cobudget_workspaces\', \'user_id\', $userId)', $scope, 'User restore should scope workspaces to the target user');
-		$t->assertContains('$this->assertRowsBelongToUser($tables, \'cobudget_budget_goals\', \'user_id\', $userId)', $scope, 'User restore should scope budget goals to the target user');
-		$t->assertContains('$projectId !== null && !isset($ownedProjectIds[$projectId])', $scope, 'User restore should reject project-scoped rows outside target-owned projects');
-		$t->assertContains('$projectId === null && (string)($entry[\'user_id\'] ?? \'\') !== $userId', $scope, 'User restore should reject personal payments from another user');
-		$t->assertContains('Beleg-Pfade ohne passende Zahlung im Benutzer-Scope', $scope, 'User restore should reject attachment paths without an in-scope payment');
-		$t->assertContains('Abrechnungsdaten ohne passende Abrechnung im Benutzer-Scope', $scope, 'User restore should reject orphan settlement balances or transfers');
+		$emptyTarget = $t->methodBody('lib/Service/BackupService.php', 'personalImportBlockingTable');
+		$t->assertContains("if (\$table === 'cobudget_workspaces')", $emptyTarget, 'Personal import should allow the empty default workspace created by reset or first app open');
+		$t->assertContains('continue;', $emptyTarget, 'Personal import should skip default workspace rows during the empty-target check');
 
-		$t->assertContains('$workspaces = $this->fetchRowsByUser(\'cobudget_workspaces\', $userId)', $collect, 'User backup should collect all workspaces belonging to the user');
-		$t->assertContains('$projectIds = $this->fetchProjectIdsForUser($userId, $workspaceIds)', $collect, 'User backup should collect only projects owned by the user');
-		$t->assertContains('$entries = $this->fetchEntries($userId, $workspaceIds, $projectIds)', $collect, 'User backup should collect personal entries and entries in owned projects');
-		$t->assertContains('cobudget_entry_attachments', $collect, 'User backup should include attachment paths for collected entries');
-		$t->assertContains('cobudget_settlement_balances', $collect, 'User backup should include settlement balances for collected settlements');
-		$t->assertContains('cobudget_settlement_transfers', $collect, 'User backup should include settlement transfers for collected settlements');
+		$service = $t->read('lib/Service/BackupService.php');
+		$t->assertContains('public function personalRestoreState(string $userId)', $service, 'Personal export list should expose restore availability');
+		$t->assertContains('personalArchiveRestoreInfo(array $archive, string $sourceUserId, string $targetUserId)', $service, 'Backup inspect should expose whether a personal export contains shared users');
+		$t->assertContains('private function preparePersonalExportTables(array $tables, string $userId): array', $service, 'Personal export should have an explicit reduction step before archive write');
+		$prepareExport = $t->methodBody('lib/Service/BackupService.php', 'preparePersonalExportTables');
+		$t->assertContains('preparePersonalImportTables($tables, $userId, $userId)', $prepareExport, 'Personal export should reuse the personal-share reduction with the exporting user as source');
+
+		$t->assertContains('$ownedWorkspaces = $this->fetchRowsByUser(\'cobudget_workspaces\', $userId)', $collect, 'Personal export should collect workspaces belonging to the user');
+		$t->assertContains('$projectIds = $this->fetchProjectIdsForUser($userId)', $collect, 'Personal export should collect areas where the user is owner or member');
+		$t->assertContains('$entries = $this->fetchEntries($userId, $workspaceIds, $projectIds)', $collect, 'Personal export should collect personal entries and shared-area entries only before export reduction');
+		$t->assertContains('$tables = $this->preparePersonalExportTables($tables, $userId)', $collect, 'Personal export should reduce shared-area rows before writing the ZIP');
+		$t->assertContains('cobudget_entry_attachments', $collect, 'Personal export should include attachment paths for collected entries');
+		$t->assertContains('cobudget_settlement_balances\' => []', $collect, 'Personal export should not include shared settlement balances');
+		$t->assertContains('cobudget_settlement_transfers\' => []', $collect, 'Personal export should not include shared settlement transfers');
 	},
 
 	'Full restore keeps system scope separate and validates mapped users before deleting data' => function(TestRunner $t): void {
@@ -70,7 +64,6 @@ return [
 		$filterRow = $t->methodBody('lib/Service/BackupService.php', 'filterBackupRowColumns');
 		$insertRow = $t->methodBody('lib/Service/BackupService.php', 'insertRow');
 		$internalReferences = $t->methodBody('lib/Service/BackupService.php', 'assertBackupInternalReferences');
-		$filterUserRestoreTables = $t->methodBody('lib/Service/BackupService.php', 'filterUserRestoreTables');
 
 		foreach ([
 			'cobudget_workspaces',
@@ -101,36 +94,30 @@ return [
 		$t->assertContains('cobudget_settlement_balances', $service, 'Backup internal reference validation should cover settlement balances');
 		$t->assertContains('cobudget_budget_snapshots', $service, 'Backup internal reference validation should cover budget snapshots');
 		$t->assertContains('Backup enthält verwaiste Referenzen', $internalReferences, 'Backup restore should fail with a clear message for internally orphaned rows');
-		$t->assertContains('sharedProjectIdsForUserRestore($tables, $userId)', $filterUserRestoreTables, 'User restore should detect shared areas before importing rows');
-		$t->assertContains('removeSkippedProjectRows($tables, $skippedProjectIds, $skippedRows)', $filterUserRestoreTables, 'User restore should remove shared-area rows from the user restore scope');
-		$t->assertContains('$this->clearSkippedUserRestoreReferences($tables, \'category_id\', $skippedReferenceIds[\'cobudget_categories\'])', $filterUserRestoreTables, 'User restore should clear references to skipped global categories');
-		$t->assertContains('$this->clearSkippedUserRestoreReferences($tables, \'payment_partner_id\', $skippedReferenceIds[\'cobudget_payment_partners\'])', $filterUserRestoreTables, 'User restore should clear references to skipped global payment partners');
 	},
 
-	'Backup restore validates shared-area membership and skips shared rows on user restore' => function(TestRunner $t): void {
+	'Personal export restore keeps only the safe empty-state import path while full restore validates shared-area membership' => function(TestRunner $t): void {
 		$service = $t->read('lib/Service/BackupService.php');
-		$sharedIds = $t->methodBody('lib/Service/BackupService.php', 'sharedProjectIdsForUserRestore');
-		$removeShared = $t->methodBody('lib/Service/BackupService.php', 'removeSkippedProjectRows');
 		$validateMembers = $t->methodBody('lib/Service/BackupService.php', 'assertProjectMemberConsistency');
 		$validateWorkspace = $t->methodBody('lib/Service/BackupService.php', 'assertProjectWorkspaceMatches');
 
-		$t->assertContains('Geteilte Bereiche werden bei einem Benutzer-Restore nicht überschrieben.', $service, 'User restore should explain why shared areas are skipped');
-		$t->assertContains('count($memberUsers) > 1', $sharedIds, 'User restore should treat multi-member areas as shared data');
-		$t->assertContains('$memberUserId !== $userId', $sharedIds, 'User restore should skip areas whose only member is not the target user');
 		foreach ([
-			'cobudget_members',
-			'cobudget_categories',
-			'cobudget_payment_partners',
-			'cobudget_templates',
-			'cobudget_entries',
-			'cobudget_settlements',
-		] as $table) {
-			$t->assertContains("'" . $table . "'", $removeShared, 'Shared-area skip should remove dependent ' . $table . ' rows');
+			'filterUserRestoreTables',
+			'sharedProjectIdsForUserRestore',
+			'removeSkippedProjectRows',
+			'clearSkippedUserRestoreReferences',
+			'removeSkippedProjectBudgets',
+			'criteriaReferencesProject',
+			'assertUserRestoreScope',
+			'assertRowsBelongToUser',
+		] as $removedMethod) {
+			$t->assertNotContains($removedMethod, $service, 'Personal export restore should not keep the removed partial restore helper ' . $removedMethod);
 		}
-		$t->assertContains('cobudget_entry_attachments', $removeShared, 'Shared-area skip should preserve current shared receipt paths by not deleting them');
-		$t->assertContains('removeSkippedProjectBudgets($tables, $projectIdMap, $skippedRows)', $removeShared, 'Shared-area skip should not broaden budget criteria after skipped shared areas');
-		$t->assertContains('criteriaReferencesProject($row, $projectIdMap)', $service, 'Shared-area skip should detect budget criteria that reference skipped areas');
-		$t->assertContains('Budgetziele mit übersprungenen gemeinsamen Bereichen wurden nicht importiert.', $service, 'Shared-area skip should report skipped budget goals');
+		$t->assertContains('preparePersonalImportTables(', $service, 'Personal export restore should sanitize rows before importing them into an empty target');
+		$t->assertContains('assertPersonalImportTargetIsEmpty(', $service, 'Personal export restore should reject non-empty target users');
+		$t->assertContains('insertTablesWithGeneratedIds(', $service, 'Personal export restore should regenerate local IDs');
+		$t->assertContains("'restore_supported' => true", $service, 'Personal export manifest should mark the guarded empty-state import as supported');
+		$t->assertContains("'restore_mode' => 'empty_personal_import'", $service, 'Personal export manifest should document the restore limitation');
 		$t->assertContains('Bereichszahlung für einen Benutzer, der kein Mitglied des Bereichs ist', $validateMembers, 'Restore should reject entries whose paying user is not an area member');
 		$t->assertContains('Bereichsdaten mit falschem Workspace', $validateWorkspace, 'Restore should reject project-scoped data with mismatching workspaces');
 		$t->assertContains('Rückzahlung für einen Benutzer, der kein Mitglied des Bereichs ist', $validateMembers, 'Restore should reject settlement transfers for non-members');
@@ -219,12 +206,15 @@ return [
 	},
 
 	'Receipt attachment endpoints authorize entry visibility and exact attachment rows' => function(TestRunner $t): void {
+		$source = $t->read('lib/Controller/EntryController.php');
 		$list = $t->methodBody('lib/Controller/EntryController.php', 'attachments');
 		$upload = $t->methodBody('lib/Controller/EntryController.php', 'uploadAttachment');
 		$download = $t->methodBody('lib/Controller/EntryController.php', 'downloadAttachment');
 		$destroy = $t->methodBody('lib/Controller/EntryController.php', 'destroyAttachment');
 		$fetchOne = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryAttachment');
 		$fetchMany = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryAttachments');
+		$validateUpload = $t->methodBody('lib/Controller/EntryController.php', 'validateUploadedAttachment');
+		$detectMime = $t->methodBody('lib/Controller/EntryController.php', 'detectUploadedAttachmentMimeType');
 
 		foreach ([
 			'attachments list' => $list,
@@ -243,10 +233,43 @@ return [
 		$t->assertContains('$this->deleteAttachmentRow($attachmentId, $id, (int)$workspaceId)', $destroy, 'Attachment delete should scope row deletion by attachment, entry, and workspace');
 		$t->assertContains('owner_user_id', $upload, 'Attachment upload should persist the file owner user');
 		$t->assertContains('file_path', $upload, 'Attachment upload should persist the relative Nextcloud file path for backup/restore portability');
+		$t->assertContains('DEFAULT_ATTACHMENT_MAX_SIZE_BYTES = 10485760', $source, 'Attachment upload should keep a safe default 10 MB size limit');
+		$t->assertContains('ATTACHMENT_MAX_SIZE_CONFIG_KEY', $source, 'Attachment upload size limit should be configurable through system config');
+		$t->assertContains('ATTACHMENT_ALLOWED_TYPES_CONFIG_KEY', $source, 'Attachment upload types should be configurable through system config');
+		$t->assertContains('DEFAULT_ATTACHMENT_MIME_TYPES', $source, 'Attachment upload should define a safe default MIME allow-list');
+		$t->assertContains('BLOCKED_ATTACHMENT_MIME_TYPES', $source, 'Attachment upload should block risky browser-executable MIME types even when configured');
+		$t->assertContains('validateUploadedAttachment($upload)', $upload, 'Attachment upload should validate size and type before reading file content');
+		$t->assertContains('$mimeType = $this->detectUploadedAttachmentMimeType($upload)', $validateUpload, 'Attachment validation should sniff the MIME type from file content');
+		$t->assertContains('attachmentMaxSizeBytes()', $validateUpload, 'Attachment validation should enforce the configured upload size limit');
+		$t->assertContains('allowedAttachmentMimeTypes()', $validateUpload, 'Attachment validation should enforce the configured upload type allow-list');
+		$t->assertContains('isSafeAttachmentMimeType($mimeType)', $source, 'Attachment config should accept only safe MIME types');
+		$t->assertContains('self::HTTP_PAYLOAD_TOO_LARGE', $validateUpload, 'Oversized attachment uploads should use a clear 413 response');
+		$t->assertContains('self::HTTP_UNSUPPORTED_MEDIA_TYPE', $validateUpload, 'Unsupported attachment uploads should use a clear 415 response');
+		$t->assertContains('pathinfo', $validateUpload, 'Attachment validation should verify the file extension too');
+		$t->assertContains('$allowedMimeTypes[$mimeType]', $validateUpload, 'Attachment validation should match extension to detected MIME type');
+		$t->assertContains('finfo_file', $detectMime, 'Attachment MIME detection should prefer finfo content sniffing');
 		$t->assertContains('entry_id', $fetchOne, 'Single attachment lookup should require entry id');
 		$t->assertContains('workspace_id', $fetchOne, 'Single attachment lookup should require workspace id');
 		$t->assertContains('entry_id', $fetchMany, 'Attachment list should require entry id');
 		$t->assertContains('workspace_id', $fetchMany, 'Attachment list should require workspace id');
+	},
+
+	'User search is constrained to reduce account enumeration risk' => function(TestRunner $t): void {
+		$source = $t->read('lib/Controller/UserController.php');
+		$search = $t->methodBody('lib/Controller/UserController.php', 'search');
+		$sharedProjectsEnabled = $t->methodBody('lib/Controller/UserController.php', 'sharedProjectsEnabled');
+		$userSearchAllowed = $t->methodBody('lib/Controller/UserController.php', 'userSearchAllowed');
+
+		$t->assertContains('USER_SEARCH_MIN_LENGTH = 3', $source, 'User search should require a minimum query length');
+		$t->assertContains('USER_SEARCH_LIMIT = 10', $source, 'User search should keep result sets small');
+		$t->assertContains('$term = trim($term)', $search, 'User search should normalize whitespace before querying');
+		$t->assertContains('sharedProjectsEnabled()', $search, 'User search should only run when shared areas are enabled');
+		$t->assertContains('userSearchAllowed()', $search, 'User search should honor the global Nextcloud enumeration setting');
+		$t->assertContains('mb_strlen($term) < self::USER_SEARCH_MIN_LENGTH', $search, 'Short user searches should return no results');
+		$t->assertContains('search($term, self::USER_SEARCH_LIMIT)', $search, 'User search should use the smaller result limit');
+		$t->assertContains("'enable_projects'", $sharedProjectsEnabled, 'Shared user search should depend on the areas feature');
+		$t->assertContains("'enable_shared_projects'", $sharedProjectsEnabled, 'Shared user search should depend on shared areas being enabled');
+		$t->assertContains('shareapi_allow_share_dialog_user_enumeration', $userSearchAllowed, 'User search should respect Nextcloud user-enumeration policy');
 	},
 
 	'Budget criteria are scoped, allow-listed, and evaluated as AND within a row OR across rows' => function(TestRunner $t): void {

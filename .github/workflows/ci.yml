@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    name: Test and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Show PHP version
+        run: php -v
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build release archive
+        run: npm run release:tar
+
+      - name: Verify release archive
+        run: |
+          test -f ../cobudget.tar.gz
+          tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/appinfo/info.xml$'
+          tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/js/'
+          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md|CHANGELOG\.md)'

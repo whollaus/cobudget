@@ -322,6 +322,8 @@ namespace CoBudget\Tests {
 			);
 			$t->assertSame(1000, $probe->entryShare(['split_mode' => 'single_user', 'user_id' => 'user-a'], 'user-a', 1000, ['user-a' => 5000, 'user-b' => 5000]), 'Single-user entries should belong fully to the selected user');
 			$t->assertSame(0, $probe->entryShare(['split_mode' => 'single_user', 'user_id' => 'user-a'], 'user-b', 1000, ['user-a' => 5000, 'user-b' => 5000]), 'Single-user entries should not count for other members');
+			$t->assertSame(0, $probe->entryShare(['split_mode' => 'single_user', 'user_id' => 'user-a', 'split_user_id' => 'user-b'], 'user-a', 1000, ['user-a' => 5000, 'user-b' => 5000]), 'Single-user target entries should not count for payer when another member is targeted');
+			$t->assertSame(1000, $probe->entryShare(['split_mode' => 'single_user', 'user_id' => 'user-a', 'split_user_id' => 'user-b'], 'user-b', 1000, ['user-a' => 5000, 'user-b' => 5000]), 'Single-user target entries should count fully for the split target');
 			$t->assertSame(500, $probe->entryShare(['split_mode' => 'project_shares', 'user_id' => 'user-a'], 'user-b', 1000, ['user-a' => 5000, 'user-b' => 5000]), 'Area-share entries should use configured member percentages');
 		},
 

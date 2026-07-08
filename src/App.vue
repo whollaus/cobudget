@@ -146,6 +146,7 @@
 <script>
 import { defineAsyncComponent } from 'vue'
 import axios from './services/http'
+import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { generateUrl } from '@nextcloud/router'
 import { emit as emitNextcloudEvent } from '@nextcloud/event-bus'
 import NcContent from '@nextcloud/vue/components/NcContent'
@@ -210,7 +211,7 @@ export default {
 				subscriptions: 0,
 				taxRelevant: 0
 			},
-			activeWorkspaceId: parseInt(localStorage.getItem('cobudget_workspace_id'), 10) || null,
+			activeWorkspaceId: readWorkspaceId(),
 			showWorkspaceMenu: false,
 			addModalReady: false
 		}
@@ -352,7 +353,7 @@ export default {
 
 			if (this.workspaces.length === 0) {
 				this.activeWorkspaceId = null;
-				localStorage.removeItem('cobudget_workspace_id');
+				clearWorkspaceId();
 				return;
 			}
 
@@ -360,7 +361,7 @@ export default {
 			if (!this.activeWorkspaceId || !activeStillExists) {
 				const defaultWs = this.workspaces.find(w => w.is_default) || this.workspaces[0];
 				this.activeWorkspaceId = defaultWs.id;
-				localStorage.setItem('cobudget_workspace_id', defaultWs.id);
+				writeWorkspaceId(defaultWs.id);
 			}
 		},
 		normalizeWorkspaces(payload) {
@@ -392,7 +393,7 @@ export default {
 		},
 		switchWorkspace(w) {
 			this.activeWorkspaceId = w.id;
-			localStorage.setItem('cobudget_workspace_id', w.id);
+			writeWorkspaceId(w.id);
 			this.showWorkspaceMenu = false;
 			// Reload the whole page to refetch all data with the new workspace
 			window.location.hash = '#/';

@@ -24,6 +24,6 @@ class AdminSection implements IIconSection {
     }
 
     public function getIcon() {
-        return \OC::$server->getURLGenerator()->imagePath('cobudget', 'app.svg');
+        return \OC::$server->getURLGenerator()->imagePath('cobudget', 'admin.svg') . '?v=admin-dark-20260707';
     }
 }

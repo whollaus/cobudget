@@ -23,10 +23,10 @@ class CreateBackupCommand extends Command {
 	protected function configure(): void {
 		$this
 			->setName('cobudget:backup:create')
-			->setDescription('Erstellt ein CoBudget-Backup fuer einen Benutzer in Nextcloud Files.')
+			->setDescription('Erstellt einen persoenlichen CoBudget-Export fuer einen Benutzer in Nextcloud Files.')
 			->addArgument('user', InputArgument::REQUIRED, 'Nextcloud Benutzer-ID')
-			->addOption('folder', null, InputOption::VALUE_REQUIRED, 'Optionaler Backup-Ordner in Nextcloud Files')
-			->addOption('keep', null, InputOption::VALUE_REQUIRED, 'Anzahl der Backups, die behalten werden sollen');
+			->addOption('folder', null, InputOption::VALUE_REQUIRED, 'Optionaler Export-Ordner in Nextcloud Files')
+			->addOption('keep', null, InputOption::VALUE_REQUIRED, 'Anzahl der Exporte, die behalten werden sollen');
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
@@ -45,7 +45,7 @@ class CreateBackupCommand extends Command {
 				is_string($folder) && $folder !== '' ? $folder : null,
 				$keep !== null ? (int)$keep : null
 			);
-			$output->writeln('<info>CoBudget-Backup erstellt.</info>');
+			$output->writeln('<info>Persoenlicher CoBudget-Export erstellt.</info>');
 			$output->writeln('Datei: ' . $backup['file_path']);
 			$output->writeln('Groesse: ' . $backup['file_size'] . ' Bytes');
 

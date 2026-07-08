@@ -231,6 +231,7 @@ class BudgetSnapshotService {
 			'e.date',
 			'e.category_id',
 			'e.split_mode',
+			'e.split_user_id',
 			'e.is_subscription',
 			'e.is_fixed_cost',
 			'e.is_child_related',

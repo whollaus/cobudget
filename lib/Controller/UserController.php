@@ -17,6 +17,9 @@ use OCP\IL10N;
 class UserController extends Controller {
 	use WorkspaceAwareTrait;
 
+	private const USER_SEARCH_MIN_LENGTH = 3;
+	private const USER_SEARCH_LIMIT = 10;
+
 	private const CURRENCY_BY_COUNTRY = [
 		'AT' => 'EUR',
 		'BE' => 'EUR',
@@ -78,12 +81,17 @@ class UserController extends Controller {
 				return $error;
 			}
 
-			if (strlen($term) < 1) {
+			$term = trim($term);
+			if (!$this->sharedProjectsEnabled() || !$this->userSearchAllowed()) {
+				return new DataResponse([]);
+			}
+
+			if (mb_strlen($term) < self::USER_SEARCH_MIN_LENGTH) {
 				return new DataResponse([]);
 			}
 
 			$users = [];
-			$searchResult = $this->userManager->search($term, 20);
+			$searchResult = $this->userManager->search($term, self::USER_SEARCH_LIMIT);
 
 			foreach ($searchResult as $user) {
 				// Don't include the current user in results
@@ -100,6 +108,24 @@ class UserController extends Controller {
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
 		}
+	}
+
+	private function sharedProjectsEnabled(): bool {
+		return $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_projects', 'yes') === 'yes'
+			&& $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_shared_projects', 'yes') === 'yes';
+	}
+
+	private function userSearchAllowed(): bool {
+		return $this->systemFlagEnabled('shareapi_allow_share_dialog_user_enumeration', true);
+	}
+
+	private function systemFlagEnabled(string $key, bool $default): bool {
+		$value = $this->config->getSystemValue($key, $default);
+		if (is_bool($value)) {
+			return $value;
+		}
+
+		return !in_array(strtolower((string)$value), ['0', 'false', 'no', 'off'], true);
 	}
 
 	/**
@@ -366,7 +392,7 @@ class UserController extends Controller {
 	private function validateBackupSettings(?string &$folder, ?int $retentionCount, ?string &$schedule): ?DataResponse {
 		if ($folder !== null) {
 			try {
-				$folder = $this->backupService->normalizeFolder($folder);
+				$folder = $this->backupService->normalizePersonalExportFolder($folder);
 			} catch (\InvalidArgumentException $e) {
 				return $this->errorResponse($e->getMessage(), Http::STATUS_BAD_REQUEST);
 			}

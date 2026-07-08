@@ -52,6 +52,12 @@ return [
 		['name' => 'integrity#inspect', 'url' => '/api/admin/integrity', 'verb' => 'GET'],
 		['name' => 'integrity#repair', 'url' => '/api/admin/integrity/repair', 'verb' => 'POST'],
 		['name' => 'integrity#merge', 'url' => '/api/admin/integrity/merge', 'verb' => 'POST'],
+		['name' => 'admin_backup#settings', 'url' => '/api/admin/full-backup/settings', 'verb' => 'GET'],
+		['name' => 'admin_backup#saveSettings', 'url' => '/api/admin/full-backup/settings', 'verb' => 'POST'],
+		['name' => 'admin_backup#create', 'url' => '/api/admin/full-backup', 'verb' => 'POST'],
+		['name' => 'admin_backup#destroy', 'url' => '/api/admin/full-backup/{fileName}', 'verb' => 'DELETE'],
+		['name' => 'admin_backup#download', 'url' => '/api/admin/full-backup/{fileName}/download', 'verb' => 'GET'],
+		['name' => 'admin_backup#restore', 'url' => '/api/admin/full-backup/restore', 'verb' => 'POST'],
 
 		// API routes for Projects
 		['name' => 'project#index', 'url' => '/api/projects', 'verb' => 'GET'],
