@@ -1735,6 +1735,16 @@ return [
 			$t->assertContains('entrySplitTargetUserId($entry)', $entryPersonalAmount, 'Dashboard personal amount should honor explicit split target user');
 			$t->assertContains('$projectShareBasisPoints[$projectId]', $entryPersonalAmount, 'Dashboard personal amount should use fetched share map');
 
+			$entryListPayload = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryListPayload');
+			$t->assertContains('$projectShareBasisPoints === null', $entryListPayload, 'Entry list payload should resolve current-user project shares when not preloaded');
+			$t->assertContains('$this->fetchEntryRows($workspaceId', $entryListPayload, 'Entry list payload should fetch table rows through the row helper');
+			$t->assertContains('$projectShareBasisPoints);', $entryListPayload, 'Entry list payload should pass current-user shares to table rows');
+
+			$entryRows = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryRows');
+			$t->assertContains('entryPersonalAmountCents($entry, $projectShareBasisPoints)', $entryRows, 'Entry table rows should expose personal amount using split rules');
+			$t->assertContains("'personal_amount_cents'", $entryRows, 'Entry table rows should include personal amount cents for the frontend');
+			$t->assertContains("'personal_amount'", $entryRows, 'Entry table rows should include personal amount for the frontend');
+
 			$templateCreate = $t->methodBody('lib/Controller/TemplateController.php', 'create');
 			$t->assertContains('validateSplitMode($splitMode)', $templateCreate, 'Template create should accept and validate splitMode');
 			$t->assertContains('validateProjectSplitUser($projectId, $splitMode, $splitUserId, (string)$this->userId)', $templateCreate, 'Template create should validate single-user split targets');

@@ -1369,6 +1369,12 @@ export default {
 			return this.$formatSignedMoney(cents / 100)
 		},
 		getEntryPersonalAmount(entry) {
+			if (entry.personal_amount_cents !== undefined && entry.personal_amount_cents !== null) {
+				return parseInt(entry.personal_amount_cents, 10) / 100
+			}
+			if (entry.personal_amount !== undefined && entry.personal_amount !== null) {
+				return parseFloat(entry.personal_amount)
+			}
 			if (!entry.project_id) return parseFloat(entry.amount);
 			const p = this.projects.find(p => String(p.id) === String(entry.project_id));
 			if (entry.split_mode === 'single_user') {

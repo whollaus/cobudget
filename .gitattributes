@@ -1,0 +1,15 @@
+screenshots/ export-ignore
+tests/ export-ignore
+.github/ export-ignore
+.codex/ export-ignore
+.agents/ export-ignore
+AGENT.md export-ignore
+AGENT.local.md export-ignore
+node_modules/ export-ignore
+vendor/ export-ignore
+coverage/ export-ignore
+.phpunit.cache/ export-ignore
+*.map export-ignore
+*.zip export-ignore
+*.tar.gz export-ignore
+*.tgz export-ignore

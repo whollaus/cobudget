@@ -206,8 +206,8 @@ class EntryController extends Controller {
 			}
 
 			$workspaceId = $this->getWorkspaceId();
-			$entries = $this->fetchEntryRows($workspaceId, self::EXPORT_LIMIT, 0, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
 			$projectShareBasisPoints = $this->projectShareBasisPointsFromProjects($this->fetchDashboardProjects($workspaceId));
+			$entries = $this->fetchEntryRows($workspaceId, self::EXPORT_LIMIT, 0, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
 			$csv = $this->buildEntriesCsv($entries, $projectShareBasisPoints);
 			$filename = 'cobudget-zahlungen-' . date('Ymd-His') . '.csv';
 
@@ -318,8 +318,12 @@ class EntryController extends Controller {
 		?array $projectShareBasisPoints = null,
 		bool $includeLookups = false
 	): array {
+		if ($projectShareBasisPoints === null) {
+			$projectShareBasisPoints = $this->projectShareBasisPointsFromProjects($this->fetchDashboardProjects($workspaceId));
+		}
+
 		$totalsData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
-		$entries = $this->fetchEntryRows($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
+		$entries = $this->fetchEntryRows($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
 
 		$payload = [
 			'entries' => $entries,
@@ -500,7 +504,8 @@ class EntryController extends Controller {
 		?bool $hasReminder,
 		?bool $hasAttachment,
 		?int $hashtagId,
-		bool $isFuture
+		bool $isFuture,
+		array $projectShareBasisPoints
 	): array {
 		$qb = $this->buildVisibleEntriesQuery($workspaceId);
 		$qb->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'));
@@ -514,7 +519,14 @@ class EntryController extends Controller {
 		$result = $qb->executeQuery();
 		$entries = $result->fetchAll();
 		$result->closeCursor();
-		$entries = array_map(fn(array $entry): array => $this->normalizeEntryRow($entry), $entries);
+		$entries = array_map(function(array $entry) use ($projectShareBasisPoints): array {
+			$entry = $this->normalizeEntryRow($entry);
+			$personalAmountCents = $this->entryPersonalAmountCents($entry, $projectShareBasisPoints);
+			$entry['personal_amount_cents'] = $personalAmountCents;
+			$entry['personal_amount'] = $personalAmountCents / 100;
+
+			return $entry;
+		}, $entries);
 		$entries = $this->attachEntryHistoryFlags($entries, $workspaceId);
 		$entries = $this->attachEntryAttachmentDetails($entries, $workspaceId);
 		$entries = $this->hashtagService->attachHashtagsToEntries($entries);

@@ -58,6 +58,17 @@ jobs:
           cd ..
           sha256sum cobudget.tar.gz > SHA256SUMS
 
+      - name: Create release notes
+        run: |
+          cat > /tmp/release-notes.md <<'EOF'
+          > [!IMPORTANT]
+          > Install CoBudget with the attached `cobudget.tar.gz` file.
+          >
+          > Do not use GitHub's automatically generated "Source code (zip)" or "Source code (tar.gz)" archives for installation. Those archives are repository snapshots and are not Nextcloud app packages.
+
+          CoBudget is currently an early alpha release. Please test carefully and keep backups before using it with important data.
+          EOF
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,4 +82,5 @@ jobs:
             ../SHA256SUMS \
             --title "CoBudget $GITHUB_REF_NAME" \
             --generate-notes \
+            --notes-file /tmp/release-notes.md \
             $PRERELEASE_FLAG
