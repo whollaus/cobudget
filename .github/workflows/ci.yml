@@ -47,3 +47,11 @@ jobs:
           tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/appinfo/info.xml$'
           tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/js/'
           ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md|CHANGELOG\.md)'
+
+      - name: Upload release archive artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cobudget-release-package
+          path: ../cobudget.tar.gz
+          if-no-files-found: error
+          retention-days: 14
