@@ -51,7 +51,7 @@ jobs:
           test -f ../cobudget.tar.gz
           tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/appinfo/info.xml$'
           tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/js/'
-          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md|CHANGELOG\.md)'
+          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md)'
 
       - name: Create checksum
         run: |

@@ -14,6 +14,7 @@ It helps you track income, expenses, budgets, receipts and shared areas directly
 CoBudget is currently in a test phase.
 
 - The app is not yet published in the Nextcloud App Store.
+- It has not yet been submitted to the Nextcloud App Store; signing and App Store preparation are still in progress.
 - Public GitHub releases are the first goal.
 - App Store publication is planned later.
 - Backups are strongly recommended before every update.
@@ -53,7 +54,7 @@ See [FEATURES.md](FEATURES.md) for a more detailed overview.
 
 ## Requirements
 
-- Nextcloud 27 to 33
+- Nextcloud 33 or 34
 - PHP 8.0 or newer
 - A user account with access to the CoBudget app
 - Browser with modern JavaScript support
@@ -105,17 +106,17 @@ Before creating a tag, make sure the version matches in:
 
 - `appinfo/info.xml`
 - `package.json`
-- the tag name, for example `v0.1.0`
+- the tag name, for example `v0.1.1`
 
 Release command flow:
 
 ```sh
 git add .
-git commit -m "Prepare release 0.1.0"
+git commit -m "Prepare release 0.1.1"
 git push
 
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 The tag workflow runs the tests, builds `cobudget.tar.gz`, creates `SHA256SUMS` and publishes both files as GitHub release assets.

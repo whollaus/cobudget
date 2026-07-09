@@ -11,7 +11,7 @@
     "test:php": "php tests/php/run.php",
     "test:frontend-smoke": "node tests/frontend-smoke.mjs",
     "test:static-security": "php tests/static-security.php",
-    "release:tar": "cd .. && tar --exclude='*.map' -czf cobudget.tar.gz cobudget/appinfo cobudget/img cobudget/js cobudget/lib cobudget/l10n cobudget/templates cobudget/composer.json",
+    "release:tar": "cd .. && tar --exclude='*.map' -czf cobudget.tar.gz cobudget/appinfo cobudget/img cobudget/js cobudget/lib cobudget/l10n cobudget/templates cobudget/composer.json cobudget/CHANGELOG.md cobudget/LICENSE",
     "release": "npm run build && npm run release:tar"
   },
   "dependencies": {

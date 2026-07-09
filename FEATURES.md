@@ -6,6 +6,8 @@
 
 CoBudget is a Nextcloud app for personal and shared household budgeting.
 
+CoBudget is not yet submitted to or published in the Nextcloud App Store. During the alpha test phase, installable builds are provided through GitHub release archives.
+
 ## Payments
 
 - Create income and expense entries.

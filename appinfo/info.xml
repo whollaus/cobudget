@@ -11,7 +11,7 @@
     It helps you manage payments, budgets, receipts, workspaces, shared areas, settlements and financial insights directly inside Nextcloud.]]></description>
     <version>0.1.1</version>
     <licence>AGPL-3.0-or-later</licence>
-    <author>Wolfgang</author>
+    <author>Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
     <category>organization</category>
     <website>https://github.com/whollaus/cobudget</website>
@@ -29,7 +29,7 @@
     <donation title="Support CoBudget on GitHub Sponsors">https://github.com/sponsors/whollaus</donation>
     <donation title="Support CoBudget with Stripe" type="stripe">https://donate.stripe.com/aFaeVdfARbPNe897bu5J600</donation>
     <dependencies>
-        <nextcloud min-version="27" max-version="33" />
+        <nextcloud min-version="33" max-version="34" />
     </dependencies>
     <navigations>
         <navigation>

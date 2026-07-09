@@ -8,7 +8,7 @@ This project follows semantic versioning as far as practical during the alpha ph
 
 - Nothing yet.
 
-## [0.1.0] - 2026-07-08
+## 0.1.1 - 2026-07-09
 
 ### Added
 
@@ -22,6 +22,7 @@ This project follows semantic versioning as far as practical during the alpha ph
 - Personal exports and admin full backups with restore workflows.
 - Integrity checks, repair helpers and admin tooling.
 - Light, dark and system theme modes.
+- GitHub release archive preparation for later Nextcloud App Store submission.
 
 ### Security
 
@@ -35,3 +36,4 @@ This project follows semantic versioning as far as practical during the alpha ph
 - Early alpha: features, database structures and workflows may still change.
 - This release squashes the internal pre-release migration history into a fresh first-install schema.
 - Existing internal test installations should be reset/reinstalled before using this public baseline.
+- Supported Nextcloud versions for the first App Store target are 33 and 34.
