@@ -534,7 +534,13 @@ try {
 	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
 		$failures[] = 'Initial public baseline should keep appinfo/info.xml on the 0.1 release line';
 	}
-	$assertContains($infoXml, 'max-version="33"', 'App metadata should allow the deployed Nextcloud 33 server');
+	if (
+		preg_match('/<nextcloud[^>]*min-version="([^"]+)"[^>]*max-version="([^"]+)"/', $infoXml, $nextcloudMatch) !== 1
+		|| $nextcloudMatch[1] !== '33'
+		|| $nextcloudMatch[2] !== '34'
+	) {
+		$failures[] = 'App metadata should support only Nextcloud 33 and 34';
+	}
 
 	$app = $read('src/App.vue');
 	$workspaceSettings = $read('src/components/WorkspaceSettings.vue');
