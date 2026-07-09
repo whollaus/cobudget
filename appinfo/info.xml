@@ -4,16 +4,21 @@
     <id>cobudget</id>
     <name>CoBudget</name>
     <summary>Personal and shared budgeting for Nextcloud</summary>
-    <description><![CDATA[CoBudget is a Nextcloud app for tracking personal and shared household finances.
+    <description lang="en"><![CDATA[CoBudget is a Nextcloud app for tracking personal and shared household finances.
 
     Early alpha warning: Features, data structures and workflows can still change. Manual database corrections may be required during the alpha phase.
 
     It helps you manage payments, budgets, receipts, workspaces, shared areas, settlements and financial insights directly inside Nextcloud.]]></description>
+    <description lang="de"><![CDATA[CoBudget ist eine Nextcloud-App zur Verwaltung persönlicher und gemeinsamer Haushaltsfinanzen.
+
+    Hinweis zur frühen Alpha-Version: Funktionen, Datenstrukturen und Abläufe können sich noch ändern. Während der Alpha-Phase können manuelle Korrekturen in der Datenbank erforderlich sein.
+
+    Mit CoBudget verwaltest du Zahlungen, Budgetziele, Belege, Workspaces, gemeinsame Bereiche, Abrechnungen und Auswertungen direkt in Nextcloud.]]></description>
     <version>0.1.2</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
-    <category>organization</category>
+    <category>office</category>
     <website>https://github.com/whollaus/cobudget</website>
     <documentation>
         <user>https://github.com/whollaus/cobudget#readme</user>
