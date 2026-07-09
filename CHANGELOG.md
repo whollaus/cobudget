@@ -8,6 +8,13 @@ This project follows semantic versioning as far as practical during the alpha ph
 
 - Nothing yet.
 
+## 0.1.3 - 2026-07-09
+
+### Changed
+
+- Added localized English and German app descriptions to the Nextcloud app metadata.
+- Changed the Nextcloud app category metadata to `office`.
+
 ## 0.1.2 - 2026-07-09
 
 ### Fixed

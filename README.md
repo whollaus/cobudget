@@ -106,17 +106,17 @@ Before creating a tag, make sure the version matches in:
 
 - `appinfo/info.xml`
 - `package.json`
-- the tag name, for example `v0.1.1`
+- the tag name, for example `v0.1.3`
 
 Release command flow:
 
 ```sh
 git add .
-git commit -m "Prepare release 0.1.1"
+git commit -m "Prepare release 0.1.3"
 git push
 
-git tag v0.1.1
-git push origin v0.1.1
+git tag -a v0.1.3 -m "CoBudget 0.1.3"
+git push origin v0.1.3
 ```
 
 The tag workflow runs the tests, builds `cobudget.tar.gz`, creates `SHA256SUMS` and publishes both files as GitHub release assets.
