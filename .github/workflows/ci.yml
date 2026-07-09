@@ -48,10 +48,13 @@ jobs:
           tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/js/'
           ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md|CHANGELOG\.md)'
 
+      - name: Stage release archive artifact
+        run: cp ../cobudget.tar.gz cobudget.tar.gz
+
       - name: Upload release archive artifact
         uses: actions/upload-artifact@v7
         with:
           name: cobudget-release-package
-          path: ../cobudget.tar.gz
+          path: cobudget.tar.gz
           if-no-files-found: error
           retention-days: 14
