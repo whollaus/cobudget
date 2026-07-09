@@ -164,18 +164,23 @@ try {
 	$assertContains($routes, "'/api/settings/reset'", 'Routes expose user reset URL');
 
 	$application = $read('lib/AppInfo/Application.php');
+	$commandRegister = $read('appinfo/register_command.php');
+	$assertContains($application, "method_exists(\$context, 'registerNotifierService')", 'Application guards notifier registration for Nextcloud API compatibility');
 	$assertContains($application, 'registerNotifierService(Notifier::class)', 'Application uses supported notifier registration');
+	$assertNotContains($application, 'registerCommand(', 'Application avoids Nextcloud 34 incompatible command bootstrap registration');
 	if (strpos($application, 'registerNotifier(') !== false) {
 		$failures[] = 'Application must not call removed registerNotifier API';
 	}
 	$assertContains($application, 'use OCP\\BackgroundJob\\IJobList;', 'Application imports background job list');
 	$assertContains($application, 'use OCP\\IDBConnection;', 'Application imports database connection');
-	$assertContains($application, 'CreateBackupCommand::class', 'Application registers user backup command');
-	$assertContains($application, 'CreateFullBackupCommand::class', 'Application registers full backup command');
-	$assertContains($application, 'RestoreBackupCommand::class', 'Application registers user restore command');
-	$assertContains($application, 'RestoreFullBackupCommand::class', 'Application registers full restore command');
+	$assertContains($application, "method_exists(\$context, 'getServerContainer')", 'Application guards server container access for Nextcloud API compatibility');
+	$assertContains($commandRegister, 'CreateBackupCommand::class', 'Legacy OCC registration includes user backup command');
+	$assertContains($commandRegister, 'CreateFullBackupCommand::class', 'Legacy OCC registration includes full backup command');
+	$assertContains($commandRegister, 'RestoreBackupCommand::class', 'Legacy OCC registration includes user restore command');
+	$assertContains($commandRegister, 'RestoreFullBackupCommand::class', 'Legacy OCC registration includes full restore command');
 	$assertContains($application, 'RecurringEntriesJob::class', 'Application registers recurring job on boot');
 	$assertContains($application, 'RemindersJob::class', 'Application registers reminders job on boot');
+	$assertContains($application, 'Background job registration must not block unrelated Nextcloud pages', 'Application keeps boot-time job registration resilient');
 	$assertContains($application, 'BackupJob::class', 'Application registers backup job on boot');
 	$assertContains($application, 'BudgetSnapshotJob::class', 'Application registers budget snapshot job on boot');
 	$assertContains($application, '$jobList->has($jobClass, null)', 'Application avoids duplicate null-argument jobs');

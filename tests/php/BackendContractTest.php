@@ -139,24 +139,14 @@ return [
 
 		$t->assertContains('use OCP\\BackgroundJob\\IJobList;', $source, 'Application should import the background job list');
 		$t->assertContains('use OCP\\IDBConnection;', $source, 'Application should import the database connection for job prioritization');
-		$t->assertContains('use OCA\\CoBudget\\Command\\CreateBackupCommand;', $source, 'Application should import the user backup command');
-		$t->assertContains('use OCA\\CoBudget\\Command\\CreateFullBackupCommand;', $source, 'Application should import the full backup command');
-		$t->assertContains('use OCA\\CoBudget\\Command\\CheckDataIntegrityCommand;', $source, 'Application should import the data integrity command');
-		$t->assertContains('use OCA\\CoBudget\\Command\\ResetAllCommand;', $source, 'Application should import the global reset command');
-		$t->assertContains('use OCA\\CoBudget\\Command\\RestoreBackupCommand;', $source, 'Application should import the user restore command');
-		$t->assertContains('use OCA\\CoBudget\\Command\\RestoreFullBackupCommand;', $source, 'Application should import the full restore command');
 		$t->assertContains('use OCA\\CoBudget\\Cron\\RecurringEntriesJob;', $source, 'Application should import the recurring job');
 		$t->assertContains('use OCA\\CoBudget\\Cron\\RemindersJob;', $source, 'Application should import the reminders job');
 		$t->assertContains('use OCA\\CoBudget\\Cron\\BackupJob;', $source, 'Application should import the backup job');
 		$t->assertContains('use OCA\\CoBudget\\Cron\\BudgetSnapshotJob;', $source, 'Application should import the budget snapshot job');
 		$t->assertContains('use OCA\\CoBudget\\Notification\\Notifier;', $source, 'Application should import the notification notifier');
+		$t->assertContains("method_exists(\$context, 'registerNotifierService')", $register, 'Application should guard notifier registration for Nextcloud API compatibility');
 		$t->assertContains('registerNotifierService(Notifier::class)', $register, 'Application should use the supported Nextcloud notifier registration API');
-		$t->assertContains('registerCommand(CreateBackupCommand::class)', $register, 'Application should register the user backup command');
-		$t->assertContains('registerCommand(CreateFullBackupCommand::class)', $register, 'Application should register the full backup command');
-		$t->assertContains('registerCommand(CheckDataIntegrityCommand::class)', $register, 'Application should register the data integrity command');
-		$t->assertContains('registerCommand(ResetAllCommand::class)', $register, 'Application should register the global reset command');
-		$t->assertContains('registerCommand(RestoreBackupCommand::class)', $register, 'Application should register the user restore command');
-		$t->assertContains('registerCommand(RestoreFullBackupCommand::class)', $register, 'Application should register the full restore command');
+		$t->assertNotContains('registerCommand(', $register, 'Application should not use Nextcloud 34 incompatible command bootstrap registration');
 		foreach ([
 			'CreateBackupCommand::class',
 			'CreateFullBackupCommand::class',
@@ -171,11 +161,14 @@ return [
 		$t->assertContains('$application->add($container->query($commandClass))', $legacyCommandRegister, 'Legacy OCC registration should add commands to Symfony console');
 		$t->assertContains('get(IJobList::class)', $boot, 'Application boot should resolve the Nextcloud job list');
 		$t->assertContains('get(IDBConnection::class)', $boot, 'Application boot should resolve the database connection');
+		$t->assertContains("method_exists(\$context, 'getServerContainer')", $boot, 'Application boot should guard server container access for Nextcloud API compatibility');
 		$t->assertContains('RecurringEntriesJob::class', $boot, 'Application boot should ensure the recurring job exists');
 		$t->assertContains('RemindersJob::class', $boot, 'Application boot should ensure the reminders job exists');
 		$t->assertContains('BackupJob::class', $boot, 'Application boot should ensure the backup job exists');
 		$t->assertContains('BudgetSnapshotJob::class', $boot, 'Application boot should ensure the budget snapshot job exists');
 		$t->assertContains('prioritizeUnrunWebCronJob($db, $jobClass)', $boot, 'Application should prioritize newly registered jobs for WebCron');
+		$t->assertContains('Background job registration must not block unrelated Nextcloud pages', $boot, 'Application boot should keep background job registration isolated');
+		$t->assertContains('Icon cache refresh must never prevent the app from booting', $boot, 'Application boot should keep icon cache refresh isolated');
 		$t->assertContains('$jobList->has($jobClass, null)', $ensure, 'Application should avoid duplicate legacy null-argument jobs');
 		$t->assertContains('$jobList->has($jobClass, [])', $ensure, 'Application should avoid duplicate empty-array jobs');
 		$t->assertContains('$jobList->add($jobClass, [])', $ensure, 'Application should add missing jobs with empty arguments');

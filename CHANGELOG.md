@@ -8,6 +8,19 @@ This project follows semantic versioning as far as practical during the alpha ph
 
 - Nothing yet.
 
+## 0.1.2 - 2026-07-09
+
+### Fixed
+
+- Fixed Nextcloud 34 admin settings registration so CoBudget no longer blocks the global admin settings area.
+- Improved CoBudget navigation styling for the updated Nextcloud 34 sidebar, including active, hover and mobile states.
+- Fixed CoBudget admin navigation icon contrast in header and sidebar contexts.
+
+### Changed
+
+- Updated release metadata and CI checks for the Nextcloud 33/34 target range.
+- Refined release packaging so GitHub releases continue to ship the installable `cobudget.tar.gz` archive only.
+
 ## 0.1.1 - 2026-07-09
 
 ### Added

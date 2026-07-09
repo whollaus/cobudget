@@ -548,7 +548,7 @@ export default {
 :global(#content.app-cobudget .app-navigation__list-item),
 :global(#content.app-cobudget .app-navigation-entry-wrapper),
 :global(#content.app-cobudget .app-navigation-entry__children) {
-	background-color: var(--cobudget-surface, var(--color-main-background, #fff)) !important;
+	background-color: var(--cobudget-navigation-background, transparent) !important;
 	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 	opacity: 1 !important;
 	backdrop-filter: none !important;
@@ -561,6 +561,7 @@ export default {
 :global(#content.app-cobudget .app-navigation-entry-link),
 :global(#content.app-cobudget .app-navigation-entry-button) {
 	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
+	position: relative;
 }
 
 :global(#content.app-cobudget #app-navigation .app-navigation-entry__title),
@@ -576,7 +577,7 @@ export default {
 :global(#content.app-cobudget #app-navigation .app-navigation-entry:focus-visible),
 :global(#content.app-cobudget .app-navigation-entry:hover),
 :global(#content.app-cobudget .app-navigation-entry:focus-visible) {
-	background-color: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5)) !important;
+	background-color: var(--cobudget-navigation-hover-background, var(--color-background-hover, #f5f5f5)) !important;
 	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 	opacity: 1 !important;
 }
@@ -585,9 +586,26 @@ export default {
 :global(#content.app-cobudget #app-navigation .app-navigation-entry.active),
 :global(#content.app-cobudget .app-navigation-entry--active),
 :global(#content.app-cobudget .app-navigation-entry.active) {
-	background-color: var(--cobudget-primary, var(--color-primary-element, #0082c9)) !important;
-	color: var(--cobudget-primary-text, #fff) !important;
+	background-color: var(--cobudget-navigation-active-background, var(--color-primary-element-light, var(--color-background-hover, #e6f4fb))) !important;
+	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 	opacity: 1 !important;
+	box-shadow: none !important;
+	position: relative;
+}
+
+:global(#content.app-cobudget #app-navigation .app-navigation-entry--active::before),
+:global(#content.app-cobudget #app-navigation .app-navigation-entry.active::before),
+:global(#content.app-cobudget .app-navigation-entry--active::before),
+:global(#content.app-cobudget .app-navigation-entry.active::before) {
+	content: '';
+	position: absolute;
+	top: 8px;
+	bottom: 8px;
+	left: 0;
+	width: 4px;
+	border-radius: 0 var(--border-radius-pill, 999px) var(--border-radius-pill, 999px) 0;
+	background-color: var(--color-primary-element, var(--cobudget-primary, #0082c9));
+	pointer-events: none;
 }
 
 :global(#content.app-cobudget #app-navigation .app-navigation-entry--active .app-navigation-entry-link),
@@ -598,7 +616,7 @@ export default {
 :global(#content.app-cobudget .app-navigation-entry--active .app-navigation-entry-button),
 :global(#content.app-cobudget .app-navigation-entry.active .app-navigation-entry-link),
 :global(#content.app-cobudget .app-navigation-entry.active .app-navigation-entry-button) {
-	color: var(--cobudget-primary-text, #fff) !important;
+	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 }
 
 @media (max-width: 768px) {
@@ -617,18 +635,25 @@ export default {
 	:global(#content.app-cobudget .app-navigation__list-item),
 	:global(#content.app-cobudget .app-navigation-entry-wrapper),
 	:global(#content.app-cobudget .app-navigation-entry__children) {
-		background-color: var(--cobudget-page-background, var(--color-main-background, #fff)) !important;
+		background-color: var(--cobudget-mobile-navigation-background, var(--cobudget-navigation-background, transparent)) !important;
 		opacity: 1 !important;
 		backdrop-filter: none !important;
 	}
 
 	:global(#content.app-cobudget #app-navigation .app-navigation-entry:hover),
 	:global(#content.app-cobudget #app-navigation .app-navigation-entry:focus-visible),
-	:global(#content.app-cobudget #app-navigation .app-navigation-entry--active),
 	:global(#content.app-cobudget .app-navigation-entry:hover),
-	:global(#content.app-cobudget .app-navigation-entry:focus-visible),
-	:global(#content.app-cobudget .app-navigation-entry--active) {
-		background-color: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5)) !important;
+	:global(#content.app-cobudget .app-navigation-entry:focus-visible) {
+		background-color: var(--cobudget-navigation-hover-background, var(--color-background-hover, #f5f5f5)) !important;
+		opacity: 1 !important;
+	}
+
+	:global(#content.app-cobudget #app-navigation .app-navigation-entry--active),
+	:global(#content.app-cobudget #app-navigation .app-navigation-entry.active),
+	:global(#content.app-cobudget .app-navigation-entry--active),
+	:global(#content.app-cobudget .app-navigation-entry.active) {
+		background-color: var(--cobudget-navigation-active-background, var(--color-primary-element-light, var(--color-background-hover, #e6f4fb))) !important;
+		color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 		opacity: 1 !important;
 	}
 }

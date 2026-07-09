@@ -1,12 +1,6 @@
 <?php
 namespace OCA\CoBudget\AppInfo;
 
-use OCA\CoBudget\Command\CreateBackupCommand;
-use OCA\CoBudget\Command\CreateFullBackupCommand;
-use OCA\CoBudget\Command\CheckDataIntegrityCommand;
-use OCA\CoBudget\Command\ResetAllCommand;
-use OCA\CoBudget\Command\RestoreBackupCommand;
-use OCA\CoBudget\Command\RestoreFullBackupCommand;
 use OCA\CoBudget\Cron\BackupJob;
 use OCA\CoBudget\Cron\BudgetSnapshotJob;
 use OCA\CoBudget\Cron\RecurringEntriesJob;
@@ -29,25 +23,39 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
-		$context->registerNotifierService(Notifier::class);
-		$context->registerCommand(CreateBackupCommand::class);
-		$context->registerCommand(CreateFullBackupCommand::class);
-		$context->registerCommand(CheckDataIntegrityCommand::class);
-		$context->registerCommand(ResetAllCommand::class);
-		$context->registerCommand(RestoreBackupCommand::class);
-		$context->registerCommand(RestoreFullBackupCommand::class);
+		if (method_exists($context, 'registerNotifierService')) {
+			$context->registerNotifierService(Notifier::class);
+		}
+		// OCC commands are registered in appinfo/register_command.php for compatibility with Nextcloud 34+.
 	}
 
 	public function boot(IBootContext $context): void {
-		$container = $context->getServerContainer();
-		$jobList = $container->get(IJobList::class);
-		$db = $container->get(IDBConnection::class);
-		$config = $container->get(IConfig::class);
-		foreach ([RecurringEntriesJob::class, RemindersJob::class, BackupJob::class, BudgetSnapshotJob::class] as $jobClass) {
-			$this->ensureBackgroundJob($jobList, $jobClass);
-			$this->prioritizeUnrunWebCronJob($db, $jobClass);
+		if (!method_exists($context, 'getServerContainer')) {
+			return;
 		}
-		$this->refreshThemingIconCache($config);
+
+		$container = null;
+		try {
+			$container = $context->getServerContainer();
+			$jobList = $container->get(IJobList::class);
+			$db = $container->get(IDBConnection::class);
+			foreach ([RecurringEntriesJob::class, RemindersJob::class, BackupJob::class, BudgetSnapshotJob::class] as $jobClass) {
+				try {
+					$this->ensureBackgroundJob($jobList, $jobClass);
+					$this->prioritizeUnrunWebCronJob($db, $jobClass);
+				} catch (\Throwable $e) {
+					// Background job registration must not block unrelated Nextcloud pages.
+				}
+			}
+		} catch (\Throwable $e) {
+			// Keep app boot resilient if a future Nextcloud version changes bootstrap services.
+		}
+
+		try {
+			$this->refreshThemingIconCache($container->get(IConfig::class));
+		} catch (\Throwable $e) {
+			// Icon cache refresh must never prevent the app from booting.
+		}
 	}
 
 	private function ensureBackgroundJob(IJobList $jobList, string $jobClass): void {
