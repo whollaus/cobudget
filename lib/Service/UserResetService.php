@@ -18,6 +18,7 @@ class UserResetService {
 	private const SAFETY_BACKUP_RETENTION = 8;
 	private const RESET_LOCK_KEY = 'reset_running_since';
 	private const RESET_LOCK_TTL_SECONDS = 6 * 60 * 60;
+	private array $recipientUserExists = [];
 
 	private const SETTINGS_KEYS = [
 		'currency',
@@ -59,6 +60,7 @@ class UserResetService {
 		private IUserManager $userManager,
 		private BackupService $backupService,
 		private HashtagService $hashtagService,
+		private EntryShareService $entryShareService,
 	) {
 	}
 
@@ -69,7 +71,7 @@ class UserResetService {
 	public function preview(string $userId): array {
 		$projects = $this->projectsForUser($userId);
 		$sharedBlocking = [];
-		$ownedSharedDeletable = [];
+		$ownedSharedTransferable = [];
 		$sharedLeaving = [];
 		$soloProjectIds = [];
 
@@ -90,7 +92,7 @@ class UserResetService {
 				if ($openCount > 0) {
 					$sharedBlocking[] = $row;
 				} elseif ((string)($project['owner_id'] ?? '') === $userId) {
-					$ownedSharedDeletable[] = $row;
+					$ownedSharedTransferable[] = $row;
 				} else {
 					$sharedLeaving[] = $row;
 				}
@@ -101,7 +103,7 @@ class UserResetService {
 		}
 
 		$workspaceIds = $this->workspaceIdsForUser($userId);
-		$ownedSharedProjectIds = array_map(static fn (array $project): int => (int)$project['id'], $ownedSharedDeletable);
+		$ownedSharedProjectIds = array_map(static fn (array $project): int => (int)$project['id'], $ownedSharedTransferable);
 		$deletedProjectIds = array_values(array_unique(array_merge($soloProjectIds, $ownedSharedProjectIds)));
 		$personalEntryIds = $this->entryIdsForPersonalWorkspaceRows($userId, $workspaceIds);
 		$soloEntryIds = $this->entryIdsForProjects($soloProjectIds);
@@ -111,13 +113,14 @@ class UserResetService {
 		return [
 			'confirmation' => self::CONFIRMATION_TEXT,
 			'blocking_shared_projects' => $sharedBlocking,
-			'deletable_shared_projects' => $ownedSharedDeletable,
+			'deletable_shared_projects' => [],
 			'leavable_shared_projects' => $sharedLeaving,
-			'transferable_shared_projects' => [],
+			'transferable_shared_projects' => $ownedSharedTransferable,
 			'counts' => [
 				'workspaces' => count($workspaceIds),
 				'solo_projects' => count(array_unique($soloProjectIds)),
-				'shared_projects_deleted' => count($ownedSharedDeletable),
+				'shared_projects_deleted' => count($ownedSharedTransferable),
+				'shared_projects_transferred' => count($ownedSharedTransferable),
 				'shared_projects_left' => count($sharedLeaving),
 				'entries' => count($deletedEntryIds),
 				'attachments' => $this->countAttachmentsForEntries($deletedEntryIds),
@@ -153,6 +156,8 @@ class UserResetService {
 				'deleted_shared_projects' => [],
 				'left_shared_projects' => [],
 				'transferred_shared_projects' => [],
+				'transferred_personal_entries' => 0,
+				'transferred_attachments' => 0,
 				'deleted' => [
 					'workspaces' => 0,
 					'solo_projects' => 0,
@@ -187,12 +192,17 @@ class UserResetService {
 						}
 
 						if ((string)($project['owner_id'] ?? '') === $userId) {
-							$projectReport = $this->deleteProjectTree($projectId, $deleteReceiptFiles);
+							$transferReport = $this->materializeSettledProjectShares($projectId, $userId);
+							$projectReport = $this->deleteProjectTree($projectId, $deleteReceiptFiles, $userId);
 							$report['deleted']['shared_projects']++;
 							$this->addDeletedCounts($report, $projectReport);
-							$report['deleted_shared_projects'][] = [
+							$report['transferred_personal_entries'] += (int)$transferReport['entries'];
+							$report['transferred_attachments'] += (int)$transferReport['attachments'];
+							$report['transferred_shared_projects'][] = [
 								'id' => $projectId,
 								'name' => (string)$project['name'],
+								'entries' => (int)$transferReport['entries'],
+								'attachments' => (int)$transferReport['attachments'],
 							];
 							continue;
 						}
@@ -209,17 +219,18 @@ class UserResetService {
 				}
 
 				foreach (array_values(array_unique($soloProjectIds)) as $projectId) {
-					$projectReport = $this->deleteProjectTree((int)$projectId, $deleteReceiptFiles);
+					$projectReport = $this->deleteProjectTree((int)$projectId, $deleteReceiptFiles, $userId);
 					$report['deleted']['solo_projects']++;
 					$this->addDeletedCounts($report, $projectReport);
 				}
 
 				$personalEntryIds = $this->entryIdsForPersonalWorkspaceRows($userId, $workspaceIds);
-				$personalAttachments = $this->deleteAttachmentsForEntries($personalEntryIds, $deleteReceiptFiles);
+				$personalAttachments = $this->deleteAttachmentsForEntries($personalEntryIds, $deleteReceiptFiles, $userId);
 				$report['deleted']['attachments'] += $personalAttachments['rows'];
 				$report['deleted']['attachment_files'] += $personalAttachments['files'];
 				$this->hashtagService->deleteHashtagsForEntries($personalEntryIds);
 				$report['deleted']['entry_history'] += $this->deleteRowsByIds('cobudget_entry_history', $this->idsByColumnValues('cobudget_entry_history', 'entry_id', $personalEntryIds));
+				$this->entryShareService->deleteForEntries($personalEntryIds);
 				$report['deleted']['entries'] += $this->deleteRowsByIds('cobudget_entries', $personalEntryIds);
 
 				$report['deleted']['categories'] += $this->deleteUserScopedRows('cobudget_categories', $userId, $workspaceIds, $soloProjectIds);
@@ -309,6 +320,321 @@ class UserResetService {
 		return (int)($this->fetchOne($qb)['entry_count'] ?? 0);
 	}
 
+	private function materializeSettledProjectShares(int $projectId, string $resetUserId): array {
+		$members = $this->projectMembers($projectId);
+		$shares = [];
+		foreach ($members as $member) {
+			$memberUserId = trim((string)($member['user_id'] ?? ''));
+			if ($memberUserId !== '') {
+				$shares[$memberUserId] = max(0, (int)($member['share_basis_points'] ?? 0));
+			}
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from('cobudget_entries')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('is_settled', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)))
+			->orderBy('id', 'ASC');
+		$entries = $this->fetchAll($qb);
+		$storedSharesByEntry = $this->entryShareService->sharesForEntries(array_column($entries, 'id'));
+		$sharesBySettlement = $this->settlementSharesByIdForProject($projectId);
+
+		$workspaceIds = [];
+		$categoryIds = [];
+		$paymentPartnerIds = [];
+		$transferredEntries = 0;
+		$transferredAttachments = 0;
+
+		foreach ($entries as $entry) {
+			$sourceEntryId = (int)($entry['id'] ?? 0);
+			$storedShares = $storedSharesByEntry[$sourceEntryId] ?? [];
+			$settlementId = isset($entry['settlement_id']) ? (int)$entry['settlement_id'] : null;
+			$entryShares = $settlementId !== null && isset($sharesBySettlement[$settlementId])
+				? $sharesBySettlement[$settlementId]
+				: $shares;
+			$recipientUserIds = $storedShares !== []
+				? array_values(array_filter(
+					array_keys($storedShares),
+					fn (string $memberUserId): bool => $memberUserId !== ''
+						&& $memberUserId !== $resetUserId
+						&& $this->recipientUserExists($memberUserId)
+				))
+				: $this->recipientUserIdsForEntry($entry, $entryShares, $resetUserId);
+			foreach ($recipientUserIds as $recipientUserId) {
+				$shareCents = isset($storedShares[$recipientUserId])
+					? max(0, (int)$storedShares[$recipientUserId]['amount_cents'])
+					: $this->personalShareCentsForEntry($entry, $recipientUserId, $entryShares);
+				if ($shareCents <= 0) {
+					continue;
+				}
+
+				$workspaceIds[$recipientUserId] ??= $this->defaultWorkspaceIdForUser($recipientUserId);
+				$workspaceId = $workspaceIds[$recipientUserId];
+				$sourceCategoryId = isset($entry['category_id']) ? (int)$entry['category_id'] : null;
+				$sourcePaymentPartnerId = isset($entry['payment_partner_id']) ? (int)$entry['payment_partner_id'] : null;
+				$categoryKey = $recipientUserId . ':' . (string)($sourceCategoryId ?? 0);
+				$paymentPartnerKey = $recipientUserId . ':' . (string)($sourcePaymentPartnerId ?? 0);
+				$categoryIds[$categoryKey] ??= $this->personalReferenceIdForTransfer('cobudget_categories', $sourceCategoryId, $recipientUserId, $workspaceId);
+				$paymentPartnerIds[$paymentPartnerKey] ??= $this->personalReferenceIdForTransfer('cobudget_payment_partners', $sourcePaymentPartnerId, $recipientUserId, $workspaceId);
+
+				$newEntryId = $this->insertTransferredPersonalEntry(
+					$entry,
+					$recipientUserId,
+					$workspaceId,
+					$shareCents,
+					$categoryIds[$categoryKey],
+					$paymentPartnerIds[$paymentPartnerKey]
+				);
+				$this->hashtagService->syncEntryHashtags($newEntryId, $workspaceId, (string)($entry['description'] ?? ''));
+				$transferredAttachments += $this->copyRecipientOwnedAttachments($sourceEntryId, $newEntryId, $recipientUserId, $workspaceId);
+				$transferredEntries++;
+			}
+		}
+
+		return [
+			'entries' => $transferredEntries,
+			'attachments' => $transferredAttachments,
+		];
+	}
+
+	private function settlementSharesByIdForProject(int $projectId): array {
+		$settlementIds = $this->idsByColumn('cobudget_settlements', 'project_id', $projectId);
+		$sharesBySettlement = [];
+		foreach ($this->fetchRowsByColumnValues('cobudget_settlement_balances', 'settlement_id', $settlementIds) as $balance) {
+			$settlementId = (int)($balance['settlement_id'] ?? 0);
+			$memberUserId = trim((string)($balance['user_id'] ?? ''));
+			if ($settlementId > 0 && $memberUserId !== '') {
+				$sharesBySettlement[$settlementId][$memberUserId] = max(0, (int)($balance['share_basis_points'] ?? 0));
+			}
+		}
+
+		return $sharesBySettlement;
+	}
+
+	private function recipientUserIdsForEntry(array $entry, array $shares, string $resetUserId): array {
+		if ((string)($entry['split_mode'] ?? '') === 'single_user') {
+			$splitTargetUserId = trim((string)($entry['split_user_id'] ?? ''));
+			if ($splitTargetUserId === '') {
+				$splitTargetUserId = trim((string)($entry['user_id'] ?? ''));
+			}
+			return $splitTargetUserId !== ''
+				&& $splitTargetUserId !== $resetUserId
+				&& $this->recipientUserExists($splitTargetUserId)
+				? [$splitTargetUserId]
+				: [];
+		}
+
+		return array_values(array_filter(
+			array_keys($shares),
+			fn (string $memberUserId): bool => $memberUserId !== ''
+				&& $memberUserId !== $resetUserId
+				&& $this->recipientUserExists($memberUserId)
+		));
+	}
+
+	private function recipientUserExists(string $userId): bool {
+		if (!array_key_exists($userId, $this->recipientUserExists)) {
+			$this->recipientUserExists[$userId] = $this->userManager->get($userId) !== null;
+		}
+
+		return $this->recipientUserExists[$userId];
+	}
+
+	private function personalShareCentsForEntry(array $entry, string $recipientUserId, array $shares): int {
+		$amountCents = $this->entryAmountCents($entry);
+		if ($amountCents <= 0) {
+			return 0;
+		}
+
+		if ((string)($entry['split_mode'] ?? '') === 'single_user') {
+			$splitTargetUserId = trim((string)($entry['split_user_id'] ?? ''));
+			if ($splitTargetUserId === '') {
+				$splitTargetUserId = trim((string)($entry['user_id'] ?? ''));
+			}
+			return $splitTargetUserId === $recipientUserId ? $amountCents : 0;
+		}
+
+		$recipientShare = max(0, (int)($shares[$recipientUserId] ?? 0));
+		$totalShare = array_sum(array_map(static fn ($share): int => max(0, (int)$share), $shares));
+		if ($recipientShare <= 0 || $totalShare <= 0) {
+			return 0;
+		}
+
+		return intdiv(($amountCents * $recipientShare * 2) + $totalShare, $totalShare * 2);
+	}
+
+	private function insertTransferredPersonalEntry(
+		array $entry,
+		string $recipientUserId,
+		int $workspaceId,
+		int $amountCents,
+		?int $categoryId,
+		?int $paymentPartnerId,
+	): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->insert('cobudget_entries')
+			->values([
+				'user_id' => $qb->createNamedParameter($recipientUserId),
+				'project_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'type' => $qb->createNamedParameter((string)($entry['type'] ?? 'expense')),
+				'amount' => $qb->createNamedParameter($this->amountStringFromCents($amountCents)),
+				'amount_cents' => $qb->createNamedParameter($amountCents, \PDO::PARAM_INT),
+				'currency' => $qb->createNamedParameter((string)($entry['currency'] ?? 'EUR')),
+				'date' => $qb->createNamedParameter((int)($entry['date'] ?? time()), \PDO::PARAM_INT),
+				'category_id' => $qb->createNamedParameter($categoryId, $categoryId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+				'payment_partner_id' => $qb->createNamedParameter($paymentPartnerId, $paymentPartnerId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+				'description' => $qb->createNamedParameter((string)($entry['description'] ?? '')),
+				'split_mode' => $qb->createNamedParameter('project_shares'),
+				'split_user_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'is_settled' => $qb->createNamedParameter(false, \PDO::PARAM_BOOL),
+				'settled_at' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'settlement_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'recurrence_interval' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'recurrence_multiplier' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'recurrence_next_date' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'recurrence_end_date' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'recurrence_parent_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'recurrence_series_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'is_subscription' => $qb->createNamedParameter((bool)($entry['is_subscription'] ?? false), \PDO::PARAM_BOOL),
+				'is_fixed_cost' => $qb->createNamedParameter((bool)($entry['is_fixed_cost'] ?? false), \PDO::PARAM_BOOL),
+				'is_child_related' => $qb->createNamedParameter((bool)($entry['is_child_related'] ?? false), \PDO::PARAM_BOOL),
+				'is_important' => $qb->createNamedParameter((bool)($entry['is_important'] ?? false), \PDO::PARAM_BOOL),
+				'needs_review' => $qb->createNamedParameter((bool)($entry['needs_review'] ?? false), \PDO::PARAM_BOOL),
+				'is_tax_relevant' => $qb->createNamedParameter((bool)($entry['is_tax_relevant'] ?? false), \PDO::PARAM_BOOL),
+				'reminder_date' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'reminder_notified' => $qb->createNamedParameter(false, \PDO::PARAM_BOOL),
+				'reminder_text' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+				'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
+			]);
+		$qb->executeStatement();
+
+		return (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
+	}
+
+	private function personalReferenceIdForTransfer(string $table, ?int $sourceId, string $recipientUserId, int $workspaceId): ?int {
+		if ($sourceId === null || $sourceId <= 0 || !in_array($table, ['cobudget_categories', 'cobudget_payment_partners'], true)) {
+			return null;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from($table)
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($sourceId, \PDO::PARAM_INT)))
+			->setMaxResults(1);
+		$source = $this->fetchOne($qb);
+		if ($source === null) {
+			return null;
+		}
+		if ((bool)($source['is_global'] ?? false) && trim((string)($source['user_id'] ?? '')) === '') {
+			return $sourceId;
+		}
+
+		$name = trim((string)($source['name'] ?? ''));
+		$type = (string)($source['type'] ?? 'expense');
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from($table)
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($recipientUserId)))
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->isNull('project_id'))
+			->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))
+			->andWhere($qb->expr()->eq('is_hidden', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))
+			->andWhere($qb->expr()->eq('name', $qb->createNamedParameter($name)))
+			->andWhere($qb->expr()->eq('type', $qb->createNamedParameter($type)))
+			->setMaxResults(1);
+		$existing = $this->fetchOne($qb);
+		if ($existing !== null) {
+			return (int)$existing['id'];
+		}
+
+		$insert = $this->db->getQueryBuilder();
+		$values = [
+			'name' => $insert->createNamedParameter($name),
+			'is_global' => $insert->createNamedParameter(false, \PDO::PARAM_BOOL),
+			'user_id' => $insert->createNamedParameter($recipientUserId),
+			'workspace_id' => $insert->createNamedParameter($workspaceId, \PDO::PARAM_INT),
+			'type' => $insert->createNamedParameter($type),
+			'project_id' => $insert->createNamedParameter(null, \PDO::PARAM_NULL),
+			'is_hidden' => $insert->createNamedParameter(false, \PDO::PARAM_BOOL),
+		];
+		if ($table === 'cobudget_categories') {
+			$values['icon'] = $insert->createNamedParameter((string)($source['icon'] ?? 'Shape'));
+		}
+		$insert->insert($table)->values($values);
+		$insert->executeStatement();
+
+		return (int)$this->db->lastInsertId('*PREFIX*' . $table);
+	}
+
+	private function copyRecipientOwnedAttachments(int $sourceEntryId, int $targetEntryId, string $recipientUserId, int $workspaceId): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')
+			->from('cobudget_entry_attachments')
+			->where($qb->expr()->eq('entry_id', $qb->createNamedParameter($sourceEntryId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('owner_user_id', $qb->createNamedParameter($recipientUserId)));
+		$attachments = $this->fetchAll($qb);
+
+		foreach ($attachments as $attachment) {
+			$insert = $this->db->getQueryBuilder();
+			$fileId = isset($attachment['file_id']) ? (int)$attachment['file_id'] : null;
+			$mimeType = isset($attachment['mime_type']) ? (string)$attachment['mime_type'] : null;
+			$insert->insert('cobudget_entry_attachments')
+				->values([
+					'entry_id' => $insert->createNamedParameter($targetEntryId, \PDO::PARAM_INT),
+					'workspace_id' => $insert->createNamedParameter($workspaceId, \PDO::PARAM_INT),
+					'owner_user_id' => $insert->createNamedParameter($recipientUserId),
+					'file_id' => $insert->createNamedParameter($fileId, $fileId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+					'file_path' => $insert->createNamedParameter((string)($attachment['file_path'] ?? '')),
+					'file_name' => $insert->createNamedParameter((string)($attachment['file_name'] ?? '')),
+					'mime_type' => $insert->createNamedParameter($mimeType, $mimeType === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
+					'file_size' => $insert->createNamedParameter((int)($attachment['file_size'] ?? 0), \PDO::PARAM_INT),
+					'created_at' => $insert->createNamedParameter((int)($attachment['created_at'] ?? time()), \PDO::PARAM_INT),
+				]);
+			$insert->executeStatement();
+		}
+
+		return count($attachments);
+	}
+
+	private function defaultWorkspaceIdForUser(string $userId): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_workspaces')
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('is_default', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)))
+			->setMaxResults(1);
+		$workspace = $this->fetchOne($qb);
+		if ($workspace !== null) {
+			return (int)$workspace['id'];
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_workspaces')
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->orderBy('id', 'ASC')
+			->setMaxResults(1);
+		$workspace = $this->fetchOne($qb);
+		if ($workspace !== null) {
+			return (int)$workspace['id'];
+		}
+
+		return $this->createDefaultWorkspaceForUser($userId);
+	}
+
+	private function entryAmountCents(array $entry): int {
+		if (isset($entry['amount_cents']) && is_numeric($entry['amount_cents'])) {
+			return abs((int)$entry['amount_cents']);
+		}
+
+		return (int)round(abs((float)($entry['amount'] ?? 0)) * 100, 0, PHP_ROUND_HALF_UP);
+	}
+
+	private function amountStringFromCents(int $amountCents): string {
+		return number_format($amountCents / 100, 2, '.', '');
+	}
+
 	private function leaveSettledSharedProject(int $projectId, string $userId): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete('cobudget_members')
@@ -317,10 +643,10 @@ class UserResetService {
 		$qb->executeStatement();
 	}
 
-	private function deleteProjectTree(int $projectId, bool $deleteReceiptFiles): array {
+	private function deleteProjectTree(int $projectId, bool $deleteReceiptFiles, ?string $fileOwnerUserId = null): array {
 		$entryIds = $this->entryIdsForProjects([$projectId]);
 		$settlementIds = $this->idsByColumn('cobudget_settlements', 'project_id', $projectId);
-		$attachmentReport = $this->deleteAttachmentsForEntries($entryIds, $deleteReceiptFiles);
+		$attachmentReport = $this->deleteAttachmentsForEntries($entryIds, $deleteReceiptFiles, $fileOwnerUserId);
 		$this->hashtagService->deleteHashtagsForEntries($entryIds);
 
 		$deleted = [
@@ -336,6 +662,7 @@ class UserResetService {
 		$this->deleteRowsByIds('cobudget_settlement_balances', $this->idsByColumnValues('cobudget_settlement_balances', 'settlement_id', $settlementIds));
 		$this->deleteRowsByIds('cobudget_settlement_transfers', $this->idsByColumnValues('cobudget_settlement_transfers', 'settlement_id', $settlementIds));
 		$this->deleteRowsByIds('cobudget_settlements', $settlementIds);
+		$this->entryShareService->deleteForEntries($entryIds);
 		$deleted['entries'] += $this->deleteRowsByIds('cobudget_entries', $entryIds);
 		$this->deleteRowsByIntColumn('cobudget_members', 'project_id', $projectId);
 		$this->deleteRowsByIds('cobudget_projects', [$projectId]);
@@ -343,7 +670,7 @@ class UserResetService {
 		return $deleted;
 	}
 
-	private function deleteAttachmentsForEntries(array $entryIds, bool $deleteReceiptFiles): array {
+	private function deleteAttachmentsForEntries(array $entryIds, bool $deleteReceiptFiles, ?string $fileOwnerUserId = null): array {
 		$entryIds = array_values(array_unique(array_map('intval', $entryIds)));
 		if ($entryIds === []) {
 			return ['rows' => 0, 'files' => 0];
@@ -353,6 +680,9 @@ class UserResetService {
 		$filesDeleted = 0;
 		if ($deleteReceiptFiles) {
 			foreach ($attachments as $attachment) {
+				if ($fileOwnerUserId !== null && (string)($attachment['owner_user_id'] ?? '') !== $fileOwnerUserId) {
+					continue;
+				}
 				if ($this->deleteAttachmentFile($attachment)) {
 					$filesDeleted++;
 				}

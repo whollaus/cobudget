@@ -81,14 +81,27 @@ try {
 	$assertContains($entry, 'entryPersonalAmountCents($entry, $projectShareBasisPoints)', 'EntryController CSV export includes personal shares for Bereich entries');
 	$assertContains($entry, 'exportTagLabels($entry)', 'EntryController CSV export includes Kennzeichen labels');
 	$assertContains($entry, "number_format(\$amountCents / 100, 2, '.', '')", 'EntryController CSV export uses decimal points for calculations');
+	$assertContains($entry, 'CsvCellSanitizer::sanitize((string)$value)', 'EntryController CSV text cells use formula-injection protection');
+	$assertContains($entry, "\$this->exportText(\$entry['description'] ?? '')", 'EntryController sanitizes CSV descriptions');
+	$assertContains($entry, "\$this->exportText(\$entry['category_name'] ?? '')", 'EntryController sanitizes CSV category names');
+	$assertContains($entry, "\$this->exportText(\$entry['paymentPartner'] ?? '')", 'EntryController sanitizes CSV payment partners');
+	$assertContains($entry, "\$this->exportText(\$entry['project_name'] ?? '')", 'EntryController sanitizes CSV area names');
+	$csvSanitizer = $read('lib/Service/CsvCellSanitizer.php');
+	$assertContains($csvSanitizer, '[=+\-@]', 'CSV sanitizer blocks spreadsheet formula prefixes');
+	$assertContains($csvSanitizer, "? \"'\" . \$value", 'CSV sanitizer neutralizes dangerous text with an apostrophe');
 	$assertContains($entry, 'fetchEntryListPayload($workspaceId', 'EntryController dashboard reuses entry payload');
-	$assertContains($entry, 'buildDashboardMetrics(', 'EntryController dashboard builds metrics server-side');
+	$assertContains($entry, 'buildDashboardMetricsFromAggregates(', 'EntryController dashboard builds aggregate metrics server-side');
 	$assertContains($entry, 'fetchDashboardProjects($workspaceId)', 'EntryController dashboard bundles projects');
 	$assertContains($entry, 'fetchDashboardCategories($workspaceId)', 'EntryController dashboard bundles categories');
 	$assertContains($entry, 'fetchDashboardPaymentPartners($workspaceId)', 'EntryController dashboard bundles paymentPartners');
-	$assertContains($entry, 'countDashboardTags(', 'EntryController dashboard bundles Kennzeichen counts');
+	$assertContains($entry, 'dashboardTagCountsFromAggregates(', 'EntryController dashboard bundles aggregate Kennzeichen counts');
 	$assertContains($entry, 'summaryOnly', 'EntryController dashboard supports lightweight summary requests');
-	$assertContains($entry, "'future' => \$this->summarizeDashboardEntries(\$futureData", 'EntryController dashboard exposes all planned payment metrics');
+	$assertContains($entry, "'future' => \$future['metrics']", 'EntryController dashboard exposes all planned payment metrics');
+	$assertContains($entry, 'MAX_PAGE_SIZE = 250', 'EntryController bounds requested payment page sizes');
+	$assertContains($entry, 'MAX_PAGE_OFFSET = 1000000', 'EntryController bounds requested payment offsets');
+	$assertContains($entry, 'while ($entry = $result->fetch())', 'EntryController streams filtered summary rows');
+	$assertContains($entry, '#[UserRateLimit(limit: 120, period: 60)]', 'EntryController rate limits payment lists and dashboards');
+	$assertContains($entry, '#[UserRateLimit(limit: 5, period: 300)]', 'EntryController rate limits CSV exports');
 	$assertMatches($entry, '/andWhere\\(\\$qb->expr\\(\\)->eq\\(\'workspace_id\'/', 'EntryController scoped mutations');
 
 	$routes = $read('appinfo/routes.php');
@@ -228,6 +241,12 @@ try {
 	$assertContains($backupJob, 'deleteStaleUserBackupLock($userId, $now)', 'BackupJob recovers stale locks');
 
 	$backupService = $read('lib/Service/BackupService.php');
+	$packageJson = $read('package.json');
+	$packageLock = $read('package-lock.json');
+	$assertContains($packageJson, '"dompurify": "3.4.11"', 'DOMPurify security override');
+	$assertContains($packageLock, '"node_modules/dompurify": {', 'DOMPurify lock entry');
+	$assertContains($packageLock, '"version": "3.4.11"', 'Patched DOMPurify lock version');
+	$assertNotContains($packageLock, 'dompurify-3.4.10.tgz', 'Vulnerable DOMPurify archive');
 	$assertContains($backupService, "'scope' => 'user'", 'User backup manifest includes scope');
 	$assertContains($backupService, "'scope' => 'system'", 'Full backup manifest includes scope');
 	$assertContains($backupService, 'private const SETTINGS_DEFAULTS', 'BackupService exports effective settings defaults');
@@ -241,6 +260,10 @@ try {
 	$assertContains($backupService, 'normalizeFullSettings($archive[\'settings\'], $tables)', 'Full restore normalizes settings with table context');
 	$assertContains($backupService, 'fetchAllSettings($userIds)', 'Full backup includes effective settings for every exported user');
 	$assertContains($backupService, 'createFullBackup(string $storageUserId', 'BackupService exposes full backup creation');
+	$assertContains($backupService, 'IGroupManager', 'BackupService injects the Nextcloud admin group manager');
+	$assertContains($backupService, 'assertFullBackupStorageAdmin($storageUserId)', 'BackupService guards full backup storage accounts');
+	$assertContains($backupService, '$this->groupManager->isAdmin($storageUserId)', 'BackupService requires full backups to be owned by an administrator');
+	$assertContains($backupService, 'Speicher-Benutzer muss ein Nextcloud-Administrator sein.', 'BackupService rejects non-admin full backup owners explicitly');
 	$assertContains($backupService, 'deleteBackup(string $userId', 'BackupService exposes personal export deletion');
 	$assertContains($backupService, 'inspectBackup(string $userId', 'BackupService exposes personal export inspection');
 	$assertContains($backupService, 'restoreBackup(string $userId', 'BackupService exposes empty-state personal export restore');
@@ -394,6 +417,12 @@ try {
 	$assertContains($entry, "'receipt_storage_folder'", 'EntryController uses the configured receipt storage folder');
 	$assertContains($entry, "'receipt_folder_grouping'", 'EntryController uses the configured receipt folder grouping');
 	$assertContains($entry, "'delete_receipts_with_entry'", 'EntryController honors configured receipt file deletion behavior');
+	$assertContains($entry, '$ownerUserId !== (string)$this->userId', 'EntryController blocks direct receipt deletion by another area member');
+	$assertContains($entry, "eq('owner_user_id'", 'EntryController scopes direct receipt row deletion to the verified owner');
+	$assertContains($entry, 'ownerWantsAttachmentFileDeletedWithEntry($attachment)', 'EntryController evaluates automatic receipt cleanup per file owner');
+	$assertContains($entry, "getUserValue(\$ownerUserId, 'cobudget', 'delete_receipts_with_entry'", 'EntryController uses the receipt owner preference for physical file cleanup');
+	$entryModal = $read('src/components/AddEntryModal.vue');
+	$assertContains($entryModal, 'v-if="canDeleteAttachment(attachment)"', 'Entry modal hides receipt deletion for non-owners');
 	$assertContains($entry, 'DEFAULT_ATTACHMENT_MAX_SIZE_BYTES = 10485760', 'EntryController keeps a safe default receipt upload size');
 	$assertContains($entry, 'ATTACHMENT_MAX_SIZE_CONFIG_KEY', 'EntryController allows overriding receipt upload size through system config');
 	$assertContains($entry, 'ATTACHMENT_ALLOWED_TYPES_CONFIG_KEY', 'EntryController allows overriding receipt upload types through system config');
@@ -424,6 +453,16 @@ try {
 	$assertContains($user, 'shareapi_allow_share_dialog_user_enumeration', 'User search honors the Nextcloud user enumeration config');
 	$assertContains($user, 'mb_strlen($term) < self::USER_SEARCH_MIN_LENGTH', 'User search rejects too-short queries');
 	$assertContains($user, 'search($term, self::USER_SEARCH_LIMIT)', 'User search uses the constrained limit');
+	$assertContains($user, '#[UserRateLimit(limit: 30, period: 60)]', 'User search uses native Nextcloud rate limiting');
+	$project = $read('lib/Controller/ProjectController.php');
+	$assertContains($project, 'shareapi_allow_share_dialog_user_enumeration', 'Direct project member additions honor Nextcloud user enumeration policy');
+	$assertContains($project, 'if (!$this->userSearchAllowed())', 'Direct project member additions are blocked when enumeration is disabled');
+	$assertNotContains($project, "['error' => 'User not found']", 'Project membership API does not disclose guessed user existence');
+
+	$assertContains($entry, 'deleteEntryAttachmentFilesAfterCommit', 'Physical receipt cleanup is deferred until payment database changes commit');
+	$assertContains($entry, 'Failed to notify shared-area members after payment commit', 'Notification failures after payment commit are logged without rolling back stored payments');
+	$budget = $read('lib/Controller/BudgetController.php');
+	$assertContains($budget, 'beginTransaction()', 'Budget snapshot and mutation paths are transactional');
 
 	$notifier = $read('lib/Notification/Notifier.php');
 	$l10nDe = $read('l10n/de.js');
@@ -447,6 +486,10 @@ try {
 	$assertContains($notifier, 'You owe %s %s.', 'Notifier includes negative settlement result l10n key');
 	$assertContains($l10nDe, '"You get %s %s back.": "Du bekommst %s %s zurück."', 'German l10n translates positive settlement result');
 	$assertContains($l10nDe, '"You owe %s %s.": "Du schuldest %s %s."', 'German l10n translates negative settlement result');
+	$assertContains($notifier, 'UnknownNotificationException', 'Notifier uses the supported Nextcloud unknown-notification exception');
+	$assertContains($notifier, 'setParsedMessageWhenPresent', 'Notifier skips invalid empty parsed messages');
+	$assertContains($notifier, 'CoBudget notification', 'Notifier safely renders obsolete CoBudget notification subjects');
+	$assertNotContains($notifier, '\\OC::$server', 'Notifier does not depend on Nextcloud private globals');
 
 	$projectNotificationService = $read('lib/Service/ProjectNotificationService.php');
 	$assertContains($projectNotificationService, 'notifyEntryCreated', 'ProjectNotificationService sends entry notifications');
@@ -472,6 +515,11 @@ try {
 	$assertContains($initialMigration, 'cobudget_settlement_balances', 'Initial migration creates balance snapshot table');
 	$assertContains($initialMigration, 'cobudget_settlement_transfers', 'Initial migration creates transfer snapshot table');
 	$assertContains($initialMigration, 'usage_count', 'Initial migration adds template usage_count');
+	$assertContains($initialMigration, "addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", 'Initial migration prevents duplicate area memberships');
+	$membershipMigration = $read('lib/Migration/Version000004Date20260710000000.php');
+	$assertContains($membershipMigration, 'preSchemaChange', 'Membership migration removes duplicates before adding uniqueness');
+	$assertContains($membershipMigration, "delete('cobudget_members')", 'Membership migration removes duplicate member rows');
+	$assertContains($membershipMigration, "addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", 'Membership migration enforces project/user uniqueness');
 
 	$performanceMigration = $read('lib/Migration/Version000001Date20260624000000.php');
 	foreach ([

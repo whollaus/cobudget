@@ -6,7 +6,7 @@
 - Nextcloud app id: `cobudget`
 - PHP namespace: `OCA\CoBudget`
 - This is a technical reset. New installs use only `cobudget` identifiers and `cobudget_*` database tables.
-- Nextcloud target versions: min `27`, max `33`
+- Nextcloud target versions: min `33`, max `34`
 - Current app version: see `appinfo/info.xml`
 
 ## Stack
@@ -59,6 +59,7 @@ Use the local Nextcloud skill when changing Nextcloud-specific PHP, routing, Vue
 - Delete and update statements should include user/workspace scope, not rely only on a previous read check.
 - Store and process money internally through `amount_cents` integer cents.
 - The legacy `amount` decimal column may still exist for compatibility, but backend calculations and new writes must use `amount_cents` as the canonical source.
+- Shared payments store immutable per-member allocation snapshots in `cobudget_entry_shares`. Area default percentages apply only when a payment is created or its allocation-affecting fields are explicitly edited.
 
 ## Recurring Entry Rules
 
@@ -116,8 +117,8 @@ The public alpha baseline starts at `0.1.0`. The internal pre-release migration 
 - `occ cobudget:backup:create <userId>` creates a personal export with `scope: user`, `type: personal_export`, and `restore_supported: false` in the manifest.
 - Personal exports can be created manually or regularly from the user settings. They preserve the user's own perspective and are not restored into existing CoBudget data.
 - `occ cobudget:backup:restore <userId> <fileName> --force` is intentionally disabled for personal exports and points users to Admin full restore instead.
-- `occ cobudget:backup:create-full --user <storageUserId>` creates a system-scoped full backup with `scope: system` in the manifest and stores it in the specified user's Nextcloud Files.
-- `occ cobudget:backup:restore-full --user <storageUserId> --file <fileName> --force` restores a system-scoped full backup and replaces all CoBudget app tables/settings.
+- `occ cobudget:backup:create-full --user <storageAdminUserId>` creates a system-scoped full backup with `scope: system` in the manifest and stores it in the specified Nextcloud administrator's Files. Non-admin storage accounts must be rejected.
+- `occ cobudget:backup:restore-full --user <storageAdminUserId> --file <fileName> --force` restores a system-scoped full backup and replaces all CoBudget app tables/settings. The Files owner must still be a Nextcloud administrator.
 - Full restore supports repeated `--map-user oldUser:newUser` options for server transfers where user IDs changed.
 - Full backups export every CoBudget table and the CoBudget user settings for all referenced users. Attachment files are not embedded; only their stored paths are exported.
 - Keep personal exports and full backups as separate filename families: `cobudget-personal-export-...zip` and `cobudget-full-backup-...zip`. Legacy `cobudget-backup-...zip` files may remain listable/downloadable for compatibility.

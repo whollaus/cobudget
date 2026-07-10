@@ -5,6 +5,7 @@ use OCP\BackgroundJob\TimedJob;
 use OCP\IDBConnection;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCA\CoBudget\Service\HashtagService;
+use OCA\CoBudget\Service\EntryShareService;
 use Psr\Log\LoggerInterface;
 
 class RecurringEntriesJob extends TimedJob {
@@ -16,12 +17,14 @@ class RecurringEntriesJob extends TimedJob {
 	private IDBConnection $db;
 	private LoggerInterface $logger;
 	private HashtagService $hashtagService;
+	private EntryShareService $entryShareService;
 
-	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, HashtagService $hashtagService) {
+	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, HashtagService $hashtagService, EntryShareService $entryShareService) {
 		parent::__construct($timeFactory);
 		$this->db = $db;
 		$this->logger = $logger;
 		$this->hashtagService = $hashtagService;
+		$this->entryShareService = $entryShareService;
 		
 		// Match common web-cron setups and allow due recurrences to run shortly after 09:00.
 		$this->setInterval(self::JOB_INTERVAL_SECONDS);
@@ -93,9 +96,10 @@ class RecurringEntriesJob extends TimedJob {
 						'recurrence_series_id' => $insertQb->createNamedParameter($seriesId, \PDO::PARAM_INT),
 						'workspace_id' => $insertQb->createNamedParameter($entry['workspace_id'] ?? null, ($entry['workspace_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
 					]);
-				$insertQb->executeStatement();
-				$newEntryId = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
-				$this->hashtagService->syncEntryHashtags($newEntryId, (int)($entry['workspace_id'] ?? 0), (string)($entry['description'] ?? ''));
+					$insertQb->executeStatement();
+					$newEntryId = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
+					$this->entryShareService->syncEntry($newEntryId);
+					$this->hashtagService->syncEntryHashtags($newEntryId, (int)($entry['workspace_id'] ?? 0), (string)($entry['description'] ?? ''));
 
 				$this->db->commit();
 			} catch (\Exception $e) {

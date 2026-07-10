@@ -10,6 +10,7 @@ use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\IConfig;
 use OCP\IDBConnection;
+use OCP\IGroupManager;
 use OCP\IUserManager;
 
 class BackupService {
@@ -25,6 +26,14 @@ class BackupService {
 	private const RESTORE_LOCK_USER = '__cobudget_restore__';
 	private const RESTORE_LOCK_KEY = 'restore_running_since';
 	private const RESTORE_LOCK_TTL_SECONDS = 6 * 60 * 60;
+	private const DEFAULT_RESTORE_MAX_ARCHIVE_BYTES = 32 * 1024 * 1024;
+	private const DEFAULT_RESTORE_MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
+	private const DEFAULT_RESTORE_MAX_JSON_BYTES = 32 * 1024 * 1024;
+	private const DEFAULT_RESTORE_MAX_COMPRESSION_RATIO = 200;
+	private const RESTORE_MAX_ARCHIVE_BYTES_CONFIG_KEY = 'cobudget.restore_max_archive_bytes';
+	private const RESTORE_MAX_UNCOMPRESSED_BYTES_CONFIG_KEY = 'cobudget.restore_max_uncompressed_bytes';
+	private const RESTORE_MAX_JSON_BYTES_CONFIG_KEY = 'cobudget.restore_max_json_bytes';
+	private const RESTORE_MAX_COMPRESSION_RATIO_CONFIG_KEY = 'cobudget.restore_max_compression_ratio';
 	private const USER_EXPORT_FILE_PATTERN = '/^(?:cobudget-personal-export|cobudget-backup)-\d{8}-\d{6}(?:-\d+)?\.zip$/';
 	private const FULL_BACKUP_FILE_PATTERN = '/^cobudget-full-backup-\d{8}-\d{6}(?:-\d+)?\.zip$/';
 	private const BACKUP_FILE_PATTERN = '/^(?:cobudget-personal-export|cobudget(?:-full)?-backup)-\d{8}-\d{6}(?:-\d+)?\.zip$/';
@@ -38,6 +47,7 @@ class BackupService {
 		'cobudget_payment_partners',
 		'cobudget_templates',
 		'cobudget_entries',
+		'cobudget_entry_shares',
 		'cobudget_entry_history',
 		'cobudget_hashtags',
 		'cobudget_entry_hashtags',
@@ -148,6 +158,13 @@ class BackupService {
 			'reminder_notified',
 			'reminder_text',
 			'workspace_id',
+		],
+		'cobudget_entry_shares' => [
+			'id',
+			'entry_id',
+			'user_id',
+			'share_basis_points',
+			'amount_cents',
 		],
 		'cobudget_entry_history' => [
 			'id',
@@ -261,6 +278,7 @@ class BackupService {
 		'cobudget_payment_partners' => ['user_id'],
 		'cobudget_templates' => ['user_id'],
 		'cobudget_entries' => ['user_id'],
+		'cobudget_entry_shares' => ['user_id'],
 		'cobudget_entry_history' => ['changed_by'],
 		'cobudget_entry_attachments' => ['owner_user_id'],
 		'cobudget_settlements' => ['created_by'],
@@ -288,6 +306,7 @@ class BackupService {
 		['sourceTable' => 'cobudget_entries', 'column' => 'settlement_id', 'targetTable' => 'cobudget_settlements'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'recurrence_parent_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'recurrence_series_id', 'targetTable' => 'cobudget_entries'],
+		['sourceTable' => 'cobudget_entry_shares', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entry_history', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entry_history', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_entry_history', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
@@ -377,6 +396,7 @@ class BackupService {
 		private IConfig $config,
 		private IRootFolder $rootFolder,
 		private IUserManager $userManager,
+		private IGroupManager $groupManager,
 	) {
 	}
 
@@ -395,7 +415,7 @@ class BackupService {
 	}
 
 	/**
-	 * @return array{storage_user_id: string, storage_folder: string, retention_count: int, schedule: string, storage_user_exists: bool}
+	 * @return array{storage_user_id: string, storage_folder: string, retention_count: int, schedule: string, storage_user_exists: bool, storage_user_is_admin: bool}
 	 */
 	public function getFullBackupSettings(): array {
 		$storageUserId = trim($this->config->getAppValue('cobudget', self::FULL_BACKUP_STORAGE_USER_KEY, ''));
@@ -403,17 +423,20 @@ class BackupService {
 		$retentionCount = $this->normalizeRetentionCount($this->config->getAppValue('cobudget', self::FULL_BACKUP_RETENTION_COUNT_KEY, (string)self::DEFAULT_RETENTION_COUNT));
 		$schedule = $this->normalizeSchedule($this->config->getAppValue('cobudget', self::FULL_BACKUP_SCHEDULE_KEY, self::DEFAULT_BACKUP_SCHEDULE));
 
+		$storageUserExists = $storageUserId !== '' && $this->userManager->userExists($storageUserId);
+
 		return [
 			'storage_user_id' => $storageUserId,
 			'storage_folder' => $storageFolder,
 			'retention_count' => $retentionCount,
 			'schedule' => $schedule,
-			'storage_user_exists' => $storageUserId !== '' && $this->userManager->userExists($storageUserId),
+			'storage_user_exists' => $storageUserExists,
+			'storage_user_is_admin' => $storageUserExists && $this->groupManager->isAdmin($storageUserId),
 		];
 	}
 
 	/**
-	 * @return array{storage_user_id: string, storage_folder: string, retention_count: int, schedule: string, storage_user_exists: bool}
+	 * @return array{storage_user_id: string, storage_folder: string, retention_count: int, schedule: string, storage_user_exists: bool, storage_user_is_admin: bool}
 	 */
 	public function saveFullBackupSettings(string $storageUserId, string $storageFolder, int|string $retentionCount, string $schedule): array {
 		$storageUserId = trim($storageUserId);
@@ -424,8 +447,8 @@ class BackupService {
 		if ($storageUserId === '' && $schedule !== 'none') {
 			throw new \InvalidArgumentException('Bitte Speicher-Benutzer angeben.');
 		}
-		if ($storageUserId !== '' && !$this->userManager->userExists($storageUserId)) {
-			throw new \InvalidArgumentException('Speicher-Benutzer wurde nicht gefunden.');
+		if ($storageUserId !== '') {
+			$this->assertFullBackupStorageAdmin($storageUserId);
 		}
 
 		$this->config->setAppValue('cobudget', self::FULL_BACKUP_STORAGE_USER_KEY, $storageUserId);
@@ -442,9 +465,7 @@ class BackupService {
 		if ($storageUserId === '') {
 			throw new \InvalidArgumentException('Bitte Speicher-Benutzer angeben.');
 		}
-		if (!$this->userManager->userExists($storageUserId)) {
-			throw new \InvalidArgumentException('Speicher-Benutzer wurde nicht gefunden.');
-		}
+		$this->assertFullBackupStorageAdmin($storageUserId);
 
 		return $this->createFullBackup(
 			$storageUserId,
@@ -459,7 +480,7 @@ class BackupService {
 	public function listConfiguredFullBackups(): array {
 		$settings = $this->getFullBackupSettings();
 		$storageUserId = $settings['storage_user_id'];
-		if ($storageUserId === '' || !$this->userManager->userExists($storageUserId)) {
+		if (!$this->isFullBackupStorageAdmin($storageUserId)) {
 			return [];
 		}
 
@@ -488,9 +509,7 @@ class BackupService {
 		if ($storageUserId === '') {
 			throw new \InvalidArgumentException('Bitte Speicher-Benutzer angeben.');
 		}
-		if (!$this->userManager->userExists($storageUserId)) {
-			throw new \InvalidArgumentException('Speicher-Benutzer wurde nicht gefunden.');
-		}
+		$this->assertFullBackupStorageAdmin($storageUserId);
 
 		return $this->getBackupFileFromFolder($storageUserId, $fileName, $settings['storage_folder'], self::FULL_BACKUP_FILE_PATTERN);
 	}
@@ -512,9 +531,7 @@ class BackupService {
 		if ($storageUserId === '') {
 			throw new \InvalidArgumentException('Bitte Speicher-Benutzer angeben.');
 		}
-		if (!$this->userManager->userExists($storageUserId)) {
-			throw new \InvalidArgumentException('Speicher-Benutzer wurde nicht gefunden.');
-		}
+		$this->assertFullBackupStorageAdmin($storageUserId);
 
 		return $this->restoreFullBackup($storageUserId, $fileName, $settings['storage_folder']);
 	}
@@ -588,6 +605,7 @@ class BackupService {
 		if (!class_exists(\ZipArchive::class)) {
 			throw new \RuntimeException('ZIP-Unterstützung ist auf diesem Server nicht verfügbar');
 		}
+		$this->assertFullBackupStorageAdmin($storageUserId);
 
 		$settings = $this->getFullBackupSettings();
 		$folderPath = $folderOverride !== null ? $this->normalizeFolder($folderOverride) : $settings['storage_folder'];
@@ -756,6 +774,8 @@ class BackupService {
 	}
 
 	public function restoreFullBackup(string $storageUserId, string $fileName, ?string $folderOverride = null, array $userMap = []): array {
+		$this->assertFullBackupStorageAdmin($storageUserId);
+
 		$restoreLock = $this->acquireRestoreLock();
 		if ($restoreLock === null) {
 			throw new \RuntimeException('Es läuft bereits eine CoBudget-Wiederherstellung. Bitte später erneut versuchen.');
@@ -804,6 +824,23 @@ class BackupService {
 
 	private function getSafetyBackupRetentionCount(string $userId): int {
 		return min(self::MAX_RETENTION_COUNT, $this->getRetentionCount($userId) + 1);
+	}
+
+	private function isFullBackupStorageAdmin(string $storageUserId): bool {
+		$storageUserId = trim($storageUserId);
+		return $storageUserId !== ''
+			&& $this->userManager->userExists($storageUserId)
+			&& $this->groupManager->isAdmin($storageUserId);
+	}
+
+	private function assertFullBackupStorageAdmin(string $storageUserId): void {
+		$storageUserId = trim($storageUserId);
+		if ($storageUserId === '' || !$this->userManager->userExists($storageUserId)) {
+			throw new \InvalidArgumentException('Speicher-Benutzer wurde nicht gefunden.');
+		}
+		if (!$this->groupManager->isAdmin($storageUserId)) {
+			throw new \InvalidArgumentException('Speicher-Benutzer muss ein Nextcloud-Administrator sein.');
+		}
 	}
 
 	private function acquireRestoreLock(): ?string {
@@ -925,10 +962,9 @@ class BackupService {
 			throw new \RuntimeException('Temporäre Restore-Datei konnte nicht erstellt werden');
 		}
 
+		$limits = $this->backupRestoreLimits();
 		try {
-			if (file_put_contents($tempFile, $file->getContent()) === false) {
-				throw new \RuntimeException('Backup konnte nicht vorbereitet werden');
-			}
+			$this->copyBackupFileToTemp($file, $tempFile, $limits['max_archive_bytes']);
 
 			$zip = new \ZipArchive();
 			if ($zip->open($tempFile) !== true) {
@@ -936,12 +972,13 @@ class BackupService {
 			}
 
 			try {
-				$this->assertBackupZipEntries($zip);
-				$manifest = $this->readJson($zip, 'manifest.json', true);
-				$settings = $this->readJson($zip, 'settings.json', false);
+				$this->assertBackupZipEntries($zip, $limits);
+				$remainingUncompressedBytes = $limits['max_uncompressed_bytes'];
+				$manifest = $this->readJson($zip, 'manifest.json', true, $limits['max_json_bytes'], $remainingUncompressedBytes);
+				$settings = $this->readJson($zip, 'settings.json', false, $limits['max_json_bytes'], $remainingUncompressedBytes);
 				$tables = [];
 				foreach (self::BACKUP_TABLES as $table) {
-					$tables[$table] = $this->normalizeTableRows($table, $this->readJson($zip, 'data/' . $table . '.json', false));
+					$tables[$table] = $this->normalizeTableRows($table, $this->readJson($zip, 'data/' . $table . '.json', false, $limits['max_json_bytes'], $remainingUncompressedBytes));
 				}
 
 				return [
@@ -959,7 +996,39 @@ class BackupService {
 		}
 	}
 
-	private function readJson(\ZipArchive $zip, string $path, bool $required): array {
+	private function copyBackupFileToTemp(File $file, string $tempFile, int $maxArchiveBytes): void {
+		$fileSize = (int)$file->getSize();
+		if ($fileSize < 0 || $fileSize > $maxArchiveBytes) {
+			throw new \InvalidArgumentException('Backup-ZIP überschreitet die erlaubte Dateigröße');
+		}
+
+		$source = $file->fopen('r');
+		$target = fopen($tempFile, 'wb');
+		if (!is_resource($source) || !is_resource($target)) {
+			if (is_resource($source)) {
+				fclose($source);
+			}
+			if (is_resource($target)) {
+				fclose($target);
+			}
+			throw new \RuntimeException('Backup konnte nicht vorbereitet werden');
+		}
+
+		try {
+			$copiedBytes = stream_copy_to_stream($source, $target, $maxArchiveBytes + 1);
+			if ($copiedBytes === false) {
+				throw new \RuntimeException('Backup konnte nicht vorbereitet werden');
+			}
+			if ($copiedBytes > $maxArchiveBytes) {
+				throw new \InvalidArgumentException('Backup-ZIP überschreitet die erlaubte Dateigröße');
+			}
+		} finally {
+			fclose($source);
+			fclose($target);
+		}
+	}
+
+	private function readJson(\ZipArchive $zip, string $path, bool $required, int $maxJsonBytes, int &$remainingUncompressedBytes): array {
 		if ($zip->locateName($path) === false) {
 			if ($required) {
 				throw new \InvalidArgumentException('Backup ist unvollständig: ' . $path . ' fehlt');
@@ -967,10 +1036,27 @@ class BackupService {
 			return [];
 		}
 
-		$content = $zip->getFromName($path);
+		$stream = $zip->getStream($path);
+		if (!is_resource($stream)) {
+			throw new \InvalidArgumentException('Backup ist unvollständig: ' . $path . ' konnte nicht gelesen werden');
+		}
+		$readLimit = min($maxJsonBytes, max(0, $remainingUncompressedBytes));
+		try {
+			$content = stream_get_contents($stream, $readLimit + 1);
+		} finally {
+			fclose($stream);
+		}
 		if (!is_string($content)) {
 			throw new \InvalidArgumentException('Backup ist unvollständig: ' . $path . ' konnte nicht gelesen werden');
 		}
+		$contentBytes = strlen($content);
+		if ($contentBytes > $maxJsonBytes) {
+			throw new \InvalidArgumentException('Backup enthält eine zu große JSON-Datei: ' . $path);
+		}
+		if ($contentBytes > $remainingUncompressedBytes) {
+			throw new \InvalidArgumentException('Backup-ZIP überschreitet die erlaubte entpackte Gesamtgröße');
+		}
+		$remainingUncompressedBytes -= $contentBytes;
 
 		try {
 			$data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
@@ -985,7 +1071,8 @@ class BackupService {
 		return $data;
 	}
 
-	private function assertBackupZipEntries(\ZipArchive $zip): void {
+	/** @param array{max_archive_bytes: int, max_uncompressed_bytes: int, max_json_bytes: int, max_compression_ratio: int} $limits */
+	private function assertBackupZipEntries(\ZipArchive $zip, array $limits): void {
 		$allowedEntries = [
 			'manifest.json' => true,
 			'settings.json' => true,
@@ -993,7 +1080,12 @@ class BackupService {
 		foreach (self::BACKUP_TABLES as $table) {
 			$allowedEntries['data/' . $table . '.json'] = true;
 		}
+		if ($zip->numFiles > count($allowedEntries)) {
+			throw new \InvalidArgumentException('Backup-ZIP enthält zu viele Dateien');
+		}
 
+		$seenEntries = [];
+		$totalUncompressedBytes = 0;
 		for ($i = 0; $i < $zip->numFiles; $i++) {
 			$stat = $zip->statIndex($i);
 			$name = is_array($stat) ? (string)($stat['name'] ?? '') : '';
@@ -1007,7 +1099,46 @@ class BackupService {
 			) {
 				throw new \InvalidArgumentException('Backup-ZIP enthält unerwartete Dateien');
 			}
+			if (isset($seenEntries[$name])) {
+				throw new \InvalidArgumentException('Backup-ZIP enthält doppelte Dateien');
+			}
+			$seenEntries[$name] = true;
+
+			$uncompressedBytes = (int)($stat['size'] ?? -1);
+			$compressedBytes = (int)($stat['comp_size'] ?? -1);
+			if ($uncompressedBytes < 0 || $compressedBytes < 0 || $uncompressedBytes > $limits['max_json_bytes']) {
+				throw new \InvalidArgumentException('Backup-ZIP enthält eine zu große Datei');
+			}
+			if ($totalUncompressedBytes > $limits['max_uncompressed_bytes'] - $uncompressedBytes) {
+				throw new \InvalidArgumentException('Backup-ZIP überschreitet die erlaubte entpackte Gesamtgröße');
+			}
+			$totalUncompressedBytes += $uncompressedBytes;
+
+			if ($uncompressedBytes > 0
+				&& ($compressedBytes <= 0 || ($uncompressedBytes / $compressedBytes) > $limits['max_compression_ratio'])) {
+				throw new \InvalidArgumentException('Backup-ZIP weist ein unsicheres Kompressionsverhältnis auf');
+			}
 		}
+	}
+
+	/** @return array{max_archive_bytes: int, max_uncompressed_bytes: int, max_json_bytes: int, max_compression_ratio: int} */
+	private function backupRestoreLimits(): array {
+		return [
+			'max_archive_bytes' => $this->positiveSystemInt(self::RESTORE_MAX_ARCHIVE_BYTES_CONFIG_KEY, self::DEFAULT_RESTORE_MAX_ARCHIVE_BYTES),
+			'max_uncompressed_bytes' => $this->positiveSystemInt(self::RESTORE_MAX_UNCOMPRESSED_BYTES_CONFIG_KEY, self::DEFAULT_RESTORE_MAX_UNCOMPRESSED_BYTES),
+			'max_json_bytes' => $this->positiveSystemInt(self::RESTORE_MAX_JSON_BYTES_CONFIG_KEY, self::DEFAULT_RESTORE_MAX_JSON_BYTES),
+			'max_compression_ratio' => $this->positiveSystemInt(self::RESTORE_MAX_COMPRESSION_RATIO_CONFIG_KEY, self::DEFAULT_RESTORE_MAX_COMPRESSION_RATIO),
+		];
+	}
+
+	private function positiveSystemInt(string $key, int $default): int {
+		if (method_exists($this->config, 'getSystemValueInt')) {
+			$value = (int)$this->config->getSystemValueInt($key, $default);
+		} else {
+			$value = (int)$this->config->getSystemValue($key, $default);
+		}
+
+		return $value > 0 ? $value : $default;
 	}
 
 	private function assertBackupArchive(array $archive, string $expectedScope): void {
@@ -1273,6 +1404,7 @@ class BackupService {
 		}
 
 		$memberSharesByProject = $this->projectMemberSharesByProject($prepared['cobudget_members'], $sourceUserId);
+		$storedEntryShares = $this->entrySharesByEntry($prepared['cobudget_entry_shares']);
 		$sharedProjectIds = $this->sharedProjectIdsForPersonalImport($prepared['cobudget_projects'], $memberSharesByProject, $sourceUserId);
 
 		$workspaces = [];
@@ -1405,7 +1537,7 @@ class BackupService {
 				if ($primaryWorkspaceId === null) {
 					continue;
 				}
-				$shareCents = $this->personalImportEntryShareCents($row, $sourceUserId, $memberSharesByProject);
+				$shareCents = $this->personalImportEntryShareCents($row, $sourceUserId, $memberSharesByProject, $storedEntryShares);
 				if ($shareCents === null || $shareCents <= 0) {
 					continue;
 				}
@@ -1449,6 +1581,21 @@ class BackupService {
 		}
 		$prepared['cobudget_entries'] = $entries;
 		$entryIds = $this->oldIdSet($entries);
+
+		$entryShares = [];
+		foreach ($prepared['cobudget_entry_shares'] as $row) {
+			$entryId = $this->nullableId($row['entry_id'] ?? null);
+			if ($entryId === null || !isset($entryIds[$entryId]) || isset($convertedSharedEntryIds[$entryId])) {
+				continue;
+			}
+			if (trim((string)($row['user_id'] ?? '')) !== $sourceUserId) {
+				continue;
+			}
+			$row['entry_id'] = $entryId;
+			$row['user_id'] = $userId;
+			$entryShares[] = $row;
+		}
+		$prepared['cobudget_entry_shares'] = $entryShares;
 
 		$history = [];
 		foreach ($prepared['cobudget_entry_history'] as $row) {
@@ -1618,7 +1765,7 @@ class BackupService {
 		return $sharedProjectIds;
 	}
 
-	private function personalImportEntryShareCents(array $entry, string $sourceUserId, array $memberSharesByProject): ?int {
+	private function personalImportEntryShareCents(array $entry, string $sourceUserId, array $memberSharesByProject, array $storedEntryShares = []): ?int {
 		$amountCents = $this->backupAmountCents($entry);
 		if ($amountCents <= 0) {
 			return null;
@@ -1628,6 +1775,11 @@ class BackupService {
 		$projectId = $this->nullableId($entry['project_id'] ?? null);
 		if ($projectId === null) {
 			return $entryUserId === $sourceUserId ? $amountCents : null;
+		}
+
+		$entryId = $this->nullableId($entry['id'] ?? null);
+		if ($entryId !== null && isset($storedEntryShares[$entryId][$sourceUserId])) {
+			return max(0, (int)$storedEntryShares[$entryId][$sourceUserId]['amount_cents']);
 		}
 
 		if ((string)($entry['split_mode'] ?? '') === 'single_user') {
@@ -1650,6 +1802,23 @@ class BackupService {
 		}
 
 		return $this->roundPersonalImportShareCents($amountCents, $sourceShare, $totalShare);
+	}
+
+	private function entrySharesByEntry(array $rows): array {
+		$shares = [];
+		foreach ($rows as $row) {
+			$entryId = $this->nullableId($row['entry_id'] ?? null);
+			$userId = trim((string)($row['user_id'] ?? ''));
+			if ($entryId === null || $userId === '') {
+				continue;
+			}
+			$shares[$entryId][$userId] = [
+				'share_basis_points' => max(0, (int)($row['share_basis_points'] ?? 0)),
+				'amount_cents' => max(0, (int)($row['amount_cents'] ?? 0)),
+			];
+		}
+
+		return $shares;
 	}
 
 	private function roundPersonalImportShareCents(int $amountCents, int $share, int $totalShare): int {
@@ -1830,6 +1999,7 @@ class BackupService {
 				$mapColumn('project_id', 'cobudget_projects');
 				$mapColumn('settlement_id', 'cobudget_settlements');
 			})(),
+			'cobudget_entry_shares' => $mapColumn('entry_id', 'cobudget_entries'),
 			'cobudget_entry_history' => (function () use ($mapColumn): void {
 				$mapColumn('entry_id', 'cobudget_entries');
 				$mapColumn('workspace_id', 'cobudget_workspaces');
@@ -2109,6 +2279,7 @@ class BackupService {
 			'cobudget_payment_partners' => 'Zahlungspartner',
 			'cobudget_templates' => 'Vorlagen',
 			'cobudget_entries' => 'Zahlungen',
+			'cobudget_entry_shares' => 'Gespeicherte Zahlungsanteile',
 			'cobudget_entry_history' => 'Zahlungshistorie',
 			'cobudget_hashtags' => 'Hashtags',
 			'cobudget_entry_hashtags' => 'Hashtag-Zuordnungen',
@@ -2431,6 +2602,7 @@ class BackupService {
 			'cobudget_payment_partners' => $this->fetchPaymentPartners($userId, $workspaceIds, $projectIds),
 			'cobudget_templates' => $this->fetchTemplates($userId, $workspaceIds, $projectIds),
 			'cobudget_entries' => $entries,
+			'cobudget_entry_shares' => $this->fetchRowsByIds('cobudget_entry_shares', 'entry_id', $entryIds),
 			'cobudget_entry_history' => $this->fetchRowsByIds('cobudget_entry_history', 'entry_id', $entryIds),
 			'cobudget_hashtags' => $this->fetchRowsByIds('cobudget_hashtags', 'id', $hashtagIds),
 			'cobudget_entry_hashtags' => $entryHashtags,

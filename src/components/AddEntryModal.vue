@@ -236,7 +236,7 @@
 										{{ attachment.file_name }}
 									</a>
 									<span class="attachment-meta">{{ formatFileSize(attachment.file_size) }}</span>
-									<button type="button" class="attachment-remove" :disabled="loading" @click="deleteAttachment(attachment)" :aria-label="$texts.entry.removeReceipt()">×</button>
+									<button v-if="canDeleteAttachment(attachment)" type="button" class="attachment-remove" :disabled="loading" @click="deleteAttachment(attachment)" :aria-label="$texts.entry.removeReceipt()">×</button>
 								</li>
 								<li v-for="(file, index) in pendingAttachments" :key="`pending-${index}-${file.name}`" class="attachment-pending">
 									<span>{{ file.name }}</span>
@@ -1597,6 +1597,10 @@ export default {
 				return `${(bytes / 1024).toFixed(1)} KB`;
 			}
 			return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+		},
+		canDeleteAttachment(attachment) {
+			const ownerUserId = String(attachment?.owner_user_id || '').trim();
+			return ownerUserId !== '' && ownerUserId === this.currentUserId();
 		},
 		async deleteAttachment(attachment) {
 			if (!this.entry.id || !attachment?.id) {

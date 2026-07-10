@@ -167,6 +167,7 @@ OC.L10N.register(
     "Restore personal export": "Persönlichen Export wiederherstellen",
     "This import replaces your current empty CoBudget user state with {file}. A safety export is created automatically beforehand. The import is only possible if this user has no CoBudget data yet. Type RESTORE to confirm.": "Dieser Import ersetzt den aktuell leeren CoBudget-Stand dieses Benutzers durch {file}. Vorher wird automatisch ein Sicherheitsexport erstellt. Der Import ist nur möglich, wenn dieser Benutzer noch keine CoBudget-Daten hat. Gib zur Bestätigung RESTORE ein.",
     "Restore is only possible when this user has no CoBudget data yet. Please delete everything and reset first, or use a new user.": "Wiederherstellen ist nur möglich, wenn dieser Benutzer noch keine CoBudget-Daten hat. Bitte zuerst alles löschen und zurücksetzen oder einen neuen Benutzer verwenden.",
+    "Only the receipt owner can delete this file": "Nur der Besitzer des Belegs kann diese Datei löschen",
     "This personal export contains data from other users. It cannot be restored as a personal import because shared data would be changed. Please use a full admin backup for shared data.": "Dieser persönliche Export enthält Daten weiterer Benutzer. Er kann nicht als persönlicher Import wiederhergestellt werden, weil geteilte Daten sonst verfälscht würden. Bitte verwende dafür ein vollständiges Admin-Backup.",
     "Shared payments in this personal export will be restored only with your personal share. Shared areas, settlements and other users are not restored.": "Geteilte Zahlungen in diesem persönlichen Export werden nur mit deinem persönlichen Anteil wiederhergestellt. Geteilte Bereiche, Abrechnungen und andere Benutzer werden nicht wiederhergestellt.",
     "The source user {source} will be restored as {target}.": "Der Quellbenutzer {source} wird als {target} wiederhergestellt.",
@@ -176,6 +177,7 @@ OC.L10N.register(
     "Creates backups of all CoBudget data for all users. Automatic full backups start from 03:00 with the next Nextcloud cron and are stored in the configured admin user’s Files.": "Erstellt Backups aller CoBudget-Daten für alle Benutzer. Automatische Vollbackups starten ab 03:00 Uhr mit dem nächsten Nextcloud-Cron und werden in den Dateien des eingestellten Admin-Benutzers gespeichert.",
     "Storage user": "Speicher-Benutzer",
     "Nextcloud user whose Files should store the full backups.": "Nextcloud-Benutzer, in dessen Dateien die Vollbackups gespeichert werden.",
+    "Nextcloud administrator whose Files should store the full backups.": "Nextcloud-Administrator, in dessen Dateien die Vollbackups gespeichert werden.",
     "e.g. admin": "z.B. admin",
     "Folder inside the storage user’s Nextcloud Files.": "Ordner in den Nextcloud-Dateien des Speicher-Benutzers.",
     "Keep": "Anzahl behalten",
@@ -271,7 +273,7 @@ OC.L10N.register(
     "Settings could not be saved.": "Einstellungen konnten nicht gespeichert werden.",
     "This will delete or reset {workspaces}, {entries}, {soloProjects}, {categories}, {paymentPartners}, {templates}, and {budgetGoals}.": "Dabei werden {workspaces}, {entries}, {soloProjects}, {categories}, {paymentPartners}, {templates} und {budgetGoals} gelöscht oder zurückgesetzt.",
     "{attachments} will be removed from the database. Files are only deleted if your receipt setting says so.": "{attachments} werden aus der Datenbank entfernt. Dateien werden nur gelöscht, wenn deine Beleg-Einstellung das vorsieht.",
-    "Settled shared areas remain available for other members and will be transferred: {names}.": "Abgerechnete gemeinsame Bereiche bleiben für andere Mitglieder verfügbar und werden übertragen: {names}.",
+    "Before settled shared areas are deleted, the personal shares of other members are preserved as personal payments: {names}.": "Bevor abgerechnete gemeinsame Bereiche gelöscht werden, bleiben die persönlichen Anteile der anderen Mitglieder als persönliche Zahlungen erhalten: {names}.",
     "A safety export will be created automatically in CoBudget/Export beforehand. Afterwards the default settings and a new main workspace are created.": "Vorher wird automatisch ein Sicherheitsexport in CoBudget/Export erstellt. Danach werden die Standardwerte und ein neuer Haupt-Workspace angelegt.",
     "Reset is not possible. Please settle these shared areas first: {names}": "Zurücksetzen ist nicht möglich. Bitte rechne diese gemeinsamen Bereiche zuerst ab: {names}",
     "_%n open payment_::_%n open payments_": [
@@ -626,6 +628,8 @@ OC.L10N.register(
     "Last year": "Letztes Jahr",
     "Payment without description": "Zahlung ohne Beschreibung",
     "CoBudget reminder: %s": "CoBudget-Erinnerung: %s",
+    "CoBudget notification": "CoBudget-Benachrichtigung",
+    "This notification is no longer available.": "Diese Benachrichtigung ist nicht mehr verfügbar.",
     "Someone": "Jemand",
     "Untitled area": "Unbenannter Bereich",
     "%s created an income of %s %s in area %s.": "%1$s hat im Bereich %4$s eine Einnahme über %2$s %3$s erstellt.",
@@ -917,6 +921,7 @@ OC.L10N.register(
     "Remove color": "Farbe entfernen",
     "Remove criterion": "Kriterium entfernen",
     "Remove member": "Mitglied entfernen",
+    "This member is still assigned to open payments. Settle the area before removing the member.": "Dieses Mitglied ist noch offenen Zahlungen zugeordnet. Rechne den Bereich ab, bevor du das Mitglied entfernst.",
     "Remove receipt {name}": "Beleg {name} entfernen",
     "Remove {name}": "{name} entfernen",
     "Rename": "Umbenennen",
@@ -1129,7 +1134,9 @@ OC.L10N.register(
     "Failed to fetch dashboard data": "Zahlungen konnten nicht geladen werden",
     "Failed to export entries": "Zahlungen konnten nicht exportiert werden",
     "Failed to delete/stop entry": "Zahlung konnte nicht gelöscht oder gestoppt werden",
-    "Failed to fetch analytics": "Auswertungen konnten nicht geladen werden"
+    "Failed to fetch analytics": "Auswertungen konnten nicht geladen werden",
+    "Adding members is disabled because Nextcloud user search is disabled.": "Mitglieder können nicht hinzugefügt werden, weil die Nextcloud-Benutzersuche deaktiviert ist.",
+    "User could not be added.": "Mitglied konnte nicht hinzugefügt werden."
 },
     "nplurals=2; plural=(n != 1);"
 );

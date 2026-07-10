@@ -34,6 +34,7 @@ Areas are used for shared spending such as household costs, trips or family budg
 - Add trusted Nextcloud users as members.
 - Define the default percentage split for each member.
 - Assign payments to an area.
+- Keep the member allocation of every payment as an exact historical snapshot, independent of later area-default changes.
 - Record who paid or received the money.
 - Settle open payments.
 - Review settlement history and repayment suggestions.
@@ -87,7 +88,7 @@ Analytics show where money is going and how financial trends develop.
 
 - Create personal exports from the settings UI.
 - Schedule regular personal exports in Nextcloud Files.
-- Create personal exports and full backups via OCC commands.
+- Create personal exports and administrator-owned full backups via OCC commands.
 - Restore full admin backups with confirmation.
 - Create an automatic full safety backup before full restore.
 - Preserve receipt paths without embedding the files.

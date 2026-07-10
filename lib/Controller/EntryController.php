@@ -1,13 +1,16 @@
 <?php
 namespace OCA\CoBudget\Controller;
 
+use OCA\CoBudget\Service\CsvCellSanitizer;
 use OCA\CoBudget\Service\HashtagService;
+use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\ProjectNotificationService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Controller;
 use OCP\IDBConnection;
 use OCP\IUserSession;
@@ -24,6 +27,8 @@ class EntryController extends Controller {
 	use WorkspaceAwareTrait;
 
 	private const EXPORT_LIMIT = 50000;
+	private const MAX_PAGE_SIZE = 250;
+	private const MAX_PAGE_OFFSET = 1000000;
 	private const EXPORT_ATTACHMENT_CHUNK_SIZE = 500;
 	private const ENTRY_HISTORY_CHUNK_SIZE = 500;
 	private const DEFAULT_ATTACHMENT_MAX_SIZE_BYTES = 10485760;
@@ -111,11 +116,12 @@ class EntryController extends Controller {
 	private IConfig $config;
 	private IUserManager $userManager;
 	private HashtagService $hashtagService;
+	private EntryShareService $entryShareService;
 	private ProjectNotificationService $projectNotificationService;
 	private IRootFolder $rootFolder;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, IUserManager $userManager, HashtagService $hashtagService, ProjectNotificationService $projectNotificationService, IRootFolder $rootFolder, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, IUserManager $userManager, HashtagService $hashtagService, EntryShareService $entryShareService, ProjectNotificationService $projectNotificationService, IRootFolder $rootFolder, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
@@ -123,6 +129,7 @@ class EntryController extends Controller {
 		$this->config = $config;
 		$this->userManager = $userManager;
 		$this->hashtagService = $hashtagService;
+		$this->entryShareService = $entryShareService;
 		$this->projectNotificationService = $projectNotificationService;
 		$this->rootFolder = $rootFolder;
 		$this->l10n = $l10n;
@@ -132,6 +139,7 @@ class EntryController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 120, period: 60)]
 	public function index(
 		int $limit = 50,
 		int $offset = 0,
@@ -162,13 +170,17 @@ class EntryController extends Controller {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
 			}
+			[$limit, $offset] = $this->normalizePagination($limit, $offset);
 
 			$workspaceId = $this->workspaceIdForEntryScope($projectId);
 			if ($workspaceId === null) {
 				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
 			}
-			return new DataResponse($this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, null, true));
-		} catch (\Exception $e) {
+			$payload = $this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, null, true);
+			unset($payload['_aggregate']);
+
+			return new DataResponse($payload);
+		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -176,6 +188,7 @@ class EntryController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 5, period: 300)]
 	public function exportCsv(
 		string $search = '',
 		?int $paymentPartnerId = null,
@@ -212,14 +225,15 @@ class EntryController extends Controller {
 			$filename = 'cobudget-zahlungen-' . date('Ymd-His') . '.csv';
 
 			return new DataDownloadResponse($csv, $filename, 'text/csv; charset=UTF-8');
-		} catch (\Exception $e) {
-			return $this->loggedErrorResponse($e);
-		}
+			} catch (\Throwable $e) {
+				return $this->loggedErrorResponse($e);
+			}
 	}
 
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 120, period: 60)]
 	public function dashboard(
 		int $limit = 50,
 		int $offset = 0,
@@ -252,23 +266,27 @@ class EntryController extends Controller {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
 			}
+			[$limit, $offset] = $this->normalizePagination($limit, $offset);
 
 			$workspaceId = $this->getWorkspaceId();
 			if ($isSummaryOnly) {
-				$summaryData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
-				$futureSummaryData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true);
+				$projectShareBasisPoints = $this->fetchCurrentUserProjectShareBasisPoints();
+				$summaryData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
+				$futureSummaryData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, 'date', 'asc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true, $projectShareBasisPoints);
 
 				return new DataResponse([
-					'tagCounts' => $this->countDashboardTags($summaryData, $futureSummaryData),
+					'tagCounts' => $this->dashboardTagCountsFromAggregates($summaryData, $futureSummaryData),
 				]);
 			}
 
 			$projects = $this->fetchDashboardProjects($workspaceId);
 			$projectShareBasisPoints = $this->projectShareBasisPointsFromProjects($projects);
 			$main = $this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
+			$mainAggregate = $main['_aggregate'];
+			unset($main['_aggregate']);
 			$currentMonthStart = mktime(0, 0, 0, (int)date('n'), 1, (int)date('Y'));
-			$currentMonthData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $currentMonthStart, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, false);
-			$futureData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true);
+			$currentMonthData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $currentMonthStart, null, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, false, $projectShareBasisPoints);
+			$futureData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, 'date', 'asc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true, $projectShareBasisPoints);
 
 			return new DataResponse([
 				'entries' => $main['entries'],
@@ -276,8 +294,8 @@ class EntryController extends Controller {
 				'limit' => $main['limit'],
 				'offset' => $main['offset'],
 				'dateGroups' => $main['dateGroups'],
-				'metrics' => $this->buildDashboardMetrics($main['totalsData'], $currentMonthData, $futureData, $projectShareBasisPoints),
-				'tagCounts' => $this->countDashboardTags($main['totalsData'], $futureData),
+				'metrics' => $this->buildDashboardMetricsFromAggregates($mainAggregate, $currentMonthData, $futureData),
+				'tagCounts' => $this->dashboardTagCountsFromAggregates($mainAggregate, $futureData),
 				'lookups' => [
 					'categories' => $this->fetchDashboardCategories($workspaceId),
 					'paymentPartners' => $this->fetchDashboardPaymentPartners($workspaceId),
@@ -285,7 +303,7 @@ class EntryController extends Controller {
 					'hashtags' => $this->hashtagService->fetchVisibleHashtagsForUser($workspaceId, (string)$this->userId),
 				],
 			]);
-		} catch (\Exception $e) {
+		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -322,16 +340,17 @@ class EntryController extends Controller {
 			$projectShareBasisPoints = $this->projectShareBasisPointsFromProjects($this->fetchDashboardProjects($workspaceId));
 		}
 
-		$totalsData = $this->fetchEntryTotalsData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
+		[$limit, $offset] = $this->normalizePagination($limit, $offset);
+		$aggregate = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
 		$entries = $this->fetchEntryRows($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
 
 		$payload = [
 			'entries' => $entries,
-			'totalsData' => $totalsData,
-			'total' => count($totalsData),
+			'total' => $aggregate['count'],
 			'limit' => $limit,
 			'offset' => $offset,
-			'dateGroups' => $this->buildDateGroups($totalsData, $offset, count($entries), $sortBy, $sortDir, $isFuture, $projectShareBasisPoints)
+			'dateGroups' => $this->buildDateGroupsFromAggregate($aggregate, $offset, count($entries), $sortBy),
+			'_aggregate' => $aggregate,
 		];
 
 		if ($includeLookups) {
@@ -343,82 +362,274 @@ class EntryController extends Controller {
 		return $payload;
 	}
 
-	private function buildDateGroups(array $allEntries, int $offset, int $pageCount, string $sortBy, string $sortDir, bool $isFuture, ?array $projectShareBasisPoints = null): array {
-		if ($sortBy !== 'date' || $allEntries === []) {
-			return [
-				'summaries' => [],
-				'visibleKeys' => [],
-			];
+	/** @return array{0: int, 1: int} */
+	private function normalizePagination(int $limit, int $offset): array {
+		return [
+			max(1, min(self::MAX_PAGE_SIZE, $limit)),
+			max(0, min(self::MAX_PAGE_OFFSET, $offset)),
+		];
+	}
+
+	private function fetchEntryAggregateData(
+		int $workspaceId,
+		string $search,
+		?int $paymentPartnerId,
+		?int $categoryId,
+		?int $dateFrom,
+		?int $dateTo,
+		string $type,
+		string $sortBy,
+		string $sortDir,
+		?int $projectId,
+		?bool $isSettled,
+		?bool $isRecurring,
+		?bool $isSubscription,
+		?bool $isFixedCost,
+		?bool $isChildRelated,
+		?bool $isImportant,
+		?bool $needsReview,
+		?bool $isTaxRelevant,
+		?bool $hasReminder,
+		?bool $hasAttachment,
+		?int $hashtagId,
+		bool $isFuture,
+		array $projectShareBasisPoints
+	): array {
+		$qb = $this->buildVisibleEntriesQuery($workspaceId);
+		$qb->leftJoin('e', 'cobudget_entry_shares', 'personal_share', $qb->expr()->andX(
+			$qb->expr()->eq('personal_share.entry_id', 'e.id'),
+			$qb->expr()->eq('personal_share.user_id', $qb->createNamedParameter((string)$this->userId))
+		));
+		$qb->select(
+			'e.id',
+			'e.user_id',
+			'e.type',
+			'e.amount',
+			'e.amount_cents',
+			'e.project_id',
+			'e.split_mode',
+			'e.split_user_id',
+			'e.is_subscription',
+			'e.is_fixed_cost',
+			'e.is_child_related',
+			'e.is_important',
+			'e.needs_review',
+			'e.is_tax_relevant',
+			'e.date',
+			'e.recurrence_next_date',
+			'personal_share.amount_cents AS snapshot_share_cents'
+		);
+		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
+		$qb->groupBy('e.id');
+		foreach ([
+			'e.user_id',
+			'e.type',
+			'e.amount',
+			'e.amount_cents',
+			'e.project_id',
+			'e.split_mode',
+			'e.split_user_id',
+			'e.is_subscription',
+			'e.is_fixed_cost',
+			'e.is_child_related',
+			'e.is_important',
+			'e.needs_review',
+			'e.is_tax_relevant',
+			'e.date',
+			'e.recurrence_next_date',
+			'personal_share.amount_cents',
+			'c.name',
+			'p.name',
+			'e.description',
+		] as $groupColumn) {
+			$qb->addGroupBy($groupColumn);
 		}
+		$this->applyEntryOrdering($qb, $sortBy, $sortDir, $isFuture);
 
-		$orderedEntries = array_values($allEntries);
-		$dir = strtolower($sortDir) === 'asc' ? 'ASC' : 'DESC';
-		usort($orderedEntries, function(array $a, array $b) use ($dir, $isFuture): int {
-			$dateA = $this->dateGroupTimestamp($a, $isFuture);
-			$dateB = $this->dateGroupTimestamp($b, $isFuture);
-			if ($dateA !== $dateB) {
-				return $dir === 'ASC' ? $dateA <=> $dateB : $dateB <=> $dateA;
+		$aggregate = [
+			'count' => 0,
+			'metrics' => $this->zeroDashboardMetrics(),
+			'metrics30Days' => $this->zeroDashboardMetrics(),
+			'tagCounts' => $this->zeroDashboardTagCounts(),
+			'monthlyMetrics' => [],
+			'dateGroupSummaries' => [],
+			'dateGroupLastIndexes' => [],
+		];
+		$future30DaysLimit = time() + 30 * 86400;
+		$result = $qb->executeQuery();
+		while ($entry = $result->fetch()) {
+			$entry = $this->normalizeAmountRow($entry);
+			if (($entry['snapshot_share_cents'] ?? null) === null) {
+				unset($entry['snapshot_share_cents']);
+			}
+			$effectiveDate = $this->dateGroupTimestamp($entry, $isFuture);
+			if ($isFuture && $effectiveDate > 0) {
+				$entry['date'] = $effectiveDate;
 			}
 
-			return (int)($b['id'] ?? 0) <=> (int)($a['id'] ?? 0);
-		});
+			$amount = $this->entryPersonalAmount($entry, $projectShareBasisPoints);
+			$index = $aggregate['count'];
+			$aggregate['count']++;
+			$this->accumulateDashboardMetrics($aggregate['metrics'], $entry, $amount);
+			$this->accumulateDashboardTagCounts($aggregate['tagCounts'], $entry);
 
-		$summaries = [];
-		$lastIndexByKey = [];
-		foreach ($orderedEntries as $index => $entry) {
-			$timestamp = $this->dateGroupTimestamp($entry, $isFuture);
-			if ($timestamp <= 0) {
-				continue;
-			}
+			if ($effectiveDate > 0) {
+				$monthKey = date('Y-m', $effectiveDate);
+				$aggregate['monthlyMetrics'][$monthKey] ??= $this->zeroDashboardMetrics();
+				$this->accumulateDashboardMetrics($aggregate['monthlyMetrics'][$monthKey], $entry, $amount);
+				if ($isFuture && $effectiveDate <= $future30DaysLimit) {
+					$this->accumulateDashboardMetrics($aggregate['metrics30Days'], $entry, $amount);
+				}
 
-			$keys = $this->dateGroupKeys($timestamp);
-			$amountCents = $projectShareBasisPoints === null
-				? ($this->amountCentsFromRow($entry) ?? 0)
-				: $this->entryPersonalAmountCents($entry, $projectShareBasisPoints);
-
-			foreach ($keys as $key) {
-				if (!isset($summaries[$key])) {
-					$summaries[$key] = [
+				foreach ($this->dateGroupKeys($effectiveDate) as $key) {
+					$aggregate['dateGroupSummaries'][$key] ??= [
 						'income' => 0,
 						'expense' => 0,
 						'balance' => 0,
 						'count' => 0,
 					];
+					$amountCents = (int)round($amount * 100, 0, PHP_ROUND_HALF_UP);
+					$aggregate['dateGroupSummaries'][$key]['count']++;
+					if (($entry['type'] ?? '') === 'income') {
+						$aggregate['dateGroupSummaries'][$key]['income'] += $amountCents;
+						$aggregate['dateGroupSummaries'][$key]['balance'] += $amountCents;
+					} elseif (($entry['type'] ?? '') === 'expense') {
+						$aggregate['dateGroupSummaries'][$key]['expense'] += $amountCents;
+						$aggregate['dateGroupSummaries'][$key]['balance'] -= $amountCents;
+					}
+					$aggregate['dateGroupLastIndexes'][$key] = $index;
 				}
-
-				$summaries[$key]['count']++;
-				if (($entry['type'] ?? '') === 'income') {
-					$summaries[$key]['income'] += $amountCents;
-					$summaries[$key]['balance'] += $amountCents;
-				} elseif (($entry['type'] ?? '') === 'expense') {
-					$summaries[$key]['expense'] += $amountCents;
-					$summaries[$key]['balance'] -= $amountCents;
-				}
-
-				$lastIndexByKey[$key] = $index;
 			}
 		}
+		$result->closeCursor();
 
-		$pageStart = max(0, $offset);
-		$pageEnd = $pageCount > 0 ? $pageStart + $pageCount - 1 : -1;
+		return $aggregate;
+	}
+
+	private function buildDateGroupsFromAggregate(array $aggregate, int $offset, int $pageCount, string $sortBy): array {
+		if ($sortBy !== 'date' || ($aggregate['count'] ?? 0) === 0) {
+			return ['summaries' => [], 'visibleKeys' => []];
+		}
+
+		$pageEnd = $pageCount > 0 ? $offset + $pageCount - 1 : -1;
 		$visibleKeys = [];
-		foreach ($lastIndexByKey as $key => $lastIndex) {
-			if ($lastIndex >= $pageStart && $lastIndex <= $pageEnd) {
+		foreach ($aggregate['dateGroupLastIndexes'] as $key => $lastIndex) {
+			if ($lastIndex >= $offset && $lastIndex <= $pageEnd) {
 				$visibleKeys[] = $key;
 			}
 		}
 
-		foreach ($summaries as &$summary) {
-			$summary['income'] = $this->centsToAmount((int)$summary['income']);
-			$summary['expense'] = $this->centsToAmount((int)$summary['expense']);
-			$summary['balance'] = $this->centsToAmount((int)$summary['balance']);
+		$summaries = [];
+		foreach ($aggregate['dateGroupSummaries'] as $key => $summary) {
+			$summaries[$key] = [
+				'income' => $this->centsToAmount((int)$summary['income']),
+				'expense' => $this->centsToAmount((int)$summary['expense']),
+				'balance' => $this->centsToAmount((int)$summary['balance']),
+				'count' => (int)$summary['count'],
+			];
 		}
-		unset($summary);
 
+		return ['summaries' => $summaries, 'visibleKeys' => $visibleKeys];
+	}
+
+	private function accumulateDashboardMetrics(array &$summary, array $entry, float $amount): void {
+		if (($entry['type'] ?? '') === 'income') {
+			$summary['income'] += $amount;
+			$summary['balance'] += $amount;
+			$signedAmount = $amount;
+		} elseif (($entry['type'] ?? '') === 'expense') {
+			$summary['expense'] += $amount;
+			$summary['balance'] -= $amount;
+			$signedAmount = -$amount;
+		} else {
+			return;
+		}
+
+		if ($this->dbBool($entry['is_important'] ?? false)) {
+			$summary['important'] += $signedAmount;
+		}
+		if ($this->dbBool($entry['needs_review'] ?? false)) {
+			$summary['review'] += $signedAmount;
+		}
+		if ($this->dbBool($entry['is_child_related'] ?? false)) {
+			$summary['childRelated'] += $signedAmount;
+		}
+		if ($this->dbBool($entry['is_tax_relevant'] ?? false)) {
+			$summary['taxRelevant'] += $signedAmount;
+		}
+		if (($entry['type'] ?? '') === 'expense' && $this->dbBool($entry['is_subscription'] ?? false)) {
+			$summary['subscriptions'] += $amount;
+		}
+		if (($entry['type'] ?? '') === 'expense' && $this->dbBool($entry['is_fixed_cost'] ?? false)) {
+			$summary['fixedCosts'] += $amount;
+		}
+	}
+
+	private function accumulateDashboardTagCounts(array &$counts, array $entry): void {
+		if (($entry['type'] ?? '') === 'income') {
+			$counts['income']++;
+		}
+		foreach ([
+			'is_important' => 'important',
+			'needs_review' => 'review',
+			'is_fixed_cost' => 'fixedCosts',
+			'is_child_related' => 'childRelated',
+			'is_subscription' => 'subscriptions',
+			'is_tax_relevant' => 'taxRelevant',
+		] as $column => $key) {
+			if ($this->dbBool($entry[$column] ?? false)) {
+				$counts[$key]++;
+			}
+		}
+	}
+
+	private function buildDashboardMetricsFromAggregates(array $main, array $currentMonth, array $future): array {
 		return [
-			'summaries' => $summaries,
-			'visibleKeys' => $visibleKeys,
+			'total' => $main['metrics'],
+			'average' => $this->calculateAverageDashboardMetricsFromAggregate($main),
+			'currentMonth' => $currentMonth['metrics'],
+			'future' => $future['metrics'],
+			'future30Days' => $future['metrics30Days'],
 		];
+	}
+
+	private function calculateAverageDashboardMetricsFromAggregate(array $aggregate): array {
+		$monthlyMetrics = $aggregate['monthlyMetrics'] ?? [];
+		if ($monthlyMetrics === []) {
+			return $this->zeroDashboardMetrics();
+		}
+		ksort($monthlyMetrics);
+		if (count($monthlyMetrics) === 1) {
+			return reset($monthlyMetrics);
+		}
+
+		$currentMonth = date('Y-m');
+		$selected = $monthlyMetrics;
+		if ((string)array_key_last($monthlyMetrics) >= $currentMonth) {
+			$past = array_filter($monthlyMetrics, static fn(array $metrics, string $month): bool => $month < $currentMonth, ARRAY_FILTER_USE_BOTH);
+			if ($past !== []) {
+				$selected = $past;
+			}
+		}
+
+		$keys = array_keys($selected);
+		$first = strtotime($keys[0] . '-01 00:00:00');
+		$last = strtotime($keys[count($keys) - 1] . '-01 00:00:00');
+		$summary = $this->zeroDashboardMetrics();
+		foreach ($selected as $metrics) {
+			foreach ($summary as $key => $_value) {
+				$summary[$key] += (float)($metrics[$key] ?? 0);
+			}
+		}
+
+		return $this->divideDashboardMetrics($summary, $this->monthSpanInclusive($first, $last));
+	}
+
+	private function dashboardTagCountsFromAggregates(array $main, array $future): array {
+		$counts = $main['tagCounts'] ?? $this->zeroDashboardTagCounts();
+		$counts['future'] = (int)($future['count'] ?? 0);
+
+		return $counts;
 	}
 
 	private function dateGroupTimestamp(array $entry, bool $isFuture): int {
@@ -434,50 +645,6 @@ class EntryController extends Controller {
 			'year-' . date('Y', $timestamp),
 			'month-' . date('Y-m', $timestamp),
 		];
-	}
-
-	private function fetchEntryTotalsData(
-		int $workspaceId,
-		string $search,
-		?int $paymentPartnerId,
-		?int $categoryId,
-		?int $dateFrom,
-		?int $dateTo,
-		string $type,
-		?int $projectId,
-		?bool $isSettled,
-		?bool $isRecurring,
-		?bool $isSubscription,
-		?bool $isFixedCost,
-		?bool $isChildRelated,
-		?bool $isImportant,
-		?bool $needsReview,
-		?bool $isTaxRelevant,
-		?bool $hasReminder,
-		?bool $hasAttachment,
-		?int $hashtagId,
-		bool $isFuture
-	): array {
-		$qb = $this->buildVisibleEntriesQuery($workspaceId);
-		$qb->select('e.id', 'e.user_id', 'e.type', 'e.amount', 'e.amount_cents', 'e.project_id', 'e.split_mode', 'e.split_user_id', 'e.is_subscription', 'e.is_fixed_cost', 'e.is_child_related', 'e.is_important', 'e.needs_review', 'e.is_tax_relevant', 'e.date', 'e.recurrence_next_date');
-		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
-		$qb->groupBy('e.id');
-
-		$result = $qb->executeQuery();
-		$entries = $result->fetchAll();
-		$result->closeCursor();
-		$entries = array_map(fn(array $entry): array => $this->normalizeAmountRow($entry), $entries);
-
-		if ($isFuture) {
-			foreach ($entries as &$entry) {
-				if (!empty($entry['recurrence_next_date'])) {
-					$entry['date'] = $entry['recurrence_next_date'];
-				}
-			}
-			unset($entry);
-		}
-
-		return $entries;
 	}
 
 	private function fetchEntryRows(
@@ -519,6 +686,7 @@ class EntryController extends Controller {
 		$result = $qb->executeQuery();
 		$entries = $result->fetchAll();
 		$result->closeCursor();
+		$entries = $this->entryShareService->attachPersonalShares($entries, (string)$this->userId);
 		$entries = array_map(function(array $entry) use ($projectShareBasisPoints): array {
 			$entry = $this->normalizeEntryRow($entry);
 			$personalAmountCents = $this->entryPersonalAmountCents($entry, $projectShareBasisPoints);
@@ -600,25 +768,25 @@ class EntryController extends Controller {
 			fputcsv($handle, [
 				(string)(int)($entry['id'] ?? 0),
 				$this->exportDate($entry['date'] ?? null),
-				$this->exportTypeLabel($type),
-				$type,
+				$this->exportText($this->exportTypeLabel($type)),
+				$this->exportText($type),
 				$this->exportAmountFromCents($signedAmountCents),
 				(string)$signedAmountCents,
 				$this->exportAmountFromCents($personalAmountCents),
 				(string)$personalAmountCents,
-				(string)($entry['currency'] ?? ''),
-				(string)($entry['description'] ?? ''),
+				$this->exportText($entry['currency'] ?? ''),
+				$this->exportText($entry['description'] ?? ''),
 				$this->exportNullableId($entry['category_id'] ?? null),
-				(string)($entry['category_name'] ?? ''),
+				$this->exportText($entry['category_name'] ?? ''),
 				$this->exportNullableId($entry['payment_partner_id'] ?? null),
-				(string)($entry['paymentPartner'] ?? ''),
+				$this->exportText($entry['paymentPartner'] ?? ''),
 				$this->exportNullableId($entry['project_id'] ?? null),
-				(string)($entry['project_name'] ?? ''),
-				(string)($entry['user_id'] ?? ''),
-				(string)($entry['user_display_name'] ?? $entry['user_id'] ?? ''),
-				$this->exportSplitMode((string)($entry['split_mode'] ?? '')),
-				implode(', ', $this->exportTagLabels($entry)),
-				implode(', ', $this->exportHashtagLabels($entry)),
+				$this->exportText($entry['project_name'] ?? ''),
+				$this->exportText($entry['user_id'] ?? ''),
+				$this->exportText($entry['user_display_name'] ?? $entry['user_id'] ?? ''),
+				$this->exportText($this->exportSplitMode((string)($entry['split_mode'] ?? ''))),
+				$this->exportText(implode(', ', $this->exportTagLabels($entry))),
+				$this->exportText(implode(', ', $this->exportHashtagLabels($entry))),
 				$this->exportBool($entry['is_important'] ?? false),
 				$this->exportBool($entry['needs_review'] ?? false),
 				$this->exportBool($entry['is_fixed_cost'] ?? false),
@@ -629,15 +797,15 @@ class EntryController extends Controller {
 				$this->exportNullableId($entry['settlement_id'] ?? null),
 				$this->exportBool(!empty($entry['recurrence_interval']) || !empty($entry['recurrence_next_date'])),
 				$this->exportNullableNumber($entry['recurrence_interval'] ?? null),
-				(string)($entry['recurrence_unit'] ?? ''),
+				$this->exportText($entry['recurrence_unit'] ?? ''),
 				$this->exportDateTime($entry['recurrence_next_date'] ?? null),
 				$this->exportDate($entry['recurrence_end_date'] ?? null),
 				$this->exportDateTime($entry['reminder_date'] ?? null),
-				(string)($entry['reminder_text'] ?? ''),
+				$this->exportText($entry['reminder_text'] ?? ''),
 				$this->exportBool($this->isPlannedEntry($entry)),
 				(string)(int)($entry['attachments_count'] ?? 0),
-				implode(', ', $entry['attachment_names'] ?? []),
-				implode(', ', $entry['attachment_paths'] ?? []),
+				$this->exportText(implode(', ', $entry['attachment_names'] ?? [])),
+				$this->exportText(implode(', ', $entry['attachment_paths'] ?? [])),
 			], ';');
 		}
 
@@ -658,6 +826,10 @@ class EntryController extends Controller {
 
 	private function exportAmountFromCents(int $amountCents): string {
 		return number_format($amountCents / 100, 2, '.', '');
+	}
+
+	private function exportText(mixed $value): string {
+		return CsvCellSanitizer::sanitize((string)$value);
 	}
 
 	private function exportBool($value): string {
@@ -989,7 +1161,9 @@ class EntryController extends Controller {
 				if (($entry['user_id'] ?? null) === $this->userId) {
 					$paidByMeCents += $amountCents;
 				}
-				$fairShareMeCents += $this->entryShareCentsForUser($entry, (string)$this->userId, $amountCents, $shares);
+				$fairShareMeCents += array_key_exists('snapshot_share_cents', $entry)
+					? max(0, (int)$entry['snapshot_share_cents'])
+					: $this->entryShareCentsForUser($entry, (string)$this->userId, $amountCents, $shares);
 			}
 
 			$project['personal_balance'] = round(($paidByMeCents - $fairShareMeCents) / 100, 2);
@@ -1030,17 +1204,19 @@ class EntryController extends Controller {
 		$entriesByProject = [];
 		foreach (array_chunk($projectIds, 500) as $chunk) {
 			$qb = $this->db->getQueryBuilder();
-			$qb->select('project_id', 'user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
+			$qb->select('id', 'project_id', 'user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 				->from('cobudget_entries')
 				->where($qb->expr()->in('project_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
 				->andWhere($qb->expr()->eq('type', $qb->createNamedParameter('expense')))
 				->andWhere($qb->expr()->eq('is_settled', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
 
 			$result = $qb->executeQuery();
-			while ($row = $result->fetch()) {
+			$rows = $result->fetchAll();
+			$result->closeCursor();
+			$rows = $this->entryShareService->attachPersonalShares($rows, (string)$this->userId);
+			foreach ($rows as $row) {
 				$entriesByProject[(int)$row['project_id']][] = $row;
 			}
-			$result->closeCursor();
 		}
 
 		return $entriesByProject;
@@ -1059,16 +1235,19 @@ class EntryController extends Controller {
 		return $shares;
 	}
 
-	private function buildDashboardMetrics(array $totalsData, array $currentMonthData, array $futureData, array $projectShareBasisPoints): array {
-		$future30DaysData = $this->filterFuture30Days($futureData);
+	private function fetchCurrentUserProjectShareBasisPoints(): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('project_id', 'share_basis_points')
+			->from('cobudget_members')
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter((string)$this->userId)));
+		$result = $qb->executeQuery();
+		$shares = [];
+		while ($row = $result->fetch()) {
+			$shares[(int)$row['project_id']] = max(0, (int)($row['share_basis_points'] ?? 10000));
+		}
+		$result->closeCursor();
 
-		return [
-			'total' => $this->summarizeDashboardEntries($totalsData, $projectShareBasisPoints),
-			'average' => $this->calculateAverageDashboardMetrics($totalsData, $projectShareBasisPoints),
-			'currentMonth' => $this->summarizeDashboardEntries($currentMonthData, $projectShareBasisPoints),
-			'future' => $this->summarizeDashboardEntries($futureData, $projectShareBasisPoints),
-			'future30Days' => $this->summarizeDashboardEntries($future30DaysData, $projectShareBasisPoints),
-		];
+		return $shares;
 	}
 
 	private function zeroDashboardMetrics(): array {
@@ -1098,81 +1277,6 @@ class EntryController extends Controller {
 		];
 	}
 
-	private function countDashboardTags(array $entries, array $futureEntries = []): array {
-		$counts = $this->zeroDashboardTagCounts();
-		$counts['future'] = count($futureEntries);
-
-		foreach ($entries as $entry) {
-			if (($entry['type'] ?? '') === 'income') {
-				$counts['income']++;
-			}
-			if ($this->dbBool($entry['is_important'] ?? false)) {
-				$counts['important']++;
-			}
-			if ($this->dbBool($entry['needs_review'] ?? false)) {
-				$counts['review']++;
-			}
-			if ($this->dbBool($entry['is_fixed_cost'] ?? false)) {
-				$counts['fixedCosts']++;
-			}
-			if ($this->dbBool($entry['is_child_related'] ?? false)) {
-				$counts['childRelated']++;
-			}
-			if ($this->dbBool($entry['is_subscription'] ?? false)) {
-				$counts['subscriptions']++;
-			}
-			if ($this->dbBool($entry['is_tax_relevant'] ?? false)) {
-				$counts['taxRelevant']++;
-			}
-		}
-
-		return $counts;
-	}
-
-	private function summarizeDashboardEntries(array $entries, array $projectShareBasisPoints): array {
-		$summary = $this->zeroDashboardMetrics();
-
-		foreach ($entries as $entry) {
-			$amount = $this->entryPersonalAmount($entry, $projectShareBasisPoints);
-			if (($entry['type'] ?? '') === 'income') {
-				$summary['income'] += $amount;
-				$signedAmount = $amount;
-			} elseif (($entry['type'] ?? '') === 'expense') {
-				$summary['expense'] += $amount;
-				$signedAmount = -$amount;
-			} else {
-				continue;
-			}
-
-			if ($this->dbBool($entry['is_important'] ?? false)) {
-				$summary['important'] += $signedAmount;
-			}
-			if ($this->dbBool($entry['needs_review'] ?? false)) {
-				$summary['review'] += $signedAmount;
-			}
-			if ($this->dbBool($entry['is_child_related'] ?? false)) {
-				$summary['childRelated'] += $signedAmount;
-			}
-			if ($this->dbBool($entry['is_tax_relevant'] ?? false)) {
-				$summary['taxRelevant'] += $signedAmount;
-			}
-
-			if (($entry['type'] ?? '') !== 'expense') {
-				continue;
-			}
-			if ($this->dbBool($entry['is_subscription'] ?? false)) {
-				$summary['subscriptions'] += $amount;
-			}
-			if ($this->dbBool($entry['is_fixed_cost'] ?? false)) {
-				$summary['fixedCosts'] += $amount;
-			}
-		}
-
-		$summary['balance'] = $summary['income'] - $summary['expense'];
-
-		return $summary;
-	}
-
 	private function entryPersonalAmount(array $entry, array $projectShareBasisPoints): float {
 		return $this->entryPersonalAmountCents($entry, $projectShareBasisPoints) / 100;
 	}
@@ -1183,6 +1287,9 @@ class EntryController extends Controller {
 		if ($projectId === null) {
 			return $amountCents;
 		}
+		if (array_key_exists('snapshot_share_cents', $entry)) {
+			return max(0, (int)$entry['snapshot_share_cents']);
+		}
 
 		if ($this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user') {
 			return $this->entrySplitTargetUserId($entry) === (string)$this->userId ? $amountCents : 0;
@@ -1190,74 +1297,6 @@ class EntryController extends Controller {
 
 		$shareBasisPoints = $projectShareBasisPoints[$projectId] ?? 10000;
 		return (int)round($amountCents * $shareBasisPoints / 10000);
-	}
-
-	private function filterFuture30Days(array $entries): array {
-		$limit = time() + 30 * 86400;
-
-		return array_values(array_filter($entries, static function(array $entry) use ($limit): bool {
-			$date = (int)($entry['recurrence_next_date'] ?? $entry['date'] ?? 0);
-
-			return $date > 0 && $date <= $limit;
-		}));
-	}
-
-	private function calculateAverageDashboardMetrics(array $entries, array $projectShareBasisPoints): array {
-		if ($entries === []) {
-			return $this->zeroDashboardMetrics();
-		}
-
-		$validDates = array_values(array_filter(array_map(static function(array $entry): int {
-			return (int)($entry['date'] ?? 0);
-		}, $entries), static function(int $date): bool {
-			return $date > 0;
-		}));
-
-		if ($validDates === []) {
-			return $this->zeroDashboardMetrics();
-		}
-
-		$minDate = min($validDates);
-		$maxDate = max($validDates);
-		$minParts = getdate($minDate);
-		$maxParts = getdate($maxDate);
-
-		if ($minParts['year'] === $maxParts['year'] && $minParts['mon'] === $maxParts['mon']) {
-			return $this->summarizeDashboardEntries($entries, $projectShareBasisPoints);
-		}
-
-		$currentYear = (int)date('Y');
-		$currentMonth = (int)date('n');
-		$averageEntries = $entries;
-
-		if ($maxParts['year'] > $currentYear || ($maxParts['year'] === $currentYear && $maxParts['mon'] >= $currentMonth)) {
-			$averageEntries = array_values(array_filter($entries, static function(array $entry) use ($currentYear, $currentMonth): bool {
-				$date = (int)($entry['date'] ?? 0);
-				if ($date <= 0) {
-					return false;
-				}
-
-				$parts = getdate($date);
-				return $parts['year'] < $currentYear || ($parts['year'] === $currentYear && $parts['mon'] < $currentMonth);
-			}));
-
-			$pastDates = array_values(array_filter(array_map(static function(array $entry): int {
-				return (int)($entry['date'] ?? 0);
-			}, $averageEntries), static function(int $date): bool {
-				return $date > 0;
-			}));
-
-			if ($pastDates === []) {
-				return $this->summarizeDashboardEntries($entries, $projectShareBasisPoints);
-			}
-
-			$maxDate = max($pastDates);
-		}
-
-		$numMonths = max(1, $this->monthSpanInclusive($minDate, $maxDate));
-		$summary = $this->summarizeDashboardEntries($averageEntries, $projectShareBasisPoints);
-
-		return $this->divideDashboardMetrics($summary, $numMonths);
 	}
 
 	private function monthSpanInclusive(int $minDate, int $maxDate): int {
@@ -1455,10 +1494,15 @@ class EntryController extends Controller {
 				$isFixedCost = false;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
+			$workspaceId = $this->workspaceIdForEntryScope($projectId);
+			if ($workspaceId === null) {
+				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
+			}
 
-			$qb = $this->db->getQueryBuilder();
-			$qb->insert('cobudget_entries')
+			$this->db->beginTransaction();
+			try {
+				$qb = $this->db->getQueryBuilder();
+				$qb->insert('cobudget_entries')
 				->values([
 					'user_id' => $qb->createNamedParameter($entryUserId),
 					'project_id' => $qb->createNamedParameter($projectId, $projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
@@ -1490,29 +1534,39 @@ class EntryController extends Controller {
 					'recurrence_series_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
 					'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
 				]);
-			$qb->executeStatement();
+				$qb->executeStatement();
 
-			$id = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
-			$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
-			if ($recurrenceInterval !== null) {
-				$this->setEntryRecurrenceSeriesId($id, $id, $workspaceId);
+				$id = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
+				$this->entryShareService->syncEntry($id);
+				$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
+				if ($recurrenceInterval !== null) {
+					$this->setEntryRecurrenceSeriesId($id, $id, $workspaceId);
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 			if ($projectId !== null) {
-				$this->projectNotificationService->notifyEntryCreated(
-					$projectId,
-					$workspaceId,
-					$id,
-					(string)$this->userId,
-					$entryUserId,
-					$type,
-					$amountCents ?? 0,
-					$currency,
-					$description ?? ''
-				);
+				try {
+					$this->projectNotificationService->notifyEntryCreated(
+						$projectId,
+						$workspaceId,
+						$id,
+						(string)$this->userId,
+						$entryUserId,
+						$type,
+						$amountCents ?? 0,
+						$currency,
+						$description ?? ''
+					);
+				} catch (\Throwable $notificationError) {
+					$this->logInternalException($notificationError, 'Failed to notify shared-area members after payment commit');
+				}
 			}
 
 			return new DataResponse(['id' => $id, 'status' => 'success']);
-		} catch (\Exception $e) {
+		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -1584,10 +1638,23 @@ class EntryController extends Controller {
 				return $this->errorResponse('Settled payments cannot be edited', Http::STATUS_FORBIDDEN);
 			}
 			$currentWorkspaceId = (int)$entry['workspace_id'];
-			$workspaceId = $this->workspaceIdForEntryScope($projectId);
-			if ($workspaceId === null) {
+			$targetWorkspaceId = $this->workspaceIdForEntryScope($projectId);
+			if ($targetWorkspaceId === null) {
 				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
 			}
+			if ($targetWorkspaceId !== $currentWorkspaceId) {
+				return $this->errorResponse('The workspace of an existing payment cannot be changed', Http::STATUS_CONFLICT);
+			}
+			$workspaceId = $currentWorkspaceId;
+			$oldProjectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
+			$allocationChanged = $oldProjectId !== $projectId
+				|| ($this->amountCentsFromRow($entry) ?? 0) !== $amountCents
+				|| $this->normalizeSplitMode($entry['split_mode'] ?? null) !== $this->normalizeSplitMode($splitMode)
+				|| $this->normalizeSplitUserId($entry['split_user_id'] ?? null) !== $this->normalizeSplitUserId($splitUserId)
+				|| (
+					$this->normalizeSplitMode($splitMode) === 'single_user'
+					&& (string)($entry['user_id'] ?? '') !== $entryUserId
+				);
 
 			$updatedEntry = $entry;
 			$updatedEntry['user_id'] = $entryUserId;
@@ -1617,8 +1684,10 @@ class EntryController extends Controller {
 			$updatedEntry['reminder_notified'] = $reminderNotified;
 			$updatedEntry['reminder_text'] = $reminderText;
 
-			$qb = $this->db->getQueryBuilder();
-			$qb->update('cobudget_entries')
+			$this->db->beginTransaction();
+			try {
+				$qb = $this->db->getQueryBuilder();
+				$qb->update('cobudget_entries')
 				->set('user_id', $qb->createNamedParameter($entryUserId))
 				->set('project_id', $qb->createNamedParameter($projectId, $projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT))
 				->set('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
@@ -1647,16 +1716,24 @@ class EntryController extends Controller {
 				->set('reminder_text', $qb->createNamedParameter($reminderText, $reminderText === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR))
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($currentWorkspaceId, \PDO::PARAM_INT)));
-			$qb->executeStatement();
-			$this->recordEntryHistory($id, $workspaceId, $projectId, $entry, $updatedEntry);
-			$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
+				$qb->executeStatement();
+				if ($allocationChanged || ($projectId !== null && !$this->entryShareService->hasShares($id))) {
+					$this->entryShareService->syncEntry($id);
+				}
+				$this->recordEntryHistory($id, $workspaceId, $projectId, $entry, $updatedEntry);
+				$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
 
-			if ($recurrenceInterval !== null) {
-				$this->setEntryRecurrenceSeriesId($id, empty($entry['recurrence_series_id']) ? $id : (int)$entry['recurrence_series_id'], $workspaceId);
+				if ($recurrenceInterval !== null) {
+					$this->setEntryRecurrenceSeriesId($id, empty($entry['recurrence_series_id']) ? $id : (int)$entry['recurrence_series_id'], $workspaceId);
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 
-			return new DataResponse(['status' => 'success']);
-		} catch (\Exception $e) {
+				return new DataResponse(['status' => 'success']);
+			} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -1704,7 +1781,7 @@ class EntryController extends Controller {
 			);
 
 			return new DataResponse(['status' => 'success']);
-		} catch (\Exception $e) {
+		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -1780,6 +1857,8 @@ class EntryController extends Controller {
 	 * @NoAdminRequired
 	 */
 	public function uploadAttachment(int $id): DataResponse {
+		$createdFile = null;
+		$attachmentStored = false;
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
@@ -1822,37 +1901,55 @@ class EntryController extends Controller {
 			$userFolder = $this->rootFolder->getUserFolder((string)$this->userId);
 			$targetFolder = $this->ensureFolderPath($userFolder, $folderPath);
 			$fileName = $this->resolveUniqueNameInFolder($targetFolder, $fileName);
-			$file = $targetFolder->newFile($fileName);
-			$file->putContent($content);
+			$createdFile = $targetFolder->newFile($fileName);
+			$createdFile->putContent($content);
 
 			$relativePath = trim($folderPath . '/' . $fileName, '/');
 			$mimeType = $detectedMimeType;
-			$fileSize = method_exists($file, 'getSize') ? (int)$file->getSize() : (int)($upload['size'] ?? strlen($content));
-			$fileId = method_exists($file, 'getId') ? $file->getId() : null;
+			$fileSize = method_exists($createdFile, 'getSize') ? (int)$createdFile->getSize() : (int)($upload['size'] ?? strlen($content));
+			$fileId = method_exists($createdFile, 'getId') ? $createdFile->getId() : null;
 
-			$qb = $this->db->getQueryBuilder();
-			$qb->insert('cobudget_entry_attachments')
-				->values([
-					'entry_id' => $qb->createNamedParameter($id, \PDO::PARAM_INT),
-					'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
-					'owner_user_id' => $qb->createNamedParameter($this->userId),
-					'file_id' => $qb->createNamedParameter($fileId, $fileId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
-					'file_path' => $qb->createNamedParameter($relativePath),
-					'file_name' => $qb->createNamedParameter(mb_substr($displayName, 0, 255)),
-					'mime_type' => $qb->createNamedParameter($mimeType !== '' ? mb_substr($mimeType, 0, 128) : null, $mimeType === '' ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
-					'file_size' => $qb->createNamedParameter($fileSize, \PDO::PARAM_INT),
-					'created_at' => $qb->createNamedParameter(time(), \PDO::PARAM_INT),
-				]);
-			$qb->executeStatement();
+			$this->db->beginTransaction();
+			try {
+				$qb = $this->db->getQueryBuilder();
+				$qb->insert('cobudget_entry_attachments')
+					->values([
+						'entry_id' => $qb->createNamedParameter($id, \PDO::PARAM_INT),
+						'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
+						'owner_user_id' => $qb->createNamedParameter($this->userId),
+						'file_id' => $qb->createNamedParameter($fileId, $fileId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+						'file_path' => $qb->createNamedParameter($relativePath),
+						'file_name' => $qb->createNamedParameter(mb_substr($displayName, 0, 255)),
+						'mime_type' => $qb->createNamedParameter($mimeType !== '' ? mb_substr($mimeType, 0, 128) : null, $mimeType === '' ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
+						'file_size' => $qb->createNamedParameter($fileSize, \PDO::PARAM_INT),
+						'created_at' => $qb->createNamedParameter(time(), \PDO::PARAM_INT),
+					]);
+				$qb->executeStatement();
 
-			$attachmentId = (int)$this->db->lastInsertId('*PREFIX*cobudget_entry_attachments');
-			$attachment = $this->fetchEntryAttachment($attachmentId, $id, (int)$workspaceId);
+				$attachmentId = (int)$this->db->lastInsertId('*PREFIX*cobudget_entry_attachments');
+				$attachment = $this->fetchEntryAttachment($attachmentId, $id, (int)$workspaceId);
+				if ($attachment === null) {
+					throw new \RuntimeException('Receipt metadata could not be loaded after insert.');
+				}
+				$this->db->commit();
+				$attachmentStored = true;
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
 
 			return new DataResponse([
 				'status' => 'success',
 				'attachment' => $attachment,
 			]);
 		} catch (\Throwable $e) {
+			if (!$attachmentStored && $createdFile instanceof File) {
+				try {
+					$createdFile->delete();
+				} catch (\Throwable $cleanupError) {
+					$this->logInternalException($cleanupError, 'Failed to remove receipt file after metadata rollback');
+				}
+			}
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -1938,9 +2035,24 @@ class EntryController extends Controller {
 			if ($attachment === null) {
 				return $this->errorResponse('Receipt not found', Http::STATUS_NOT_FOUND);
 			}
+			$ownerUserId = $this->attachmentOwnerUserId($attachment);
+			if ($ownerUserId === null || $ownerUserId !== (string)$this->userId) {
+				return $this->errorResponse('Only the receipt owner can delete this file', Http::STATUS_FORBIDDEN);
+			}
 
-			$this->deleteAttachmentFile($attachment);
-			$this->deleteAttachmentRow($attachmentId, $id, (int)$workspaceId);
+			$this->db->beginTransaction();
+			try {
+				$deleted = $this->deleteAttachmentRow($attachmentId, $id, (int)$workspaceId, $ownerUserId);
+				if ($deleted < 1) {
+					throw new \RuntimeException('Receipt metadata could not be deleted.');
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
+
+			$this->deleteAttachmentFileAfterCommit($attachment);
 
 			return new DataResponse(['status' => 'success']);
 		} catch (\Throwable $e) {
@@ -1971,18 +2083,32 @@ class EntryController extends Controller {
 			}
 			$workspaceId = (int)$entry['workspace_id'];
 
-			$this->deleteEntryAttachments($id, (int)$workspaceId);
-			$this->hashtagService->deleteEntryHashtags($id);
-			$this->deleteEntryHistory($id, (int)$workspaceId);
+			$attachments = $this->fetchEntryAttachments($id, (int)$workspaceId);
+			$this->db->beginTransaction();
+			try {
+				$this->deleteEntryAttachmentRows($id, (int)$workspaceId);
+				$this->hashtagService->deleteEntryHashtags($id);
+				$this->deleteEntryHistory($id, (int)$workspaceId);
+				$this->entryShareService->deleteForEntry($id);
 
-			$qb = $this->db->getQueryBuilder();
-			$qb->delete('cobudget_entries')
-				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-			$qb->executeStatement();
+				$qb = $this->db->getQueryBuilder();
+				$qb->delete('cobudget_entries')
+					->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
+					->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				$deleted = $qb->executeStatement();
+				if ($deleted < 1) {
+					throw new \RuntimeException('Payment could not be deleted.');
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
+
+			$this->deleteEntryAttachmentFilesAfterCommit($attachments);
 
 			return new DataResponse(['status' => 'success']);
-		} catch (\Exception $e) {
+		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -2373,28 +2499,53 @@ class EntryController extends Controller {
 		}
 	}
 
-	private function deleteAttachmentRow(int $attachmentId, int $entryId, int $workspaceId): void {
+	private function attachmentOwnerUserId(array $attachment): ?string {
+		$ownerUserId = trim((string)($attachment['owner_user_id'] ?? ''));
+
+		return $ownerUserId !== '' ? $ownerUserId : null;
+	}
+
+	private function ownerWantsAttachmentFileDeletedWithEntry(array $attachment): bool {
+		$ownerUserId = $this->attachmentOwnerUserId($attachment);
+		if ($ownerUserId === null) {
+			return false;
+		}
+
+		return $this->config->getUserValue($ownerUserId, 'cobudget', 'delete_receipts_with_entry', 'no') === 'yes';
+	}
+
+	private function deleteAttachmentRow(int $attachmentId, int $entryId, int $workspaceId, string $ownerUserId): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete('cobudget_entry_attachments')
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($attachmentId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('entry_id', $qb->createNamedParameter($entryId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-		$qb->executeStatement();
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('owner_user_id', $qb->createNamedParameter($ownerUserId)));
+		return $qb->executeStatement();
 	}
 
-	private function deleteEntryAttachments(int $entryId, int $workspaceId): void {
-		$attachments = $this->fetchEntryAttachments($entryId, $workspaceId);
-		if ($this->config->getUserValue((string)$this->userId, 'cobudget', 'delete_receipts_with_entry', 'no') === 'yes') {
-			foreach ($attachments as $attachment) {
-				$this->deleteAttachmentFile($attachment);
-			}
-		}
-
+	private function deleteEntryAttachmentRows(int $entryId, int $workspaceId): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete('cobudget_entry_attachments')
 			->where($qb->expr()->eq('entry_id', $qb->createNamedParameter($entryId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 		$qb->executeStatement();
+	}
+
+	private function deleteAttachmentFileAfterCommit(array $attachment): void {
+		try {
+			$this->deleteAttachmentFile($attachment);
+		} catch (\Throwable $e) {
+			$this->logInternalException($e, 'Failed to remove receipt file after database commit');
+		}
+	}
+
+	private function deleteEntryAttachmentFilesAfterCommit(array $attachments): void {
+		foreach ($attachments as $attachment) {
+			if ($this->ownerWantsAttachmentFileDeletedWithEntry($attachment)) {
+				$this->deleteAttachmentFileAfterCommit($attachment);
+			}
+		}
 	}
 
 	private function recordEntryHistory(int $entryId, int $workspaceId, ?int $projectId, array $oldEntry, array $newEntry): void {

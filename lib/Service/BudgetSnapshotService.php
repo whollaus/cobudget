@@ -21,6 +21,7 @@ class BudgetSnapshotService {
 
 	public function __construct(
 		private IDBConnection $db,
+		private EntryShareService $entryShareService,
 	) {
 	}
 
@@ -190,7 +191,7 @@ class BudgetSnapshotService {
 		$rows = $result->fetchAll();
 		$result->closeCursor();
 
-		return $rows;
+		return $this->entryShareService->attachPersonalShares($rows, $userId);
 	}
 
 	private function loadSnapshot(int $id): ?array {
@@ -298,6 +299,9 @@ class BudgetSnapshotService {
 		$projectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
 		if ($projectId === null) {
 			return $amountCents;
+		}
+		if (array_key_exists('snapshot_share_cents', $entry)) {
+			return max(0, (int)$entry['snapshot_share_cents']);
 		}
 
 		$shares = $sharesByProject[$projectId] ?? [$userId => 10000];

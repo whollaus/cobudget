@@ -3,10 +3,12 @@
 namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\BudgetSnapshotService;
+use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\HashtagService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IConfig;
 use OCP\IDBConnection;
@@ -42,16 +44,18 @@ class AnalyticsController extends Controller {
 	private IConfig $config;
 	private IUserManager $userManager;
 	private BudgetSnapshotService $budgetSnapshotService;
+	private EntryShareService $entryShareService;
 	private HashtagService $hashtagService;
 	private ?string $userId;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IConfig $config, IUserSession $userSession, IUserManager $userManager, BudgetSnapshotService $budgetSnapshotService, HashtagService $hashtagService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IConfig $config, IUserSession $userSession, IUserManager $userManager, BudgetSnapshotService $budgetSnapshotService, EntryShareService $entryShareService, HashtagService $hashtagService, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$this->config = $config;
 		$this->userManager = $userManager;
 		$this->budgetSnapshotService = $budgetSnapshotService;
+		$this->entryShareService = $entryShareService;
 		$this->hashtagService = $hashtagService;
 		$this->l10n = $l10n;
 		$user = $userSession->getUser();
@@ -62,6 +66,7 @@ class AnalyticsController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 12, period: 60)]
 	public function summary(string $period = 'current-month'): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -219,6 +224,7 @@ class AnalyticsController extends Controller {
 		$result = $qb->executeQuery();
 		$rows = $result->fetchAll();
 		$result->closeCursor();
+		$rows = $this->entryShareService->attachPersonalShares($rows, (string)$this->userId);
 
 		$entries = [];
 		foreach ($rows as $row) {
@@ -343,6 +349,7 @@ class AnalyticsController extends Controller {
 		$result = $qb->executeQuery();
 		$rows = $result->fetchAll();
 		$result->closeCursor();
+		$rows = $this->entryShareService->attachPersonalShares($rows, (string)$this->userId);
 
 		$entries = [];
 		foreach ($rows as $row) {
@@ -363,7 +370,7 @@ class AnalyticsController extends Controller {
 				'type' => 'expense',
 				'date' => (int)($row['date'] ?? 0),
 				'amountCents' => $amountCents,
-				'personalCents' => $this->entryShareCentsForUser($row, (string)$this->userId, $amountCents, $shares),
+				'personalCents' => $this->storedOrCalculatedShareCents($row, $amountCents, $shares),
 				'userId' => $userId,
 				'userDisplayName' => $this->displayNameForUser($userId),
 				'projectId' => $projectId,
@@ -438,6 +445,7 @@ class AnalyticsController extends Controller {
 		$result = $qb->executeQuery();
 		$rows = $result->fetchAll();
 		$result->closeCursor();
+		$rows = $this->entryShareService->attachPersonalShares($rows, (string)$this->userId);
 
 		$entries = [];
 		foreach ($rows as $row) {
@@ -515,7 +523,15 @@ class AnalyticsController extends Controller {
 		}
 
 		$shares = $sharesByProject[$projectId] ?? [(string)$this->userId => 10000];
-		return $this->entryShareCentsForUser($entry, (string)$this->userId, $amountCents, $shares);
+		return $this->storedOrCalculatedShareCents($entry, $amountCents, $shares);
+	}
+
+	private function storedOrCalculatedShareCents(array $entry, int $amountCents, array $fallbackShares): int {
+		if (array_key_exists('snapshot_share_cents', $entry)) {
+			return max(0, (int)$entry['snapshot_share_cents']);
+		}
+
+		return $this->entryShareCentsForUser($entry, (string)$this->userId, $amountCents, $fallbackShares);
 	}
 
 	private function entryTags(array $row): array {

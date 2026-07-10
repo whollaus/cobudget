@@ -3,6 +3,7 @@
 namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\HashtagService;
+use OCA\CoBudget\Service\EntryShareService;
 use OCP\IRequest;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
@@ -19,6 +20,7 @@ class WorkspaceController extends Controller {
 	private ?string $userId;
 	private IConfig $config;
 	private HashtagService $hashtagService;
+	private EntryShareService $entryShareService;
 
 	public function __construct(
 		string $appName,
@@ -26,7 +28,8 @@ class WorkspaceController extends Controller {
 		IDBConnection $db,
 		IUserSession $userSession,
 		IConfig $config,
-		HashtagService $hashtagService
+		HashtagService $hashtagService,
+		EntryShareService $entryShareService
 	) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
@@ -34,6 +37,7 @@ class WorkspaceController extends Controller {
 		$this->userId = $user ? $user->getUID() : null;
 		$this->config = $config;
 		$this->hashtagService = $hashtagService;
+		$this->entryShareService = $entryShareService;
 		$this->initWorkspace();
 	}
 
@@ -188,6 +192,7 @@ class WorkspaceController extends Controller {
 				$this->hashtagService->deleteHashtagsForEntries($entryIds);
 				$this->hashtagService->deleteWorkspaceHashtags($id);
 				$this->deleteRowsByColumnValues('cobudget_entry_history', 'entry_id', $entryIds);
+				$this->entryShareService->deleteForEntries($entryIds);
 				$this->deleteRowsByColumnValues('cobudget_settlement_balances', 'settlement_id', $settlementIds);
 				$this->deleteRowsByColumnValues('cobudget_settlement_transfers', 'settlement_id', $settlementIds);
 				$this->deleteRowsByIds('cobudget_entries', $entryIds);

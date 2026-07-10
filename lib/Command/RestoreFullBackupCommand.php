@@ -23,7 +23,7 @@ class RestoreFullBackupCommand extends Command {
 		$this
 			->setName('cobudget:backup:restore-full')
 			->setDescription('Stellt ein vollständiges CoBudget-Backup aller Benutzer wieder her.')
-			->addOption('user', null, InputOption::VALUE_REQUIRED, 'Nextcloud Benutzer-ID, in dessen Files das Backup liegt')
+			->addOption('user', null, InputOption::VALUE_REQUIRED, 'Nextcloud Administrator-ID, in dessen Files das Backup liegt')
 			->addOption('file', null, InputOption::VALUE_REQUIRED, 'Full-Backup-Dateiname im Backup-Ordner')
 			->addOption('folder', null, InputOption::VALUE_REQUIRED, 'Optionaler Backup-Ordner in Nextcloud Files')
 			->addOption('map-user', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'User-Mapping im Format alterUser:neuerUser')

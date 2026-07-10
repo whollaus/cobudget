@@ -65,6 +65,14 @@ class DataIntegrityService {
 			'repairAction' => 'clear',
 		],
 		[
+			'sourceTable' => 'cobudget_entry_shares',
+			'sourceLabel' => 'Gespeicherte Zahlungsanteile',
+			'column' => 'entry_id',
+			'targetTable' => 'cobudget_entries',
+			'targetLabel' => 'Zahlung',
+			'repairAction' => 'delete',
+		],
+		[
 			'sourceTable' => 'cobudget_entry_attachments',
 			'sourceLabel' => 'Beleg-Pfade',
 			'column' => 'entry_id',
@@ -693,6 +701,9 @@ class DataIntegrityService {
 
 	private function clearReference(string $sourceTable, string $column, array $ids): int {
 		$updated = 0;
+		if ($sourceTable === 'cobudget_entries' && $column === 'project_id') {
+			$this->deleteRowsByColumnValues('cobudget_entry_shares', 'entry_id', $ids);
+		}
 		foreach ($ids as $id) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->update($sourceTable)

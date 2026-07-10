@@ -79,6 +79,7 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table->setPrimaryKey(['id']);
 		$table->addIndex(['project_id'], 'cb_mem_proj');
 		$table->addIndex(['user_id'], 'cb_mem_user');
+		$table->addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user');
 	}
 
 	private function createCategories(ISchemaWrapper $schema): void {

@@ -20,6 +20,7 @@ class ProjectNotificationService {
 	private IUserManager $userManager;
 	private IURLGenerator $urlGenerator;
 	private LoggerInterface $logger;
+	private EntryShareService $entryShareService;
 
 	public function __construct(
 		IDBConnection $db,
@@ -27,6 +28,7 @@ class ProjectNotificationService {
 		IConfig $config,
 		IUserManager $userManager,
 		IURLGenerator $urlGenerator,
+		EntryShareService $entryShareService,
 		LoggerInterface $logger
 	) {
 		$this->db = $db;
@@ -34,6 +36,7 @@ class ProjectNotificationService {
 		$this->config = $config;
 		$this->userManager = $userManager;
 		$this->urlGenerator = $urlGenerator;
+		$this->entryShareService = $entryShareService;
 		$this->logger = $logger;
 	}
 
@@ -215,7 +218,7 @@ class ProjectNotificationService {
 		$shareBasisPoints = $this->memberShareBasisPoints($projectId, $members);
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('user_id', 'amount', 'amount_cents', 'currency', 'split_mode', 'split_user_id')
+		$qb->select('id', 'user_id', 'amount', 'amount_cents', 'currency', 'split_mode', 'split_user_id')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -225,6 +228,7 @@ class ProjectNotificationService {
 		$result = $qb->executeQuery();
 		$entries = $result->fetchAll();
 		$result->closeCursor();
+		$entryShares = $this->entryShareService->sharesForEntries(array_column($entries, 'id'));
 
 		if ($entries === []) {
 			return [];
@@ -240,6 +244,15 @@ class ProjectNotificationService {
 			}
 			$totalCents += $amountCents;
 			$currency = (string)($entry['currency'] ?: $currency);
+			$entryId = (int)($entry['id'] ?? 0);
+			if (isset($entryShares[$entryId])) {
+				foreach ($entryShares[$entryId] as $memberId => $allocation) {
+					if (isset($fairShare[$memberId])) {
+						$fairShare[$memberId] += (int)$allocation['amount_cents'];
+					}
+				}
+				continue;
+			}
 
 			if ($this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user') {
 				$splitTargetUserId = $this->entrySplitTargetUserId($entry);

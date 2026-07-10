@@ -9,6 +9,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -74,6 +75,7 @@ class BackupController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 10, period: 60)]
 	public function inspect(string $fileName): DataResponse {
 		if ($error = $this->authErrorResponse()) {
 			return $error;

@@ -2,15 +2,19 @@
 namespace OCA\CoBudget\Notification;
 
 use OCP\L10N\IFactory;
+use OCP\IURLGenerator;
 use OCP\Notification\INotification;
 use OCP\Notification\INotifier;
+use OCP\Notification\UnknownNotificationException;
 
 class Notifier implements INotifier {
 
 	private IFactory $l10nFactory;
+	private IURLGenerator $urlGenerator;
 
-	public function __construct(IFactory $l10nFactory) {
+	public function __construct(IFactory $l10nFactory, IURLGenerator $urlGenerator) {
 		$this->l10nFactory = $l10nFactory;
+		$this->urlGenerator = $urlGenerator;
 	}
 
 	public function getID(): string {
@@ -23,7 +27,7 @@ class Notifier implements INotifier {
 
 	public function prepare(INotification $notification, string $languageCode): INotification {
 		if ($notification->getApp() !== 'cobudget') {
-			throw new \InvalidArgumentException();
+			throw new UnknownNotificationException();
 		}
 
 		$l = $this->l10nFactory->get('cobudget', $languageCode);
@@ -33,9 +37,8 @@ class Notifier implements INotifier {
 			$title = $this->param($params, 'title') ?: ($this->param($params, 'description') ?: $l->t('Payment without description'));
 
 			$notification->setParsedSubject($l->t('CoBudget reminder: %s', [$title]))
-				->setParsedMessage($this->buildReminderMessage($params, $l))
-				->setLink(\OC::$server->getURLGenerator()->linkToRouteAbsolute('cobudget.page.index'));
-			return $notification;
+				->setLink($this->appLink());
+			return $this->setParsedMessageWhenPresent($notification, $this->buildReminderMessage($params, $l));
 		}
 
 		if ($notification->getSubject() === 'project_entry_created') {
@@ -52,9 +55,8 @@ class Notifier implements INotifier {
 				: $l->t('%s created an expense of %s %s in area %s.', [$actorName, $amount, $currency, $projectName]);
 
 			$notification->setParsedSubject($subject)
-				->setParsedMessage($this->buildProjectEntryMessage($params, $l))
 				->setLink($this->projectLink($projectId));
-			return $notification;
+			return $this->setParsedMessageWhenPresent($notification, $this->buildProjectEntryMessage($params, $l));
 		}
 
 		if ($notification->getSubject() === 'project_settled') {
@@ -64,12 +66,15 @@ class Notifier implements INotifier {
 			$projectName = $this->param($params, 'projectName') ?: $l->t('Untitled area');
 
 			$notification->setParsedSubject($l->t('%s settled area %s.', [$actorName, $projectName]))
-				->setParsedMessage($this->buildProjectSettlementMessage($params, $l))
 				->setLink($this->projectLink($projectId));
-			return $notification;
+			return $this->setParsedMessageWhenPresent($notification, $this->buildProjectSettlementMessage($params, $l));
 		}
 
-		throw new \InvalidArgumentException();
+		// Keep obsolete CoBudget notifications readable instead of allowing one
+		// stale database row to break the complete Nextcloud notification list.
+		$notification->setParsedSubject($l->t('CoBudget notification'))
+			->setLink($this->appLink());
+		return $this->setParsedMessageWhenPresent($notification, $l->t('This notification is no longer available.'));
 	}
 
 	private function buildReminderMessage(array $params, $l): string {
@@ -143,14 +148,32 @@ class Notifier implements INotifier {
 	}
 
 	private function projectLink(string $projectId): string {
-		$url = \OC::$server->getURLGenerator()->linkToRouteAbsolute('cobudget.page.index');
+		$url = $this->appLink();
 		if ($projectId !== '') {
 			return $url . '#/projects/' . rawurlencode($projectId);
 		}
 		return $url;
 	}
 
+	private function appLink(): string {
+		return $this->urlGenerator->linkToRouteAbsolute('cobudget.page.index');
+	}
+
+	private function setParsedMessageWhenPresent(INotification $notification, string $message): INotification {
+		$message = trim($message);
+		if ($message !== '') {
+			$notification->setParsedMessage($message);
+		}
+
+		return $notification;
+	}
+
 	private function param(array $params, string $key): string {
-		return trim((string)($params[$key] ?? ''));
+		$value = $params[$key] ?? '';
+		if (is_scalar($value) || $value instanceof \Stringable) {
+			return trim((string)$value);
+		}
+
+		return '';
 	}
 }

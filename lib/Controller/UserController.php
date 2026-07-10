@@ -6,6 +6,7 @@ use OCA\CoBudget\Service\ResetBlockedException;
 use OCA\CoBudget\Service\UserResetService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Controller;
 use OCP\IDBConnection;
 use OCP\IUserManager;
@@ -75,6 +76,7 @@ class UserController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function search(string $term = ''): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {

@@ -40,6 +40,7 @@ The screenshots below show the current alpha UI and may change during the test p
 - Add free-form `#tags` directly in the payment description
 - Create shared areas for household costs, trips or other shared budgets
 - Split shared area payments by configurable member percentages
+- Preserve each shared payment's original member split as exact percentages and cents, even when area defaults change later
 - Settle shared areas and keep settlement history
 - Attach receipts and invoices stored in Nextcloud Files
 - Create reusable payment templates
@@ -47,7 +48,7 @@ The screenshots below show the current alpha UI and may change during the test p
 - View analytics for spending, income, trends, labels, areas and budget signals
 - Use workspaces to separate independent data pools
 - Export payments as CSV
-- Create personal exports and admin full backups/restore
+- Create personal exports and administrator-owned full backups/restore
 - Support light, dark and system theme modes
 
 See [FEATURES.md](FEATURES.md) for a more detailed overview.

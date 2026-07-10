@@ -3,6 +3,7 @@
 namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\BudgetSnapshotService;
+use OCA\CoBudget\Service\EntryShareService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -25,13 +26,15 @@ class BudgetController extends Controller {
 
 	private IDBConnection $db;
 	private BudgetSnapshotService $budgetSnapshotService;
+	private EntryShareService $entryShareService;
 	private ?string $userId;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, BudgetSnapshotService $budgetSnapshotService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, BudgetSnapshotService $budgetSnapshotService, EntryShareService $entryShareService, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$this->budgetSnapshotService = $budgetSnapshotService;
+		$this->entryShareService = $entryShareService;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
 		$this->l10n = $l10n;
@@ -131,24 +134,31 @@ class BudgetController extends Controller {
 				return $payload;
 			}
 
-			$this->budgetSnapshotService->snapshotGoalForCurrentPeriod((string)$this->userId, $currentGoal, 'changed');
+			$this->db->beginTransaction();
+			try {
+				$this->budgetSnapshotService->snapshotGoalForCurrentPeriod((string)$this->userId, $currentGoal, 'changed');
 
-			$qb = $this->db->getQueryBuilder();
-			$qb->update('cobudget_budget_goals')
-				->set('name', $qb->createNamedParameter($payload['name']))
-				->set('amount_cents', $qb->createNamedParameter($payload['amountCents'], \PDO::PARAM_INT))
-				->set('period', $qb->createNamedParameter($payload['period']))
-				->set('mode', $qb->createNamedParameter($payload['mode']))
-				->set('criteria_json', $qb->createNamedParameter(json_encode($payload['criteria'])))
-				->set('updated_at', $qb->createNamedParameter(time(), \PDO::PARAM_INT))
-				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-			$qb->executeStatement();
+				$qb = $this->db->getQueryBuilder();
+				$qb->update('cobudget_budget_goals')
+					->set('name', $qb->createNamedParameter($payload['name']))
+					->set('amount_cents', $qb->createNamedParameter($payload['amountCents'], \PDO::PARAM_INT))
+					->set('period', $qb->createNamedParameter($payload['period']))
+					->set('mode', $qb->createNamedParameter($payload['mode']))
+					->set('criteria_json', $qb->createNamedParameter(json_encode($payload['criteria'])))
+					->set('updated_at', $qb->createNamedParameter(time(), \PDO::PARAM_INT))
+					->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
+					->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
+					->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				$qb->executeStatement();
 
-			$goal = $this->loadBudgetGoal($id, $workspaceId);
-			if ($goal === null) {
-				return $this->errorResponse('Budget goal not found', Http::STATUS_NOT_FOUND);
+				$goal = $this->loadBudgetGoal($id, $workspaceId);
+				if ($goal === null) {
+					throw new \RuntimeException('Budget goal could not be loaded after update.');
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 
 			return new DataResponse($this->formatGoal($goal, $workspaceId));
@@ -179,17 +189,23 @@ class BudgetController extends Controller {
 				return $this->errorResponse('Budget goal not found', Http::STATUS_NOT_FOUND);
 			}
 
-			$this->budgetSnapshotService->snapshotGoalForCurrentPeriod((string)$this->userId, $currentGoal, 'deleted');
+			$this->db->beginTransaction();
+			try {
+				$this->budgetSnapshotService->snapshotGoalForCurrentPeriod((string)$this->userId, $currentGoal, 'deleted');
 
-			$qb = $this->db->getQueryBuilder();
-			$qb->delete('cobudget_budget_goals')
-				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-			$deleted = $qb->executeStatement();
-
-			if ($deleted < 1) {
-				return $this->errorResponse('Budget goal not found', Http::STATUS_NOT_FOUND);
+				$qb = $this->db->getQueryBuilder();
+				$qb->delete('cobudget_budget_goals')
+					->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
+					->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
+					->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				$deleted = $qb->executeStatement();
+				if ($deleted < 1) {
+					throw new \RuntimeException('Budget goal could not be deleted.');
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
 			}
 
 			return new DataResponse(['success' => true]);
@@ -397,7 +413,7 @@ class BudgetController extends Controller {
 		$rows = $result->fetchAll();
 		$result->closeCursor();
 
-		return $rows;
+		return $this->entryShareService->attachPersonalShares($rows, (string)$this->userId);
 	}
 
 	private function loadBudgetGoal(int $id, int $workspaceId): ?array {
@@ -590,6 +606,9 @@ class BudgetController extends Controller {
 		$projectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
 		if ($projectId === null) {
 			return $amountCents;
+		}
+		if (array_key_exists('snapshot_share_cents', $entry)) {
+			return max(0, (int)$entry['snapshot_share_cents']);
 		}
 
 		$shares = $sharesByProject[$projectId] ?? [(string)$this->userId => 10000];

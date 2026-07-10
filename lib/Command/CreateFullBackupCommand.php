@@ -23,7 +23,7 @@ class CreateFullBackupCommand extends Command {
 		$this
 			->setName('cobudget:backup:create-full')
 			->setDescription('Erstellt ein vollständiges CoBudget-Backup aller Benutzer in Nextcloud Files.')
-			->addOption('user', null, InputOption::VALUE_REQUIRED, 'Nextcloud Benutzer-ID, in dessen Files das Backup gespeichert wird')
+			->addOption('user', null, InputOption::VALUE_REQUIRED, 'Nextcloud Administrator-ID, in dessen Files das Backup gespeichert wird')
 			->addOption('folder', null, InputOption::VALUE_REQUIRED, 'Optionaler Backup-Ordner in Nextcloud Files')
 			->addOption('keep', null, InputOption::VALUE_REQUIRED, 'Anzahl der Full-Backups, die behalten werden sollen');
 	}

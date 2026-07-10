@@ -1001,10 +1001,10 @@ export default {
 			if (Number(counts.attachments || 0) > 0) {
 				parts.push(this.$texts.settings.resetReceiptSummary(this.$texts.settings.countReceiptLinks(Number(counts.attachments || 0))));
 			}
-			const deletableShared = preview?.deletable_shared_projects || [];
-			if (deletableShared.length > 0) {
-				const names = deletableShared.map(project => project.name).join(', ');
-				parts.push(this.$texts.settings.resetDeleteSharedSummary(names));
+			const transferableShared = preview?.transferable_shared_projects || [];
+			if (transferableShared.length > 0) {
+				const names = transferableShared.map(project => project.name).join(', ');
+				parts.push(this.$texts.settings.resetTransferSharedSummary(names));
 			}
 			const leavableShared = preview?.leavable_shared_projects || [];
 			if (leavableShared.length > 0) {

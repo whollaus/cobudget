@@ -1,6 +1,7 @@
 <?php
 namespace OCA\CoBudget\Controller;
 
+use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\ProjectNotificationService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
@@ -19,16 +20,18 @@ class ProjectController extends Controller {
 	private ?string $userId;
 	private IUserManager $userManager;
 	private IConfig $config;
+	private EntryShareService $entryShareService;
 	private ProjectNotificationService $projectNotificationService;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IUserManager $userManager, IConfig $config, ProjectNotificationService $projectNotificationService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IUserManager $userManager, IConfig $config, EntryShareService $entryShareService, ProjectNotificationService $projectNotificationService, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
 		$this->userManager = $userManager;
 		$this->config = $config;
+		$this->entryShareService = $entryShareService;
 		$this->projectNotificationService = $projectNotificationService;
 		$this->l10n = $l10n;
 		$this->initWorkspace();
@@ -36,6 +39,19 @@ class ProjectController extends Controller {
 
 	private function sharedProjectsEnabled(): bool {
 		return $this->config->getUserValue($this->userId, 'cobudget', 'enable_shared_projects', 'yes') === 'yes';
+	}
+
+	private function userSearchAllowed(): bool {
+		return $this->systemFlagEnabled('shareapi_allow_share_dialog_user_enumeration', true);
+	}
+
+	private function systemFlagEnabled(string $key, bool $default): bool {
+		$value = $this->config->getSystemValue($key, $default);
+		if (is_bool($value)) {
+			return $value;
+		}
+
+		return !in_array(strtolower((string)$value), ['0', 'false', 'no', 'off'], true);
 	}
 
 	private function requireProjectOwner(int $id): ?DataResponse {
@@ -137,6 +153,47 @@ class ProjectController extends Controller {
 		$this->updateProjectShareBasisPoints($projectId, $shares);
 	}
 
+	private function memberHasOpenPaymentInvolvement(int $projectId, int $workspaceId, string $userId, array $members): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'user_id', 'project_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
+			->from('cobudget_entries')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('is_settled', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
+		$result = $qb->executeQuery();
+		$entries = $result->fetchAll();
+		$result->closeCursor();
+
+		$entryShares = $this->entryShareService->sharesForEntries(array_column($entries, 'id'));
+		$fallbackShares = $this->projectShareBasisPoints($members);
+		foreach ($entries as $entry) {
+			if ((string)($entry['user_id'] ?? '') === $userId) {
+				return true;
+			}
+
+			if ((string)($entry['split_user_id'] ?? '') === $userId) {
+				return true;
+			}
+
+			$entryId = (int)($entry['id'] ?? 0);
+			if (isset($entryShares[$entryId])) {
+				$allocation = $entryShares[$entryId][$userId] ?? null;
+				if ($allocation !== null
+					&& ((int)$allocation['amount_cents'] > 0 || (int)$allocation['share_basis_points'] > 0)) {
+					return true;
+				}
+				continue;
+			}
+
+			$amountCents = $this->amountCentsFromRow($entry) ?? 0;
+			if ($this->storedOrCalculatedShareCents($entry, $userId, $amountCents, $fallbackShares) > 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private function calculatePersonalBalance(int $projectId, int $workspaceId, string $userId, array $members): float {
 		$shares = $this->projectShareBasisPoints($members);
 		if ($shares === []) {
@@ -144,7 +201,7 @@ class ProjectController extends Controller {
 		}
 
 		$qbEntries = $this->db->getQueryBuilder();
-		$qbEntries->select('user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
+		$qbEntries->select('id', 'user_id', 'project_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 			->from('cobudget_entries')
 			->where($qbEntries->expr()->eq('project_id', $qbEntries->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qbEntries->expr()->eq('workspace_id', $qbEntries->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -152,6 +209,7 @@ class ProjectController extends Controller {
 		$resultEntries = $qbEntries->executeQuery();
 		$entries = $resultEntries->fetchAll();
 		$resultEntries->closeCursor();
+		$entries = $this->entryShareService->attachPersonalShares($entries, $userId);
 
 		$paidByUserCents = 0;
 		$shareForUserCents = 0;
@@ -164,7 +222,7 @@ class ProjectController extends Controller {
 			if (($entry['user_id'] ?? null) === $userId) {
 				$paidByUserCents += $amountCents;
 			}
-			$shareForUserCents += $this->entryShareCentsForUser($entry, $userId, $amountCents, $shares);
+			$shareForUserCents += $this->storedOrCalculatedShareCents($entry, $userId, $amountCents, $shares);
 		}
 
 		return round(($paidByUserCents - $shareForUserCents) / 100, 2);
@@ -582,8 +640,12 @@ class ProjectController extends Controller {
 				return $ownerError;
 			}
 
+			if (!$this->userSearchAllowed()) {
+				return $this->errorResponse('Adding members is disabled because Nextcloud user search is disabled.', Http::STATUS_FORBIDDEN);
+			}
+
 			if ($this->userManager->get($userId) === null) {
-				return new DataResponse(['error' => 'User not found'], Http::STATUS_BAD_REQUEST);
+				return $this->errorResponse('User could not be added.', Http::STATUS_BAD_REQUEST);
 			}
 
 			// Check if the user is already a member
@@ -675,6 +737,21 @@ class ProjectController extends Controller {
 
 			$this->db->beginTransaction();
 			try {
+				$members = $this->projectMembers($id);
+				if (!in_array($userId, $this->projectMemberIds($members), true)) {
+					$this->db->rollBack();
+					return $this->errorResponse('Area member not found.', Http::STATUS_NOT_FOUND);
+				}
+
+				$workspaceId = (int)$project['workspace_id'];
+				if ($this->memberHasOpenPaymentInvolvement($id, $workspaceId, $userId, $members)) {
+					$this->db->rollBack();
+					return $this->errorResponse(
+						$this->l10n->t('This member is still assigned to open payments. Settle the area before removing the member.'),
+						Http::STATUS_CONFLICT
+					);
+				}
+
 				$qbDel = $this->db->getQueryBuilder();
 				$qbDel->delete('cobudget_members')
 					->where($qbDel->expr()->eq('project_id', $qbDel->createNamedParameter($id, \PDO::PARAM_INT)))
@@ -895,7 +972,7 @@ class ProjectController extends Controller {
 		}
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
+		$qb->select('id', 'user_id', 'project_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -903,6 +980,7 @@ class ProjectController extends Controller {
 		$result = $qb->executeQuery();
 		$entries = $result->fetchAll();
 		$result->closeCursor();
+		$entryShares = $this->entryShareService->sharesForEntries(array_column($entries, 'id'));
 
 		$paid = [];
 		$fairShare = [];
@@ -925,6 +1003,16 @@ class ProjectController extends Controller {
 			$entryUserId = (string)($entry['user_id'] ?? '');
 			if (isset($paid[$entryUserId])) {
 				$paid[$entryUserId] += $amountCents;
+			}
+
+			$entryId = (int)($entry['id'] ?? 0);
+			if (isset($entryShares[$entryId])) {
+				foreach ($entryShares[$entryId] as $userId => $allocation) {
+					if (isset($fairShare[$userId])) {
+						$fairShare[$userId] += (int)$allocation['amount_cents'];
+					}
+				}
+				continue;
 			}
 
 			if ($this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user') {
@@ -1188,6 +1276,7 @@ class ProjectController extends Controller {
 		$entries = $result->fetchAll();
 		$result->closeCursor();
 
+		$entries = $this->entryShareService->attachPersonalShares($entries, (string)$this->userId);
 		$entries = array_map(fn(array $entry): array => $this->normalizeProjectEntryRow($entry), $entries);
 		return $this->attachEntryAttachmentCounts($entries, $workspaceId);
 	}
@@ -1257,7 +1346,7 @@ class ProjectController extends Controller {
 		$currentUserId = (string)$this->userId;
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('user_id', 'type', 'amount', 'amount_cents', 'split_mode', 'split_user_id', 'is_settled', 'is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant')
+		$qb->select('id', 'user_id', 'project_id', 'type', 'amount', 'amount_cents', 'split_mode', 'split_user_id', 'is_settled', 'is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -1266,6 +1355,7 @@ class ProjectController extends Controller {
 		$result = $qb->executeQuery();
 		$entries = $result->fetchAll();
 		$result->closeCursor();
+		$entries = $this->entryShareService->attachPersonalShares($entries, $currentUserId);
 
 		foreach ($entries as $entry) {
 			$type = (string)($entry['type'] ?? '');
@@ -1274,7 +1364,7 @@ class ProjectController extends Controller {
 			}
 
 			$amountCents = (float)($this->amountCentsFromRow($entry) ?? 0);
-			$personalCents = $this->entryShareCentsForUser($entry, $currentUserId, (int)$amountCents, $shares);
+			$personalCents = $this->storedOrCalculatedShareCents($entry, $currentUserId, (int)$amountCents, $shares);
 			$isActive = !$this->projectDashboardBool($entry['is_settled'] ?? false);
 
 			if ($type === 'income') {
@@ -1355,6 +1445,14 @@ class ProjectController extends Controller {
 		}
 
 		return $normalized;
+	}
+
+	private function storedOrCalculatedShareCents(array $entry, string $userId, int $amountCents, array $fallbackShares): int {
+		if (array_key_exists('snapshot_share_cents', $entry)) {
+			return max(0, (int)$entry['snapshot_share_cents']);
+		}
+
+		return $this->entryShareCentsForUser($entry, $userId, $amountCents, $fallbackShares);
 	}
 
 	private function projectDashboardBool($value): bool {
