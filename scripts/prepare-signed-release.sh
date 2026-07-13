@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+# Prevent macOS tar from adding AppleDouble metadata to release archives.
+export COPYFILE_DISABLE=1
+
 usage() {
 	cat <<'EOF'
 Usage:
@@ -80,7 +83,14 @@ echo "Creating Nextcloud app signature..."
 require_file "$TEMP_DIR/package/cobudget/appinfo/signature.json"
 
 echo "Packing signed release archive..."
-tar -C "$TEMP_DIR/package" -czf "$ARCHIVE" cobudget
+tar \
+	--exclude='._*' \
+	--exclude='*/._*' \
+	--exclude='.DS_Store' \
+	--exclude='*/.DS_Store' \
+	-C "$TEMP_DIR/package" \
+	-czf "$ARCHIVE" \
+	cobudget
 
 echo "Creating detached App Store signature..."
 openssl dgst -sha512 -sign "$PRIVATE_KEY" "$ARCHIVE" \
@@ -98,6 +108,10 @@ tar -tzf "$ARCHIVE" | grep -q '^cobudget/appinfo/signature.json$'
 tar -tzf "$ARCHIVE" | grep -q '^cobudget/js/'
 if tar -tzf "$ARCHIVE" | grep -Eq '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md)(/|$)'; then
 	echo "Release archive contains repository-only files." >&2
+	exit 65
+fi
+if tar -tzf "$ARCHIVE" | grep -Eq '(^|/)(\._[^/]+|\.DS_Store)(/|$)'; then
+	echo "Release archive contains macOS metadata files." >&2
 	exit 65
 fi
 

@@ -15,6 +15,7 @@ All notable changes to CoBudget are documented in this file.
 - Use CoBudget in German or English with responsive layouts, keyboard support and light/dark theme integration.
 - Protect workspace isolation, shared-area permissions, file access and critical multi-row mutations with centralized validation and transactions.
 - Prepare a certificate-based release pipeline with internal Nextcloud app signing, a detached App Store signature, and draft-only GitHub tag releases.
+- Exclude macOS AppleDouble and Finder metadata from installable release archives and reject polluted packages in CI.
 
 ### Upgrade Note
 

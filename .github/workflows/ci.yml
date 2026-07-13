@@ -46,7 +46,8 @@ jobs:
           test -f ../cobudget.tar.gz
           tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/appinfo/info.xml$'
           tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/js/'
-          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md)'
+          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md)(/|$)'
+          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(\._[^/]+|\.DS_Store)(/|$)'
 
       - name: Stage release archive artifact
         run: cp ../cobudget.tar.gz cobudget.tar.gz

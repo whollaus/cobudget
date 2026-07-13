@@ -65,6 +65,17 @@ Use the correct PHP binary for the target Nextcloud installation. The command ru
 
 Do not modify the archive after signing it. Any change requires rebuilding and signing again.
 
+Verify that the signed archive contains the required app files and no macOS metadata:
+
+```sh
+tar -tzf ../cobudget.tar.gz | grep '^cobudget/appinfo/signature.json$'
+if tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(\._[^/]+|\.DS_Store)(/|$)'; then
+  echo "Release archive contains macOS metadata" >&2
+  exit 1
+fi
+shasum -a 256 -c ../SHA256SUMS
+```
+
 ## 3. Upload And Publish The Draft
 
 Upload the locally signed artifacts:
