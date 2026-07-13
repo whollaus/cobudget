@@ -30,7 +30,7 @@ class CreateFullBackupCommand extends Command {
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$configuredSettings = $this->backupService->getFullBackupSettings();
-		$storageUserId = (string)$input->getOption('user');
+		$storageUserId = trim((string)$input->getOption('user'));
 		$useConfiguredDefaults = $storageUserId === '';
 		if ($storageUserId === '') {
 			$storageUserId = (string)$configuredSettings['storage_user_id'];
@@ -45,6 +45,7 @@ class CreateFullBackupCommand extends Command {
 		}
 
 		$folder = $input->getOption('folder');
+		$folder = is_string($folder) ? trim($folder) : $folder;
 		$keep = $input->getOption('keep');
 
 		try {

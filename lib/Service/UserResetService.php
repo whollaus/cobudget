@@ -61,6 +61,9 @@ class UserResetService {
 		private BackupService $backupService,
 		private HashtagService $hashtagService,
 		private EntryShareService $entryShareService,
+		private EntryProjectionService $entryProjectionService,
+		private ParticipantService $participantService,
+		private DataIntegrityService $dataIntegrityService,
 	) {
 	}
 
@@ -80,7 +83,7 @@ class UserResetService {
 			$members = $this->projectMembers($projectId);
 			$otherMembers = array_values(array_filter($members, static fn (array $member): bool => (string)$member['user_id'] !== $userId));
 
-			if (count($members) > 1 && $otherMembers !== []) {
+						if (count($members) > 1 && $otherMembers !== []) {
 				$openCount = $this->countUnsettledProjectEntries($projectId);
 				$row = [
 					'id' => $projectId,
@@ -88,8 +91,13 @@ class UserResetService {
 					'member_count' => count($members),
 					'open_entries' => $openCount,
 				];
+				$containsFormerMember = array_filter(
+					$otherMembers,
+					fn (array $member): bool => $this->participantService->isFormer((string)$member['user_id'])
+				) !== [];
 
-				if ($openCount > 0) {
+				if ($openCount > 0 || ($containsFormerMember && (string)($project['owner_id'] ?? '') === $userId)) {
+					$row['contains_former_member'] = $containsFormerMember;
 					$sharedBlocking[] = $row;
 				} elseif ((string)($project['owner_id'] ?? '') === $userId) {
 					$ownedSharedTransferable[] = $row;
@@ -191,9 +199,14 @@ class UserResetService {
 							throw new \RuntimeException('Offene gemeinsame Bereiche müssen vor dem Reset zuerst abgerechnet werden.');
 						}
 
-						if ((string)($project['owner_id'] ?? '') === $userId) {
-							$transferReport = $this->materializeSettledProjectShares($projectId, $userId);
-							$projectReport = $this->deleteProjectTree($projectId, $deleteReceiptFiles, $userId);
+							if ((string)($project['owner_id'] ?? '') === $userId) {
+								$transferReport = ['entries' => 0, 'attachments' => 0];
+								foreach ($otherMembers as $otherMember) {
+									$memberReport = $this->entryProjectionService->detachSettledMember($projectId, (string)$otherMember['user_id']);
+									$transferReport['entries'] += (int)$memberReport['entries'];
+									$transferReport['attachments'] += (int)$memberReport['attachments'];
+								}
+								$projectReport = $this->deleteProjectTree($projectId, $deleteReceiptFiles, $userId);
 							$report['deleted']['shared_projects']++;
 							$this->addDeletedCounts($report, $projectReport);
 							$report['transferred_personal_entries'] += (int)$transferReport['entries'];
@@ -207,7 +220,8 @@ class UserResetService {
 							continue;
 						}
 
-						$this->leaveSettledSharedProject($projectId, $userId);
+							$this->entryProjectionService->detachSettledMember($projectId, $userId);
+							$this->leaveSettledSharedProject($projectId, $userId);
 						$report['left_shared_projects'][] = [
 							'id' => $projectId,
 							'name' => (string)$project['name'],
@@ -224,7 +238,9 @@ class UserResetService {
 					$this->addDeletedCounts($report, $projectReport);
 				}
 
-				$personalEntryIds = $this->entryIdsForPersonalWorkspaceRows($userId, $workspaceIds);
+				$personalEntryIds = $this->entryProjectionService->prepareEntryDeletion(
+					$this->entryIdsForPersonalWorkspaceRows($userId, $workspaceIds)
+				);
 				$personalAttachments = $this->deleteAttachmentsForEntries($personalEntryIds, $deleteReceiptFiles, $userId);
 				$report['deleted']['attachments'] += $personalAttachments['rows'];
 				$report['deleted']['attachment_files'] += $personalAttachments['files'];
@@ -248,8 +264,10 @@ class UserResetService {
 				$defaultWorkspaceId = $this->createDefaultWorkspaceForUser($userId);
 				$report['default_workspace'] = [
 					'id' => $defaultWorkspaceId,
-					'name' => 'Haupt-Workspace',
+					'name' => 'Basis',
 				];
+
+				$this->dataIntegrityService->assertProjectionIntegrity();
 
 				$this->db->commit();
 			} catch (\Throwable $e) {
@@ -315,6 +333,7 @@ class UserResetService {
 		$qb->select($qb->createFunction('COUNT(*) AS entry_count'))
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('entry_kind', $qb->createNamedParameter('shared')))
 			->andWhere($qb->expr()->eq('is_settled', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
 
 		return (int)($this->fetchOne($qb)['entry_count'] ?? 0);
@@ -476,6 +495,7 @@ class UserResetService {
 		$qb->insert('cobudget_entries')
 			->values([
 				'user_id' => $qb->createNamedParameter($recipientUserId),
+				'created_by' => $qb->createNamedParameter($recipientUserId),
 				'project_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
 				'type' => $qb->createNamedParameter((string)($entry['type'] ?? 'expense')),
 				'amount' => $qb->createNamedParameter($this->amountStringFromCents($amountCents)),
@@ -644,7 +664,9 @@ class UserResetService {
 	}
 
 	private function deleteProjectTree(int $projectId, bool $deleteReceiptFiles, ?string $fileOwnerUserId = null): array {
-		$entryIds = $this->entryIdsForProjects([$projectId]);
+		$entryIds = $this->entryProjectionService->prepareEntryDeletion(
+			$this->entryIdsForProjects([$projectId])
+		);
 		$settlementIds = $this->idsByColumn('cobudget_settlements', 'project_id', $projectId);
 		$attachmentReport = $this->deleteAttachmentsForEntries($entryIds, $deleteReceiptFiles, $fileOwnerUserId);
 		$this->hashtagService->deleteHashtagsForEntries($entryIds);
@@ -805,7 +827,7 @@ class UserResetService {
 		$qb = $this->db->getQueryBuilder();
 		$qb->insert('cobudget_workspaces')
 			->values([
-				'name' => $qb->createNamedParameter('Haupt-Workspace'),
+				'name' => $qb->createNamedParameter('Basis'),
 				'user_id' => $qb->createNamedParameter($userId),
 				'is_default' => $qb->createNamedParameter(true, \PDO::PARAM_BOOL),
 				'created_at' => $qb->createNamedParameter(time(), \PDO::PARAM_INT),

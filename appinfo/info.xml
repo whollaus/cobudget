@@ -14,7 +14,7 @@
     Hinweis zur frühen Alpha-Version: Funktionen, Datenstrukturen und Abläufe können sich noch ändern. Während der Alpha-Phase können manuelle Korrekturen in der Datenbank erforderlich sein.
 
     Mit CoBudget verwaltest du Zahlungen, Budgetziele, Belege, Workspaces, gemeinsame Bereiche, Abrechnungen und Auswertungen direkt in Nextcloud.]]></description>
-    <version>0.1.5</version>
+    <version>0.2.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>

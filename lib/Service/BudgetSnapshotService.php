@@ -21,7 +21,6 @@ class BudgetSnapshotService {
 
 	public function __construct(
 		private IDBConnection $db,
-		private EntryShareService $entryShareService,
 	) {
 	}
 
@@ -152,14 +151,13 @@ class BudgetSnapshotService {
 	private function evaluateGoal(string $userId, int $workspaceId, int $amountCents, string $period, string $mode, array $criteria, int $periodStart, int $periodEnd, int $snapshotAt): array {
 		$cutoff = min($snapshotAt, $periodEnd - 1);
 		$entries = $this->loadVisibleExpenseEntries($userId, $workspaceId, $periodStart, $periodEnd, $cutoff);
-		$shares = $this->loadProjectShares($userId, $workspaceId);
 		$spentCents = 0;
 
 		foreach ($entries as $entry) {
 			if (!$this->entryMatchesCriteria($entry, $criteria)) {
 				continue;
 			}
-			$spentCents += $this->entryPersonalCents($userId, $entry, $shares);
+			$spentCents += max(0, $this->amountCentsFromRow($entry) ?? 0);
 		}
 
 		$totalSeconds = max(1, $periodEnd - $periodStart);
@@ -191,7 +189,7 @@ class BudgetSnapshotService {
 		$rows = $result->fetchAll();
 		$result->closeCursor();
 
-		return $this->entryShareService->attachPersonalShares($rows, $userId);
+		return $rows;
 	}
 
 	private function loadSnapshot(int $id): ?array {
@@ -233,6 +231,7 @@ class BudgetSnapshotService {
 			'e.category_id',
 			'e.split_mode',
 			'e.split_user_id',
+			'e.entry_kind',
 			'e.is_subscription',
 			'e.is_fixed_cost',
 			'e.is_child_related',
@@ -241,71 +240,19 @@ class BudgetSnapshotService {
 			'e.is_tax_relevant'
 		)
 			->from('cobudget_entries', 'e')
-			->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
-				$qb->expr()->eq('e.project_id', 'm.project_id'),
-				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($userId))
-			))
 			->where($qb->expr()->eq('e.type', $qb->createNamedParameter('expense')))
 			->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($periodStart, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lt('e.date', $qb->createNamedParameter($periodEnd, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter($cutoff, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->orX(
-				$qb->expr()->andX(
-					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($userId)),
-					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
-				),
-				$qb->expr()->isNotNull('m.user_id')
-			))
-			->groupBy('e.id');
+			->andWhere($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')))
+			->andWhere($qb->expr()->eq('e.user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 
 		$result = $qb->executeQuery();
 		$rows = $result->fetchAll();
 		$result->closeCursor();
 
 		return $rows;
-	}
-
-	private function loadProjectShares(string $userId, int $workspaceId): array {
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('m.project_id', 'm.user_id', 'm.share_basis_points')
-			->from('cobudget_members', 'm')
-			->innerJoin('m', 'cobudget_projects', 'p', $qb->expr()->eq('m.project_id', 'p.id'))
-			->innerJoin('p', 'cobudget_members', 'me', $qb->expr()->andX(
-				$qb->expr()->eq('p.id', 'me.project_id'),
-				$qb->expr()->eq('me.user_id', $qb->createNamedParameter($userId))
-			))
-			->orderBy('m.project_id', 'ASC')
-			->addOrderBy('m.id', 'ASC');
-		$result = $qb->executeQuery();
-		$rows = $result->fetchAll();
-		$result->closeCursor();
-
-		$membersByProject = [];
-		foreach ($rows as $row) {
-			$membersByProject[(int)$row['project_id']][] = $row;
-		}
-
-		$sharesByProject = [];
-		foreach ($membersByProject as $projectId => $members) {
-			$sharesByProject[$projectId] = $this->memberShareBasisPoints($members);
-		}
-
-		return $sharesByProject;
-	}
-
-	private function entryPersonalCents(string $userId, array $entry, array $sharesByProject): int {
-		$amountCents = $this->amountCentsFromRow($entry) ?? 0;
-		$projectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
-		if ($projectId === null) {
-			return $amountCents;
-		}
-		if (array_key_exists('snapshot_share_cents', $entry)) {
-			return max(0, (int)$entry['snapshot_share_cents']);
-		}
-
-		$shares = $sharesByProject[$projectId] ?? [$userId => 10000];
-		return $this->entryShareCentsForUser($entry, $userId, $amountCents, $shares);
 	}
 
 	private function entryMatchesCriteria(array $entry, array $criteria): bool {

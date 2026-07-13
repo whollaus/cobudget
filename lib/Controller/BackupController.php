@@ -36,6 +36,7 @@ class BackupController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function index(): DataResponse {
 		if ($error = $this->authErrorResponse()) {
 			return $error;
@@ -53,6 +54,7 @@ class BackupController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 3, period: 300)]
 	public function create(): DataResponse {
 		if ($error = $this->authErrorResponse()) {
 			return $error;
@@ -95,6 +97,7 @@ class BackupController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 2, period: 300)]
 	public function restore(string $fileName): DataResponse {
 		if ($error = $this->authErrorResponse()) {
 			return $error;
@@ -124,6 +127,7 @@ class BackupController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 10, period: 60)]
 	public function destroy(string $fileName): DataResponse {
 		if ($error = $this->authErrorResponse()) {
 			return $error;

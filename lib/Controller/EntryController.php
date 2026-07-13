@@ -4,7 +4,10 @@ namespace OCA\CoBudget\Controller;
 use OCA\CoBudget\Service\CsvCellSanitizer;
 use OCA\CoBudget\Service\HashtagService;
 use OCA\CoBudget\Service\EntryShareService;
+use OCA\CoBudget\Service\EntryProjectionService;
+use OCA\CoBudget\Service\EntryAttachmentProjectionService;
 use OCA\CoBudget\Service\ProjectNotificationService;
+use OCA\CoBudget\Service\ParticipantService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
@@ -16,7 +19,6 @@ use OCP\IDBConnection;
 use OCP\IUserSession;
 use OCP\AppFramework\Http;
 use OCP\IConfig;
-use OCP\IUserManager;
 use OCP\IL10N;
 use OCP\Files\File;
 use OCP\Files\Folder;
@@ -114,23 +116,28 @@ class EntryController extends Controller {
 	private IDBConnection $db;
 	private ?string $userId;
 	private IConfig $config;
-	private IUserManager $userManager;
 	private HashtagService $hashtagService;
 	private EntryShareService $entryShareService;
+	private EntryProjectionService $entryProjectionService;
+	private EntryAttachmentProjectionService $attachmentProjectionService;
 	private ProjectNotificationService $projectNotificationService;
+	private ParticipantService $participantService;
 	private IRootFolder $rootFolder;
 	private IL10N $l10n;
+	private string $entryScope = 'personal';
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, IUserManager $userManager, HashtagService $hashtagService, EntryShareService $entryShareService, ProjectNotificationService $projectNotificationService, IRootFolder $rootFolder, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, HashtagService $hashtagService, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, EntryAttachmentProjectionService $attachmentProjectionService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IRootFolder $rootFolder, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
 		$this->config = $config;
-		$this->userManager = $userManager;
 		$this->hashtagService = $hashtagService;
 		$this->entryShareService = $entryShareService;
+		$this->entryProjectionService = $entryProjectionService;
+		$this->attachmentProjectionService = $attachmentProjectionService;
 		$this->projectNotificationService = $projectNotificationService;
+		$this->participantService = $participantService;
 		$this->rootFolder = $rootFolder;
 		$this->l10n = $l10n;
 		$this->initWorkspace();
@@ -163,7 +170,8 @@ class EntryController extends Controller {
 		?bool $hasReminder = null,
 		?bool $hasAttachment = null,
 		?int $hashtagId = null,
-		$isFuturePayments = false
+		$isFuturePayments = false,
+		string $entryScope = 'personal'
 	): DataResponse {
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
 		try {
@@ -172,7 +180,8 @@ class EntryController extends Controller {
 			}
 			[$limit, $offset] = $this->normalizePagination($limit, $offset);
 
-			$workspaceId = $this->workspaceIdForEntryScope($projectId);
+			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
+			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
 			if ($workspaceId === null) {
 				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
 			}
@@ -180,6 +189,56 @@ class EntryController extends Controller {
 			unset($payload['_aggregate']);
 
 			return new DataResponse($payload);
+		} catch (\Throwable $e) {
+			return $this->loggedErrorResponse($e);
+		}
+	}
+
+	/**
+	 * Returns one payment that is visible to the current user. Locked personal
+	 * payments use this endpoint to open their shared source for editing.
+	 *
+	 * @NoAdminRequired
+	 */
+	#[UserRateLimit(limit: 120, period: 60)]
+	public function show(int $id): DataResponse {
+		try {
+			if ($error = $this->authErrorResponse()) {
+				return $error;
+			}
+			if ($validationError = $this->validatePositiveId($id)) {
+				return $validationError;
+			}
+
+			$visible = $this->entryVisibleInActiveWorkspace($id);
+			if ($visible === null) {
+				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
+			}
+
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled')
+				->from('cobudget_entries', 'e')
+				->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
+				->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'))
+				->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'))
+				->leftJoin('e', 'cobudget_entries', 'source_e', $qb->expr()->eq('e.source_entry_id', 'source_e.id'))
+				->where($qb->expr()->eq('e.id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
+				->setMaxResults(1);
+			$row = $qb->executeQuery()->fetch();
+			if (!$row) {
+				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
+			}
+
+			$row = $this->normalizeEntryRow($row);
+			$row['editable_entry_id'] = !empty($row['is_locked']) && !empty($row['source_entry_id'])
+				? (int)$row['source_entry_id']
+				: (int)$row['id'];
+			$row['can_delete'] = $this->canDeleteVisibleEntry($row);
+			$row = $this->hashtagService->attachHashtagsToEntries([$row])[0] ?? $row;
+			$row = $this->attachEntryAttachmentDetails([$row], (int)$row['workspace_id'])[0] ?? $row;
+			$row = $this->attachEntryHistoryFlags([$row], (int)$row['workspace_id'])[0] ?? $row;
+
+			return new DataResponse(['entry' => $row]);
 		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
@@ -210,7 +269,8 @@ class EntryController extends Controller {
 		?bool $hasReminder = null,
 		?bool $hasAttachment = null,
 		?int $hashtagId = null,
-		$isFuturePayments = false
+		$isFuturePayments = false,
+		string $entryScope = 'personal'
 	): Response {
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
 		try {
@@ -218,7 +278,11 @@ class EntryController extends Controller {
 				return $error;
 			}
 
-			$workspaceId = $this->getWorkspaceId();
+			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
+			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
+			if ($workspaceId === null) {
+				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
+			}
 			$projectShareBasisPoints = $this->projectShareBasisPointsFromProjects($this->fetchDashboardProjects($workspaceId));
 			$entries = $this->fetchEntryRows($workspaceId, self::EXPORT_LIMIT, 0, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
 			$csv = $this->buildEntriesCsv($entries, $projectShareBasisPoints);
@@ -258,7 +322,8 @@ class EntryController extends Controller {
 		?bool $hasAttachment = null,
 		?int $hashtagId = null,
 		$isFuturePayments = false,
-		$summaryOnly = false
+		$summaryOnly = false,
+		string $entryScope = 'personal'
 	): DataResponse {
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
 		$isSummaryOnly = ($summaryOnly === true || $summaryOnly === 'true' || $summaryOnly === 1 || $summaryOnly === '1');
@@ -268,7 +333,11 @@ class EntryController extends Controller {
 			}
 			[$limit, $offset] = $this->normalizePagination($limit, $offset);
 
-			$workspaceId = $this->getWorkspaceId();
+			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
+			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
+			if ($workspaceId === null) {
+				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
+			}
 			if ($isSummaryOnly) {
 				$projectShareBasisPoints = $this->fetchCurrentUserProjectShareBasisPoints();
 				$summaryData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
@@ -395,7 +464,7 @@ class EntryController extends Controller {
 		bool $isFuture,
 		array $projectShareBasisPoints
 	): array {
-		$qb = $this->buildVisibleEntriesQuery($workspaceId);
+		$qb = $this->buildVisibleEntriesQuery($workspaceId, $isFuture);
 		$qb->leftJoin('e', 'cobudget_entry_shares', 'personal_share', $qb->expr()->andX(
 			$qb->expr()->eq('personal_share.entry_id', 'e.id'),
 			$qb->expr()->eq('personal_share.user_id', $qb->createNamedParameter((string)$this->userId))
@@ -403,6 +472,7 @@ class EntryController extends Controller {
 		$qb->select(
 			'e.id',
 			'e.user_id',
+			'e.entry_kind',
 			'e.type',
 			'e.amount',
 			'e.amount_cents',
@@ -423,6 +493,7 @@ class EntryController extends Controller {
 		$qb->groupBy('e.id');
 		foreach ([
 			'e.user_id',
+			'e.entry_kind',
 			'e.type',
 			'e.amount',
 			'e.amount_cents',
@@ -467,7 +538,8 @@ class EntryController extends Controller {
 				$entry['date'] = $effectiveDate;
 			}
 
-			$amount = $this->entryPersonalAmount($entry, $projectShareBasisPoints);
+			$amountCents = $this->entryAggregateAmountCents($entry, $projectShareBasisPoints);
+			$amount = $amountCents / 100;
 			$index = $aggregate['count'];
 			$aggregate['count']++;
 			$this->accumulateDashboardMetrics($aggregate['metrics'], $entry, $amount);
@@ -488,7 +560,6 @@ class EntryController extends Controller {
 						'balance' => 0,
 						'count' => 0,
 					];
-					$amountCents = (int)round($amount * 100, 0, PHP_ROUND_HALF_UP);
 					$aggregate['dateGroupSummaries'][$key]['count']++;
 					if (($entry['type'] ?? '') === 'income') {
 						$aggregate['dateGroupSummaries'][$key]['income'] += $amountCents;
@@ -674,9 +745,10 @@ class EntryController extends Controller {
 		bool $isFuture,
 		array $projectShareBasisPoints
 	): array {
-		$qb = $this->buildVisibleEntriesQuery($workspaceId);
-		$qb->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'));
-		$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name');
+		$qb = $this->buildVisibleEntriesQuery($workspaceId, $isFuture);
+		$qb->leftJoin('e', 'cobudget_entries', 'source_e', $qb->expr()->eq('e.source_entry_id', 'source_e.id'))
+			->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'));
+		$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.user_id AS source_user_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled');
 		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
 		$qb->groupBy('e.id');
 		$this->applyEntryOrdering($qb, $sortBy, $sortDir, $isFuture);
@@ -692,6 +764,10 @@ class EntryController extends Controller {
 			$personalAmountCents = $this->entryPersonalAmountCents($entry, $projectShareBasisPoints);
 			$entry['personal_amount_cents'] = $personalAmountCents;
 			$entry['personal_amount'] = $personalAmountCents / 100;
+			$entry['editable_entry_id'] = !empty($entry['is_locked']) && !empty($entry['source_entry_id'])
+				? (int)$entry['source_entry_id']
+				: (int)$entry['id'];
+			$entry['can_delete'] = $this->canDeleteVisibleEntry($entry);
 
 			return $entry;
 		}, $entries);
@@ -1014,25 +1090,58 @@ class EntryController extends Controller {
 		}, $entries);
 	}
 
-	private function buildVisibleEntriesQuery(int $workspaceId) {
+	private function buildVisibleEntriesQuery(int $workspaceId, bool $includeSharedFutureSources = false) {
 		$qb = $this->db->getQueryBuilder();
 		$qb->from('cobudget_entries', 'e')
 			->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
-			->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'))
-			->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->eq('e.project_id', 'm.project_id'))
-			->where($qb->expr()->orX(
-				$qb->expr()->andX(
-					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
-					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
-				),
-				$qb->expr()->andX(
-					$qb->expr()->isNotNull('e.project_id'),
-					$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
-				)
-			));
+			->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'));
+
+		if ($this->entryScope === 'shared') {
+			$qb->innerJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
+				$qb->expr()->eq('e.project_id', 'm.project_id'),
+				$qb->expr()->eq('m.user_id', $qb->createNamedParameter((string)$this->userId))
+			))
+				->where($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('shared')))
+				->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+		} elseif ($includeSharedFutureSources) {
+			$qb->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
+				$qb->expr()->eq('e.project_id', 'm.project_id'),
+				$qb->expr()->eq('m.user_id', $qb->createNamedParameter((string)$this->userId))
+			))
+				->leftJoin('e', 'cobudget_entry_shares', 'future_visibility_share', $qb->expr()->andX(
+					$qb->expr()->eq('future_visibility_share.entry_id', 'e.id'),
+					$qb->expr()->eq('future_visibility_share.user_id', $qb->createNamedParameter((string)$this->userId))
+				))
+				->where($qb->expr()->orX(
+					$qb->expr()->andX(
+						$qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')),
+						$qb->expr()->isNull('e.source_entry_id'),
+						$qb->expr()->eq('e.user_id', $qb->createNamedParameter((string)$this->userId)),
+						$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
+					),
+					$qb->expr()->andX(
+						$qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('shared')),
+						$qb->expr()->isNotNull('m.user_id'),
+						$qb->expr()->eq('m.personal_workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)),
+						$qb->expr()->gt('future_visibility_share.amount_cents', $qb->createNamedParameter(0, \PDO::PARAM_INT))
+					)
+				));
+		} else {
+			$qb->where($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')))
+				->andWhere($qb->expr()->eq('e.user_id', $qb->createNamedParameter((string)$this->userId)))
+				->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+		}
 
 		return $qb;
+	}
+
+	private function normalizeEntryScope(string $entryScope, ?int $projectId): string {
+		$entryScope = strtolower(trim($entryScope));
+		if ($entryScope === 'shared' && $projectId !== null && $projectId > 0) {
+			return $this->projectUsesSharedEntries($projectId) ? 'shared' : 'personal';
+		}
+
+		return 'personal';
 	}
 
 	private function applyEntryOrdering($qb, string $sortBy, string $sortDir, bool $isFuture): void {
@@ -1044,6 +1153,8 @@ class EntryController extends Controller {
 				$qb->orderBy('p.name', $dir);
 			} elseif ($sortBy === 'amount') {
 				$qb->orderBy('e.amount_cents', $dir);
+			} elseif ($sortBy === 'date' && $isFuture) {
+				$qb->orderBy($qb->createFunction('COALESCE(e.recurrence_next_date, e.date)'), $dir);
 			} else {
 				$qb->orderBy('e.' . $sortBy, $dir);
 			}
@@ -1143,7 +1254,7 @@ class EntryController extends Controller {
 			return (int)$project['id'];
 		}, $projects)));
 		$membersByProject = $this->fetchProjectMembersByProjectIds($projectIds);
-		$entriesByProject = $this->fetchOpenExpenseEntriesByProjectIds($projectIds);
+		$entriesByProject = $this->fetchOpenSharedEntriesByProjectIds($projectIds);
 
 		foreach ($projects as &$project) {
 			$projectId = (int)$project['id'];
@@ -1153,20 +1264,19 @@ class EntryController extends Controller {
 			$project['my_share_basis_points'] = $shares[(string)$this->userId] ?? 10000;
 			$project['personal_balance'] = 0.0;
 
-			$paidByMeCents = 0;
-			$fairShareMeCents = 0;
+			$personalBalanceCents = 0;
 			foreach ($entriesByProject[$projectId] ?? [] as $entry) {
 				$amountCents = $this->amountCentsFromRow($entry) ?? 0;
-
-				if (($entry['user_id'] ?? null) === $this->userId) {
-					$paidByMeCents += $amountCents;
-				}
-				$fairShareMeCents += array_key_exists('snapshot_share_cents', $entry)
+				$personalShareCents = array_key_exists('snapshot_share_cents', $entry)
 					? max(0, (int)$entry['snapshot_share_cents'])
 					: $this->entryShareCentsForUser($entry, (string)$this->userId, $amountCents, $shares);
+				$isEntryUser = ($entry['user_id'] ?? null) === $this->userId;
+				$personalBalanceCents += ($entry['type'] ?? '') === 'income'
+					? $personalShareCents - ($isEntryUser ? $amountCents : 0)
+					: ($isEntryUser ? $amountCents : 0) - $personalShareCents;
 			}
 
-			$project['personal_balance'] = round(($paidByMeCents - $fairShareMeCents) / 100, 2);
+			$project['personal_balance'] = round($personalBalanceCents / 100, 2);
 		}
 		unset($project);
 
@@ -1196,7 +1306,7 @@ class EntryController extends Controller {
 		return $membersByProject;
 	}
 
-	private function fetchOpenExpenseEntriesByProjectIds(array $projectIds): array {
+	private function fetchOpenSharedEntriesByProjectIds(array $projectIds): array {
 		if ($projectIds === []) {
 			return [];
 		}
@@ -1207,7 +1317,7 @@ class EntryController extends Controller {
 			$qb->select('id', 'project_id', 'user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 				->from('cobudget_entries')
 				->where($qb->expr()->in('project_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
-				->andWhere($qb->expr()->eq('type', $qb->createNamedParameter('expense')))
+				->andWhere($qb->expr()->eq('entry_kind', $qb->createNamedParameter('shared')))
 				->andWhere($qb->expr()->eq('is_settled', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
 
 			$result = $qb->executeQuery();
@@ -1281,8 +1391,19 @@ class EntryController extends Controller {
 		return $this->entryPersonalAmountCents($entry, $projectShareBasisPoints) / 100;
 	}
 
+	private function entryAggregateAmountCents(array $entry, array $projectShareBasisPoints): int {
+		if ($this->entryScope === 'shared') {
+			return max(0, $this->amountCentsFromRow($entry) ?? 0);
+		}
+
+		return $this->entryPersonalAmountCents($entry, $projectShareBasisPoints);
+	}
+
 	private function entryPersonalAmountCents(array $entry, array $projectShareBasisPoints): int {
 		$amountCents = $this->amountCentsFromRow($entry) ?? 0;
+		if ((string)($entry['entry_kind'] ?? 'personal') === 'personal') {
+			return $amountCents;
+		}
 		$projectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
 		if ($projectId === null) {
 			return $amountCents;
@@ -1321,7 +1442,7 @@ class EntryController extends Controller {
 
 	private function normalizeEntryRow(array $entry): array {
 		$entry = $this->normalizeAmountRow($entry);
-		foreach (['is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant', 'is_settled', 'reminder_notified'] as $key) {
+		foreach (['is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant', 'is_settled', 'is_locked', 'source_is_settled', 'reminder_notified'] as $key) {
 			if (array_key_exists($key, $entry)) {
 				$entry[$key] = $this->dbBool($entry[$key]);
 			}
@@ -1329,8 +1450,16 @@ class EntryController extends Controller {
 
 		if (!empty($entry['user_id'])) {
 			$userId = (string)$entry['user_id'];
-			$user = $this->userManager->get($userId);
-			$entry['user_display_name'] = $user ? $user->getDisplayName() : $userId;
+			$participant = $this->participantService->participant($userId);
+			$entry['user_display_name'] = $participant['displayName'];
+			$entry['user_is_former'] = $participant['isFormer'];
+			$entry['user_is_active'] = $participant['isActive'];
+		}
+		if (!empty($entry['source_user_id'])) {
+			$sourceParticipant = $this->participantService->participant((string)$entry['source_user_id']);
+			$entry['paid_by_user_id'] = (string)$entry['source_user_id'];
+			$entry['paid_by_display_name'] = $sourceParticipant['displayName'];
+			$entry['paid_by_is_former'] = $sourceParticipant['isFormer'];
 		}
 
 		return $entry;
@@ -1378,12 +1507,15 @@ class EntryController extends Controller {
 			$qb->andWhere($qb->expr()->eq('hashtag_filter.workspace_id', 'e.workspace_id'));
 		}
 
+		$effectiveDateColumn = $isFuturePayments
+			? $qb->createFunction('COALESCE(e.recurrence_next_date, e.date)')
+			: 'e.date';
 		if ($dateFrom !== null) {
-			$qb->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($dateFrom, \PDO::PARAM_INT)));
+			$qb->andWhere($qb->expr()->gte($effectiveDateColumn, $qb->createNamedParameter($dateFrom, \PDO::PARAM_INT)));
 		}
 
 		if ($dateTo !== null) {
-			$qb->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter($dateTo, \PDO::PARAM_INT)));
+			$qb->andWhere($qb->expr()->lte($effectiveDateColumn, $qb->createNamedParameter($dateTo, \PDO::PARAM_INT)));
 		}
 
 		if ($type === 'income' || $type === 'expense') {
@@ -1439,6 +1571,7 @@ class EntryController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 120, period: 60)]
 	public function create(
 		string $type = 'expense',
 		float $amount = 0,
@@ -1476,7 +1609,7 @@ class EntryController extends Controller {
 			}
 
 			$amountCents = null;
-			if ($validationError = $this->validateEntryPayload($type, $amount, $date, $projectId, $categoryId, $paymentPartnerId, $recurrenceInterval, $recurrenceMultiplier, $recurrenceNextDate, $recurrenceEndDate, $reminderDate, $amountCents, $recurrenceParentId)) {
+			if ($validationError = $this->validateEntryPayload($type, $amount, $date, $description, $currency, $projectId, $categoryId, $paymentPartnerId, $recurrenceInterval, $recurrenceMultiplier, $recurrenceNextDate, $recurrenceEndDate, $reminderDate, $reminderText, $amountCents, $recurrenceParentId)) {
 				return $validationError;
 			}
 			if ($validationError = $this->validateSplitMode($splitMode)) {
@@ -1489,6 +1622,9 @@ class EntryController extends Controller {
 			if ($validationError = $this->validateProjectSplitUser($projectId, $splitMode, $splitUserId, $entryUserId)) {
 				return $validationError;
 			}
+			if ($validationError = $this->validateActiveSplitTarget($projectId, $splitMode, $splitUserId)) {
+				return $validationError;
+			}
 			if ($type !== 'expense') {
 				$isSubscription = false;
 				$isFixedCost = false;
@@ -1498,6 +1634,13 @@ class EntryController extends Controller {
 			if ($workspaceId === null) {
 				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 			}
+			$entryKind = $this->projectUsesSharedEntries($projectId) ? 'shared' : 'personal';
+			if ($entryKind === 'shared' && $this->projectHasFormerMember($projectId)) {
+				return $this->errorResponse(
+					$this->l10n->t('This area contains a former member. Settle existing payments and remove the former member before creating new payments.'),
+					Http::STATUS_CONFLICT
+				);
+			}
 
 			$this->db->beginTransaction();
 			try {
@@ -1505,7 +1648,12 @@ class EntryController extends Controller {
 				$qb->insert('cobudget_entries')
 				->values([
 					'user_id' => $qb->createNamedParameter($entryUserId),
+					'created_by' => $qb->createNamedParameter((string)$this->userId),
 					'project_id' => $qb->createNamedParameter($projectId, $projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+					'entry_kind' => $qb->createNamedParameter($entryKind),
+					'source_entry_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+					'is_locked' => $qb->createNamedParameter(false, \PDO::PARAM_BOOL),
+					'allocation_basis_points' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
 					'type' => $qb->createNamedParameter($type),
 					'amount' => $qb->createNamedParameter($this->centsToAmountString($amountCents)),
 					'amount_cents' => $qb->createNamedParameter($amountCents, \PDO::PARAM_INT),
@@ -1537,17 +1685,20 @@ class EntryController extends Controller {
 				$qb->executeStatement();
 
 				$id = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
-				$this->entryShareService->syncEntry($id);
 				$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
 				if ($recurrenceInterval !== null) {
 					$this->setEntryRecurrenceSeriesId($id, $id, $workspaceId);
+				}
+				if ($entryKind === 'shared') {
+					// File-backed receipt copies are the last mutating step before commit.
+					$this->entryProjectionService->syncSharedEntry($id);
 				}
 				$this->db->commit();
 			} catch (\Throwable $e) {
 				$this->db->rollBack();
 				throw $e;
 			}
-			if ($projectId !== null) {
+			if ($entryKind === 'shared') {
 				try {
 					$this->projectNotificationService->notifyEntryCreated(
 						$projectId,
@@ -1574,6 +1725,7 @@ class EntryController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 120, period: 60)]
 	public function update(
 		int $id,
 		string $type = 'expense',
@@ -1610,35 +1762,66 @@ class EntryController extends Controller {
 					return $validationError;
 				}
 
-			$amountCents = null;
-			if ($validationError = $this->validateEntryPayload($type, $amount, $date, $projectId, $categoryId, $paymentPartnerId, $recurrenceInterval, $recurrenceMultiplier, $recurrenceNextDate, $recurrenceEndDate, $reminderDate, $amountCents)) {
-				return $validationError;
-			}
-			if ($validationError = $this->validateSplitMode($splitMode)) {
-				return $validationError;
-			}
-			$entryUserId = $userId;
-			if ($validationError = $this->validateEntryUserId($projectId, $entryUserId)) {
-				return $validationError;
-			}
-			if ($validationError = $this->validateProjectSplitUser($projectId, $splitMode, $splitUserId, $entryUserId)) {
-				return $validationError;
-			}
-			if ($type !== 'expense') {
-				$isSubscription = false;
-				$isFixedCost = false;
-			}
-
 			$entry = $this->entryVisibleInActiveWorkspace($id);
-
 			if (!$entry) {
 				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
 			}
 			if ($entry['is_settled']) {
 				return $this->errorResponse('Settled payments cannot be edited', Http::STATUS_FORBIDDEN);
 			}
+			if (!empty($entry['is_locked'])) {
+				return $this->errorResponse('This personal payment is controlled by an open shared payment.', Http::STATUS_CONFLICT);
+			}
 			$currentWorkspaceId = (int)$entry['workspace_id'];
-			$targetWorkspaceId = $this->workspaceIdForEntryScope($projectId);
+			$oldEntryKind = (string)($entry['entry_kind'] ?? (empty($entry['project_id']) ? 'personal' : 'shared'));
+			$oldProjectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
+			$isReleasedPersonal = $oldEntryKind === 'personal'
+				&& empty($entry['is_locked'])
+				&& (!empty($entry['settlement_id']) || !empty($entry['settled_at']));
+			if ($isReleasedPersonal && $projectId !== $oldProjectId) {
+				return $this->errorResponse('A released personal payment cannot be moved to another area.', Http::STATUS_CONFLICT);
+			}
+			if ($isReleasedPersonal) {
+				$userId = (string)$entry['user_id'];
+				$splitMode = 'single_user';
+				$splitUserId = (string)$entry['user_id'];
+			}
+
+			$amountCents = null;
+			if ($validationError = $this->validateEntryPayload($type, $amount, $date, $description, $currency, $projectId, $categoryId, $paymentPartnerId, $recurrenceInterval, $recurrenceMultiplier, $recurrenceNextDate, $recurrenceEndDate, $reminderDate, $reminderText, $amountCents)) {
+				return $validationError;
+			}
+			if ($validationError = $this->validateSplitMode($splitMode)) {
+				return $validationError;
+			}
+			$entryUserId = $userId;
+			if ($validationError = $this->validateEntryUserId($projectId, $entryUserId, (string)($entry['user_id'] ?? ''))) {
+				return $validationError;
+			}
+			if ($validationError = $this->validateProjectSplitUser($projectId, $splitMode, $splitUserId, $entryUserId)) {
+				return $validationError;
+			}
+			if ($validationError = $this->validateActiveSplitTarget(
+				$projectId,
+				$splitMode,
+				$splitUserId,
+				$this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user'
+					? $this->entrySplitTargetUserId($entry)
+					: null
+			)) {
+				return $validationError;
+			}
+			if ($type !== 'expense') {
+				$isSubscription = false;
+				$isFixedCost = false;
+			}
+			if ($oldEntryKind === 'shared' && ($projectId === null || $oldProjectId !== $projectId)) {
+				return $this->errorResponse('An open shared payment cannot be moved to another area.', Http::STATUS_CONFLICT);
+			}
+			$targetEntryKind = $oldEntryKind === 'shared'
+				? 'shared'
+				: ($isReleasedPersonal ? 'personal' : ($this->projectUsesSharedEntries($projectId) ? 'shared' : 'personal'));
+			$targetWorkspaceId = $targetEntryKind === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $currentWorkspaceId;
 			if ($targetWorkspaceId === null) {
 				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
 			}
@@ -1646,19 +1829,22 @@ class EntryController extends Controller {
 				return $this->errorResponse('The workspace of an existing payment cannot be changed', Http::STATUS_CONFLICT);
 			}
 			$workspaceId = $currentWorkspaceId;
-			$oldProjectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
-			$allocationChanged = $oldProjectId !== $projectId
-				|| ($this->amountCentsFromRow($entry) ?? 0) !== $amountCents
-				|| $this->normalizeSplitMode($entry['split_mode'] ?? null) !== $this->normalizeSplitMode($splitMode)
-				|| $this->normalizeSplitUserId($entry['split_user_id'] ?? null) !== $this->normalizeSplitUserId($splitUserId)
-				|| (
-					$this->normalizeSplitMode($splitMode) === 'single_user'
-					&& (string)($entry['user_id'] ?? '') !== $entryUserId
-				);
-
+			if (
+				$oldProjectId !== $projectId
+				&& (
+					!$this->participantService->isActive((string)($entry['user_id'] ?? ''))
+					|| (
+						$this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user'
+						&& !$this->participantService->isActive($this->entrySplitTargetUserId($entry))
+					)
+				)
+			) {
+				return $this->errorResponse('Payments involving a former member cannot be moved to another area.', Http::STATUS_CONFLICT);
+			}
 			$updatedEntry = $entry;
 			$updatedEntry['user_id'] = $entryUserId;
 			$updatedEntry['project_id'] = $projectId;
+			$updatedEntry['entry_kind'] = $targetEntryKind;
 			$updatedEntry['workspace_id'] = $workspaceId;
 			$updatedEntry['type'] = $type;
 			$updatedEntry['amount'] = $this->centsToAmountString($amountCents);
@@ -1686,10 +1872,15 @@ class EntryController extends Controller {
 
 			$this->db->beginTransaction();
 			try {
+				$projectionEntriesBefore = $oldEntryKind === 'shared'
+					? $this->entryProjectionService->personalEntriesForSource($id)
+					: [];
+				$historyContext = $this->newEntryHistoryContext();
 				$qb = $this->db->getQueryBuilder();
 				$qb->update('cobudget_entries')
 				->set('user_id', $qb->createNamedParameter($entryUserId))
 				->set('project_id', $qb->createNamedParameter($projectId, $projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT))
+				->set('entry_kind', $qb->createNamedParameter($targetEntryKind))
 				->set('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 				->set('type', $qb->createNamedParameter($type))
 				->set('amount', $qb->createNamedParameter($this->centsToAmountString($amountCents)))
@@ -1717,14 +1908,23 @@ class EntryController extends Controller {
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($currentWorkspaceId, \PDO::PARAM_INT)));
 				$qb->executeStatement();
-				if ($allocationChanged || ($projectId !== null && !$this->entryShareService->hasShares($id))) {
-					$this->entryShareService->syncEntry($id);
+				if ($targetEntryKind !== 'shared' && $oldEntryKind === 'shared') {
+					throw new \RuntimeException('Shared payments cannot be converted to personal payments.');
 				}
-				$this->recordEntryHistory($id, $workspaceId, $projectId, $entry, $updatedEntry);
+				$this->recordEntryHistory($id, $workspaceId, $projectId, $entry, $updatedEntry, $historyContext);
 				$this->hashtagService->syncEntryHashtags($id, $workspaceId, $description ?? '');
 
 				if ($recurrenceInterval !== null) {
 					$this->setEntryRecurrenceSeriesId($id, empty($entry['recurrence_series_id']) ? $id : (int)$entry['recurrence_series_id'], $workspaceId);
+				}
+				if ($targetEntryKind === 'shared') {
+					// Keep physical receipt projection after all rollback-capable metadata work.
+					$this->entryProjectionService->syncSharedEntry($id);
+					$this->recordPersonalProjectionHistories(
+						$projectionEntriesBefore,
+						$this->entryProjectionService->personalEntriesForSource($id),
+						$historyContext
+					);
 				}
 				$this->db->commit();
 			} catch (\Throwable $e) {
@@ -1741,6 +1941,7 @@ class EntryController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function stopRecurrence(int $id): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -1856,6 +2057,7 @@ class EntryController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 20, period: 60)]
 	public function uploadAttachment(int $id): DataResponse {
 		$createdFile = null;
 		$attachmentStored = false;
@@ -1874,6 +2076,9 @@ class EntryController extends Controller {
 			$entry = $this->entryVisibleInActiveWorkspace($id);
 			if ($entry === null) {
 				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
+			}
+			if ($attachmentMutationError = $this->attachmentMutationError($entry)) {
+				return $attachmentMutationError;
 			}
 			$workspaceId = (int)$entry['workspace_id'];
 
@@ -1915,6 +2120,7 @@ class EntryController extends Controller {
 				$qb->insert('cobudget_entry_attachments')
 					->values([
 						'entry_id' => $qb->createNamedParameter($id, \PDO::PARAM_INT),
+						'source_attachment_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
 						'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
 						'owner_user_id' => $qb->createNamedParameter($this->userId),
 						'file_id' => $qb->createNamedParameter($fileId, $fileId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
@@ -1930,6 +2136,9 @@ class EntryController extends Controller {
 				$attachment = $this->fetchEntryAttachment($attachmentId, $id, (int)$workspaceId);
 				if ($attachment === null) {
 					throw new \RuntimeException('Receipt metadata could not be loaded after insert.');
+				}
+				if ((string)($entry['entry_kind'] ?? '') === 'shared') {
+					$this->attachmentProjectionService->syncSharedEntry($id);
 				}
 				$this->db->commit();
 				$attachmentStored = true;
@@ -2009,6 +2218,7 @@ class EntryController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 20, period: 60)]
 	public function destroyAttachment(int $id, int $attachmentId): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -2029,6 +2239,9 @@ class EntryController extends Controller {
 			if ($entry === null) {
 				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
 			}
+			if ($attachmentMutationError = $this->attachmentMutationError($entry)) {
+				return $attachmentMutationError;
+			}
 			$workspaceId = (int)$entry['workspace_id'];
 
 			$attachment = $this->fetchEntryAttachment($attachmentId, $id, (int)$workspaceId);
@@ -2042,6 +2255,9 @@ class EntryController extends Controller {
 
 			$this->db->beginTransaction();
 			try {
+				if ((string)($entry['entry_kind'] ?? '') === 'shared') {
+					$this->attachmentProjectionService->deleteSourceAttachmentCopies($attachmentId);
+				}
 				$deleted = $this->deleteAttachmentRow($attachmentId, $id, (int)$workspaceId, $ownerUserId);
 				if ($deleted < 1) {
 					throw new \RuntimeException('Receipt metadata could not be deleted.');
@@ -2063,6 +2279,7 @@ class EntryController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 120, period: 60)]
 	public function destroy(int $id): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -2073,30 +2290,39 @@ class EntryController extends Controller {
 					return $validationError;
 				}
 
-				$entry = $this->entryVisibleInActiveWorkspace($id);
-
+			$entry = $this->entryVisibleInActiveWorkspace($id);
 			if (!$entry) {
 				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
 			}
-			if ($entry['is_settled']) {
+
+			if (!empty($entry['is_locked']) && !empty($entry['source_entry_id'])) {
+				$id = (int)$entry['source_entry_id'];
+				$entry = $this->entryVisibleInActiveWorkspace($id);
+				if (!$entry) {
+					return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
+				}
+			}
+
+			if (!empty($entry['is_settled'])) {
 				return $this->errorResponse('Settled payments cannot be deleted', Http::STATUS_FORBIDDEN);
 			}
-			$workspaceId = (int)$entry['workspace_id'];
+			if ((string)($entry['entry_kind'] ?? 'personal') === 'shared' && !$this->canDeleteSharedEntry($entry)) {
+				return $this->errorResponse('Only the payment creator or area admin can delete this shared payment.', Http::STATUS_FORBIDDEN);
+			}
+			if ((string)($entry['entry_kind'] ?? 'personal') !== 'shared' && (string)($entry['user_id'] ?? '') !== (string)$this->userId) {
+				return $this->errorResponse('Payment not found', Http::STATUS_NOT_FOUND);
+			}
 
-			$attachments = $this->fetchEntryAttachments($id, (int)$workspaceId);
 			$this->db->beginTransaction();
 			try {
-				$this->deleteEntryAttachmentRows($id, (int)$workspaceId);
-				$this->hashtagService->deleteEntryHashtags($id);
-				$this->deleteEntryHistory($id, (int)$workspaceId);
-				$this->entryShareService->deleteForEntry($id);
-
-				$qb = $this->db->getQueryBuilder();
-				$qb->delete('cobudget_entries')
-					->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-					->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-				$deleted = $qb->executeStatement();
-				if ($deleted < 1) {
+				$entryIds = $this->entryProjectionService->prepareEntryDeletion([$id]);
+				$attachments = $this->fetchEntryAttachmentsForEntries($entryIds);
+				$this->deleteEntryAttachmentRowsForEntries($entryIds);
+				$this->hashtagService->deleteHashtagsForEntries($entryIds);
+				$this->deleteEntryHistoryForEntries($entryIds);
+				$this->entryShareService->deleteForEntries($entryIds);
+				$deleted = $this->deleteEntryRowsByIds($entryIds);
+				if ($deleted !== count($entryIds)) {
 					throw new \RuntimeException('Payment could not be deleted.');
 				}
 				$this->db->commit();
@@ -2111,6 +2337,40 @@ class EntryController extends Controller {
 		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
+	}
+
+	private function canDeleteVisibleEntry(array $entry): bool {
+		if (!empty($entry['is_settled']) || !empty($entry['source_is_settled'])) {
+			return false;
+		}
+
+		if (!empty($entry['is_locked'])) {
+			$creatorId = trim((string)($entry['source_created_by'] ?? ''));
+			$ownerId = trim((string)($entry['project_owner_id'] ?? ''));
+
+			return ($creatorId !== '' && $creatorId === (string)$this->userId)
+				|| ($ownerId !== '' && $ownerId === (string)$this->userId);
+		}
+
+		if ((string)($entry['entry_kind'] ?? 'personal') === 'shared') {
+			return $this->canDeleteSharedEntry($entry);
+		}
+
+		return (string)($entry['user_id'] ?? '') === (string)$this->userId;
+	}
+
+	private function canDeleteSharedEntry(array $entry): bool {
+		$creatorId = trim((string)($entry['created_by'] ?? ''));
+		if ($creatorId === '') {
+			$creatorId = trim((string)($entry['user_id'] ?? ''));
+		}
+		if ($creatorId !== '' && $creatorId === (string)$this->userId) {
+			return true;
+		}
+
+		$projectId = (int)($entry['project_id'] ?? 0);
+
+		return $projectId > 0 && $this->projectOwnerInActiveWorkspace($projectId);
 	}
 
 	private function fetchEntryAttachments(int $entryId, int $workspaceId): array {
@@ -2128,8 +2388,81 @@ class EntryController extends Controller {
 		return array_map(fn(array $row): array => $this->normalizeAttachmentRow($row), $rows);
 	}
 
+	private function fetchEntryAttachmentsForEntries(array $entryIds): array {
+		$attachments = [];
+		foreach (array_chunk($this->positiveEntryIds($entryIds), self::EXPORT_ATTACHMENT_CHUNK_SIZE) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('*')
+				->from('cobudget_entry_attachments')
+				->where($qb->expr()->in('entry_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
+				->orderBy('created_at', 'DESC')
+				->addOrderBy('id', 'DESC');
+			$result = $qb->executeQuery();
+			foreach ($result->fetchAll() as $row) {
+				$attachments[] = $this->normalizeAttachmentRow($row);
+			}
+			$result->closeCursor();
+		}
+
+		return $attachments;
+	}
+
+	private function deleteEntryAttachmentRowsForEntries(array $entryIds): void {
+		foreach (array_chunk($this->positiveEntryIds($entryIds), self::EXPORT_ATTACHMENT_CHUNK_SIZE) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('cobudget_entry_attachments')
+				->where($qb->expr()->in('entry_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
+			$qb->executeStatement();
+		}
+	}
+
+	private function deleteEntryHistoryForEntries(array $entryIds): void {
+		foreach (array_chunk($this->positiveEntryIds($entryIds), self::ENTRY_HISTORY_CHUNK_SIZE) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('cobudget_entry_history')
+				->where($qb->expr()->in('entry_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
+			$qb->executeStatement();
+		}
+	}
+
+	private function deleteEntryRowsByIds(array $entryIds): int {
+		$deleted = 0;
+		foreach (array_chunk($this->positiveEntryIds($entryIds), 500) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('cobudget_entries')
+				->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)));
+			$deleted += $qb->executeStatement();
+		}
+
+		return $deleted;
+	}
+
+	private function positiveEntryIds(array $entryIds): array {
+		return array_values(array_unique(array_filter(
+			array_map('intval', $entryIds),
+			static fn(int $entryId): bool => $entryId > 0
+		)));
+	}
+
 	private function receiptsEnabled(): bool {
 		return $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_receipts', 'yes') === 'yes';
+	}
+
+	private function attachmentMutationError(array $entry): ?DataResponse {
+		if (!empty($entry['is_locked'])) {
+			return $this->errorResponse(
+				'This receipt is controlled by an open shared payment.',
+				Http::STATUS_CONFLICT
+			);
+		}
+		if ((string)($entry['entry_kind'] ?? '') === 'shared' && !empty($entry['is_settled'])) {
+			return $this->errorResponse(
+				'Receipts of settled shared payments cannot be changed.',
+				Http::STATUS_FORBIDDEN
+			);
+		}
+
+		return null;
 	}
 
 	private function fetchEntryAttachment(int $attachmentId, int $entryId, int $workspaceId): ?array {
@@ -2548,7 +2881,14 @@ class EntryController extends Controller {
 		}
 	}
 
-	private function recordEntryHistory(int $entryId, int $workspaceId, ?int $projectId, array $oldEntry, array $newEntry): void {
+	private function recordEntryHistory(
+		int $entryId,
+		int $workspaceId,
+		?int $projectId,
+		array $oldEntry,
+		array $newEntry,
+		?array $context = null
+	): void {
 		$changes = [];
 		foreach (self::ENTRY_HISTORY_FIELDS as $field) {
 			$oldValue = $this->historyComparableValue($field, $oldEntry[$field] ?? null);
@@ -2570,15 +2910,7 @@ class EntryController extends Controller {
 			return;
 		}
 
-		try {
-			$changeGroup = bin2hex(random_bytes(8));
-		} catch (\Throwable $e) {
-			$changeGroup = str_replace('.', '', uniqid('', true));
-		}
-
-		$changedBy = (string)$this->userId;
-		$changedByDisplayName = $this->displayNameForUserId($changedBy);
-		$changedAt = time();
+		$context ??= $this->newEntryHistoryContext();
 
 		foreach ($changes as $change) {
 			$qb = $this->db->getQueryBuilder();
@@ -2587,10 +2919,10 @@ class EntryController extends Controller {
 					'entry_id' => $qb->createNamedParameter($entryId, \PDO::PARAM_INT),
 					'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
 					'project_id' => $qb->createNamedParameter($projectId, $projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
-					'changed_by' => $qb->createNamedParameter($changedBy),
-					'changed_by_display_name' => $qb->createNamedParameter($changedByDisplayName),
-					'changed_at' => $qb->createNamedParameter($changedAt, \PDO::PARAM_INT),
-					'change_group' => $qb->createNamedParameter($changeGroup),
+					'changed_by' => $qb->createNamedParameter($context['changed_by']),
+					'changed_by_display_name' => $qb->createNamedParameter($context['changed_by_display_name']),
+					'changed_at' => $qb->createNamedParameter($context['changed_at'], \PDO::PARAM_INT),
+					'change_group' => $qb->createNamedParameter($context['change_group']),
 					'field' => $qb->createNamedParameter($change['field']),
 					'old_value' => $qb->createNamedParameter($change['old_value'], $change['old_value'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
 					'new_value' => $qb->createNamedParameter($change['new_value'], $change['new_value'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
@@ -2598,6 +2930,44 @@ class EntryController extends Controller {
 					'new_display' => $qb->createNamedParameter($change['new_display']),
 				]);
 			$qb->executeStatement();
+		}
+	}
+
+	/** @return array{changed_by: string, changed_by_display_name: string, changed_at: int, change_group: string} */
+	private function newEntryHistoryContext(): array {
+		try {
+			$changeGroup = bin2hex(random_bytes(8));
+		} catch (\Throwable $e) {
+			$changeGroup = str_replace('.', '', uniqid('', true));
+		}
+
+		$changedBy = (string)$this->userId;
+
+		return [
+			'changed_by' => $changedBy,
+			'changed_by_display_name' => $this->displayNameForUserId($changedBy),
+			'changed_at' => time(),
+			'change_group' => $changeGroup,
+		];
+	}
+
+	private function recordPersonalProjectionHistories(array $before, array $after, array $context): void {
+		foreach ($after as $userId => $newEntry) {
+			$oldEntry = $before[$userId] ?? null;
+			if ($oldEntry === null) {
+				$oldEntry = $newEntry;
+				$oldEntry['amount'] = '0.00';
+				$oldEntry['amount_cents'] = 0;
+			}
+
+			$this->recordEntryHistory(
+				(int)$newEntry['id'],
+				(int)$newEntry['workspace_id'],
+				empty($newEntry['project_id']) ? null : (int)$newEntry['project_id'],
+				$oldEntry,
+				$newEntry,
+				$context
+			);
 		}
 	}
 
@@ -2733,8 +3103,7 @@ class EntryController extends Controller {
 			return '-';
 		}
 
-		$user = $this->userManager->get($userId);
-		return $user ? $user->getDisplayName() : $userId;
+		return $this->participantService->displayName($userId);
 	}
 
 	private function lookupHistoryName(string $table, int $id): ?string {
@@ -2772,7 +3141,7 @@ class EntryController extends Controller {
 		$qb->executeStatement();
 	}
 
-	private function validateEntryUserId(?int $projectId, ?string &$entryUserId): ?DataResponse {
+	private function validateEntryUserId(?int $projectId, ?string &$entryUserId, ?string $currentEntryUserId = null): ?DataResponse {
 		$entryUserId = trim((string)($entryUserId ?: $this->userId));
 		if ($entryUserId === '') {
 			return $this->errorResponse('User could not be determined', Http::STATUS_BAD_REQUEST);
@@ -2785,6 +3154,30 @@ class EntryController extends Controller {
 
 		if (!$this->projectUserMemberInActiveWorkspace($projectId, $entryUserId)) {
 			return $this->errorResponse('User is not a member of this area', Http::STATUS_FORBIDDEN);
+		}
+		if (!$this->participantService->isActive($entryUserId) && trim((string)$currentEntryUserId) !== $entryUserId) {
+			return $this->errorResponse('A former or inactive member cannot be selected for a new payment.', Http::STATUS_BAD_REQUEST);
+		}
+
+		return null;
+	}
+
+	private function validateActiveSplitTarget(
+		?int $projectId,
+		string $splitMode,
+		?string $splitUserId,
+		?string $currentSplitUserId = null
+	): ?DataResponse {
+		if ($projectId === null || $this->normalizeSplitMode($splitMode) !== 'single_user') {
+			return null;
+		}
+
+		$splitUserId = $this->normalizeSplitUserId($splitUserId);
+		if ($splitUserId === null) {
+			return null;
+		}
+		if (!$this->participantService->isActive($splitUserId) && $this->normalizeSplitUserId($currentSplitUserId) !== $splitUserId) {
+			return $this->errorResponse('A former or inactive member cannot receive a new payment allocation.', Http::STATUS_BAD_REQUEST);
 		}
 
 		return null;

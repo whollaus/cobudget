@@ -5,7 +5,8 @@ use OCP\BackgroundJob\TimedJob;
 use OCP\IDBConnection;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCA\CoBudget\Service\HashtagService;
-use OCA\CoBudget\Service\EntryShareService;
+use OCA\CoBudget\Service\EntryProjectionService;
+use OCA\CoBudget\Service\ParticipantService;
 use Psr\Log\LoggerInterface;
 
 class RecurringEntriesJob extends TimedJob {
@@ -17,14 +18,14 @@ class RecurringEntriesJob extends TimedJob {
 	private IDBConnection $db;
 	private LoggerInterface $logger;
 	private HashtagService $hashtagService;
-	private EntryShareService $entryShareService;
+	private EntryProjectionService $entryProjectionService;
 
-	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, HashtagService $hashtagService, EntryShareService $entryShareService) {
+	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, HashtagService $hashtagService, EntryProjectionService $entryProjectionService) {
 		parent::__construct($timeFactory);
 		$this->db = $db;
 		$this->logger = $logger;
 		$this->hashtagService = $hashtagService;
-		$this->entryShareService = $entryShareService;
+		$this->entryProjectionService = $entryProjectionService;
 		
 		// Match common web-cron setups and allow due recurrences to run shortly after 09:00.
 		$this->setInterval(self::JOB_INTERVAL_SECONDS);
@@ -47,6 +48,11 @@ class RecurringEntriesJob extends TimedJob {
 
 		foreach ($entries as $entry) {
 			try {
+				$entryKind = $this->entryKindFromRow($entry);
+				if ($entryKind === 'shared' && $this->projectHasFormerMember((int)($entry['project_id'] ?? 0))) {
+					continue;
+				}
+
 				$this->db->beginTransaction();
 				$amountCents = $this->amountCentsFromRow($entry);
 				$runDate = $this->normalizeToRecurrenceTime((int)$entry['recurrence_next_date']);
@@ -70,7 +76,12 @@ class RecurringEntriesJob extends TimedJob {
 				$insertQb->insert('cobudget_entries')
 					->values([
 						'user_id' => $insertQb->createNamedParameter($entry['user_id']),
+						'created_by' => $insertQb->createNamedParameter((string)($entry['created_by'] ?? $entry['user_id'])),
 						'project_id' => $insertQb->createNamedParameter($entry['project_id'], $entry['project_id'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+						'entry_kind' => $insertQb->createNamedParameter($entryKind),
+						'source_entry_id' => $insertQb->createNamedParameter(null, \PDO::PARAM_NULL),
+						'is_locked' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
+						'allocation_basis_points' => $insertQb->createNamedParameter(null, \PDO::PARAM_NULL),
 						'type' => $insertQb->createNamedParameter($entry['type']),
 						'amount' => $insertQb->createNamedParameter($this->centsToAmountString($amountCents)),
 						'amount_cents' => $insertQb->createNamedParameter($amountCents, \PDO::PARAM_INT),
@@ -98,8 +109,10 @@ class RecurringEntriesJob extends TimedJob {
 					]);
 					$insertQb->executeStatement();
 					$newEntryId = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
-					$this->entryShareService->syncEntry($newEntryId);
 					$this->hashtagService->syncEntryHashtags($newEntryId, (int)($entry['workspace_id'] ?? 0), (string)($entry['description'] ?? ''));
+					if ($entryKind === 'shared') {
+						$this->entryProjectionService->syncSharedEntry($newEntryId);
+					}
 
 				$this->db->commit();
 			} catch (\Exception $e) {
@@ -107,6 +120,27 @@ class RecurringEntriesJob extends TimedJob {
 				$this->logger->error('Failed to process recurring entry ' . $entry['id'] . ': ' . $e->getMessage(), ['app' => 'cobudget']);
 			}
 		}
+	}
+
+	private function projectHasFormerMember(int $projectId): bool {
+		if ($projectId <= 0) {
+			return false;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_members')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->like(
+				'user_id',
+				$qb->createNamedParameter(ParticipantService::FORMER_PREFIX . '%')
+			))
+			->setMaxResults(1);
+		$result = $qb->executeQuery();
+		$hasFormerMember = $result->fetchOne() !== false;
+		$result->closeCursor();
+
+		return $hasFormerMember;
 	}
 
 	private function recurrenceDueCutoff(int $now): int {
@@ -135,6 +169,15 @@ class RecurringEntriesJob extends TimedJob {
 		}
 
 		return (int)$entry['id'];
+	}
+
+	private function entryKindFromRow(array $entry): string {
+		$entryKind = strtolower(trim((string)($entry['entry_kind'] ?? '')));
+		if ($entryKind === 'shared' && !empty($entry['project_id'])) {
+			return 'shared';
+		}
+
+		return 'personal';
 	}
 
 	private function calculateNextDate(int $currentTimestamp, string $interval, int $multiplier): int {

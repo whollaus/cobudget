@@ -18,7 +18,8 @@ return [
 		$t->assertContains('$safetyBackup = $this->createBackup($userId', $restore, 'Personal export restore should create a safety export before importing');
 		$t->assertContains('$this->db->beginTransaction()', $restore, 'Personal export restore should import atomically');
 		$t->assertContains('$this->deletePersonalImportTarget($userId)', $restore, 'Personal export restore should only delete the already-empty target scope');
-		$t->assertContains('$this->insertTablesWithGeneratedIds($tables)', $restore, 'Personal export restore should regenerate local row IDs');
+		$t->assertContains('$idMaps = $this->insertTablesWithGeneratedIds($tables)', $restore, 'Personal export restore should regenerate local row IDs');
+		$t->assertContains('$this->remapPersonalImportSettings($settings[$userId], $idMaps)', $restore, 'Personal settings containing database IDs should follow the regenerated rows');
 		$t->assertNotContains('deleteRowsByBackupData', $restore, 'Personal export restore should not delete current data');
 
 		$emptyTarget = $t->methodBody('lib/Service/BackupService.php', 'personalImportBlockingTable');
@@ -28,14 +29,15 @@ return [
 		$service = $t->read('lib/Service/BackupService.php');
 		$t->assertContains('public function personalRestoreState(string $userId)', $service, 'Personal export list should expose restore availability');
 		$t->assertContains('personalArchiveRestoreInfo(array $archive, string $sourceUserId, string $targetUserId)', $service, 'Backup inspect should expose whether a personal export contains shared users');
-		$t->assertContains('private function preparePersonalExportTables(array $tables, string $userId): array', $service, 'Personal export should have an explicit reduction step before archive write');
+		$t->assertContains('private function preparePersonalExportTables(array $tables, string $userId, ?array &$settingIdAliases = null): array', $service, 'Personal export should have an explicit reduction step before archive write');
 		$prepareExport = $t->methodBody('lib/Service/BackupService.php', 'preparePersonalExportTables');
-		$t->assertContains('preparePersonalImportTables($tables, $userId, $userId)', $prepareExport, 'Personal export should reuse the personal-share reduction with the exporting user as source');
+		$t->assertContains('preparePersonalImportTables($tables, $userId, $userId, $settingIdAliases)', $prepareExport, 'Personal export should reuse the personal-share reduction with the exporting user as source');
 
 		$t->assertContains('$ownedWorkspaces = $this->fetchRowsByUser(\'cobudget_workspaces\', $userId)', $collect, 'Personal export should collect workspaces belonging to the user');
 		$t->assertContains('$projectIds = $this->fetchProjectIdsForUser($userId)', $collect, 'Personal export should collect areas where the user is owner or member');
 		$t->assertContains('$entries = $this->fetchEntries($userId, $workspaceIds, $projectIds)', $collect, 'Personal export should collect personal entries and shared-area entries only before export reduction');
-		$t->assertContains('$tables = $this->preparePersonalExportTables($tables, $userId)', $collect, 'Personal export should reduce shared-area rows before writing the ZIP');
+		$t->assertContains('$tables = $this->preparePersonalExportTables($tables, $userId, $settingIdAliases)', $collect, 'Personal export should reduce shared-area rows before writing the ZIP');
+		$t->assertContains('$settings = $this->preparePersonalExportSettings(', $collect, 'Personal export should normalize ID-based settings against the portable archive rows');
 		$t->assertContains('cobudget_entry_attachments', $collect, 'Personal export should include attachment paths for collected entries');
 		$t->assertContains('cobudget_settlement_balances\' => []', $collect, 'Personal export should not include shared settlement balances');
 		$t->assertContains('cobudget_settlement_transfers\' => []', $collect, 'Personal export should not include shared settlement transfers');
@@ -89,6 +91,7 @@ return [
 		$internalReferences = $t->methodBody('lib/Service/BackupService.php', 'assertBackupInternalReferences');
 
 		foreach ([
+			'cobudget_deleted_users',
 			'cobudget_workspaces',
 			'cobudget_projects',
 			'cobudget_members',
@@ -173,7 +176,8 @@ return [
 		$t->assertContains("'restore_mode' => 'empty_personal_import'", $service, 'Personal export manifest should document the restore limitation');
 		$t->assertContains('Bereichszahlung für einen Benutzer, der kein Mitglied des Bereichs ist', $validateMembers, 'Restore should reject entries whose paying user is not an area member');
 		$t->assertContains('Bereichsdaten mit falschem Workspace', $validateWorkspace, 'Restore should reject project-scoped data with mismatching workspaces');
-		$t->assertContains('Rückzahlung für einen Benutzer, der kein Mitglied des Bereichs ist', $validateMembers, 'Restore should reject settlement transfers for non-members');
+		$t->assertNotContains('Rückzahlung für einen Benutzer, der kein Mitglied des Bereichs ist', $validateMembers, 'Historical settlement transfers must survive after a settled member leaves an area');
+		$t->assertContains('assertReferencedUsersExist(', $service, 'Restore should validate historical settlement users independently from current membership');
 	},
 
 	'Delete and repair paths remove dependent data before parent rows disappear' => function(TestRunner $t): void {
@@ -181,13 +185,10 @@ return [
 		$integrity = $t->read('lib/Service/DataIntegrityService.php');
 		$repair = $t->methodBody('lib/Service/DataIntegrityService.php', 'repair');
 
-		$t->assertContains('$settlementIds = $this->settlementIdsForProject($id)', $destroy, 'Area delete should collect settlement ids before deleting the area');
-		$t->assertContains("deleteRowsByColumnValues('cobudget_settlement_balances', 'settlement_id', \$settlementIds)", $destroy, 'Area delete should remove settlement balances before settlement headers');
-		$t->assertContains("deleteRowsByColumnValues('cobudget_settlement_transfers', 'settlement_id', \$settlementIds)", $destroy, 'Area delete should remove settlement transfers before settlement headers');
-		$t->assertContains("deleteRowsByColumnValues('cobudget_settlements', 'project_id', [\$id])", $destroy, 'Area delete should remove settlement headers scoped to the area');
-		$t->assertContains("deleteRowsByColumnValues('cobudget_categories', 'project_id', [\$id])", $destroy, 'Area delete should remove area-scoped categories');
-		$t->assertContains("deleteRowsByColumnValues('cobudget_payment_partners', 'project_id', [\$id])", $destroy, 'Area delete should remove area-scoped payment partners');
-		$t->assertContains("deleteRowsByColumnValues('cobudget_templates', 'project_id', [\$id])", $destroy, 'Area delete should remove area-scoped templates');
+		$t->assertContains('projectHasOpenSharedPayments($id, $workspaceId)', $destroy, 'Area delete should reject open shared payments');
+		$t->assertContains("update('cobudget_projects')", $destroy, 'Area delete should preserve the financial tree by archiving the area');
+		$t->assertContains("set('is_archived'", $destroy, 'Area delete should set the archive flag');
+		$t->assertNotContains("delete('cobudget_projects')", $destroy, 'Area delete must not physically remove settlement history');
 
 		$t->assertContains("'repairAction' => 'delete'", $integrity, 'Integrity repair should support deleting orphan child rows');
 		$t->assertContains("'repairAction' => 'deleteSettlement'", $integrity, 'Integrity repair should support deleting orphan settlement groups');
@@ -205,12 +206,12 @@ return [
 		$t->assertContains('projectOwnerInActiveWorkspace($id)', $requireOwner, 'Owner guard should use active workspace owner lookup');
 		$t->assertContains('STATUS_FORBIDDEN', $requireOwner, 'Owner guard should return forbidden for non-owners');
 
-		foreach (['update', 'destroy', 'archive', 'unarchive', 'addMember', 'removeMember', 'updateShares', 'settle'] as $method) {
+		foreach (['update', 'destroy', 'archive', 'unarchive', 'addMember', 'removeMember', 'updateShares', 'transferOwnership', 'settle'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
 			$t->assertContains('requireProjectOwner($id)', $body, $method . ' should be restricted to the area creator');
 		}
 
-		foreach (['addMember', 'removeMember', 'updateShares', 'settle', 'destroy'] as $method) {
+		foreach (['addMember', 'removeMember', 'updateShares', 'transferOwnership', 'settle'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
 			$t->assertContains('$this->db->beginTransaction()', $body, $method . ' should wrap multi-row changes in a transaction');
 			$t->assertContains('$this->db->rollBack()', $body, $method . ' should roll back failed multi-row changes');
@@ -218,17 +219,12 @@ return [
 		}
 
 		$removeMember = $t->methodBody('lib/Controller/ProjectController.php', 'removeMember');
-		$openMemberInvolvement = $t->methodBody('lib/Controller/ProjectController.php', 'memberHasOpenPaymentInvolvement');
-		$t->assertContains('memberHasOpenPaymentInvolvement($id, $workspaceId, $userId, $members)', $removeMember, 'Member removal should reject open payment involvement before deleting membership');
+		$openSharedPayments = $t->methodBody('lib/Controller/ProjectController.php', 'projectHasOpenSharedPayments');
+		$t->assertContains('projectHasOpenSharedPayments($id, $workspaceId)', $removeMember, 'Member removal should reject any open shared payment before deleting membership');
 		$t->assertContains('STATUS_CONFLICT', $removeMember, 'Open member allocations should return a conflict response');
-		$t->assertContains("eq('is_settled'", $openMemberInvolvement, 'Member removal should inspect only open payments');
-		$t->assertContains("eq('workspace_id'", $openMemberInvolvement, 'Open payment checks should stay in the areas canonical workspace');
-		$t->assertContains("(string)(\$entry['user_id']", $openMemberInvolvement, 'A member who paid an open payment must not be removed');
-		$t->assertContains("(string)(\$entry['split_user_id']", $openMemberInvolvement, 'A direct single-user payment target must not be removed, even when legacy mode data is inconsistent');
-		$t->assertContains("sharesForEntries(array_column(\$entries, 'id'))", $openMemberInvolvement, 'Member removal should inspect immutable payment-share snapshots');
-		$t->assertContains("(int)\$allocation['amount_cents'] > 0", $openMemberInvolvement, 'A positive open cent allocation should block member removal');
-		$t->assertContains("(int)\$allocation['share_basis_points'] > 0", $openMemberInvolvement, 'A rounded zero-cent allocation with a positive percentage should still block member removal');
-		$t->assertContains('storedOrCalculatedShareCents($entry, $userId', $openMemberInvolvement, 'Legacy payments without snapshots should use the settlement-compatible share fallback');
+		$t->assertContains("eq('entry_kind'", $openSharedPayments, 'Open-area checks should inspect shared source payments only');
+		$t->assertContains("eq('is_settled'", $openSharedPayments, 'Open-area checks should ignore settled shared payments');
+		$t->assertContains('entryProjectionService->detachSettledMember($id, $userId)', $removeMember, 'Member removal should detach the members settled personal payments before deleting membership');
 
 		$settle = $t->methodBody('lib/Controller/ProjectController.php', 'settle');
 		$t->assertContains('$entryIds = $this->unsettledProjectEntryIds($id, $workspaceId)', $settle, 'Settlement should calculate the exact open entry set before writing the settlement');
@@ -254,21 +250,42 @@ return [
 			$t->assertContains('workspace_id', $body, $label . ' should scope queries by workspace');
 			$t->assertContains('$this->userId', $body, $label . ' should include the current user in the guard');
 		}
-		$t->assertContains('projectVisibleForCurrentUser($projectId)', $member, 'Project member lookup should use current-user project visibility');
-		$t->assertNotContains('$workspaceId = $this->getWorkspaceId()', $member, 'Project member lookup should not depend on the selected workspace');
+		$t->assertContains('projectVisibleForCurrentUser($projectId)', $member, 'Project member lookup should inherit current-user and active member-workspace visibility');
 		$t->assertContains('projectOwnerForCurrentUser($projectId)', $owner, 'Project owner lookup should use owner visibility');
 
 		$visibleProject = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'projectVisibleForCurrentUser');
 		$t->assertContains('innerJoin(\'p\', \'cobudget_members\', \'m\'', $visibleProject, 'Project visibility should require an actual member row');
 		$t->assertContains('m.user_id', $visibleProject, 'Project visibility should require the current user member row');
+		$t->assertContains('m.personal_workspace_id', $visibleProject, 'Project visibility should require the members active personal workspace');
 		$ownerVisibleProject = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'projectOwnerForCurrentUser');
 		$t->assertContains('owner_id', $ownerVisibleProject, 'Project owner lookup should require the current user to be the owner');
 		$t->assertContains('leftJoin(\'e\', \'cobudget_members\', \'m\'', $entry, 'Entry visibility should allow shared-area entries only through membership');
 		$t->assertContains('e.user_id', $entry, 'Entry visibility should still allow personal entries owned by the user');
+		$t->assertContains('m.personal_workspace_id', $entry, 'Shared entry visibility should require the members active personal workspace');
 		$t->assertContains('projectWorkspaceIdForCurrentUser($projectId)', $category, 'Project categories should resolve workspace through project membership');
 		$t->assertContains('projectWorkspaceIdForCurrentUser($projectId)', $paymentPartner, 'Project payment partners should resolve workspace through project membership');
 		$t->assertContains('is_hidden', $category, 'Global categories should ignore hidden rows');
 		$t->assertContains('is_hidden', $paymentPartner, 'Global payment partners should ignore hidden rows');
+	},
+
+	'Area lists, templates, and direct IDs share the active member-workspace boundary' => function(TestRunner $t): void {
+		$projectIndex = $t->methodBody('lib/Controller/ProjectController.php', 'index');
+		$templateIndex = $t->methodBody('lib/Controller/TemplateController.php', 'index');
+
+		$t->assertContains('$workspaceId = $this->getWorkspaceId()', $projectIndex, 'Area listing should resolve the active workspace');
+		$t->assertContains('m.personal_workspace_id', $projectIndex, 'Area listing should filter the current members active personal workspace');
+		$t->assertContains('m.personal_workspace_id', $templateIndex, 'Area templates should filter the current members active personal workspace');
+	},
+
+	'Area creation does not bypass Nextcloud user enumeration policy' => function(TestRunner $t): void {
+		$create = $t->methodBody('lib/Controller/ProjectController.php', 'create');
+		$addMember = $t->methodBody('lib/Controller/ProjectController.php', 'addMember');
+
+		$t->assertContains('MAX_PROJECT_MEMBERS', $t->read('lib/Controller/ProjectController.php'), 'Area membership should have a bounded maximum');
+		$t->assertContains('userSearchAllowed()', $create, 'Bulk member creation should honor the Nextcloud user enumeration policy');
+		$t->assertContains("'User could not be added.'", $create, 'Bulk member creation should return a generic account error');
+		$t->assertNotContains('User not found:', $create, 'Bulk member creation should not disclose guessed account IDs');
+		$t->assertContains('count($existingMembers) >= self::MAX_PROJECT_MEMBERS', $addMember, 'Single member additions should enforce the same membership cap');
 	},
 
 	'Payment writes use canonical and immutable workspace scope' => function(TestRunner $t): void {
@@ -278,33 +295,24 @@ return [
 		$t->assertContains('$workspaceId = $this->workspaceIdForEntryScope($projectId)', $create, 'Shared-area creates should use the areas canonical workspace');
 		$t->assertNotContains('$workspaceId = $this->getWorkspaceId()', $create, 'Shared-area creates should not write the active header workspace blindly');
 		$t->assertContains('$currentWorkspaceId = (int)$entry[\'workspace_id\']', $update, 'Entry update should load the immutable source workspace');
-		$t->assertContains('$targetWorkspaceId = $this->workspaceIdForEntryScope($projectId)', $update, 'Entry update should resolve the destination area workspace canonically');
+		$t->assertContains("\$targetEntryKind === 'shared' ? \$this->workspaceIdForEntryScope(\$projectId) : \$currentWorkspaceId", $update, 'Shared entry update should resolve the canonical area workspace while personal payments retain theirs');
+		$t->assertContains("\$oldEntryKind === 'shared' && (\$projectId === null || \$oldProjectId !== \$projectId)", $update, 'Open shared payments should remain attached to their original area');
 		$t->assertContains('$targetWorkspaceId !== $currentWorkspaceId', $update, 'Entry update should reject cross-workspace moves');
 		$t->assertContains("STATUS_CONFLICT", $update, 'Cross-workspace entry moves should return a conflict response');
 	},
 
-	'User reset preserves settled shares of other area members' => function(TestRunner $t): void {
+	'User reset preserves already-materialized settled payments of other area members' => function(TestRunner $t): void {
 		$service = $t->read('lib/Service/UserResetService.php');
-		$materialize = $t->methodBody('lib/Service/UserResetService.php', 'materializeSettledProjectShares');
-		$settlementShares = $t->methodBody('lib/Service/UserResetService.php', 'settlementSharesByIdForProject');
-		$recipients = $t->methodBody('lib/Service/UserResetService.php', 'recipientUserIdsForEntry');
-		$share = $t->methodBody('lib/Service/UserResetService.php', 'personalShareCentsForEntry');
-		$insert = $t->methodBody('lib/Service/UserResetService.php', 'insertTransferredPersonalEntry');
-		$deleteAttachments = $t->methodBody('lib/Service/UserResetService.php', 'deleteAttachmentsForEntries');
+		$reset = $t->methodBody('lib/Service/UserResetService.php', 'reset');
+		$projection = $t->methodBody('lib/Service/EntryProjectionService.php', 'detachSettledMember');
 
-		$t->assertContains("andWhere(\$qb->expr()->eq('is_settled'", $materialize, 'Only settled source payments should be materialized');
-		$t->assertContains('$memberUserId !== $resetUserId', $recipients, 'The resetting users own share should not be recreated');
-		$t->assertContains('$shareCents <= 0', $materialize, 'Zero-percent shares should not create personal payments');
-		$t->assertContains('$sharesBySettlement[$settlementId]', $materialize, 'Each settled payment should use its settlement-time member shares');
-		$t->assertContains('syncEntryHashtags($newEntryId, $workspaceId', $materialize, 'Transferred descriptions should rebuild their hashtag links in the recipient workspace');
-		$t->assertContains("'share_basis_points'", $settlementShares, 'Historical settlement shares should be read from settlement balance snapshots');
-		$t->assertContains("=== 'single_user'", $share, 'Single-user assignments should transfer only to their selected member');
-		$t->assertContains('intdiv(', $share, 'Percentage shares should use deterministic integer-cent rounding');
-		$t->assertContains("'project_id' => \$qb->createNamedParameter(null", $insert, 'Transferred shares should become personal payments without the deleted area');
-		$t->assertContains("'is_settled' => \$qb->createNamedParameter(false", $insert, 'Transferred personal payments should no longer depend on area settlement state');
-		$t->assertContains("'recurrence_interval' => \$qb->createNamedParameter(null", $insert, 'Historical transferred shares must not start recurring series');
-		$t->assertContains('$fileOwnerUserId !== null', $deleteAttachments, 'Receipt cleanup should be restricted to files owned by the resetting user');
-		$t->assertContains('copyRecipientOwnedAttachments', $service, 'Recipient-owned receipt links should survive area deletion');
+		$t->assertContains('countUnsettledProjectEntries($projectId)', $reset, 'User reset should reject areas with open shared payments');
+		$t->assertContains('entryProjectionService->detachSettledMember($projectId', $reset, 'User reset should detach other members settled personal payments before deleting an owned area');
+		$t->assertContains("set('project_id'", $projection, 'Detached settled payments should no longer depend on the deleted area');
+		$t->assertContains("set('source_entry_id'", $projection, 'Detached settled payments should no longer depend on the shared source row');
+		$t->assertContains('personalCategoryId(', $projection, 'Area-only categories should be cloned into the members personal workspace');
+		$t->assertContains('personalPaymentPartnerId(', $projection, 'Area-only payment partners should be cloned into the members personal workspace');
+		$t->assertContains('transferred_attachments', $service, 'Reset reports should expose preserved personal receipt copies');
 	},
 
 	'Receipt attachment endpoints authorize entry visibility and exact attachment rows' => function(TestRunner $t): void {
@@ -415,7 +423,10 @@ return [
 
 		$t->assertTrue(strpos($create, '$this->db->commit()') < strpos($create, 'notifyEntryCreated('), 'Shared-area notifications should only run after payment commit');
 		$t->assertContains('catch (\Throwable $notificationError)', $create, 'Notification failures after commit should not turn a stored payment into an API failure');
-		$t->assertContains('$this->deleteEntryAttachmentRows($id, (int)$workspaceId)', $destroy, 'Payment deletion should remove receipt metadata inside the transaction');
+		$t->assertContains('$this->entryProjectionService->prepareEntryDeletion([$id])', $destroy, 'Payment deletion should resolve the complete source/projection graph inside the transaction');
+		$t->assertContains('$this->deleteEntryAttachmentRowsForEntries($entryIds)', $destroy, 'Payment deletion should remove receipt metadata for the complete graph inside the transaction');
+		$t->assertContains('$this->deleteEntryHistoryForEntries($entryIds)', $destroy, 'Payment deletion should remove history for the complete graph inside the transaction');
+		$t->assertContains('$this->hashtagService->deleteHashtagsForEntries($entryIds)', $destroy, 'Payment deletion should remove description tags for the complete graph inside the transaction');
 		$t->assertTrue(strpos($destroy, '$this->db->commit()') < strpos($destroy, 'deleteEntryAttachmentFilesAfterCommit($attachments)'), 'Physical receipt cleanup should only run after payment deletion commits');
 		$t->assertTrue(strpos($destroyAttachment, '$this->db->commit()') < strpos($destroyAttachment, 'deleteAttachmentFileAfterCommit($attachment)'), 'Direct receipt file deletion should only run after metadata deletion commits');
 		$t->assertContains('if (!$attachmentStored && $createdFile instanceof File)', $upload, 'Failed receipt metadata writes should remove the newly created file');
@@ -434,12 +445,16 @@ return [
 		$user = $t->read('lib/Controller/UserController.php');
 		$analytics = $t->read('lib/Controller/AnalyticsController.php');
 		$backup = $t->read('lib/Controller/BackupController.php');
+		$project = $t->read('lib/Controller/ProjectController.php');
+		$budget = $t->read('lib/Controller/BudgetController.php');
 
 		$t->assertContains('#[UserRateLimit(limit: 120, period: 60)]', $entry, 'Payment list and dashboard requests should be rate limited');
 		$t->assertContains('#[UserRateLimit(limit: 5, period: 300)]', $entry, 'CSV exports should have a stricter rate limit');
 		$t->assertContains('#[UserRateLimit(limit: 30, period: 60)]', $user, 'Nextcloud user search should be rate limited');
 		$t->assertContains('#[UserRateLimit(limit: 12, period: 60)]', $analytics, 'Analytics should be rate limited');
 		$t->assertContains('#[UserRateLimit(limit: 10, period: 60)]', $backup, 'Backup inspection should be rate limited');
+		$t->assertContains('#[UserRateLimit(limit: 60, period: 60)]', $project, 'Area reads should be rate limited');
+		$t->assertContains('#[UserRateLimit(limit: 30, period: 60)]', $budget, 'Budget mutations should be rate limited');
 
 		$pagination = $t->methodBody('lib/Controller/EntryController.php', 'normalizePagination');
 		$t->assertContains('max(1, min(self::MAX_PAGE_SIZE, $limit))', $pagination, 'Payment page size should be bounded');
@@ -447,16 +462,25 @@ return [
 		$aggregate = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryAggregateData');
 		$t->assertContains('while ($entry = $result->fetch())', $aggregate, 'Payment summaries should be streamed instead of materialized with fetchAll');
 		$t->assertContains('personal_share.amount_cents AS snapshot_share_cents', $aggregate, 'Streaming summaries should preserve immutable personal shares');
+		$t->assertContains('entryAggregateAmountCents($entry, $projectShareBasisPoints)', $aggregate, 'Streaming summaries should distinguish personal shares from shared area totals');
+	},
+
+	'Payment and template text values respect their database column lengths' => function(TestRunner $t): void {
+		$textValidation = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'validateEntryTextPayload');
+		$templateValidation = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'validateTemplatePayload');
+		$currencyValidation = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'validateCurrencySetting');
+
+		$t->assertContains('mb_strlen($description) > 512', $textValidation, 'Payment descriptions should fit the 512-character database column');
+		$t->assertContains('mb_strlen($currency) > 10', $textValidation, 'Payment currencies should fit the 10-character database column');
+		$t->assertContains('mb_strlen($reminderText) > 255', $textValidation, 'Reminder text should fit the 255-character database column');
+		$t->assertContains('mb_strlen($description) > 512', $templateValidation, 'Template descriptions should fit the 512-character database column');
+		$t->assertContains('mb_strlen($currency) > 10', $currencyValidation, 'Stored currency settings should fit payment rows');
 	},
 
 	'Area membership is unique at the database boundary' => function(TestRunner $t): void {
-		$initial = $t->read('lib/Migration/Version000001Date20260624000000.php');
-		$upgrade = $t->read('lib/Migration/Version000004Date20260710000000.php');
+		$initial = $t->read('lib/Migration/Version000001Date20260713000000.php');
 
 		$t->assertContains("addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", $initial, 'Fresh installs should reject duplicate area memberships');
-		$t->assertContains('preSchemaChange', $upgrade, 'Upgrade migration should clean existing duplicate memberships first');
-		$t->assertContains("delete('cobudget_members')", $upgrade, 'Upgrade migration should delete duplicate membership rows');
-		$t->assertContains("addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", $upgrade, 'Upgrade migration should add the unique membership index');
 	},
 
 	'Budget criteria are scoped, allow-listed, and evaluated as AND within a row OR across rows' => function(TestRunner $t): void {
@@ -466,7 +490,6 @@ return [
 		$categorySelectable = $t->methodBody('lib/Controller/BudgetController.php', 'categorySelectableForBudget');
 		$visibleEntries = $t->methodBody('lib/Controller/BudgetController.php', 'loadVisibleExpenseEntries');
 		$evaluate = $t->methodBody('lib/Controller/BudgetController.php', 'evaluateGoal');
-		$entryPersonalCents = $t->methodBody('lib/Controller/BudgetController.php', 'entryPersonalCents');
 		$matches = $t->methodBody('lib/Controller/BudgetController.php', 'entryMatchesCriteria');
 
 		$t->assertContains('private const TAG_COLUMNS = [', $t->read('lib/Controller/BudgetController.php'), 'Budget criteria should use a central tag allow-list');
@@ -480,9 +503,10 @@ return [
 		$t->assertContains('e.type', $visibleEntries, 'Budget evaluation should load only expense entries');
 		$t->assertContains('e.workspace_id', $visibleEntries, 'Budget evaluation should scope visible entries by workspace');
 		$t->assertContains('e.user_id', $visibleEntries, 'Budget evaluation should include personal entries owned by the user');
-		$t->assertContains('m.user_id', $visibleEntries, 'Budget evaluation should include shared entries only through membership');
-		$t->assertContains('$spentCents += $this->entryPersonalCents($entry, $shares)', $evaluate, 'Budget progress should use the user personal share, not total shared amounts');
-		$t->assertContains('entryShareCentsForUser', $entryPersonalCents, 'Shared budget entries should be reduced to the current user share');
+		$t->assertContains('e.entry_kind', $visibleEntries, 'Budget evaluation should include only materialized personal payments');
+		$t->assertNotContains('cobudget_members', $visibleEntries, 'Budget evaluation must not count shared source payments through membership');
+		$t->assertContains('$spentCents += max(0, $this->amountCentsFromRow($entry) ?? 0)', $evaluate, 'Budget progress should sum exact personal projection cents');
+		$t->assertNotContains('entryShareCentsForUser', $evaluate, 'Budget progress must not recalculate personal shares from mutable area defaults');
 		$t->assertContains('if ($rules === [])', $matches, 'Budget goals without criteria should match all visible expenses');
 		$t->assertContains('continue;', $matches, 'Budget criteria should require all selected values in a rule to match before returning true');
 		$t->assertContains('return true;', $matches, 'Budget criteria should match if at least one rule matches');

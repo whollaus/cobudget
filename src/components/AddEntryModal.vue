@@ -265,7 +265,11 @@
 								<div class="form-group detail-project-payer" v-if="showProjectPayerSelect">
 									<label>{{ projectPayerLabel }}</label>
 									<select v-model="entry.userId" class="form-control select-control">
-										<option v-for="member in projectPayerOptions" :key="member.id" :value="member.id">
+										<option
+											v-for="member in projectPayerOptions"
+											:key="member.id"
+											:value="member.id"
+											:disabled="member.isFormer || !member.isActive">
 											{{ member.displayName }}
 										</option>
 									</select>
@@ -277,7 +281,8 @@
 										<option
 											v-for="member in projectSplitOptions"
 											:key="`single-${member.id}`"
-											:value="`single_user:${member.id}`">
+											:value="`single_user:${member.id}`"
+											:disabled="member.isFormer || !member.isActive">
 											{{ $texts.entry.singleUserSplitTarget(member.displayName) }}
 										</option>
 									</select>
@@ -359,7 +364,7 @@
 						@primary="saveEntry"
 						@primary-menu="handleSaveMenuAction"
 						@cancel="closeModal">
-						<template v-if="isEditing && !isTemplateMode" #left>
+						<template v-if="isEditing && !isTemplateMode && entry.can_delete !== false" #left>
 							<CbIconButton
 								class="entry-delete-icon-button"
 								variant="ghost"
@@ -448,6 +453,7 @@ export default {
 			isTemplateMode: false,
 			isDuplicateMode: false,
 			isInitializingEntry: false,
+			originalProjectId: null,
 			saveAsTemplate: false,
 			templateName: '',
 			templateDescription: '',
@@ -636,7 +642,7 @@ export default {
 
 			return this.projects.find(p => Number(p.id) === Number(this.entry.projectId)) || null;
 		},
-		projectPayerOptions() {
+		normalizedProjectMembers() {
 			if (!this.selectedProject || !Array.isArray(this.selectedProject.members)) {
 				return [];
 			}
@@ -645,14 +651,35 @@ export default {
 				.map(member => this.normalizeProjectMember(member))
 				.filter(member => member.id !== '');
 		},
+		projectPayerOptions() {
+			const preserveHistorical = this.isEditing
+				&& Number(this.entry.projectId) === Number(this.originalProjectId)
+				? String(this.entry.userId || '')
+				: '';
+			return this.normalizedProjectMembers.filter(member =>
+				(member.isActive !== false && member.isFormer !== true)
+				|| member.id === preserveHistorical
+			);
+		},
 		projectSplitOptions() {
-			return this.projectPayerOptions;
+			const preserveHistorical = this.isEditing
+				&& Number(this.entry.projectId) === Number(this.originalProjectId)
+				? String(this.entry.splitUserId || '')
+				: '';
+			return this.normalizedProjectMembers.filter(member =>
+				(member.isActive !== false && member.isFormer !== true)
+				|| member.id === preserveHistorical
+			);
 		},
 		showProjectPayerSelect() {
 			return this.$enableSharedProjects && !this.isTemplateMode && !!this.entry.projectId && this.projectPayerOptions.length > 1;
 		},
 		showProjectSplitMode() {
-			return this.showProjectPayerSelect;
+			return this.$enableSharedProjects
+				&& !this.isTemplateMode
+				&& !!this.entry.projectId
+				&& this.normalizedProjectMembers.length > 1
+				&& this.projectSplitOptions.length > 0;
 		},
 		projectPayerLabel() {
 			return this.entry.type === 'income' ? this.$texts.entry.receivedBy() : this.$texts.entry.paidBy();
@@ -691,12 +718,12 @@ export default {
 			return this.$texts.entry.areaAssigned(this.selectedProject.name, this.projectShareLabel(this.selectedProject));
 		},
 		selectedProjectUserLabel() {
-			const member = this.projectPayerOptions.find(option => option.id === this.entry.userId);
+			const member = this.normalizedProjectMembers.find(option => option.id === this.entry.userId);
 			return member ? member.displayName : this.$texts.entry.selectedUser();
 		},
 		selectedSplitUserLabel() {
 			const splitUserId = this.entry.splitUserId || this.entry.userId;
-			const member = this.projectPayerOptions.find(option => option.id === splitUserId);
+			const member = this.normalizedProjectMembers.find(option => option.id === splitUserId);
 			return member ? member.displayName : this.$texts.entry.selectedUser();
 		},
 		nextRecurrence() {
@@ -786,10 +813,12 @@ export default {
 				return;
 			}
 
+			const globalLookups = this.selectedGlobalLookupNames();
 			this.entry.splitMode = 'project_shares';
 			this.entry.splitUserId = null;
 			this.resetScopedLookups();
 			await this.fetchDataLists(projectId);
+			this.restoreGlobalLookupNames(globalLookups);
 			await this.ensureProjectMembers(projectId);
 			this.syncEntryUserWithProject(this.currentUserId());
 		}
@@ -987,11 +1016,13 @@ export default {
 		normalizeProjectMember(member) {
 			const id = String(member?.id || member?.userId || member?.uid || '').trim();
 			return {
-					id,
-					displayName: member?.displayName || member?.displayname || id,
-					shareBasisPoints: parseInt(member?.shareBasisPoints ?? member?.share_basis_points ?? 0, 10) || 0,
-					sharePercent: Math.round(parseFloat(member?.sharePercent ?? 0) || 0)
-				};
+				id,
+				displayName: member?.displayName || member?.displayname || id,
+				shareBasisPoints: parseInt(member?.shareBasisPoints ?? member?.share_basis_points ?? 0, 10) || 0,
+				sharePercent: Math.round(parseFloat(member?.sharePercent ?? 0) || 0),
+				isFormer: member?.isFormer === true || member?.is_former === true,
+				isActive: member?.isActive !== false && member?.is_active !== false
+			};
 		},
 		async ensureProjectMembers(projectId) {
 			if (!this.$enableSharedProjects || !projectId) {
@@ -1064,26 +1095,21 @@ export default {
 				this.entry.splitUserId = null;
 				return;
 			}
-			if (members.length <= 1) {
-				this.entry.splitMode = 'project_shares';
-				this.entry.splitUserId = null;
-			}
-
 			const preferred = preferredUserId || this.entry.userId || currentUserId;
 			if (members.some(member => member.id === preferred)) {
 				this.entry.userId = preferred;
-				this.syncSplitUserWithProjectMembers(members);
+				this.syncSplitUserWithProjectMembers(this.projectSplitOptions);
 				return;
 			}
 
 			if (members.some(member => member.id === currentUserId)) {
 				this.entry.userId = currentUserId;
-				this.syncSplitUserWithProjectMembers(members);
+				this.syncSplitUserWithProjectMembers(this.projectSplitOptions);
 				return;
 			}
 
 			this.entry.userId = members[0].id;
-			this.syncSplitUserWithProjectMembers(members);
+			this.syncSplitUserWithProjectMembers(this.projectSplitOptions);
 		},
 		syncSplitUserWithProjectMembers(members) {
 			if (this.entry.splitMode !== 'single_user') {
@@ -1217,6 +1243,44 @@ export default {
 			this.entry.paymentPartnerName = '';
 			this.closeLookup();
 		},
+		selectedGlobalLookupNames() {
+			return {
+				category: this.selectedGlobalLookupName('category'),
+				paymentPartner: this.selectedGlobalLookupName('paymentPartner')
+			};
+		},
+		selectedGlobalLookupName(field) {
+			const value = String(this.lookupValue(field) || '').trim();
+			if (!value) {
+				return '';
+			}
+
+			const item = this.lookupItems(field).find(candidate => {
+				return this.isGlobalLookupItem(candidate)
+					&& String(candidate.name || '').trim().localeCompare(value, undefined, { sensitivity: 'base' }) === 0;
+			});
+
+			return item ? String(item.name || '').trim() : '';
+		},
+		isGlobalLookupItem(item) {
+			return item?.is_global === true || item?.is_global === 1 || item?.is_global === '1';
+		},
+		restoreGlobalLookupNames(globalLookups) {
+			const categoryName = String(globalLookups?.category || '').trim();
+			const paymentPartnerName = String(globalLookups?.paymentPartner || '').trim();
+			this.entry.categoryName = this.globalLookupExists('category', categoryName) ? categoryName : '';
+			this.entry.paymentPartnerName = this.globalLookupExists('paymentPartner', paymentPartnerName) ? paymentPartnerName : '';
+		},
+		globalLookupExists(field, name) {
+			if (!name) {
+				return false;
+			}
+
+			return this.lookupItems(field).some(item => {
+				return this.isGlobalLookupItem(item)
+					&& String(item.name || '').trim().localeCompare(name, undefined, { sensitivity: 'base' }) === 0;
+			});
+		},
 		clearLookupValue(field) {
 			if (field === 'category') {
 				this.entry.categoryName = '';
@@ -1325,6 +1389,7 @@ export default {
 			this.templateName = '';
 			this.templateDescription = '';
 			this.sourceTemplateId = null;
+			this.originalProjectId = entryToEdit?.project_id || null;
 			this.resetAttachments();
 			const resolvedDefaultType = defaultType === 'income' ? 'income' : 'expense';
 			
@@ -1677,6 +1742,8 @@ export default {
 				const payRes = await axios.get(generateUrl('/apps/cobudget/api/payment-partners'), { params })
 				this.paymentPartners = (payRes.data || []).sort((a, b) => a.name.localeCompare(b.name))
 			} catch (e) {
+				this.categories = [];
+				this.paymentPartners = [];
 				showRequestError(e, this.$texts.entry.lookupsLoadError(), 'Failed to fetch categories/paymentPartners')
 			}
 		},
@@ -2056,7 +2123,8 @@ export default {
 					await axios.post(generateUrl(`/apps/cobudget/api/entries/${this.entry.id}/stop-recurrence`));
 					showToast(this.$texts.entry.futurePaymentDisabled());
 				} else {
-					await axios.delete(generateUrl(`/apps/cobudget/api/entries/${this.entry.id}`));
+					const deleteId = Number(this.entry.editable_entry_id || this.entry.source_entry_id || this.entry.id);
+					await axios.delete(generateUrl(`/apps/cobudget/api/entries/${deleteId}`));
 					showToast(this.$texts.entry.entryDeleted());
 				}
 				this.$emit('saved');

@@ -16,6 +16,7 @@ class ResetAllCommand extends Command {
 	private const APP_ID = 'cobudget';
 
 	private const TABLES = [
+		'cobudget_deleted_users',
 		'cobudget_workspaces',
 		'cobudget_projects',
 		'cobudget_members',
@@ -38,6 +39,12 @@ class ResetAllCommand extends Command {
 	private const APP_VALUE_KEYS_TO_RESET = [
 		'default_categories_seeded',
 		'default_payment_partners_seeded',
+		'full_backup_storage_user',
+		'full_backup_storage_folder',
+		'full_backup_retention_count',
+		'full_backup_schedule',
+		'full_backup_last_auto_at',
+		'theming_icon_cache_version',
 	];
 
 	public function __construct(
@@ -108,7 +115,7 @@ class ResetAllCommand extends Command {
 			$output->writeln(sprintf(' - %s: %d', $table, $count));
 		}
 		$output->writeln(sprintf('Geloeschte CoBudget-Benutzereinstellungen: %d', $preferencesCount));
-		$output->writeln(sprintf('Zurueckgesetzte App-Seed-Marker: %d', $appValuesReset));
+		$output->writeln(sprintf('Zurueckgesetzte globale CoBudget-App-Einstellungen: %d', $appValuesReset));
 		$output->writeln('<comment>Globale Standard-Kategorien und Zahlungspartner werden beim naechsten Aufruf der jeweiligen Einstellungen neu angelegt.</comment>');
 
 		return Command::SUCCESS;

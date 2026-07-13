@@ -2,6 +2,7 @@
 
 namespace OCA\CoBudget\Controller;
 
+use OCA\CoBudget\Service\ParticipantService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 
@@ -308,6 +309,7 @@ trait WorkspaceAwareTrait {
 			->addSelect($qb->createFunction('COUNT(*) AS recent_usage_count'))
 			->from('cobudget_entries')
 			->where($qb->expr()->isNotNull($referenceColumn))
+			->andWhere($qb->expr()->eq('entry_kind', $qb->createNamedParameter('personal')))
 			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->gte('date', $qb->createNamedParameter($since, \PDO::PARAM_INT)))
@@ -430,6 +432,8 @@ trait WorkspaceAwareTrait {
 		string $type,
 		float $amount,
 		int $date,
+		?string &$description,
+		string &$currency,
 		?int $projectId,
 		?int $categoryId,
 		?int $paymentPartnerId,
@@ -438,6 +442,7 @@ trait WorkspaceAwareTrait {
 		?int $recurrenceNextDate,
 		?int $recurrenceEndDate,
 		?int $reminderDate,
+		?string &$reminderText,
 		?int &$amountCents,
 		?int $recurrenceParentId = null
 	): ?DataResponse {
@@ -453,6 +458,10 @@ trait WorkspaceAwareTrait {
 			return $error;
 		}
 
+		if ($error = $this->validateEntryTextPayload($description, $currency, $reminderText)) {
+			return $error;
+		}
+
 		if ($error = $this->validateEntryReferences($projectId, $categoryId, $paymentPartnerId, $recurrenceParentId)) {
 			return $error;
 		}
@@ -462,6 +471,7 @@ trait WorkspaceAwareTrait {
 
 	protected function validateTemplatePayload(
 		string &$name,
+		?string &$description,
 		string $type,
 		?float $amount,
 		?int &$amountCents,
@@ -473,6 +483,10 @@ trait WorkspaceAwareTrait {
 			return $error;
 		}
 
+		if ($description !== null && mb_strlen($description) > 512) {
+			return $this->errorResponse('Invalid description', Http::STATUS_BAD_REQUEST);
+		}
+
 		if ($error = $this->validateAmountCents($amount, $amountCents, true)) {
 			return $error;
 		}
@@ -482,8 +496,26 @@ trait WorkspaceAwareTrait {
 
 	protected function validateCurrencySetting(string &$currency): ?DataResponse {
 		$currency = trim($currency);
-		if (mb_strlen($currency) > 16) {
+		if (mb_strlen($currency) > 10) {
 			return $this->errorResponse('Invalid currency', Http::STATUS_BAD_REQUEST);
+		}
+
+		return null;
+	}
+
+	protected function validateEntryTextPayload(?string &$description, string &$currency, ?string &$reminderText): ?DataResponse {
+		$description ??= '';
+		if (mb_strlen($description) > 512) {
+			return $this->errorResponse('Invalid description', Http::STATUS_BAD_REQUEST);
+		}
+
+		$currency = trim($currency);
+		if ($currency === '' || mb_strlen($currency) > 10) {
+			return $this->errorResponse('Invalid currency', Http::STATUS_BAD_REQUEST);
+		}
+
+		if ($reminderText !== null && mb_strlen($reminderText) > 255) {
+			return $this->errorResponse('Invalid reminder text', Http::STATUS_BAD_REQUEST);
 		}
 
 		return null;
@@ -830,6 +862,10 @@ trait WorkspaceAwareTrait {
 		if (empty($this->userId) || $projectId <= 0) {
 			return null;
 		}
+		$workspaceId = $this->getWorkspaceId();
+		if ($workspaceId === null) {
+			return null;
+		}
 
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('p.*')
@@ -837,6 +873,7 @@ trait WorkspaceAwareTrait {
 		   ->innerJoin('p', 'cobudget_members', 'm', $qb->expr()->eq('p.id', 'm.project_id'))
 		   ->where($qb->expr()->eq('p.id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)))
+		   ->andWhere($qb->expr()->eq('m.personal_workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 		   ->setMaxResults(1);
 		$row = $qb->executeQuery()->fetch();
 
@@ -867,6 +904,49 @@ trait WorkspaceAwareTrait {
 
 	protected function workspaceIdForEntryScope(?int $projectId): ?int {
 		return $this->projectWorkspaceIdForCurrentUser($projectId);
+	}
+
+	protected function projectMemberCountInActiveWorkspace(?int $projectId): ?int {
+		if ($projectId === null || $projectId <= 0 || $this->projectVisibleForCurrentUser($projectId) === null) {
+			return null;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectAlias($qb->func()->count('id'), 'member_count')
+			->from('cobudget_members')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)));
+		$result = $qb->executeQuery();
+		$count = (int)$result->fetchOne();
+		$result->closeCursor();
+
+		return $count;
+	}
+
+	protected function projectUsesSharedEntries(?int $projectId): bool {
+		$memberCount = $this->projectMemberCountInActiveWorkspace($projectId);
+
+		return $memberCount !== null && $memberCount > 1;
+	}
+
+	protected function projectHasFormerMember(?int $projectId): bool {
+		if ($projectId === null || $projectId <= 0) {
+			return false;
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_members')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->like(
+				'user_id',
+				$qb->createNamedParameter(ParticipantService::FORMER_PREFIX . '%')
+			))
+			->setMaxResults(1);
+		$result = $qb->executeQuery();
+		$hasFormerMember = $result->fetchOne() !== false;
+		$result->closeCursor();
+
+		return $hasFormerMember;
 	}
 
 	protected function projectMemberInActiveWorkspace(int $projectId): bool {
@@ -936,14 +1016,16 @@ trait WorkspaceAwareTrait {
 		   ->where($qb->expr()->eq('e.id', $qb->createNamedParameter($entryId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->orX(
 			   $qb->expr()->andX(
-				   $qb->expr()->isNull('e.project_id'),
+				   $qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')),
 				   $qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
 				   $qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 			   ),
-			   $qb->expr()->andX(
-				   $qb->expr()->isNotNull('e.project_id'),
-				   $qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
-			   )
+				   $qb->expr()->andX(
+					   $qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('shared')),
+					   $qb->expr()->isNotNull('e.project_id'),
+					   $qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)),
+					   $qb->expr()->eq('m.personal_workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
+				   )
 		   ))
 		   ->setMaxResults(1);
 		$row = $qb->executeQuery()->fetch();

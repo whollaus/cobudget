@@ -44,6 +44,17 @@
 					</ul>
 				</div>
 
+				<div v-if="integrityProjectionCount > 0" class="integrity-group">
+					<h4>{{ $texts.admin.projectionIssues(integrityProjectionCount) }}</h4>
+					<p>{{ $texts.admin.projectionIssuesHint() }}</p>
+					<ul class="integrity-list">
+						<li v-for="issue in integrityProjectionIssues" :key="`${issue.code}-${issue.table}-${issue.id}`">
+							<strong>{{ issue.code }}</strong>
+							<span>{{ $texts.admin.projectionIssueLocation(issue.table, issue.id) }}</span>
+						</li>
+					</ul>
+				</div>
+
 				<div v-if="integrityDuplicateCount > 0" class="integrity-group">
 					<h4>{{ $texts.admin.visibleDuplicates(integrityDuplicateCount) }}</h4>
 					<p>{{ $texts.admin.visibleDuplicatesHint() }}</p>
@@ -480,15 +491,22 @@ export default {
 		integrityDuplicateVisibleNames() {
 			return this.integrityReport?.duplicateVisibleNames || [];
 		},
+		integrityProjectionIssues() {
+			return this.integrityReport?.projectionIssues || [];
+		},
 		integrityOrphanCount() {
 			return Number(this.integrityReport?.orphanReferenceCount || 0);
 		},
 		integrityDuplicateCount() {
 			return Number(this.integrityReport?.duplicateVisibleNameCount || 0);
 		},
+		integrityProjectionCount() {
+			return Number(this.integrityReport?.projectionIssueCount || 0);
+		},
 		integrityIsClean() {
 			return this.integrityReport
 				&& this.integrityOrphanCount === 0
+				&& this.integrityProjectionCount === 0
 				&& this.integrityDuplicateCount === 0;
 		},
 		canRestoreFullBackup() {

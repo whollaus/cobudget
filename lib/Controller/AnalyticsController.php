@@ -5,6 +5,7 @@ namespace OCA\CoBudget\Controller;
 use OCA\CoBudget\Service\BudgetSnapshotService;
 use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\HashtagService;
+use OCA\CoBudget\Service\ParticipantService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -14,7 +15,6 @@ use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IL10N;
 use OCP\IRequest;
-use OCP\IUserManager;
 use OCP\IUserSession;
 
 class AnalyticsController extends Controller {
@@ -42,21 +42,21 @@ class AnalyticsController extends Controller {
 
 	private IDBConnection $db;
 	private IConfig $config;
-	private IUserManager $userManager;
 	private BudgetSnapshotService $budgetSnapshotService;
 	private EntryShareService $entryShareService;
 	private HashtagService $hashtagService;
+	private ParticipantService $participantService;
 	private ?string $userId;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IConfig $config, IUserSession $userSession, IUserManager $userManager, BudgetSnapshotService $budgetSnapshotService, EntryShareService $entryShareService, HashtagService $hashtagService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IConfig $config, IUserSession $userSession, BudgetSnapshotService $budgetSnapshotService, EntryShareService $entryShareService, HashtagService $hashtagService, ParticipantService $participantService, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$this->config = $config;
-		$this->userManager = $userManager;
 		$this->budgetSnapshotService = $budgetSnapshotService;
 		$this->entryShareService = $entryShareService;
 		$this->hashtagService = $hashtagService;
+		$this->participantService = $participantService;
 		$this->l10n = $l10n;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
@@ -81,19 +81,19 @@ class AnalyticsController extends Controller {
 			$sharesByProject = $this->loadProjectShares($workspaceId);
 			$periods = $this->buildPeriodOptions($this->loadAnalyticsEntryDates($workspaceId));
 			$selectedPeriod = $this->resolvePeriod($period, $periods);
-			$periodEntries = $this->loadAnalyticsEntries($workspaceId, $sharesByProject, (int)$selectedPeriod['start'], (int)$selectedPeriod['end']);
+			$periodEntries = $this->loadAnalyticsEntries($workspaceId, (int)$selectedPeriod['start'], (int)$selectedPeriod['end']);
 			$periodEntries = $this->attachAnalyticsAttachmentFlags($periodEntries, $workspaceId);
 			$comparisonPeriod = $this->comparisonPeriodFor($selectedPeriod);
 			$comparisonEntries = $comparisonPeriod === null
 				? []
-				: $this->entriesForAnalyticsRange($workspaceId, $sharesByProject, $periodEntries, $selectedPeriod, (int)$comparisonPeriod['start'], (int)$comparisonPeriod['end']);
+				: $this->entriesForAnalyticsRange($workspaceId, $periodEntries, $selectedPeriod, (int)$comparisonPeriod['start'], (int)$comparisonPeriod['end']);
 			$directionWindows = $this->directionWindowsFor($selectedPeriod);
 			$directionRecentEntries = $directionWindows === null
 				? []
-				: $this->entriesForAnalyticsRange($workspaceId, $sharesByProject, $periodEntries, $selectedPeriod, (int)$directionWindows['recentStart'], (int)$directionWindows['recentEnd']);
+				: $this->entriesForAnalyticsRange($workspaceId, $periodEntries, $selectedPeriod, (int)$directionWindows['recentStart'], (int)$directionWindows['recentEnd']);
 			$directionBaselineEntries = $directionWindows === null
 				? []
-				: $this->entriesForAnalyticsRange($workspaceId, $sharesByProject, $periodEntries, $selectedPeriod, (int)$directionWindows['baselineStart'], (int)$directionWindows['baselineEnd']);
+				: $this->entriesForAnalyticsRange($workspaceId, $periodEntries, $selectedPeriod, (int)$directionWindows['baselineStart'], (int)$directionWindows['baselineEnd']);
 			$series = $this->buildSeries($periodEntries, $selectedPeriod);
 			$summary = $this->summarizeEntries($periodEntries, $selectedPeriod);
 			$projection = $this->buildProjection($periodEntries, $selectedPeriod, $summary);
@@ -104,7 +104,7 @@ class AnalyticsController extends Controller {
 				$previousMonthPeriod = $this->previousFullMonthPeriodFor($selectedPeriod);
 				$currentMonthComparisonEntries = $previousMonthPeriod === null
 					? []
-					: $this->loadAnalyticsEntries($workspaceId, $sharesByProject, (int)$previousMonthPeriod['start'], (int)$previousMonthPeriod['end']);
+					: $this->loadAnalyticsEntries($workspaceId, (int)$previousMonthPeriod['start'], (int)$previousMonthPeriod['end']);
 			}
 
 			$payload = [
@@ -141,20 +141,10 @@ class AnalyticsController extends Controller {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('e.id', 'e.date')
 			->from('cobudget_entries', 'e')
-			->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
-				$qb->expr()->eq('e.project_id', 'm.project_id'),
-				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
-			))
 			->where($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->orX(
-				$qb->expr()->andX(
-					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
-					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
-				),
-				$qb->expr()->isNotNull('m.user_id')
-			))
-			->groupBy('e.id')
+			->andWhere($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')))
+			->andWhere($qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)))
+			->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 			->orderBy('e.date', 'ASC');
 
 		$result = $qb->executeQuery();
@@ -166,7 +156,7 @@ class AnalyticsController extends Controller {
 		], $rows);
 	}
 
-	private function loadAnalyticsEntries(int $workspaceId, array $sharesByProject, ?int $start = null, ?int $end = null): array {
+	private function loadAnalyticsEntries(int $workspaceId, ?int $start = null, ?int $end = null): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select(
 			'e.id',
@@ -181,6 +171,7 @@ class AnalyticsController extends Controller {
 			'e.project_id',
 			'e.split_mode',
 			'e.split_user_id',
+			'e.entry_kind',
 			'e.is_settled',
 			'e.is_subscription',
 			'e.is_fixed_cost',
@@ -196,19 +187,10 @@ class AnalyticsController extends Controller {
 			->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
 			->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'))
 			->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'))
-			->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
-				$qb->expr()->eq('e.project_id', 'm.project_id'),
-				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
-			))
 			->where($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->orX(
-				$qb->expr()->andX(
-					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
-					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
-				),
-				$qb->expr()->isNotNull('m.user_id')
-			));
+			->andWhere($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')))
+			->andWhere($qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)))
+			->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 
 		if ($start !== null) {
 			$qb->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($start, \PDO::PARAM_INT)));
@@ -217,18 +199,15 @@ class AnalyticsController extends Controller {
 			$qb->andWhere($qb->expr()->lt('e.date', $qb->createNamedParameter($end, \PDO::PARAM_INT)));
 		}
 
-		$qb->groupBy('e.id')
-			->orderBy('e.date', 'ASC')
+		$qb->orderBy('e.date', 'ASC')
 			->addOrderBy('e.id', 'ASC');
 
 		$result = $qb->executeQuery();
 		$rows = $result->fetchAll();
 		$result->closeCursor();
-		$rows = $this->entryShareService->attachPersonalShares($rows, (string)$this->userId);
-
 		$entries = [];
 		foreach ($rows as $row) {
-			$entry = $this->normalizeAnalyticsEntry($row, $sharesByProject);
+			$entry = $this->normalizeAnalyticsEntry($row, []);
 			if ($entry !== null) {
 				$entries[] = $entry;
 			}
@@ -336,9 +315,11 @@ class AnalyticsController extends Controller {
 			->innerJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'))
 			->innerJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
 				$qb->expr()->eq('e.project_id', 'm.project_id'),
-				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
+				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)),
+				$qb->expr()->eq('m.personal_workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 			))
 			->where($qb->expr()->eq('e.type', $qb->createNamedParameter('expense')))
+			->andWhere($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('shared')))
 			->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($start, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lt('e.date', $qb->createNamedParameter($end, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
@@ -398,6 +379,7 @@ class AnalyticsController extends Controller {
 			'e.project_id',
 			'e.split_mode',
 			'e.split_user_id',
+			'e.entry_kind',
 			'e.is_settled',
 			'e.is_subscription',
 			'e.is_fixed_cost',
@@ -422,6 +404,10 @@ class AnalyticsController extends Controller {
 				$qb->expr()->eq('e.project_id', 'm.project_id'),
 				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
 			))
+			->leftJoin('e', 'cobudget_entry_shares', 'future_share', $qb->expr()->andX(
+				$qb->expr()->eq('future_share.entry_id', 'e.id'),
+				$qb->expr()->eq('future_share.user_id', $qb->createNamedParameter($this->userId))
+			))
 			->where($qb->expr()->orX(
 				$qb->expr()->gt('e.date', $qb->createNamedParameter($now, \PDO::PARAM_INT)),
 				$qb->expr()->isNotNull('e.recurrence_next_date'),
@@ -432,11 +418,17 @@ class AnalyticsController extends Controller {
 			))
 			->andWhere($qb->expr()->orX(
 				$qb->expr()->andX(
-					$qb->expr()->isNull('e.project_id'),
+					$qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')),
+					$qb->expr()->isNull('e.source_entry_id'),
 					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
 					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 				),
-				$qb->expr()->isNotNull('m.user_id')
+				$qb->expr()->andX(
+					$qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('shared')),
+					$qb->expr()->isNotNull('m.user_id'),
+					$qb->expr()->eq('m.personal_workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)),
+					$qb->expr()->gt('future_share.amount_cents', $qb->createNamedParameter(0, \PDO::PARAM_INT))
+				)
 			))
 			->groupBy('e.id')
 			->orderBy('e.date', 'ASC')
@@ -517,6 +509,10 @@ class AnalyticsController extends Controller {
 	}
 
 	private function entryPersonalCents(array $entry, int $amountCents, array $sharesByProject): int {
+		if ((string)($entry['entry_kind'] ?? '') === 'personal') {
+			return (string)($entry['user_id'] ?? '') === (string)$this->userId ? $amountCents : 0;
+		}
+
 		$projectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
 		if ($projectId === null) {
 			return (string)($entry['user_id'] ?? '') === (string)$this->userId ? $amountCents : 0;
@@ -552,7 +548,8 @@ class AnalyticsController extends Controller {
 			->innerJoin('m', 'cobudget_projects', 'p', $qb->expr()->eq('m.project_id', 'p.id'))
 			->innerJoin('p', 'cobudget_members', 'me', $qb->expr()->andX(
 				$qb->expr()->eq('p.id', 'me.project_id'),
-				$qb->expr()->eq('me.user_id', $qb->createNamedParameter($this->userId))
+				$qb->expr()->eq('me.user_id', $qb->createNamedParameter($this->userId)),
+				$qb->expr()->eq('me.personal_workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
 			))
 			->orderBy('m.project_id', 'ASC')
 			->addOrderBy('m.id', 'ASC');
@@ -825,12 +822,12 @@ class AnalyticsController extends Controller {
 		}));
 	}
 
-	private function entriesForAnalyticsRange(int $workspaceId, array $sharesByProject, array $loadedEntries, array $loadedPeriod, int $start, int $end): array {
+	private function entriesForAnalyticsRange(int $workspaceId, array $loadedEntries, array $loadedPeriod, int $start, int $end): array {
 		if ($start >= (int)$loadedPeriod['start'] && $end <= (int)$loadedPeriod['end']) {
 			return $this->filterEntriesByRange($loadedEntries, $start, $end);
 		}
 
-		return $this->loadAnalyticsEntries($workspaceId, $sharesByProject, $start, $end);
+		return $this->loadAnalyticsEntries($workspaceId, $start, $end);
 	}
 
 	private function summarizeEntries(array $entries, array $period): array {
@@ -1838,7 +1835,6 @@ class AnalyticsController extends Controller {
 			return '';
 		}
 
-		$user = $this->userManager->get($userId);
-		return $user ? $user->getDisplayName() : $userId;
+		return $this->participantService->displayName($userId);
 	}
 }

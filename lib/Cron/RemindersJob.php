@@ -5,6 +5,7 @@ use OCP\BackgroundJob\TimedJob;
 use OCP\IDBConnection;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Notification\IManager;
+use OCA\CoBudget\Service\ParticipantService;
 use Psr\Log\LoggerInterface;
 
 class RemindersJob extends TimedJob {
@@ -14,12 +15,14 @@ class RemindersJob extends TimedJob {
 	private IDBConnection $db;
 	private LoggerInterface $logger;
 	private IManager $notificationManager;
+	private ParticipantService $participantService;
 
-	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, IManager $notificationManager) {
+	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, IManager $notificationManager, ParticipantService $participantService) {
 		parent::__construct($timeFactory);
 		$this->db = $db;
 		$this->logger = $logger;
 		$this->notificationManager = $notificationManager;
+		$this->participantService = $participantService;
 		
 		// Match common web-cron setups so reminders are sent shortly after they are due.
 		$this->setInterval(self::JOB_INTERVAL_SECONDS);
@@ -43,24 +46,26 @@ class RemindersJob extends TimedJob {
 
 		foreach ($entries as $entry) {
 			try {
-				$notification = $this->notificationManager->createNotification();
-				$notification->setApp('cobudget')
-					->setUser($entry['user_id'])
-					->setDateTime(new \DateTime())
-					->setObject('entry', $entry['id'])
-					->setSubject('reminder', [
-						'title' => $this->reminderTitle($entry),
-						'description' => $entry['description'] ?: '',
-						'type' => $this->entryTypeLabel($entry),
-						'amount' => $this->formatAmount($entry),
-						'currency' => $entry['currency'] ?: 'EUR',
-						'category' => $entry['category_name'] ?? '',
-						'paymentPartner' => $entry['payment_partner_name'] ?: ($entry['paymentPartner'] ?? ''),
-						'entryDate' => $this->formatTimestamp((int)$entry['date']),
-						'reminderDate' => $this->formatTimestamp((int)$entry['reminder_date']),
-					]);
-					
-				$this->notificationManager->notify($notification);
+				foreach ($this->reminderRecipientUserIds($entry) as $recipientUserId) {
+					$notification = $this->notificationManager->createNotification();
+					$notification->setApp('cobudget')
+						->setUser($recipientUserId)
+						->setDateTime(new \DateTime())
+						->setObject('entry', $entry['id'])
+						->setSubject('reminder', [
+							'title' => $this->reminderTitle($entry),
+							'description' => $entry['description'] ?: '',
+							'type' => $this->entryTypeLabel($entry),
+							'amount' => $this->formatAmount($entry),
+							'currency' => $entry['currency'] ?: 'EUR',
+							'category' => $entry['category_name'] ?? '',
+							'paymentPartner' => $entry['payment_partner_name'] ?: ($entry['paymentPartner'] ?? ''),
+							'entryDate' => $this->formatTimestamp((int)$entry['date']),
+							'reminderDate' => $this->formatTimestamp((int)$entry['reminder_date']),
+						]);
+
+					$this->notificationManager->notify($notification);
+				}
 
 				$updateQb = $this->db->getQueryBuilder();
 				$updateQb->update('cobudget_entries')
@@ -78,6 +83,33 @@ class RemindersJob extends TimedJob {
 				$this->logger->error('Failed to process reminder for entry ' . $entry['id'] . ': ' . $e->getMessage(), ['app' => 'cobudget']);
 			}
 		}
+	}
+
+	/** @return string[] */
+	private function reminderRecipientUserIds(array $entry): array {
+		$entryKind = strtolower(trim((string)($entry['entry_kind'] ?? 'personal')));
+		$projectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
+		if ($entryKind !== 'shared' || $projectId === null) {
+			$userId = trim((string)($entry['user_id'] ?? ''));
+			return $userId !== '' && $this->participantService->isActive($userId) ? [$userId] : [];
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('user_id')
+			->from('cobudget_members')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->orderBy('id', 'ASC');
+		$result = $qb->executeQuery();
+		$userIds = [];
+		foreach ($result->fetchAll() as $row) {
+			$userId = trim((string)($row['user_id'] ?? ''));
+			if ($userId !== '' && $this->participantService->isActive($userId)) {
+				$userIds[$userId] = true;
+			}
+		}
+		$result->closeCursor();
+
+		return array_keys($userIds);
 	}
 
 	private function reminderTitle(array $entry): string {

@@ -4,7 +4,6 @@ namespace OCA\CoBudget\Service;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
-use OCP\IUserManager;
 use OCP\Notification\IManager;
 use Psr\Log\LoggerInterface;
 
@@ -17,26 +16,26 @@ class ProjectNotificationService {
 	private IDBConnection $db;
 	private IManager $notificationManager;
 	private IConfig $config;
-	private IUserManager $userManager;
 	private IURLGenerator $urlGenerator;
 	private LoggerInterface $logger;
 	private EntryShareService $entryShareService;
+	private ParticipantService $participantService;
 
 	public function __construct(
 		IDBConnection $db,
 		IManager $notificationManager,
 		IConfig $config,
-		IUserManager $userManager,
 		IURLGenerator $urlGenerator,
 		EntryShareService $entryShareService,
+		ParticipantService $participantService,
 		LoggerInterface $logger
 	) {
 		$this->db = $db;
 		$this->notificationManager = $notificationManager;
 		$this->config = $config;
-		$this->userManager = $userManager;
 		$this->urlGenerator = $urlGenerator;
 		$this->entryShareService = $entryShareService;
+		$this->participantService = $participantService;
 		$this->logger = $logger;
 	}
 
@@ -72,7 +71,11 @@ class ProjectNotificationService {
 			$link = $this->projectLink($projectId);
 
 			foreach ($members as $recipientUserId) {
-				if ($recipientUserId === $actorUserId || !$this->userWants($recipientUserId, self::SETTING_NOTIFY_ENTRIES)) {
+				if (
+					$recipientUserId === $actorUserId
+					|| !$this->participantService->isActive($recipientUserId)
+					|| !$this->userWants($recipientUserId, self::SETTING_NOTIFY_ENTRIES)
+				) {
 					continue;
 				}
 
@@ -117,7 +120,7 @@ class ProjectNotificationService {
 				return [];
 			}
 
-			$balances = $this->openExpenseBalances($projectId, $workspaceId, $members);
+			$balances = $this->openBalances($projectId, $workspaceId, $members);
 			if ($balances === []) {
 				return [];
 			}
@@ -126,7 +129,11 @@ class ProjectNotificationService {
 			$actorName = $this->displayName($actorUserId);
 			$link = $this->projectLink($projectId);
 			foreach ($members as $recipientUserId) {
-				if ($recipientUserId === $actorUserId || !$this->userWants($recipientUserId, self::SETTING_NOTIFY_SETTLEMENTS)) {
+				if (
+					$recipientUserId === $actorUserId
+					|| !$this->participantService->isActive($recipientUserId)
+					|| !$this->userWants($recipientUserId, self::SETTING_NOTIFY_SETTLEMENTS)
+				) {
 					continue;
 				}
 
@@ -205,24 +212,31 @@ class ProjectNotificationService {
 		$rows = $result->fetchAll();
 		$result->closeCursor();
 
-		return array_values(array_map(static fn(array $row): string => (string)$row['user_id'], $rows));
+		return array_values(array_filter(
+			array_map(static fn(array $row): string => (string)$row['user_id'], $rows),
+			static fn (string $userId): bool => $userId !== ''
+		));
 	}
 
-	private function openExpenseBalances(int $projectId, int $workspaceId, array $members): array {
+	private function openBalances(int $projectId, int $workspaceId, array $members): array {
 		$paid = [];
 		$fairShare = [];
+		$received = [];
+		$incomeShare = [];
 		foreach ($members as $memberId) {
 			$paid[$memberId] = 0;
 			$fairShare[$memberId] = 0;
+			$received[$memberId] = 0;
+			$incomeShare[$memberId] = 0;
 		}
 		$shareBasisPoints = $this->memberShareBasisPoints($projectId, $members);
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'user_id', 'amount', 'amount_cents', 'currency', 'split_mode', 'split_user_id')
+		$qb->select('id', 'user_id', 'amount', 'amount_cents', 'currency', 'type', 'split_mode', 'split_user_id')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->eq('type', $qb->createNamedParameter('expense')))
+			->andWhere($qb->expr()->eq('entry_kind', $qb->createNamedParameter('shared')))
 			->andWhere($qb->expr()->eq('is_settled', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
 
 		$result = $qb->executeQuery();
@@ -239,7 +253,10 @@ class ProjectNotificationService {
 		foreach ($entries as $entry) {
 			$amountCents = $this->amountCentsFromRow($entry);
 			$userId = (string)($entry['user_id'] ?? '');
-			if (isset($paid[$userId])) {
+			$isIncome = ($entry['type'] ?? '') === 'income';
+			if ($isIncome && isset($received[$userId])) {
+				$received[$userId] += $amountCents;
+			} elseif (!$isIncome && isset($paid[$userId])) {
 				$paid[$userId] += $amountCents;
 			}
 			$totalCents += $amountCents;
@@ -247,7 +264,9 @@ class ProjectNotificationService {
 			$entryId = (int)($entry['id'] ?? 0);
 			if (isset($entryShares[$entryId])) {
 				foreach ($entryShares[$entryId] as $memberId => $allocation) {
-					if (isset($fairShare[$memberId])) {
+					if ($isIncome && isset($incomeShare[$memberId])) {
+						$incomeShare[$memberId] += (int)$allocation['amount_cents'];
+					} elseif (!$isIncome && isset($fairShare[$memberId])) {
 						$fairShare[$memberId] += (int)$allocation['amount_cents'];
 					}
 				}
@@ -256,14 +275,18 @@ class ProjectNotificationService {
 
 			if ($this->normalizeSplitMode($entry['split_mode'] ?? null) === 'single_user') {
 				$splitTargetUserId = $this->entrySplitTargetUserId($entry);
-				if (isset($fairShare[$splitTargetUserId])) {
+				if ($isIncome && isset($incomeShare[$splitTargetUserId])) {
+					$incomeShare[$splitTargetUserId] += $amountCents;
+				} elseif (!$isIncome && isset($fairShare[$splitTargetUserId])) {
 					$fairShare[$splitTargetUserId] += $amountCents;
 				}
 				continue;
 			}
 
 			foreach ($this->distributeAmountCents($amountCents, $shareBasisPoints) as $memberId => $shareCents) {
-				if (isset($fairShare[$memberId])) {
+				if ($isIncome && isset($incomeShare[$memberId])) {
+					$incomeShare[$memberId] += $shareCents;
+				} elseif (!$isIncome && isset($fairShare[$memberId])) {
 					$fairShare[$memberId] += $shareCents;
 				}
 			}
@@ -274,7 +297,12 @@ class ProjectNotificationService {
 			'_currency' => $currency !== '' ? $currency : 'EUR',
 		];
 		foreach ($members as $memberId) {
-			$balances[$memberId] = (int)(($paid[$memberId] ?? 0) - ($fairShare[$memberId] ?? 0));
+			$balances[$memberId] = (int)(
+				($paid[$memberId] ?? 0)
+				- ($fairShare[$memberId] ?? 0)
+				+ ($incomeShare[$memberId] ?? 0)
+				- ($received[$memberId] ?? 0)
+			);
 		}
 
 		return $balances;
@@ -404,11 +432,7 @@ class ProjectNotificationService {
 	}
 
 	private function displayName(string $userId): string {
-		$user = $this->userManager->get($userId);
-		if ($user !== null && $user->getDisplayName() !== '') {
-			return $user->getDisplayName();
-		}
-		return $userId;
+		return $this->participantService->displayName($userId);
 	}
 
 	private function projectLink(int $projectId): string {

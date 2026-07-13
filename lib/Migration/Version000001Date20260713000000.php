@@ -9,18 +9,20 @@ use OCP\DB\ISchemaWrapper;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
-class Version000001Date20260624000000 extends SimpleMigrationStep {
+class Version000001Date20260713000000 extends SimpleMigrationStep {
 
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
 		$this->createWorkspaces($schema);
+		$this->createDeletedUsers($schema);
 		$this->createProjects($schema);
 		$this->createMembers($schema);
 		$this->createCategories($schema);
 		$this->createPaymentPartners($schema);
 		$this->createEntries($schema);
+		$this->createEntryShares($schema);
 		$this->createTemplates($schema);
 		$this->createEntryAttachments($schema);
 		$this->createSettlements($schema);
@@ -31,6 +33,20 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$this->addPerformanceIndexes($schema);
 
 		return $schema;
+	}
+
+	private function createDeletedUsers(ISchemaWrapper $schema): void {
+		if ($schema->hasTable('cobudget_deleted_users')) {
+			return;
+		}
+
+		$table = $schema->createTable('cobudget_deleted_users');
+		$table->addColumn('id', 'integer', ['autoincrement' => true, 'notnull' => true]);
+		$table->addColumn('tombstone_id', 'string', ['notnull' => true, 'length' => 64]);
+		$table->addColumn('display_name', 'string', ['notnull' => true, 'length' => 255]);
+		$table->addColumn('deleted_at', 'integer', ['notnull' => true, 'default' => 0]);
+		$table->setPrimaryKey(['id']);
+		$table->addUniqueIndex(['tombstone_id'], 'cb_delusr_tombstone');
 	}
 
 	private function createWorkspaces(ISchemaWrapper $schema): void {
@@ -76,9 +92,13 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table->addColumn('project_id', 'integer', ['notnull' => true]);
 		$table->addColumn('user_id', 'string', ['notnull' => true, 'length' => 64]);
 		$table->addColumn('share_basis_points', 'integer', ['notnull' => true, 'default' => 0]);
+		$table->addColumn('personal_workspace_id', 'integer', ['notnull' => false]);
+		$table->addColumn('expense_rounding_units', 'bigint', ['notnull' => true, 'default' => 0]);
+		$table->addColumn('income_rounding_units', 'bigint', ['notnull' => true, 'default' => 0]);
 		$table->setPrimaryKey(['id']);
 		$table->addIndex(['project_id'], 'cb_mem_proj');
 		$table->addIndex(['user_id'], 'cb_mem_user');
+		$table->addIndex(['personal_workspace_id'], 'cb_mem_personal_ws');
 		$table->addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user');
 	}
 
@@ -129,7 +149,12 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table = $schema->createTable('cobudget_entries');
 		$table->addColumn('id', 'integer', ['autoincrement' => true, 'notnull' => true]);
 		$table->addColumn('user_id', 'string', ['notnull' => true, 'length' => 64]);
+		$table->addColumn('created_by', 'string', ['notnull' => false, 'length' => 64]);
 		$table->addColumn('project_id', 'integer', ['notnull' => false]);
+		$table->addColumn('entry_kind', 'string', ['notnull' => true, 'length' => 16, 'default' => 'personal']);
+		$table->addColumn('source_entry_id', 'integer', ['notnull' => false]);
+		$table->addColumn('is_locked', 'boolean', ['notnull' => true, 'default' => false]);
+		$table->addColumn('allocation_basis_points', 'integer', ['notnull' => false]);
 		$table->addColumn('type', 'string', ['notnull' => true, 'length' => 32, 'default' => 'expense']);
 		$table->addColumn('amount', 'decimal', ['notnull' => true, 'precision' => 10, 'scale' => 2]);
 		$table->addColumn('amount_cents', 'bigint', ['notnull' => true, 'default' => 0]);
@@ -162,11 +187,35 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table->setPrimaryKey(['id']);
 		$table->addIndex(['project_id'], 'cb_ent_project');
 		$table->addIndex(['user_id'], 'cb_ent_user');
+		$table->addIndex(['created_by'], 'cb_ent_created_by');
 		$table->addIndex(['workspace_id'], 'cb_ent_ws');
+		$table->addIndex(['entry_kind', 'workspace_id', 'user_id'], 'cb_ent_kind_ws_user');
+		$table->addIndex(['source_entry_id'], 'cb_ent_source');
+		$table->addUniqueIndex(['source_entry_id', 'user_id'], 'cb_ent_source_user');
 		$table->addIndex(['category_id'], 'cb_ent_category');
 		$table->addIndex(['payment_partner_id'], 'cb_ent_partner');
 		$table->addIndex(['recurrence_series_id'], 'cb_ent_rec_series');
 		$table->addIndex(['settlement_id'], 'cb_ent_settlement');
+	}
+
+	private function createEntryShares(ISchemaWrapper $schema): void {
+		if ($schema->hasTable('cobudget_entry_shares')) {
+			return;
+		}
+
+		$table = $schema->createTable('cobudget_entry_shares');
+		$table->addColumn('id', 'integer', ['autoincrement' => true, 'notnull' => true, 'unsigned' => true]);
+		$table->addColumn('entry_id', 'integer', ['notnull' => true]);
+		$table->addColumn('user_id', 'string', ['notnull' => true, 'length' => 64]);
+		$table->addColumn('share_basis_points', 'integer', ['notnull' => true, 'default' => 0]);
+		$table->addColumn('amount_cents', 'bigint', ['notnull' => true, 'default' => 0]);
+		$table->addColumn('personal_entry_id', 'integer', ['notnull' => false]);
+		$table->addColumn('rounding_bucket', 'string', ['notnull' => true, 'length' => 16, 'default' => 'expense']);
+		$table->addColumn('rounding_residual_units', 'bigint', ['notnull' => true, 'default' => 0]);
+		$table->setPrimaryKey(['id']);
+		$table->addUniqueIndex(['entry_id', 'user_id'], 'cb_esh_entry_user');
+		$table->addIndex(['user_id', 'entry_id'], 'cb_esh_user_entry');
+		$table->addUniqueIndex(['personal_entry_id'], 'cb_esh_personal_entry');
 	}
 
 	private function createTemplates(ISchemaWrapper $schema): void {
@@ -210,6 +259,7 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table = $schema->createTable('cobudget_entry_attachments');
 		$table->addColumn('id', 'integer', ['autoincrement' => true, 'notnull' => true]);
 		$table->addColumn('entry_id', 'integer', ['notnull' => true]);
+		$table->addColumn('source_attachment_id', 'integer', ['notnull' => false]);
 		$table->addColumn('workspace_id', 'integer', ['notnull' => true]);
 		$table->addColumn('owner_user_id', 'string', ['notnull' => true, 'length' => 64]);
 		$table->addColumn('file_id', 'integer', ['notnull' => false]);
@@ -220,6 +270,8 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 		$table->addColumn('created_at', 'integer', ['notnull' => true, 'default' => 0]);
 		$table->setPrimaryKey(['id']);
 		$table->addIndex(['entry_id'], 'cb_att_entry');
+		$table->addIndex(['source_attachment_id'], 'cb_att_source');
+		$table->addUniqueIndex(['entry_id', 'source_attachment_id'], 'cb_att_entry_source');
 		$table->addIndex(['workspace_id'], 'cb_att_ws');
 		$table->addIndex(['owner_user_id'], 'cb_att_owner');
 		$table->addIndex(['file_id'], 'cb_att_file');
@@ -247,6 +299,8 @@ class Version000001Date20260624000000 extends SimpleMigrationStep {
 			$table->addColumn('display_name', 'string', ['notnull' => true, 'length' => 255]);
 			$table->addColumn('paid_cents', 'bigint', ['notnull' => true, 'default' => 0]);
 			$table->addColumn('share_cents', 'bigint', ['notnull' => true, 'default' => 0]);
+			$table->addColumn('received_cents', 'bigint', ['notnull' => true, 'default' => 0]);
+			$table->addColumn('income_share_cents', 'bigint', ['notnull' => true, 'default' => 0]);
 			$table->addColumn('balance_cents', 'bigint', ['notnull' => true, 'default' => 0]);
 			$table->addColumn('share_basis_points', 'integer', ['notnull' => true, 'default' => 0]);
 			$table->setPrimaryKey(['id']);

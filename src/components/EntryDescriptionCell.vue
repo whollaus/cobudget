@@ -1,18 +1,24 @@
 <template>
-	<div>
-		<div class="desc-text">
-			<span v-if="entry.description" class="main-title desktop-only">
-				<template v-for="(part, index) in descriptionParts" :key="`desktop-desc-${index}`">
-					<span v-if="part.isTag" class="description-hashtag">#{{ part.text }}</span>
-					<span v-else>{{ part.text }}</span>
-				</template>
-			</span>
-			<span v-if="entry.description" class="main-title mobile-only">
-				<template v-for="(part, index) in descriptionParts" :key="`mobile-desc-${index}`">
-					<span v-if="part.isTag" class="description-hashtag">#{{ part.text }}</span>
-					<span v-else>{{ part.text }}</span>
-				</template>
-			</span>
+	<div class="entry-description-cell">
+		<div class="mobile-only mobile-meta">
+			<div class="mobile-date">{{ dateText }}</div>
+			<div v-if="hasMobileTags" class="mobile-tags">
+				<span v-if="paidByName" class="mobile-tag user-tag">
+					<NcAvatar :user="entry.user_id" :display-name="paidByName" :size="16" />
+					{{ paidByName }}
+				</span>
+				<span v-if="entry.category_name" class="mobile-tag icon-tag">
+					<CategoryIcon v-if="entry.category_icon" :icon="entry.category_icon" :size="12" />
+					{{ entry.category_name }}
+				</span>
+				<span v-if="entry.paymentPartner" class="mobile-tag">{{ entry.paymentPartner }}</span>
+				<span v-if="showProjectChip" class="mobile-tag entry-badge" :style="projectStyle">{{ projectName }}</span>
+			</div>
+		</div>
+		<div
+			v-if="hasDesktopContent"
+			class="desc-text"
+			:class="{ 'mobile-hidden-content': !hasDescriptionContent }">
 			<span v-if="entry.is_important && enableImportantPayments" class="entry-badge badge-important">{{ $texts.labels.important() }}</span>
 			<span v-if="entry.needs_review && enableReviewPayments" class="entry-badge badge-review">{{ $texts.labels.review() }}</span>
 			<span v-if="entry.is_fixed_cost && enableFixedCosts" class="entry-badge badge-fixed">{{ $texts.labels.fixedCosts() }}</span>
@@ -25,21 +31,12 @@
 				:style="projectStyle">
 				{{ projectName }}
 			</span>
-		</div>
-		<div class="mobile-only mobile-meta">
-			<div class="mobile-date">{{ dateText }}</div>
-			<div class="mobile-tags">
-				<span v-if="paidByName" class="mobile-tag user-tag">
-					<NcAvatar :user="entry.user_id" :display-name="paidByName" :size="16" />
-					{{ paidByName }}
-				</span>
-				<span v-if="entry.category_name" class="mobile-tag icon-tag">
-					<CategoryIcon v-if="entry.category_icon" :icon="entry.category_icon" :size="12" />
-					{{ entry.category_name }}
-				</span>
-				<span v-if="entry.paymentPartner" class="mobile-tag">{{ entry.paymentPartner }}</span>
-				<span v-if="showProjectChip" class="mobile-tag entry-badge" :style="projectStyle">{{ projectName }}</span>
-			</div>
+			<span v-if="entry.description" class="main-title">
+				<template v-for="(part, index) in descriptionParts" :key="`description-${index}`">
+					<span v-if="part.isTag" class="description-hashtag">#{{ part.text }}</span>
+					<span v-else>{{ part.text }}</span>
+				</template>
+			</span>
 		</div>
 	</div>
 </template>
@@ -105,6 +102,30 @@ export default {
 		}
 	},
 	computed: {
+		hasEntryBadges() {
+			return Boolean(
+				(this.entry.is_important && this.enableImportantPayments)
+				|| (this.entry.needs_review && this.enableReviewPayments)
+				|| (this.entry.is_fixed_cost && this.enableFixedCosts)
+				|| (this.entry.is_child_related && this.enableChildRelated)
+				|| (this.entry.is_subscription && this.enableSubscriptions)
+				|| (this.entry.is_tax_relevant && this.enableTaxRelevant)
+			)
+		},
+		hasDescriptionContent() {
+			return Boolean(this.entry.description) || this.hasEntryBadges
+		},
+		hasDesktopContent() {
+			return this.hasDescriptionContent || this.showProjectChip
+		},
+		hasMobileTags() {
+			return Boolean(
+				this.paidByName
+				|| this.entry.category_name
+				|| this.entry.paymentPartner
+				|| this.showProjectChip
+			)
+		},
 		descriptionParts() {
 			const text = String(this.entry.description || '')
 			if (!text) {
@@ -251,12 +272,22 @@ export default {
 }
 
 @media (max-width: 768px) {
+	.entry-description-cell {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
 	.mobile-only {
 		display: flex !important;
 	}
 
 	.desktop-only {
 		display: none !important;
+	}
+
+	.desc-text.mobile-hidden-content {
+		display: none;
 	}
 }
 </style>

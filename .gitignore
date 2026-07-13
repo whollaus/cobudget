@@ -22,6 +22,15 @@ coverage/
 
 appinfo/signature.json
 
+# Nextcloud signing material and locally generated release metadata
+.signing/
+release-artifacts/
+*.key
+*.csr
+*.crt
+*.signature
+*.sig
+
 /build/
 /dist/
 /tmp/

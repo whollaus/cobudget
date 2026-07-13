@@ -1,5 +1,7 @@
 # CoBudget Features
 
+CoBudget `0.2.0` is the clean initial alpha baseline. It combines the previously tested functionality in one fresh install schema; unpublished `0.1.x` installations must be reset before installation.
+
 > [!WARNING]
 > CoBudget is an early alpha version. Features, data structures and workflows may still change at any time.
 > During the alpha phase, updates or test data resets may require manual database corrections.
@@ -31,10 +33,27 @@ CoBudget is not yet submitted to or published in the Nextcloud App Store. During
 Areas are used for shared spending such as household costs, trips or family budgets.
 
 - Create personal or shared areas.
+- Store payments in a one-member area directly as ordinary personal payments linked to that area.
+- Hide settlement and member-balance controls for one-member areas because there is nothing to split.
+- Label one-member areas as personal in the area overview without showing a meaningless settlement balance.
+- Require a one-member area to be empty before adding its first additional member and switching it to shared payment handling.
+- Hide member and split controls while payments block structural changes, and explain whether payments must be removed or the shared area settled first.
 - Add trusted Nextcloud users as members.
 - Define the default percentage split for each member.
+- Distribute indivisible remainder cents fairly over time, including unequal splits and areas with more than two members.
 - Assign payments to an area.
 - Keep the member allocation of every payment as an exact historical snapshot, independent of later area-default changes.
+- Create one exact personal payment for every member with a positive share and store it in that member's Basis workspace.
+- Keep personal payments locked and synchronized while the shared payment is open.
+- Release personal payments as independent records when the area is settled, while retaining the area and settlement as origin metadata.
+- Keep a real per-user change history with exact personal amounts for every materialized personal payment, including edits made through its open shared source.
+- Copy shared receipts physically into every active member's own Nextcloud Files and release those copies at settlement.
+- Require open payments to be settled before changing members, default shares or archiving an area.
+- Convert area-specific categories and payment partners into personal entries when a settled member leaves the area.
+- Keep deleted Nextcloud accounts as non-login former members so their historical shares, balances and settlements remain correct.
+- Pause new payments and structural split changes while an area contains a former member, then allow the area owner to remove that former member after settlement without losing history.
+- Transfer area ownership to another active member manually or automatically when the current owner is deleted.
+- Prevent former members from being selected as payer or direct target for new payments while retaining them in established area splits.
 - Record who paid or received the money.
 - Settle open payments.
 - Review settlement history and repayment suggestions.
@@ -62,8 +81,10 @@ Analytics show where money is going and how financial trends develop.
 
 - Current year, current month, last 12 months and year-based views.
 - Income, expense and balance summaries.
+- Personal metrics use the user's exact materialized share, regardless of whether a payment originated personally or in a shared area.
 - Development charts.
 - Forecasts for the selected period.
+- Planned shared recurrences derive the user's stored allocation from the shared source without double-counting personal projections.
 - Focus tables by category, payment partner, label and area.
 - Shared-area summaries.
 - Budget signals.
@@ -93,7 +114,7 @@ Analytics show where money is going and how financial trends develop.
 - Create an automatic full safety backup before full restore.
 - Preserve receipt paths without embedding the files.
 - Support user mapping for full server transfers.
-- Keep personal exports export-only so they cannot overwrite shared data in existing installations.
+- Restore personal exports only into an empty CoBudget user state, remapping the source account and importing shared-area amounts solely as independent personal shares.
 
 ## Admin Settings
 

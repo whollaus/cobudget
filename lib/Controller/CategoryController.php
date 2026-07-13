@@ -219,7 +219,13 @@ class CategoryController extends Controller {
 				->andWhere($qbUsed->expr()->eq('workspace_id', $qbUsed->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 				->groupBy('category_id');
 			if ($projectId !== null) {
-				$qbUsed->andWhere($qbUsed->expr()->eq('project_id', $qbUsed->createNamedParameter($projectId, \PDO::PARAM_INT)));
+				$qbUsed
+					->andWhere($qbUsed->expr()->eq('entry_kind', $qbUsed->createNamedParameter('shared')))
+					->andWhere($qbUsed->expr()->eq('project_id', $qbUsed->createNamedParameter($projectId, \PDO::PARAM_INT)));
+			} else {
+				$qbUsed
+					->andWhere($qbUsed->expr()->eq('entry_kind', $qbUsed->createNamedParameter('personal')))
+					->andWhere($qbUsed->expr()->eq('user_id', $qbUsed->createNamedParameter($this->userId)));
 			}
 			$usedEntries = $qbUsed->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
 
@@ -495,11 +501,7 @@ class CategoryController extends Controller {
 			$qb->select('id')
 				->from('cobudget_entries')
 				->where($qb->expr()->eq('category_id', $qb->createNamedParameter($id)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 				->setMaxResults(1);
-			if ($projectId !== null) {
-				$qb->andWhere($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)));
-			}
 			$inUseEntries = $qb->executeQuery()->fetch();
 
 			$qb2 = $this->db->getQueryBuilder();

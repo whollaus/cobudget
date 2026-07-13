@@ -30,13 +30,14 @@ class CreateBackupCommand extends Command {
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-		$userId = (string)$input->getArgument('user');
+		$userId = trim((string)$input->getArgument('user'));
 		if ($userId === '' || !$this->userManager->userExists($userId)) {
 			$output->writeln('<error>Benutzer wurde nicht gefunden.</error>');
 			return self::FAILURE;
 		}
 
 		$folder = $input->getOption('folder');
+		$folder = is_string($folder) ? trim($folder) : $folder;
 		$keep = $input->getOption('keep');
 
 		try {

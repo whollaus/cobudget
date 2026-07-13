@@ -8,6 +8,7 @@ return [
 		['name' => 'entry#index', 'url' => '/api/entries', 'verb' => 'GET'],
 		['name' => 'entry#exportCsv', 'url' => '/api/entries/export', 'verb' => 'GET'],
 		['name' => 'entry#dashboard', 'url' => '/api/dashboard', 'verb' => 'GET'],
+		['name' => 'entry#show', 'url' => '/api/entries/{id}', 'verb' => 'GET'],
 		['name' => 'entry#create', 'url' => '/api/entries', 'verb' => 'POST'],
 		['name' => 'entry#update', 'url' => '/api/entries/{id}', 'verb' => 'PUT'],
 		['name' => 'entry#destroy', 'url' => '/api/entries/{id}', 'verb' => 'DELETE'],
@@ -70,6 +71,7 @@ return [
 		['name' => 'project#settle', 'url' => '/api/projects/{id}/settle', 'verb' => 'POST'],
 		['name' => 'project#settlements', 'url' => '/api/projects/{id}/settlements', 'verb' => 'GET'],
 		['name' => 'project#updateShares', 'url' => '/api/projects/{id}/shares', 'verb' => 'PUT'],
+		['name' => 'project#transferOwnership', 'url' => '/api/projects/{id}/owner', 'verb' => 'PUT'],
 
 		// API routes for Project Members
 		['name' => 'project#addMember', 'url' => '/api/projects/{id}/members', 'verb' => 'POST'],

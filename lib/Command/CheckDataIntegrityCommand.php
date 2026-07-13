@@ -20,7 +20,7 @@ class CheckDataIntegrityCommand extends Command {
 	protected function configure(): void {
 		$this
 			->setName('cobudget:integrity:check')
-			->setDescription('Prueft CoBudget-Daten auf verwaiste Referenzen und sichtbare Namens-Dubletten.')
+			->setDescription('Prueft CoBudget-Daten auf verwaiste Referenzen, Projektionsfehler und sichtbare Namens-Dubletten.')
 			->addOption('repair', null, InputOption::VALUE_NONE, 'Setzt verwaiste Kategorie-, Zahlungspartner- und Bereichsreferenzen auf leer.')
 			->addOption('merge-category', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Fuehrt Kategorie-Dubletten zusammen: BEHALTEN:ENTFERNEN[,ENTFERNEN]')
 			->addOption('merge-payment-partner', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Fuehrt Zahlungspartner-Dubletten zusammen: BEHALTEN:ENTFERNEN[,ENTFERNEN]');
@@ -44,7 +44,10 @@ class CheckDataIntegrityCommand extends Command {
 
 			$this->writeReport($output, $report);
 
-			return ((int)($report['orphanReferenceCount'] ?? 0)) > 0 ? self::FAILURE : self::SUCCESS;
+			$hasBlockingIssues = ((int)($report['orphanReferenceCount'] ?? 0)) > 0
+				|| ((int)($report['projectionIssueCount'] ?? 0)) > 0;
+
+			return $hasBlockingIssues ? self::FAILURE : self::SUCCESS;
 		} catch (\Throwable $e) {
 			$output->writeln('<error>' . $e->getMessage() . '</error>');
 			return self::FAILURE;
@@ -82,6 +85,7 @@ class CheckDataIntegrityCommand extends Command {
 
 	private function writeReport(OutputInterface $output, array $report): void {
 		$orphanCount = (int)($report['orphanReferenceCount'] ?? 0);
+		$projectionIssueCount = (int)($report['projectionIssueCount'] ?? 0);
 		$duplicateCount = (int)($report['duplicateVisibleNameCount'] ?? 0);
 		$repairedReferences = (int)($report['repairedReferences'] ?? 0);
 		$mergeResults = is_array($report['mergeResults'] ?? null) ? $report['mergeResults'] : [];
@@ -99,7 +103,7 @@ class CheckDataIntegrityCommand extends Command {
 			));
 		}
 
-		if ($orphanCount === 0 && $duplicateCount === 0 && $repairedReferences === 0 && $mergeResults === []) {
+		if ($orphanCount === 0 && $projectionIssueCount === 0 && $duplicateCount === 0 && $repairedReferences === 0 && $mergeResults === []) {
 			$output->writeln('<info>Keine Datenintegritaetsprobleme gefunden.</info>');
 			return;
 		}
@@ -120,6 +124,20 @@ class CheckDataIntegrityCommand extends Command {
 				));
 			}
 			$output->writeln('<comment>Zum Reparieren: occ cobudget:integrity:check --repair</comment>');
+		}
+
+		if ($projectionIssueCount > 0) {
+			$output->writeln('<error>Inkonsistente Zahlungsprojektionen: ' . $projectionIssueCount . '</error>');
+			foreach ($report['projectionIssues'] ?? [] as $issue) {
+				$output->writeln(sprintf(
+					' - [%s] %s #%d: %s',
+					(string)($issue['code'] ?? 'unknown'),
+					(string)($issue['table'] ?? ''),
+					(int)($issue['id'] ?? 0),
+					(string)($issue['message'] ?? '')
+				));
+			}
+			$output->writeln('<comment>Diese semantischen Fehler werden nicht automatisch repariert. Bitte vor Loesch-, Reset- oder Restore-Aktionen pruefen.</comment>');
 		}
 
 		if ($duplicateCount > 0) {

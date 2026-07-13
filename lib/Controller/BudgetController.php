@@ -3,10 +3,10 @@
 namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\BudgetSnapshotService;
-use OCA\CoBudget\Service\EntryShareService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\IDBConnection;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -26,15 +26,13 @@ class BudgetController extends Controller {
 
 	private IDBConnection $db;
 	private BudgetSnapshotService $budgetSnapshotService;
-	private EntryShareService $entryShareService;
 	private ?string $userId;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, BudgetSnapshotService $budgetSnapshotService, EntryShareService $entryShareService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, BudgetSnapshotService $budgetSnapshotService, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$this->budgetSnapshotService = $budgetSnapshotService;
-		$this->entryShareService = $entryShareService;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
 		$this->l10n = $l10n;
@@ -44,6 +42,7 @@ class BudgetController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -64,6 +63,7 @@ class BudgetController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function create(string $name = '', $amount = 0, string $period = 'year', string $mode = 'flexible', array $criteria = []): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -111,6 +111,7 @@ class BudgetController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function update(int $id, string $name = '', $amount = 0, string $period = 'year', string $mode = 'flexible', array $criteria = []): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -170,6 +171,7 @@ class BudgetController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function destroy(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -396,9 +398,8 @@ class BudgetController extends Controller {
 		}
 
 		$entries = $this->loadVisibleExpenseEntries($workspaceId);
-		$shares = $this->loadProjectShares($workspaceId);
 
-		return array_map(fn(array $goal): array => $this->formatGoal($goal, $workspaceId, $entries, $shares), $goals);
+		return array_map(fn(array $goal): array => $this->formatGoal($goal, $workspaceId, $entries), $goals);
 	}
 
 	private function loadBudgetGoals(int $workspaceId): array {
@@ -413,7 +414,7 @@ class BudgetController extends Controller {
 		$rows = $result->fetchAll();
 		$result->closeCursor();
 
-		return $this->entryShareService->attachPersonalShares($rows, (string)$this->userId);
+		return $rows;
 	}
 
 	private function loadBudgetGoal(int $id, int $workspaceId): ?array {
@@ -429,9 +430,8 @@ class BudgetController extends Controller {
 		return $row ?: null;
 	}
 
-	private function formatGoal(array $goal, int $workspaceId, ?array $entries = null, ?array $shares = null): array {
+	private function formatGoal(array $goal, int $workspaceId, ?array $entries = null): array {
 		$entries ??= $this->loadVisibleExpenseEntries($workspaceId);
-		$shares ??= $this->loadProjectShares($workspaceId);
 		$criteria = $this->criteriaFromRow($goal);
 		$amountCents = (int)($goal['amount_cents'] ?? 0);
 
@@ -443,7 +443,7 @@ class BudgetController extends Controller {
 			'period' => (string)$goal['period'],
 			'mode' => (string)$goal['mode'],
 			'criteria' => $criteria,
-			'evaluation' => $this->evaluateGoal($amountCents, (string)$goal['period'], (string)$goal['mode'], $criteria, $entries, $shares),
+			'evaluation' => $this->evaluateGoal($amountCents, (string)$goal['period'], (string)$goal['mode'], $criteria, $entries),
 		];
 	}
 
@@ -456,7 +456,7 @@ class BudgetController extends Controller {
 		return $this->normalizeCriteria($decoded);
 	}
 
-	private function evaluateGoal(int $amountCents, string $period, string $mode, array $criteria, array $entries, array $shares): array {
+	private function evaluateGoal(int $amountCents, string $period, string $mode, array $criteria, array $entries): array {
 		[$periodStart, $periodEnd] = $this->periodBounds($period);
 		$now = time();
 		$spentCents = 0;
@@ -470,7 +470,7 @@ class BudgetController extends Controller {
 				continue;
 			}
 
-			$spentCents += $this->entryPersonalCents($entry, $shares);
+			$spentCents += max(0, $this->amountCentsFromRow($entry) ?? 0);
 		}
 
 		$totalSeconds = max(1, $periodEnd - $periodStart);
@@ -542,6 +542,7 @@ class BudgetController extends Controller {
 			'e.category_id',
 			'e.split_mode',
 			'e.split_user_id',
+			'e.entry_kind',
 			'e.is_subscription',
 			'e.is_fixed_cost',
 			'e.is_child_related',
@@ -550,69 +551,18 @@ class BudgetController extends Controller {
 			'e.is_tax_relevant'
 		)
 			->from('cobudget_entries', 'e')
-			->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
-				$qb->expr()->eq('e.project_id', 'm.project_id'),
-				$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
-			))
 			->where($qb->expr()->eq('e.type', $qb->createNamedParameter('expense')))
 			->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($yearStart, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->orX(
-				$qb->expr()->andX(
-					$qb->expr()->isNull('e.project_id'),
-					$qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)),
-					$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
-				),
-				$qb->expr()->isNotNull('m.user_id')
-			));
+			->andWhere($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')))
+			->andWhere($qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)))
+			->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 
 		$result = $qb->executeQuery();
 		$rows = $result->fetchAll();
 		$result->closeCursor();
 
 		return $rows;
-	}
-
-	private function loadProjectShares(int $workspaceId): array {
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('m.project_id', 'm.user_id', 'm.share_basis_points')
-			->from('cobudget_members', 'm')
-			->innerJoin('m', 'cobudget_projects', 'p', $qb->expr()->eq('m.project_id', 'p.id'))
-			->innerJoin('p', 'cobudget_members', 'me', $qb->expr()->andX(
-				$qb->expr()->eq('p.id', 'me.project_id'),
-				$qb->expr()->eq('me.user_id', $qb->createNamedParameter($this->userId))
-			))
-			->orderBy('m.project_id', 'ASC')
-			->addOrderBy('m.id', 'ASC');
-		$result = $qb->executeQuery();
-		$rows = $result->fetchAll();
-		$result->closeCursor();
-
-		$membersByProject = [];
-		foreach ($rows as $row) {
-			$membersByProject[(int)$row['project_id']][] = $row;
-		}
-
-		$sharesByProject = [];
-		foreach ($membersByProject as $projectId => $members) {
-			$sharesByProject[$projectId] = $this->memberShareBasisPoints($members);
-		}
-
-		return $sharesByProject;
-	}
-
-	private function entryPersonalCents(array $entry, array $sharesByProject): int {
-		$amountCents = $this->amountCentsFromRow($entry) ?? 0;
-		$projectId = empty($entry['project_id']) ? null : (int)$entry['project_id'];
-		if ($projectId === null) {
-			return $amountCents;
-		}
-		if (array_key_exists('snapshot_share_cents', $entry)) {
-			return max(0, (int)$entry['snapshot_share_cents']);
-		}
-
-		$shares = $sharesByProject[$projectId] ?? [(string)$this->userId => 10000];
-		return $this->entryShareCentsForUser($entry, (string)$this->userId, $amountCents, $shares);
 	}
 
 	private function entryMatchesCriteria(array $entry, array $criteria): bool {

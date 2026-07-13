@@ -8,7 +8,7 @@ https://github.com/whollaus/cobudget/issues
 
 ## Supported Versions
 
-During the alpha phase, only the latest development version is considered supported.
+During the alpha phase, only the latest `0.2.x` development or release version is considered supported. Unpublished `0.1.x` test installations are outside the supported upgrade path.
 
 ## Reporting A Vulnerability
 
@@ -69,7 +69,7 @@ Filtered payment totals and date-group summaries are streamed from the database 
 
 ## Membership Integrity
 
-Each Nextcloud user can occur only once in an area. A database-level unique index on `(project_id, user_id)` protects concurrent member-add requests; the upgrade migration keeps the oldest row and removes any pre-existing duplicates before enabling the constraint.
+Each Nextcloud user can occur only once in an area. The `0.2.0` install schema contains a database-level unique index on `(project_id, user_id)` that protects concurrent member-add requests.
 
 ## Current Status
 

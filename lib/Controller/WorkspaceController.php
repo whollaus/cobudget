@@ -4,6 +4,8 @@ namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\HashtagService;
 use OCA\CoBudget\Service\EntryShareService;
+use OCA\CoBudget\Service\EntryProjectionService;
+use OCA\CoBudget\Service\DataIntegrityService;
 use OCP\IRequest;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
@@ -21,6 +23,8 @@ class WorkspaceController extends Controller {
 	private IConfig $config;
 	private HashtagService $hashtagService;
 	private EntryShareService $entryShareService;
+	private EntryProjectionService $entryProjectionService;
+	private DataIntegrityService $dataIntegrityService;
 
 	public function __construct(
 		string $appName,
@@ -29,7 +33,9 @@ class WorkspaceController extends Controller {
 		IUserSession $userSession,
 		IConfig $config,
 		HashtagService $hashtagService,
-		EntryShareService $entryShareService
+		EntryShareService $entryShareService,
+		EntryProjectionService $entryProjectionService,
+		DataIntegrityService $dataIntegrityService
 	) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
@@ -38,6 +44,8 @@ class WorkspaceController extends Controller {
 		$this->config = $config;
 		$this->hashtagService = $hashtagService;
 		$this->entryShareService = $entryShareService;
+		$this->entryProjectionService = $entryProjectionService;
+		$this->dataIntegrityService = $dataIntegrityService;
 		$this->initWorkspace();
 	}
 
@@ -179,12 +187,18 @@ class WorkspaceController extends Controller {
 
 			$this->db->beginTransaction();
 			try {
-				$projectIds = $this->ownedProjectIdsInWorkspace($id);
-				if ($this->workspaceDeleteHasSharedProjectData($projectIds)) {
+				$projectIds = $this->projectIdsInWorkspace($id);
+				if (
+					$this->projectIdsOwnedByOtherUsers($projectIds) !== []
+					|| $this->workspaceDeleteHasSharedProjectData($projectIds)
+					|| $this->workspaceHasExternalMemberReferences($id, $projectIds)
+				) {
 					$this->db->rollBack();
-					return new DataResponse(['error' => 'Workspace contains shared areas and cannot be deleted automatically.'], Http::STATUS_CONFLICT);
+					return new DataResponse(['error' => 'Workspace is still used by shared areas or personal payment projections and cannot be deleted.'], Http::STATUS_CONFLICT);
 				}
-				$entryIds = $this->entryIdsForWorkspaceDelete($id, $projectIds);
+				$entryIds = $this->entryProjectionService->prepareEntryDeletion(
+					$this->entryIdsForWorkspaceDelete($id, $projectIds)
+				);
 				$settlementIds = $this->idsByColumnValues('cobudget_settlements', 'project_id', $projectIds);
 
 				$this->deleteRowsByColumnValues('cobudget_entry_attachments', 'entry_id', $entryIds);
@@ -215,6 +229,8 @@ class WorkspaceController extends Controller {
 				   ->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)));
 				$qb->executeStatement();
 
+				$this->dataIntegrityService->assertProjectionIntegrity();
+
 				$this->db->commit();
 			} catch (\Throwable $e) {
 				$this->db->rollBack();
@@ -232,14 +248,46 @@ class WorkspaceController extends Controller {
 		}
 	}
 
-	private function ownedProjectIdsInWorkspace(int $workspaceId): array {
+	private function projectIdsInWorkspace(int $workspaceId): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('id')
 			->from('cobudget_projects')
-			->where($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->eq('owner_id', $qb->createNamedParameter($this->userId)));
+			->where($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 
 		return $this->ids($qb->executeQuery()->fetchAll());
+	}
+
+	private function projectIdsOwnedByOtherUsers(array $projectIds): array {
+		$projectIds = $this->normalizeIds($projectIds);
+		if ($projectIds === []) {
+			return [];
+		}
+
+		$ids = [];
+		foreach (array_chunk($projectIds, 500) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('id')
+				->from('cobudget_projects')
+				->where($qb->expr()->in('id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
+				->andWhere($qb->expr()->neq('owner_id', $qb->createNamedParameter($this->userId)));
+			$ids = array_merge($ids, $this->ids($qb->executeQuery()->fetchAll()));
+		}
+
+		return $this->normalizeIds($ids);
+	}
+
+	private function workspaceHasExternalMemberReferences(int $workspaceId, array $deletedProjectIds): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_members')
+			->where($qb->expr()->eq('personal_workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->setMaxResults(1);
+		$deletedProjectIds = $this->normalizeIds($deletedProjectIds);
+		if ($deletedProjectIds !== []) {
+			$qb->andWhere($qb->expr()->notIn('project_id', $qb->createNamedParameter($deletedProjectIds, IQueryBuilder::PARAM_INT_ARRAY)));
+		}
+
+		return $qb->executeQuery()->fetch() !== false;
 	}
 
 	private function workspaceDeleteHasSharedProjectData(array $projectIds): bool {

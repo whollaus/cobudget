@@ -60,6 +60,27 @@ Use the local Nextcloud skill when changing Nextcloud-specific PHP, routing, Vue
 - Store and process money internally through `amount_cents` integer cents.
 - The legacy `amount` decimal column may still exist for compatibility, but backend calculations and new writes must use `amount_cents` as the canonical source.
 - Shared payments store immutable per-member allocation snapshots in `cobudget_entry_shares`. Area default percentages apply only when a payment is created or its allocation-affecting fields are explicitly edited.
+- Fractional cent residuals are balanced cumulatively per area and separately for expenses and income. Every share write must reverse the previous snapshot residual before applying the new one in the same transaction; never assign every remainder cent permanently by member order.
+- Shared area payments are canonical `entry_kind = shared` source rows. Every participant with a positive exact-cent allocation has exactly one `entry_kind = personal` projection linked through `source_entry_id` and `cobudget_entry_shares.personal_entry_id`.
+- Open personal projections are locked. Source edits must transactionally rebuild their values, hashtags, exact cent allocations and receipt copies. Direct edits or deletion of locked personal rows are forbidden.
+- Destructive payment operations must resolve the complete source/projection deletion graph through `EntryProjectionService::prepareEntryDeletion()` in the same transaction. Never delete a shared source, locked projection, or reverse `personal_entry_id` reference in isolation.
+- An open shared payment may be deleted only by its original creator (`created_by`) or the area owner. Deleting it must remove the source and every locked personal projection atomically. Solo-area personal payments remain freely deletable by their owner.
+- Personal projections live in the participant's persisted Basis workspace, use the allocated cents as their full personal amount, and never carry recurrence or reminder automation.
+- Settlement must atomically snapshot balances/transfers, mark shared sources settled, unlock personal projections, clear `source_entry_id`/`allocation_basis_points` and reverse `personal_entry_id` links, and detach receipt copies from their source. Personal rows keep `project_id`, `settlement_id` and `settled_at` as origin metadata, but remain `entry_kind = personal`, owned and assigned 100 percent to their user, and are independently editable.
+- Every source edit must write the corresponding value changes to each affected personal projection's own `cobudget_entry_history` rows using personal cents and one shared editor/time/change-group context. Never expose shared total-amount history as a personal amount history.
+- Personal overview, analytics, budgets and personal exports must count only the authenticated user's personal rows. Area views and settlement calculations use shared source rows. Never count both representations on one financial surface.
+- Area members, default shares and archival state may change only when no open shared source payments exist. Removing a settled member must detach their personal rows and clone area-only categories/payment partners into their personal Basis workspace.
+- Shared receipts are physical per-user Files copies. While open they follow the source attachment; after settlement each personal copy is independent.
+- Deleted Nextcloud accounts that still occur in shared financial data are represented by random `former:` tombstone IDs stored in `cobudget_deleted_users`. Never preserve or reuse the deleted login user ID as the historical participant key.
+- Before anonymizing an area member, materialize every missing open personal projection from the stored exact-cent share snapshot. Never recalculate an existing snapshot during account deletion.
+- Preserve every project-linked personal payment and its persisted personal Basis workspace when a Nextcloud account is deleted. Only standalone personal data may be removed with the account.
+- Former participants remain in area splits and immutable history, but must not be selectable as payer, direct single-user target, notification recipient, or new area owner.
+- Areas with former participants may keep and settle their existing shared payments, but must reject new payments, new members, split changes, and recurring generations until the former participant is removed.
+- After all open payments are settled, the area owner may remove a former participant from the future split. Settled personal payments, settlement snapshots, and history must remain intact.
+- Deleting a Nextcloud account must transactionally transfer owned shared areas to an active member and remap all surviving financial references before the account disappears. Cleanup failures must abort the Nextcloud deletion.
+- Workspace deletion must reject workspaces referenced as another member's persisted personal workspace and must never remove a shared area owned by another user. Validate the remaining projection graph before committing workspace deletion or a personal reset.
+- Full restore must validate the complete workspace/project/member/source/share/projection graph before deleting current data and again after insertion but before commit. Any mismatch must roll back the restore.
+- Settled share snapshots are immutable history. A settled positive share may deliberately remain without `personal_entry_id` after that user's personal reset, and historical settlement users do not need to remain active area members.
 
 ## Recurring Entry Rules
 
@@ -84,25 +105,23 @@ Or rebuild and package in one step:
 npm run release
 ```
 
-The release script is equivalent to packaging the runtime app files from the workspace root:
+These commands create an unsigned archive for local packaging checks. Public GitHub and App Store releases must use the signed process in `RELEASING.md`:
 
 ```sh
-tar --exclude="*.map" -czf /private/tmp/cobudget.tar.gz \
-  cobudget/appinfo \
-  cobudget/css \
-  cobudget/img \
-  cobudget/js \
-  cobudget/lib \
-  cobudget/l10n \
-  cobudget/templates \
-  cobudget/composer.json
-mv /private/tmp/cobudget.tar.gz cobudget.tar.gz
+PHP_BIN=/path/to/php npm run release:signed -- \
+  /path/to/nextcloud/occ \
+  /path/to/cobudget.key \
+  /path/to/cobudget.crt
 ```
 
-The release archive is `cobudget.tar.gz` for manual testing, GitHub releases, and future Nextcloud App Store releases.
+The private key must be the exact key used for the certificate signing request. Never commit the key, certificate, CSR, `appinfo/signature.json`, detached signatures, checksums, or release archives.
+
+The signed release produces `cobudget.tar.gz`, `cobudget.tar.gz.signature`, and `SHA256SUMS` in the workspace root.
 The release archive must keep the top-level `cobudget/` folder. Repository-only assets such as `screenshots/`, tests, GitHub metadata, and development dependencies must not be included in release archives.
 
-GitHub releases are created only from pushed tags matching `v*`, for example `v0.1.0`. The tag version must match `appinfo/info.xml`.
+GitHub release drafts are created only from pushed tags matching `v*`, for example `v0.2.0`. The tag version must match `appinfo/info.xml`, `package.json`, and `package-lock.json`. The tag workflow must never publish or attach the unsigned CI archive. Upload the locally signed artifacts and inspect them before publishing the draft.
+
+Any modification after signing invalidates both signatures and requires a complete rebuild and re-sign.
 
 ## Version Rule
 
@@ -110,18 +129,22 @@ Do not bump `appinfo/info.xml` for ordinary frontend, PHP controller, CSS, docum
 
 Bump the app version only when a database migration, install schema, repair step, or upgrade behavior changes.
 
-The public alpha baseline starts at `0.1.0`. The internal pre-release migration history was squashed into the first install schema before publication, so old internal test installations should be reset/reinstalled instead of upgraded through those removed migrations.
+The clean alpha baseline starts at `0.2.0`. All unpublished `0.1.x` migration history was consolidated into `Version000001Date20260713000000`; old alpha test installations must be reset/reinstalled instead of upgraded through removed migrations.
+
+After `0.2.0` is published, never edit or replace that initial migration. Every later schema change must use a new additive migration and preserve the supported upgrade path.
 
 ## Backups
 
-- `occ cobudget:backup:create <userId>` creates a personal export with `scope: user`, `type: personal_export`, and `restore_supported: false` in the manifest.
-- Personal exports can be created manually or regularly from the user settings. They preserve the user's own perspective and are not restored into existing CoBudget data.
-- `occ cobudget:backup:restore <userId> <fileName> --force` is intentionally disabled for personal exports and points users to Admin full restore instead.
+- `occ cobudget:backup:create <userId>` creates a personal export with `scope: user`, `type: personal_export`, and `restore_supported: true` in the manifest.
+- Personal exports can be created manually or regularly from the user settings. They preserve the user's own financial perspective and can only be restored into an otherwise empty CoBudget user state.
+- `occ cobudget:backup:restore <userId> <fileName> --force` restores a personal export into that empty target state, remaps the source account to the target account, and creates a safety export first.
 - `occ cobudget:backup:create-full --user <storageAdminUserId>` creates a system-scoped full backup with `scope: system` in the manifest and stores it in the specified Nextcloud administrator's Files. Non-admin storage accounts must be rejected.
 - `occ cobudget:backup:restore-full --user <storageAdminUserId> --file <fileName> --force` restores a system-scoped full backup and replaces all CoBudget app tables/settings. The Files owner must still be a Nextcloud administrator.
 - Full restore supports repeated `--map-user oldUser:newUser` options for server transfers where user IDs changed.
 - Full backups export every CoBudget table and the CoBudget user settings for all referenced users. Attachment files are not embedded; only their stored paths are exported.
 - Keep personal exports and full backups as separate filename families: `cobudget-personal-export-...zip` and `cobudget-full-backup-...zip`. Legacy `cobudget-backup-...zip` files may remain listable/downloadable for compatibility.
+- `occ cobudget:integrity:check` is read-only unless `--repair`, `--merge-category`, or `--merge-payment-partner` is supplied. Projection errors remain manual repairs and make the command fail.
+- `occ cobudget:reset-all --confirm=RESET-COBUDGET` deletes every CoBudget table row, all CoBudget user preferences, and only the explicitly owned global CoBudget settings. It must never delete all app config values because Nextcloud stores activation/version metadata under the same app ID.
 
 ## Background Jobs
 

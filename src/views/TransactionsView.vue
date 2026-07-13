@@ -204,32 +204,6 @@
 				</div>
 			</div>
 
-			<div class="stat-card future-card" v-if="showFutureCard">
-				<div class="stat-header">
-					<div class="stat-title-group">
-						<div class="stat-icon"><CalendarSyncIcon :size="20" fillColor="#2563eb" /></div>
-						<span class="stat-label">{{ $texts.dashboard.planned() }}</span>
-					</div>
-					<span class="stat-value" :class="totalFutureBalance >= 0 ? 'positive' : 'negative'">
-						{{ formatSignedMetric(totalFutureBalance) }}
-					</span>
-				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.incomeColon() }}</span>
-						<span>{{ formatPositiveMetric(totalFutureIncome) }}</span>
-					</div>
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.expensesColon() }}</span>
-						<span>{{ formatNegativeMetric(totalFutureExpense) }}</span>
-					</div>
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.next30Days() }}</span>
-						<span>{{ formatSignedMetric(futureBalance30Days) }}</span>
-					</div>
-				</div>
-			</div>
-
 			<div class="stat-card important-card" v-if="showImportantCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
@@ -370,6 +344,32 @@
 					<div class="stat-sub-line" v-if="$enableFuturePayments">
 						<span>{{ $texts.dashboard.planned30Days() }}</span>
 						<span>{{ formatSignedMetric(futureTaxRelevant30Days) }}</span>
+					</div>
+				</div>
+			</div>
+
+			<div class="stat-card future-card" v-if="showFutureCard">
+				<div class="stat-header">
+					<div class="stat-title-group">
+						<div class="stat-icon"><CalendarSyncIcon :size="20" fillColor="#2563eb" /></div>
+						<span class="stat-label">{{ $texts.dashboard.planned() }}</span>
+					</div>
+					<span class="stat-value" :class="totalFutureBalance >= 0 ? 'positive' : 'negative'">
+						{{ formatSignedMetric(totalFutureBalance) }}
+					</span>
+				</div>
+				<div class="stat-sub-info">
+					<div class="stat-sub-line">
+						<span>{{ $texts.dashboard.incomeColon() }}</span>
+						<span>{{ formatPositiveMetric(totalFutureIncome) }}</span>
+					</div>
+					<div class="stat-sub-line">
+						<span>{{ $texts.dashboard.expensesColon() }}</span>
+						<span>{{ formatNegativeMetric(totalFutureExpense) }}</span>
+					</div>
+					<div class="stat-sub-line">
+						<span>{{ $texts.dashboard.next30Days() }}</span>
+						<span>{{ formatSignedMetric(futureBalance30Days) }}</span>
 					</div>
 				</div>
 			</div>
@@ -1392,8 +1392,19 @@ export default {
 				this.editEntry(entry);
 			}
 		},
-		editEntry(entry) {
-			this.$emit('open-add-modal', { entry, projectId: null, isFuture: this.filters.tags === 'future' })
+		async editEntry(entry) {
+			let editableEntry = entry
+			if (entry.is_locked && (entry.editable_entry_id || entry.source_entry_id)) {
+				try {
+					const sourceId = Number(entry.editable_entry_id || entry.source_entry_id)
+					const response = await axios.get(generateUrl(`/apps/cobudget/api/entries/${sourceId}`))
+					editableEntry = response.data?.entry || response.data
+				} catch (error) {
+					showRequestError(error, this.$texts.dashboard.paymentsLoadError(), 'Failed to fetch shared payment source')
+					return
+				}
+			}
+			this.$emit('open-add-modal', { entry: editableEntry, projectId: editableEntry.project_id || null, isFuture: this.filters.tags === 'future' })
 		},
 		duplicateEntry(entry) {
 			this.$emit('open-add-modal', { entryToDuplicate: entry, projectId: null, isFuture: this.filters.tags === 'future' })
@@ -1416,7 +1427,8 @@ export default {
 						await axios.post(generateUrl(`/apps/cobudget/api/entries/${entry.id}/stop-recurrence`));
 						showToast(this.$texts.entry.futurePaymentDisabled());
 					} else {
-						await axios.delete(generateUrl(`/apps/cobudget/api/entries/${entry.id}`));
+						const deleteId = Number(entry.editable_entry_id || entry.source_entry_id || entry.id);
+						await axios.delete(generateUrl(`/apps/cobudget/api/entries/${deleteId}`));
 						showToast(this.$texts.entry.entryDeleted());
 					}
 					this.entries = this.entries.filter(e => e.id !== entry.id)

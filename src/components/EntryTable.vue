@@ -7,7 +7,7 @@
 						{{ dateLabel }}
 						<span v-if="sortBy === 'date'" class="sort-icon">{{ sortIcon }}</span>
 					</th>
-					<th v-if="isProjectMode" class="col-user">{{ $texts.entry.tablePaidBy() }}</th>
+					<th v-if="showProjectPayer" class="col-user">{{ $texts.entry.tablePaidBy() }}</th>
 					<th class="col-desc sortable" @click="emitSort('description')">
 						{{ $texts.entry.tableDescription() }}
 						<span v-if="sortBy === 'description'" class="sort-icon">{{ sortIcon }}</span>
@@ -51,13 +51,14 @@
 						:class="entryRowClasses(row.entry)"
 						@click="$emit('row-click', row.entry)">
 						<td :data-label="dateLabel" class="date-cell">{{ formatDate(row.entry.date) }}</td>
-						<td v-if="isProjectMode" :data-label="$texts.entry.tablePaidBy()" class="user-cell">
-						<div class="paid-by">
-							<NcAvatar :user="row.entry.user_id" :display-name="memberName(row.entry.user_id)" :size="24" />
-							{{ memberName(row.entry.user_id) }}
-						</div>
-					</td>
-					<td :data-label="$texts.entry.tableDescription()" class="desc-cell">
+						<td v-if="showProjectPayer" :data-label="$texts.entry.tablePaidBy()" class="user-cell">
+							<div class="paid-by">
+								<span v-if="row.entry.user_is_former" class="former-avatar" aria-hidden="true">{{ initials(row.entry.user_display_name) }}</span>
+								<NcAvatar v-else :user="row.entry.user_id" :display-name="memberName(row.entry.user_id)" :size="24" />
+								{{ row.entry.user_display_name || memberName(row.entry.user_id) }}
+							</div>
+						</td>
+						<td :data-label="$texts.entry.tableDescription()" class="desc-cell">
 						<EntryDescriptionCell
 							:entry="row.entry"
 							:date-text="formatDate(row.entry.date)"
@@ -70,7 +71,7 @@
 							:show-project-chip="showProjectChip(row.entry)"
 							:project-name="projectName(row.entry.project_id)"
 							:project-style="projectStyle(row.entry.project_id)"
-							:paid-by-name="isProjectMode ? memberName(row.entry.user_id) : ''" />
+							:paid-by-name="showProjectPayer ? memberName(row.entry.user_id) : ''" />
 					</td>
 					<td :data-label="$texts.entry.tableCategory()" class="category-cell">
 						<div v-if="row.entry.category_name" class="category-content">
@@ -97,10 +98,10 @@
 							<NcActionButton :close-after-click="true" icon="icon-rename" @click="emitAction('edit', row.entry)">
 								{{ $texts.entry.editPayment() }}
 							</NcActionButton>
-							<NcActionButton :close-after-click="true" icon="icon-add" @click="emitAction('duplicate', row.entry)">
+							<NcActionButton v-if="!row.entry.is_locked" :close-after-click="true" icon="icon-add" @click="emitAction('duplicate', row.entry)">
 								{{ $texts.entry.copyPayment() }}
 							</NcActionButton>
-							<NcActionButton :close-after-click="true" icon="icon-delete" @click="emitAction('delete', row.entry)">
+							<NcActionButton v-if="row.entry.can_delete !== false" :close-after-click="true" icon="icon-delete" @click="emitAction('delete', row.entry)">
 								{{ $texts.entry.deletePaymentAction() }}
 							</NcActionButton>
 						</NcActions>
@@ -226,6 +227,10 @@ export default {
 		memberNameResolver: {
 			type: Function,
 			default: idResolver
+		},
+		showPaidBy: {
+			type: Boolean,
+			default: true
 		}
 	},
 	emits: ['delete', 'duplicate', 'edit', 'history', 'row-click', 'sort'],
@@ -238,11 +243,14 @@ export default {
 		isProjectMode() {
 			return this.mode === 'project'
 		},
+		showProjectPayer() {
+			return this.isProjectMode && this.showPaidBy
+		},
 		sortIcon() {
 			return this.sortDir === 'asc' ? '↑' : '↓'
 		},
 		groupLabelColspan() {
-			return this.isProjectMode ? 5 : 4
+			return this.showProjectPayer ? 5 : 4
 		},
 		shouldGroupEntries() {
 			return this.groupByDate && this.sortBy === 'date'
@@ -515,8 +523,18 @@ export default {
 		memberName(userId) {
 			return this.memberNameResolver(userId)
 		},
+		initials(name) {
+			return String(name || '?')
+				.split(/\s+/)
+				.filter(Boolean)
+				.slice(0, 2)
+				.map(part => part.charAt(0).toUpperCase())
+				.join('') || '?'
+		},
 		canActOnEntry(entry) {
-			return this.actionsEnabled && !entry.is_settled
+			return this.actionsEnabled
+				&& !entry.is_settled
+				&& (!entry.is_locked || entry.can_delete !== false)
 		}
 	}
 }
@@ -761,6 +779,20 @@ th.col-desc {
 	display: flex;
 	align-items: center;
 	min-width: 0;
+}
+
+.former-avatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: var(--cobudget-surface-strong);
+	color: var(--cobudget-text-muted);
+	font-size: var(--cobudget-font-compact);
+	font-weight: 700;
+	flex: 0 0 24px;
 }
 
 .amount-cell {

@@ -31,7 +31,7 @@ class RestoreFullBackupCommand extends Command {
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-		$storageUserId = (string)$input->getOption('user');
+		$storageUserId = trim((string)$input->getOption('user'));
 		if ($storageUserId === '') {
 			$output->writeln('<error>Bitte Speicher-Benutzer mit --user angeben.</error>');
 			return self::FAILURE;
@@ -45,13 +45,14 @@ class RestoreFullBackupCommand extends Command {
 			return self::FAILURE;
 		}
 
-		$fileName = (string)$input->getOption('file');
+		$fileName = trim((string)$input->getOption('file'));
 		if ($fileName === '') {
 			$output->writeln('<error>Bitte Backup-Datei mit --file angeben.</error>');
 			return self::FAILURE;
 		}
 
 		$folder = $input->getOption('folder');
+		$folder = is_string($folder) ? trim($folder) : $folder;
 
 		try {
 			$userMap = $this->parseUserMap($input->getOption('map-user'));

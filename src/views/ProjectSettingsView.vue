@@ -109,10 +109,38 @@
 				</form>
 			</section>
 
-			<section class="settings-block">
+			<section v-if="canManageProject && transferableOwnerMembers.length > 0" class="settings-block">
+				<h3>{{ $texts.areaSettings.areaAdmin() }}</h3>
+				<p class="settings-hint">
+					{{ $texts.areaSettings.areaAdminHint() }}
+				</p>
+				<div class="ownership-transfer-form">
+					<select v-model="selectedOwnerId" class="form-control" :disabled="!!transferringOwnerId">
+						<option value="" disabled>{{ $texts.areaSettings.selectAreaAdmin() }}</option>
+						<option v-for="member in transferableOwnerMembers" :key="member.id" :value="member.id">
+							{{ member.displayName }}
+						</option>
+					</select>
+					<CbButton
+						type="button"
+						variant="soft"
+						:disabled="!selectedOwnerId || !!transferringOwnerId"
+						@click="transferSelectedOwnership">
+						<template #icon>
+							<AccountSwitchIcon :size="20" />
+						</template>
+						{{ $texts.areaSettings.transfer() }}
+					</CbButton>
+				</div>
+			</section>
+
+			<section v-if="!memberManagementLocked" class="settings-block">
 				<h3>{{ $texts.areaDetail.membersTitle() }}</h3>
 				<p class="settings-hint">
 					{{ $texts.areaSettings.sharesHint() }}
+				</p>
+				<p v-if="hasFormerMembers" class="settings-hint former-member-note" role="status">
+					{{ $texts.areaSettings.resolveFormerMember() }}
 				</p>
 				<div v-if="canAddProjectMembers" class="member-management">
 					<MemberSearch
@@ -131,7 +159,7 @@
 				</div>
 				<div class="share-toolbar">
 					<div class="share-tools">
-						<button type="button" class="btn-secondary" :disabled="!canManageProject" @click="setEqualShares">
+						<button type="button" class="btn-secondary" :disabled="!canManageProject || hasFormerMembers" @click="setEqualShares">
 							{{ $texts.areaSettings.splitEqually() }}
 						</button>
 						<button type="button" class="btn-secondary" :disabled="!canManageProject || !canDistributeShareRemainder" @click="distributeShareRemainder">
@@ -154,6 +182,7 @@
 						<div class="share-member" role="cell">
 							<span class="member-avatar">{{ initials(member.displayName) }}</span>
 							<span>{{ member.displayName }}</span>
+							<span v-if="member.isFormer" class="former-member-badge">{{ $texts.areaSettings.formerMember() }}</span>
 						</div>
 						<div class="share-input-wrap" role="cell">
 							<input
@@ -164,16 +193,18 @@
 								max="100"
 								step="1"
 								inputmode="numeric"
-								:disabled="!canManageProject"
+								:disabled="!canManageProject || hasFormerMembers"
 								@input="markShareEdited(member.id)"
 								@change="normalizeShareInput(member)"
 								@blur="normalizeShareInput(member)">
 							<span>%</span>
 						</div>
 						<div v-if="canRemoveProjectMembers" class="member-row-actions" role="cell">
-							<span v-if="member.id === project.owner_id" class="owner-badge">{{ $texts.areaDetail.creator() }}</span>
+							<AreaAdminIndicator
+								v-if="member.id === project.owner_id"
+								:label="$texts.areaSettings.areaAdmin()" />
 							<CbButton
-								v-else
+								v-if="member.id !== project.owner_id"
 								type="button"
 								variant="ghost"
 								size="compact"
@@ -193,6 +224,9 @@
 					{{ $texts.areaSettings.sum() }}: {{ formatSharePercent(sharesSumBasisPoints) }}%
 				</div>
 			</section>
+			<p v-else-if="$enableSharedProjects && canManageProject" class="settings-hint member-management-lock-note" role="status">
+				{{ memberManagementLockHint }}
+			</p>
 
 			<section v-if="canManageProject" class="settings-block">
 				<ProjectScopedSettings :project-id="projectId" @changed="onProjectScopedSettingsChanged" />
@@ -219,11 +253,13 @@ import CbButton from '../components/CbButton.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import MemberSearch from '../components/MemberSearch.vue'
 import ProjectScopedSettings from '../components/ProjectScopedSettings.vue'
+import AreaAdminIndicator from '../components/AreaAdminIndicator.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import BackspaceIcon from 'vue-material-design-icons/Backspace.vue'
 import DeleteIcon from 'vue-material-design-icons/Delete.vue'
 import ArchiveIcon from 'vue-material-design-icons/Archive.vue'
+import AccountSwitchIcon from 'vue-material-design-icons/AccountSwitch.vue'
 import { showRequestError, showToast } from '../services/notifications'
 
 export default {
@@ -235,10 +271,12 @@ export default {
 		ConfirmModal,
 		MemberSearch,
 		ProjectScopedSettings,
+		AreaAdminIndicator,
 		ArrowLeftIcon,
 		BackspaceIcon,
 		DeleteIcon,
-		ArchiveIcon
+		ArchiveIcon,
+		AccountSwitchIcon
 	},
 	props: ['id'],
 	emits: ['refresh-projects'],
@@ -257,6 +295,8 @@ export default {
 			newMembers: [],
 			addingMembers: false,
 			removingMemberId: null,
+			transferringOwnerId: null,
+			selectedOwnerId: '',
 			currentUserId: null,
 			savingShares: false,
 			confirmDialog: null
@@ -287,18 +327,58 @@ export default {
 		},
 		canSaveShares() {
 			return this.canManageProject
+				&& !this.hasFormerMembers
 				&& this.shareRows.length > 0
 				&& this.sharesSumValid
 				&& this.currentShareSignature !== this.originalShareSignature;
 		},
 		canDistributeShareRemainder() {
-			return this.shareRows.some(member => !this.editedShareUserIds.includes(member.id));
+			return !this.hasFormerMembers
+				&& this.shareRows.some(member => !this.editedShareUserIds.includes(member.id));
+		},
+		hasFormerMembers() {
+			return this.shareRows.some(member => member.isFormer);
+		},
+		memberManagementLocked() {
+			if (!this.project) {
+				return false;
+			}
+			const serverLocked = this.project.member_management_locked === true
+				|| this.project.member_management_locked === 1
+				|| this.project.member_management_locked === '1'
+				|| this.project.member_management_locked === 'true';
+			if (serverLocked) {
+				return true;
+			}
+
+			return this.projectMemberCount <= 1
+				? this.hasAnyEntries
+				: this.hasActiveEntries;
+		},
+		memberManagementLockHint() {
+			return this.project?.member_management_lock_reason === 'solo_payments' || this.projectMemberCount <= 1
+				? this.$texts.areaSettings.soloMemberManagementLocked()
+				: this.$texts.areaSettings.sharedMemberManagementLocked();
+		},
+		projectMemberCount() {
+			const serverCount = Number(this.project?.member_count);
+			if (Number.isFinite(serverCount)) {
+				return serverCount;
+			}
+			return Array.isArray(this.project?.members) ? this.project.members.length : 0;
+		},
+		transferableOwnerMembers() {
+			return this.shareRows.filter(member => (
+				member.id !== this.project?.owner_id
+				&& member.isActive
+				&& !member.isFormer
+			));
 		},
 		currentMemberIds() {
 			return this.shareRows.map(member => member.id);
 		},
 		canAddProjectMembers() {
-			return !!this.project && this.$enableSharedProjects && this.canManageProject;
+			return !!this.project && this.$enableSharedProjects && this.canManageProject && !this.hasFormerMembers;
 		},
 		canRemoveProjectMembers() {
 			return !!this.project && this.$enableSharedProjects && this.canManageProject;
@@ -362,6 +442,8 @@ export default {
 			this.shareRows = members.map(member => ({
 				id: member.id,
 				displayName: member.displayName || member.id,
+				isFormer: member.isFormer === true || member.is_former === true,
+				isActive: member.isActive !== false && member.is_active !== false,
 				sharePercent: this.basisPointsToPercent(member.shareBasisPoints ?? member.share_basis_points ?? 0)
 			}));
 			this.originalShareSignature = this.currentShareSignature;
@@ -388,6 +470,7 @@ export default {
 				this.hasAnyEntries = (anyEntriesRes.data?.total || 0) > 0;
 				this.hasActiveEntries = (activeEntriesRes.data?.total || 0) > 0;
 				this.newMembers = [];
+				this.selectedOwnerId = '';
 				this.resetProjectForm();
 				this.resetShareRows();
 				this.$nextTick(() => {
@@ -534,9 +617,12 @@ export default {
 			if (!this.canManageProject || this.hasActiveEntries || this.removingMemberId) {
 				return;
 			}
+			const member = this.shareRows.find(candidate => candidate.id === userId);
 			const confirmed = await this.openConfirm({
 				title: this.$texts.areaDetail.removeMember(),
-				message: this.$texts.areaDetail.removeMemberMessage(),
+				message: member?.isFormer
+					? this.$texts.areaDetail.removeFormerMemberMessage()
+					: this.$texts.areaDetail.removeMemberMessage(),
 				confirmLabel: this.$texts.areaDetail.removeMember(),
 				confirmVariant: 'danger'
 			});
@@ -554,6 +640,43 @@ export default {
 				showRequestError(e, this.$texts.areaDetail.memberRemoveError(), 'Failed to remove member');
 			}
 			this.removingMemberId = null;
+		},
+		async transferOwnership(member) {
+			if (!this.canManageProject || !member?.isActive || this.transferringOwnerId) {
+				return;
+			}
+			const confirmed = await this.openConfirm({
+				title: this.$texts.areaSettings.transferOwnership(),
+				message: this.$texts.areaSettings.transferOwnershipMessage(member.displayName),
+				confirmLabel: this.$texts.areaSettings.transferOwnership(),
+			});
+			if (!confirmed) {
+				return;
+			}
+
+			this.transferringOwnerId = member.id;
+			try {
+				const response = await axios.put(generateUrl(`/apps/cobudget/api/projects/${this.projectId}/owner`), {
+					userId: member.id
+				});
+				this.project.owner_id = response.data.owner_id;
+				this.project.is_owner = false;
+				this.project.members = response.data.members || this.project.members;
+				this.resetShareRows();
+				this.selectedOwnerId = '';
+				this.$emit('refresh-projects');
+				showToast(this.$texts.areaSettings.ownershipTransferred(member.displayName));
+				this.goBackToProject();
+			} catch (e) {
+				showRequestError(e, this.$texts.areaSettings.ownershipTransferError(), 'Failed to transfer project ownership');
+			}
+			this.transferringOwnerId = null;
+		},
+		transferSelectedOwnership() {
+			const member = this.transferableOwnerMembers.find(candidate => candidate.id === this.selectedOwnerId);
+			if (member) {
+				this.transferOwnership(member);
+			}
 		},
 		async saveProjectShares() {
 			if (!this.canManageProject) {
@@ -648,6 +771,20 @@ export default {
 	margin: 0;
 }
 
+.member-management-lock-note {
+	margin: 28px 0;
+	padding: 12px 16px;
+	background-color: var(--color-background-hover, rgba(127, 127, 127, 0.08));
+	border-radius: var(--border-radius-large, 8px);
+}
+
+.former-member-note {
+	margin-top: 12px;
+	padding: 12px 16px;
+	background-color: var(--color-background-hover, rgba(127, 127, 127, 0.08));
+	border-radius: var(--border-radius-large, 8px);
+}
+
 .settings-block {
 	margin-top: 30px;
 }
@@ -683,6 +820,20 @@ export default {
 	align-items: flex-end;
 	justify-content: flex-end;
 	min-width: 140px;
+}
+
+.ownership-transfer-form {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 12px;
+	align-items: center;
+	margin-top: 16px;
+}
+
+.ownership-transfer-form .form-control,
+.ownership-transfer-form .cobudget-button {
+	min-height: var(--default-clickable-area, 44px);
+	margin: 0;
 }
 
 .member-management {
@@ -829,16 +980,15 @@ export default {
 	min-width: 0;
 }
 
-.owner-badge {
+.former-member-badge {
 	display: inline-flex;
 	align-items: center;
-	justify-content: center;
-	padding: 4px 10px;
+	padding: 3px 8px;
 	border-radius: 999px;
-	background: var(--color-primary-element-light, #e5f3fb);
-	color: var(--color-primary, #0082c9);
+	background: var(--cobudget-surface-strong);
+	color: var(--cobudget-text-muted) !important;
 	font-size: var(--cobudget-font-compact);
-	font-weight: 700;
+	font-weight: 600;
 }
 
 .share-summary {
@@ -1021,6 +1171,10 @@ export default {
 	.header-actions.danger-actions {
 		flex-direction: row;
 		width: auto;
+	}
+
+	.ownership-transfer-form {
+		grid-template-columns: 1fr;
 	}
 
 	.member-management {

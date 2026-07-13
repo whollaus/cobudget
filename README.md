@@ -11,13 +11,15 @@ It helps you track income, expenses, budgets, receipts and shared areas directly
 
 ## Project Status
 
-CoBudget is currently in a test phase.
+CoBudget `0.2.0` is a new early-alpha baseline and is currently in a test phase.
 
 - The app is not yet published in the Nextcloud App Store.
-- It has not yet been submitted to the Nextcloud App Store; signing and App Store preparation are still in progress.
+- The Nextcloud signing certificate has been issued and the signed release process is prepared.
+- It has not yet been submitted to the Nextcloud App Store.
 - Public GitHub releases are the first goal.
 - App Store publication is planned later.
 - Backups are strongly recommended before every update.
+- Unpublished `0.1.x` test installations are not supported as in-place upgrades. Remove/reset the old alpha installation and install `0.2.0` with a fresh database schema.
 
 ## Screenshots
 
@@ -39,8 +41,16 @@ The screenshots below show the current alpha UI and may change during the test p
 - Add labels such as important, review, fixed costs, subscriptions, children and tax relevant
 - Add free-form `#tags` directly in the payment description
 - Create shared areas for household costs, trips or other shared budgets
+- Use one-member areas as simple personal groupings without balances or settlements
+- Add the first additional member only while an area has no personal payments, avoiding ambiguous retroactive splits
 - Split shared area payments by configurable member percentages
 - Preserve each shared payment's original member split as exact percentages and cents, even when area defaults change later
+- Balance indivisible remainder cents cumulatively so the same member is not systematically favored across repeated shared payments
+- Materialize every positive member share as a personal payment in that member's Basis workspace
+- Keep personal shares synchronized and locked until the area is settled, then release them as independent personal payments with their own exact-value history
+- Store a physical receipt copy in each active member's own Nextcloud Files and release those copies at settlement
+- Preserve former members and their historical shares when a Nextcloud account is deleted, pause new shared payments until the area is resolved, and retain settled history without keeping a reusable login user ID
+- Transfer area ownership manually or automatically to another active member
 - Settle shared areas and keep settlement history
 - Attach receipts and invoices stored in Nextcloud Files
 - Create reusable payment templates
@@ -71,7 +81,7 @@ For testing, install a release archive manually:
 3. Place it in the Nextcloud `apps/` or `custom_apps/` directory.
 4. Enable the app in Nextcloud.
 
-The official release process will later use signed release archives for the Nextcloud App Store.
+Only the signed `cobudget.tar.gz` release asset is an installable app package. GitHub's automatically generated source archives are repository snapshots and must not be installed as Nextcloud apps.
 
 ## Development
 
@@ -87,40 +97,42 @@ Build production assets:
 npm run build
 ```
 
-Create the installable release archive:
+Create an unsigned archive for local development checks:
 
 ```sh
 npm run release
 ```
 
-This builds the frontend and creates the release archive in the workspace root:
+This builds the frontend and creates an unsigned test archive in the workspace root:
 
-- `cobudget.tar.gz` for manual testing and future Nextcloud App Store releases
+- `cobudget.tar.gz` for local packaging checks
 
 The release archive intentionally contains only runtime app files. Documentation assets such as `screenshots/` are kept in the GitHub repository but are not included in installable archives.
 
+Public releases must use the local signed release process described in [RELEASING.md](RELEASING.md).
+
 ## GitHub Releases
 
-Regular pushes to `main` only run checks. A public GitHub release is created only when a version tag is pushed.
+Regular pushes to `main` only run checks. Pushing a version tag runs all checks and creates a draft prerelease. It intentionally does not publish an unsigned archive.
 
 Before creating a tag, make sure the version matches in:
 
 - `appinfo/info.xml`
 - `package.json`
-- the tag name, for example `v0.1.3`
+- the tag name, for example `v0.2.0`
 
 Release command flow:
 
 ```sh
 git add .
-git commit -m "Prepare release 0.1.3"
+git commit -m "Prepare release 0.2.0"
 git push
 
-git tag -a v0.1.3 -m "CoBudget 0.1.3"
-git push origin v0.1.3
+git tag -a v0.2.0 -m "CoBudget 0.2.0"
+git push origin v0.2.0
 ```
 
-The tag workflow runs the tests, builds `cobudget.tar.gz`, creates `SHA256SUMS` and publishes both files as GitHub release assets.
+After the draft exists, the maintainer builds and signs the final archive locally with the Nextcloud certificate and its matching private key. The signed archive, detached App Store signature, and checksum are uploaded before the draft is published. See [RELEASING.md](RELEASING.md) for the complete procedure.
 
 Run the available test checks:
 

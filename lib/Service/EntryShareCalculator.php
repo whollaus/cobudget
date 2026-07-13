@@ -8,6 +8,7 @@ final class EntryShareCalculator {
 
 	/**
 	 * @param array<string, int> $shareBasisPointsByUserId Ordered user/share map.
+	 * @param array<string, int> $roundingBalancesByUserId Accumulated exact-share residuals in 1/10000-cent units.
 	 * @return array<string, array{share_basis_points: int, amount_cents: int}>
 	 */
 	public static function calculate(
@@ -16,6 +17,7 @@ final class EntryShareCalculator {
 		?string $splitUserId,
 		string $payerUserId,
 		array $shareBasisPointsByUserId,
+		array $roundingBalancesByUserId = [],
 	): array {
 		$amountCents = max(0, $amountCents);
 		$splitMode = trim($splitMode) === 'single_user' ? 'single_user' : 'project_shares';
@@ -62,20 +64,39 @@ final class EntryShareCalculator {
 		$shares = self::normalizeShares($shares, $totalShare);
 		$totalShare = 10000;
 
-		$result = [];
+		$rows = [];
 		$allocatedCents = 0;
-		$userIds = array_keys($shares);
-		$lastIndex = count($userIds) - 1;
-		foreach ($userIds as $index => $userId) {
-			$shareCents = $index === $lastIndex
-				? $amountCents - $allocatedCents
-				: self::roundHalfUpShare($amountCents, $shares[$userId], $totalShare);
-			$shareCents = max(0, min($amountCents - $allocatedCents, $shareCents));
-			$result[$userId] = [
+		foreach (array_keys($shares) as $index => $userId) {
+			// Integer 1/10000-cent units keep the cumulative balance exact without float drift.
+			$exactUnits = $amountCents * $shares[$userId];
+			$shareCents = intdiv($exactUnits, $totalShare);
+			$allocatedCents += $shareCents;
+			$rows[] = [
+				'index' => $index,
+				'user_id' => $userId,
 				'share_basis_points' => $shares[$userId],
 				'amount_cents' => $shareCents,
+				'rounding_score' => (int)($roundingBalancesByUserId[$userId] ?? 0) + ($exactUnits - ($shareCents * $totalShare)),
 			];
-			$allocatedCents += $shareCents;
+		}
+
+		$remainingCents = max(0, $amountCents - $allocatedCents);
+		$rankedRows = $rows;
+		usort($rankedRows, static function (array $left, array $right): int {
+			$scoreOrder = $right['rounding_score'] <=> $left['rounding_score'];
+			return $scoreOrder !== 0 ? $scoreOrder : ($left['index'] <=> $right['index']);
+		});
+		for ($index = 0; $index < min($remainingCents, count($rankedRows)); $index++) {
+			$rankedRows[$index]['amount_cents']++;
+		}
+		usort($rankedRows, static fn (array $left, array $right): int => $left['index'] <=> $right['index']);
+
+		$result = [];
+		foreach ($rankedRows as $row) {
+			$result[$row['user_id']] = [
+				'share_basis_points' => $row['share_basis_points'],
+				'amount_cents' => $row['amount_cents'],
+			];
 		}
 
 		return $result;

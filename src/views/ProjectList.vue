@@ -18,9 +18,10 @@
 					<strong class="project-name">{{ project.name }}</strong>
 				</div>
 				<div class="project-card-meta">
-					<span style="display:flex; align-items:center; gap:4px; pointer-events: none;"><AccountMultipleIcon :size="14" /> {{ memberCountLabel(project.member_count) }}</span>
+					<span v-if="isSharedProject(project)" style="display:flex; align-items:center; gap:4px; pointer-events: none;"><AccountMultipleIcon :size="14" /> {{ memberCountLabel(project.member_count) }}</span>
+					<span v-else style="display:flex; align-items:center; gap:4px; pointer-events: none;"><AccountIcon :size="14" /> {{ $texts.areas.personalArea() }}</span>
 				</div>
-				<div class="project-card-balance" style="margin-top: 8px; font-size: var(--cobudget-font-compact); font-weight: 600;">
+				<div v-if="isSharedProject(project)" class="project-card-balance" style="margin-top: 8px; font-size: var(--cobudget-font-compact); font-weight: 600;">
 					<span v-if="project.personal_balance > 0" class="project-balance-positive">
 						{{ $texts.areas.getsBack(formatBalance(project.personal_balance)) }}
 					</span>
@@ -58,7 +59,8 @@
 						<strong class="project-name">{{ project.name }}</strong>
 					</div>
 					<div class="project-card-meta">
-						<span style="display:flex; align-items:center; gap:4px;"><AccountMultipleIcon :size="14" /> {{ memberCountLabel(project.member_count) }}</span>
+						<span v-if="isSharedProject(project)" style="display:flex; align-items:center; gap:4px;"><AccountMultipleIcon :size="14" /> {{ memberCountLabel(project.member_count) }}</span>
+						<span v-else style="display:flex; align-items:center; gap:4px;"><AccountIcon :size="14" /> {{ $texts.areas.personalArea() }}</span>
 					</div>
 				</div>
 			</div>
@@ -139,6 +141,7 @@ import { showRequestError, showToast } from '../services/notifications'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import FolderIcon from 'vue-material-design-icons/Folder.vue'
+import AccountIcon from 'vue-material-design-icons/Account.vue'
 import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import BackspaceIcon from 'vue-material-design-icons/Backspace.vue'
@@ -146,7 +149,7 @@ import CloseIcon from 'vue-material-design-icons/Close.vue'
 
 export default {
 	name: 'ProjectList',
-	components: { MemberSearch, ModalActions, AppPageHeader, NcButton, NcEmptyContent, FolderIcon, AccountMultipleIcon, PlusIcon, BackspaceIcon, CloseIcon },
+	components: { MemberSearch, ModalActions, AppPageHeader, NcButton, NcEmptyContent, FolderIcon, AccountIcon, AccountMultipleIcon, PlusIcon, BackspaceIcon, CloseIcon },
 	data() {
 		return {
 			projects: [],
@@ -232,6 +235,12 @@ export default {
 		memberCountLabel(count) {
 			const normalizedCount = Number(count || 0)
 			return this.$texts.areas.memberCount(normalizedCount)
+		},
+		isSharedProject(project) {
+			if (project?.is_shared !== undefined) {
+				return project.is_shared === true || project.is_shared === 1 || project.is_shared === '1' || project.is_shared === 'true'
+			}
+			return Number(project?.member_count || 0) > 1
 		}
 	}
 }

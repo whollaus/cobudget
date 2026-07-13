@@ -35,6 +35,14 @@ class DataIntegrityService {
 		[
 			'sourceTable' => 'cobudget_entries',
 			'sourceLabel' => 'Eintraege',
+			'column' => 'source_entry_id',
+			'targetTable' => 'cobudget_entries',
+			'targetLabel' => 'Gemeinsame Quellzahlung',
+			'repairAction' => 'clear',
+		],
+		[
+			'sourceTable' => 'cobudget_entries',
+			'sourceLabel' => 'Eintraege',
 			'column' => 'settlement_id',
 			'targetTable' => 'cobudget_settlements',
 			'targetLabel' => 'Abrechnung',
@@ -71,6 +79,14 @@ class DataIntegrityService {
 			'targetTable' => 'cobudget_entries',
 			'targetLabel' => 'Zahlung',
 			'repairAction' => 'delete',
+		],
+		[
+			'sourceTable' => 'cobudget_entry_shares',
+			'sourceLabel' => 'Gespeicherte Zahlungsanteile',
+			'column' => 'personal_entry_id',
+			'targetTable' => 'cobudget_entries',
+			'targetLabel' => 'Persoenliche Projektion',
+			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_entry_attachments',
@@ -151,6 +167,14 @@ class DataIntegrityService {
 			'targetTable' => 'cobudget_projects',
 			'targetLabel' => 'Bereich',
 			'repairAction' => 'delete',
+		],
+		[
+			'sourceTable' => 'cobudget_members',
+			'sourceLabel' => 'Bereichsmitglieder',
+			'column' => 'personal_workspace_id',
+			'targetTable' => 'cobudget_workspaces',
+			'targetLabel' => 'Persoenlicher Workspace',
+			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_settlements',
@@ -247,14 +271,21 @@ class DataIntegrityService {
 	public function inspect(): array {
 		$orphanReferences = $this->orphanReferences();
 		$duplicateVisibleNames = $this->duplicateVisibleNames();
+		$projectionIssues = $this->projectionIssues();
 
 		return [
 			'orphanReferences' => $orphanReferences,
 			'orphanReferenceCount' => $this->sumIssueCounts($orphanReferences),
 			'duplicateVisibleNames' => $duplicateVisibleNames,
 			'duplicateVisibleNameCount' => $this->sumIssueCounts($duplicateVisibleNames),
+			'projectionIssues' => $projectionIssues,
+			'projectionIssueCount' => count($projectionIssues),
 			'repairedReferences' => 0,
 		];
+	}
+
+	public function assertProjectionIntegrity(): void {
+		ProjectionGraphValidator::assertValid($this->projectionTables());
 	}
 
 	public function repair(?array $report = null): array {
@@ -704,15 +735,53 @@ class DataIntegrityService {
 		if ($sourceTable === 'cobudget_entries' && $column === 'project_id') {
 			$this->deleteRowsByColumnValues('cobudget_entry_shares', 'entry_id', $ids);
 		}
+		if ($sourceTable === 'cobudget_entries' && $column === 'source_entry_id') {
+			$this->clearShareProjectionReferences($ids);
+		}
 		foreach ($ids as $id) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->update($sourceTable)
 				->set($column, $qb->createNamedParameter(null, \PDO::PARAM_NULL))
 				->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$id, \PDO::PARAM_INT)));
+			if ($sourceTable === 'cobudget_entries' && $column === 'source_entry_id') {
+				$qb->set('is_locked', $qb->createNamedParameter(false, \PDO::PARAM_BOOL));
+				$qb->set('allocation_basis_points', $qb->createNamedParameter(null, \PDO::PARAM_NULL));
+			}
 			$updated += $qb->executeStatement();
 		}
 
 		return $updated;
+	}
+
+	/** @return array<int, array{code: string, table: string, id: int, message: string}> */
+	private function projectionIssues(): array {
+		return ProjectionGraphValidator::validate($this->projectionTables());
+	}
+
+	private function projectionTables(): array {
+		$tables = [];
+		foreach (['cobudget_workspaces', 'cobudget_projects', 'cobudget_members', 'cobudget_entries', 'cobudget_entry_shares'] as $table) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('*')->from($table);
+			$result = $qb->executeQuery();
+			$tables[$table] = $result->fetchAll();
+			$result->closeCursor();
+		}
+
+		return $tables;
+	}
+
+	private function clearShareProjectionReferences(array $entryIds): void {
+		foreach (array_chunk(array_values(array_unique(array_map('intval', $entryIds))), 500) as $chunk) {
+			if ($chunk === []) {
+				continue;
+			}
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('cobudget_entry_shares')
+				->set('personal_entry_id', $qb->createNamedParameter(null, \PDO::PARAM_NULL))
+				->where($qb->expr()->in('personal_entry_id', $qb->createNamedParameter($chunk, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+			$qb->executeStatement();
+		}
 	}
 
 	private function normalizeVisibleName(string $name): string {

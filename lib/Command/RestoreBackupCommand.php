@@ -31,7 +31,7 @@ class RestoreBackupCommand extends Command {
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-		$userId = (string)$input->getArgument('user');
+		$userId = trim((string)$input->getArgument('user'));
 		if ($userId === '' || !$this->userManager->userExists($userId)) {
 			$output->writeln('<error>Benutzer wurde nicht gefunden.</error>');
 			return self::FAILURE;
@@ -45,7 +45,11 @@ class RestoreBackupCommand extends Command {
 			return self::FAILURE;
 		}
 
-		$fileName = (string)$input->getArgument('file');
+		$fileName = trim((string)$input->getArgument('file'));
+		if ($fileName === '') {
+			$output->writeln('<error>Bitte Export-Datei angeben.</error>');
+			return self::FAILURE;
+		}
 		$folder = trim((string)($input->getOption('folder') ?? ''));
 
 		try {
@@ -57,16 +61,42 @@ class RestoreBackupCommand extends Command {
 			}
 			$importedTables = $result['report']['imported_tables'] ?? [];
 			if (is_array($importedTables)) {
+				$output->writeln('Importierte Daten:');
 				foreach ($importedTables as $row) {
 					if (!is_array($row)) {
 						continue;
 					}
 					$output->writeln(sprintf(
 						' - %s: %d',
-						(string)($row['table'] ?? ''),
-						(int)($row['rows'] ?? 0)
+						(string)($row['label'] ?? $row['table'] ?? 'Unbekannt'),
+						(int)($row['count'] ?? 0)
 					));
 				}
+			}
+
+			$settings = $result['report']['settings'] ?? [];
+			if (is_array($settings) && $settings !== []) {
+				$output->writeln('Einstellungen:');
+				foreach ($settings as $row) {
+					if (is_array($row)) {
+						$output->writeln(sprintf(' - %s: %d Werte', (string)($row['user_id'] ?? ''), (int)($row['count'] ?? 0)));
+					}
+				}
+			}
+
+			$userMappings = $result['report']['user_mappings'] ?? [];
+			if (is_array($userMappings) && $userMappings !== []) {
+				$output->writeln('User-Mapping:');
+				foreach ($userMappings as $row) {
+					if (is_array($row)) {
+						$output->writeln(sprintf(' - %s -> %s', (string)($row['source_user_id'] ?? ''), (string)($row['target_user_id'] ?? '')));
+					}
+				}
+			}
+
+			$attachmentPaths = $result['report']['attachment_paths'] ?? null;
+			if (is_array($attachmentPaths) && (int)($attachmentPaths['count'] ?? 0) > 0) {
+				$output->writeln('Beleg-Pfade: ' . (int)$attachmentPaths['count'] . ' importiert; Dateien selbst werden nicht kopiert.');
 			}
 			return self::SUCCESS;
 		} catch (\Throwable $e) {

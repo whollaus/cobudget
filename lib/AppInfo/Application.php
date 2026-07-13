@@ -6,6 +6,7 @@ use OCA\CoBudget\Cron\BudgetSnapshotJob;
 use OCA\CoBudget\Cron\RecurringEntriesJob;
 use OCA\CoBudget\Cron\RemindersJob;
 use OCA\CoBudget\Notification\Notifier;
+use OCA\CoBudget\Listener\BeforeUserDeletedListener;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -13,6 +14,7 @@ use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\BackgroundJob\IJobList;
 use OCP\IDBConnection;
 use OCP\IConfig;
+use OCP\User\Events\BeforeUserDeletedEvent;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'cobudget';
@@ -23,6 +25,7 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		$context->registerEventListener(BeforeUserDeletedEvent::class, BeforeUserDeletedListener::class);
 		if (method_exists($context, 'registerNotifierService')) {
 			$context->registerNotifierService(Notifier::class);
 		}

@@ -189,7 +189,20 @@ return [
 		$t->assertContains('$this->db->rollBack();', $command, 'Reset command should roll back failed resets');
 		$t->assertContains('array_reverse(self::TABLES)', $command, 'Reset command should delete tables in dependency-safe reverse order');
 		$t->assertContains("delete('preferences')", $command, 'Reset command should clear CoBudget user preferences');
-		$t->assertContains("deleteAppValue(self::APP_ID, \$key)", $command, 'Reset command should clear default-data seed markers');
+		$t->assertContains("deleteAppValue(self::APP_ID, \$key)", $command, 'Reset command should clear explicitly owned global CoBudget app settings');
+		foreach ([
+			'default_categories_seeded',
+			'default_payment_partners_seeded',
+			'full_backup_storage_user',
+			'full_backup_storage_folder',
+			'full_backup_retention_count',
+			'full_backup_schedule',
+			'full_backup_last_auto_at',
+			'theming_icon_cache_version',
+		] as $appValueKey) {
+			$t->assertContains("'" . $appValueKey . "'", $command, 'Global reset should clear CoBudget app value: ' . $appValueKey);
+		}
+		$t->assertNotContains('deleteAppValues(', $command, 'Global reset must not delete Nextcloud-owned app metadata such as enabled state or installed version');
 		$t->assertContains("'cobudget_entries'", $command, 'Reset command should include entries');
 		$t->assertContains("'cobudget_entry_history'", $command, 'Reset command should erase sensitive payment history');
 		$t->assertContains("'cobudget_hashtags'", $command, 'Reset command should erase hashtag names');
@@ -217,6 +230,17 @@ return [
 		$t->assertTrue($hashtagsPosition !== false && $entryHashtagsPosition !== false && $hashtagsPosition < $entryHashtagsPosition, 'Reverse deletion should erase hashtag links before hashtag names');
 		$t->assertNotContains('dropTable', $command, 'Reset command should not drop tables');
 		$t->assertNotContains('TRUNCATE', $command, 'Reset command should use portable deletes instead of truncate');
+	},
+
+	'Personal restore OCC command prints the structured restore report correctly' => function(TestRunner $t): void {
+		$command = $t->read('lib/Command/RestoreBackupCommand.php');
+
+		$t->assertContains("setName('cobudget:backup:restore')", $command, 'Personal restore command should expose the expected OCC name');
+		$t->assertContains("(int)(\$row['count'] ?? 0)", $command, 'Personal restore should read the report count field emitted by BackupService');
+		$t->assertNotContains("\$row['rows']", $command, 'Personal restore should not read the obsolete rows field');
+		$t->assertContains("\$row['label'] ?? \$row['table']", $command, 'Personal restore should print human-readable table labels');
+		$t->assertContains("\$result['report']['user_mappings']", $command, 'Personal restore should report source-to-target account mapping');
+		$t->assertContains("\$result['report']['attachment_paths']", $command, 'Personal restore should disclose that only receipt paths were imported');
 	},
 
 	'Entry mutations validate foreign references and scope writes to active workspace' => function(TestRunner $t): void {
@@ -247,7 +271,7 @@ return [
 
 		$update = $t->methodBody('lib/Controller/EntryController.php', 'update');
 		$t->assertContains('entryVisibleInActiveWorkspace($id)', $update, 'Entry update should allow visible active-workspace project entries');
-		$t->assertContains('validateEntryUserId($projectId, $entryUserId)', $update, 'Entry update should validate selected project payer membership');
+		$t->assertContains('validateEntryUserId($projectId, $entryUserId,', $update, 'Entry update should validate selected project payer membership while preserving an unchanged former payer');
 		$t->assertContains("set('user_id'", $update, 'Entry update should write the selected project payer');
 		$t->assertContains("if (\$type !== 'expense')", $update, 'Entry update should keep subscription/fixed-cost expense-only');
 		$t->assertContains("'amount_cents'", $update, 'Entry update should write amount_cents');
@@ -263,8 +287,8 @@ return [
 
 		$destroy = $t->methodBody('lib/Controller/EntryController.php', 'destroy');
 		$t->assertContains('entryVisibleInActiveWorkspace($id)', $destroy, 'Entry delete should allow visible active-workspace project entries');
-		$t->assertContains("delete('cobudget_entries')", $destroy, 'Entry delete should delete entries table');
-		$t->assertContains("eq('workspace_id'", $destroy, 'Entry delete should scope by workspace_id');
+		$t->assertContains('$this->entryProjectionService->prepareEntryDeletion([$id])', $destroy, 'Entry delete should derive every cross-workspace projection id on the server');
+		$t->assertContains('$this->deleteEntryRowsByIds($entryIds)', $destroy, 'Entry delete should remove the complete authorized payment graph');
 		$t->assertNotContains("andWhere(\$qb->expr()->eq('user_id'", $destroy, 'Entry delete should not block project members by the previous payer');
 
 		$stopRecurrence = $t->methodBody('lib/Controller/EntryController.php', 'stopRecurrence');
@@ -331,13 +355,15 @@ return [
 		$aggregate = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryAggregateData');
 		$t->assertContains('while ($entry = $result->fetch())', $aggregate, 'Entry summaries should stream filtered rows instead of fetchAll');
 		$t->assertContains('personal_share.amount_cents AS snapshot_share_cents', $aggregate, 'Entry summaries should use immutable personal share snapshots');
+		$t->assertContains('entryAggregateAmountCents($entry, $projectShareBasisPoints)', $aggregate, 'Entry summaries should select totals according to the requested personal or shared scope');
+		$t->assertContains("\$this->entryScope === 'shared'", $t->methodBody('lib/Controller/EntryController.php', 'entryAggregateAmountCents'), 'Shared area summaries should use the complete shared payment amount');
 		$pagination = $t->methodBody('lib/Controller/EntryController.php', 'normalizePagination');
 		$t->assertContains('self::MAX_PAGE_SIZE', $pagination, 'Entry page size should have a server-side maximum');
 		$t->assertContains('self::MAX_PAGE_OFFSET', $pagination, 'Entry page offset should have a server-side maximum');
 
 		$normalizeEntryRow = $t->methodBody('lib/Controller/EntryController.php', 'normalizeEntryRow');
 		$t->assertContains('user_display_name', $normalizeEntryRow, 'Entry rows should expose payer display names for shared-project tooltips');
-		$t->assertContains('$this->userManager->get($userId)', $normalizeEntryRow, 'Entry rows should resolve payer display names through Nextcloud users');
+		$t->assertContains('$this->participantService->participant($userId)', $normalizeEntryRow, 'Entry rows should resolve active and former payer display names through the participant service');
 
 		$applyFilters = $t->methodBody('lib/Controller/EntryController.php', 'applyFilters');
 		foreach (['is_child_related', 'is_important', 'needs_review', 'is_tax_relevant'] as $column) {
@@ -405,13 +431,13 @@ return [
 		$t->assertContains('$this->getWorkspaceId()', $summary, 'Analytics should use the active workspace');
 		$t->assertContains('loadProjectShares($workspaceId)', $summary, 'Analytics should load project share configuration');
 		$t->assertContains('buildPeriodOptions($this->loadAnalyticsEntryDates($workspaceId))', $summary, 'Analytics should expose dynamic year periods without loading all entry payloads');
-		$t->assertContains('loadAnalyticsEntries($workspaceId, $sharesByProject, (int)$selectedPeriod[\'start\'], (int)$selectedPeriod[\'end\'])', $summary, 'Analytics should load visible entries only for the selected period');
+		$t->assertContains('loadAnalyticsEntries($workspaceId, (int)$selectedPeriod[\'start\'], (int)$selectedPeriod[\'end\'])', $summary, 'Analytics should load personal entries only for the selected period');
 		$t->assertContains('attachAnalyticsAttachmentFlags($periodEntries, $workspaceId)', $summary, 'Analytics should attach receipt flags after period filtering');
 		$t->assertContains('comparisonPeriodFor($selectedPeriod)', $summary, 'Analytics should derive a matching previous period for trend comparisons');
-		$t->assertContains('entriesForAnalyticsRange($workspaceId, $sharesByProject, $periodEntries, $selectedPeriod, (int)$comparisonPeriod[\'start\'], (int)$comparisonPeriod[\'end\'])', $summary, 'Analytics should reuse loaded entries or query a bounded comparison range');
+		$t->assertContains('entriesForAnalyticsRange($workspaceId, $periodEntries, $selectedPeriod, (int)$comparisonPeriod[\'start\'], (int)$comparisonPeriod[\'end\'])', $summary, 'Analytics should reuse loaded personal entries or query a bounded comparison range');
 		$t->assertContains('directionWindowsFor($selectedPeriod)', $summary, 'Analytics should derive recent direction windows for visible trend badges');
-		$t->assertContains('entriesForAnalyticsRange($workspaceId, $sharesByProject, $periodEntries, $selectedPeriod, (int)$directionWindows[\'recentStart\'], (int)$directionWindows[\'recentEnd\'])', $summary, 'Analytics should reuse loaded entries or query a bounded recent range');
-		$t->assertContains('entriesForAnalyticsRange($workspaceId, $sharesByProject, $periodEntries, $selectedPeriod, (int)$directionWindows[\'baselineStart\'], (int)$directionWindows[\'baselineEnd\'])', $summary, 'Analytics should reuse loaded entries or query a bounded baseline range');
+		$t->assertContains('entriesForAnalyticsRange($workspaceId, $periodEntries, $selectedPeriod, (int)$directionWindows[\'recentStart\'], (int)$directionWindows[\'recentEnd\'])', $summary, 'Analytics should reuse loaded personal entries or query a bounded recent range');
+		$t->assertContains('entriesForAnalyticsRange($workspaceId, $periodEntries, $selectedPeriod, (int)$directionWindows[\'baselineStart\'], (int)$directionWindows[\'baselineEnd\'])', $summary, 'Analytics should reuse loaded personal entries or query a bounded baseline range');
 		$t->assertContains('previousFullMonthPeriodFor($selectedPeriod)', $summary, 'Analytics should load current-month comparison data with an explicit previous-month range');
 		$t->assertContains('buildProjection(', $summary, 'Analytics should include a projection section');
 		$t->assertContains('$projection = $this->buildProjection($periodEntries, $selectedPeriod, $summary)', $summary, 'Analytics should calculate projections once');
@@ -539,14 +565,15 @@ return [
 		$t->assertContains("lte('e.date'", $loadEntries, 'Analytics should ignore future-planned entries');
 		$t->assertContains("gte('e.date'", $loadEntries, 'Analytics entries should support bounded period start queries');
 		$t->assertContains("lt('e.date'", $loadEntries, 'Analytics entries should support bounded period end queries');
-		$t->assertContains("isNull('e.project_id')", $loadEntries, 'Analytics should include personal entries only by owner');
-		$t->assertContains("isNotNull('m.user_id')", $loadEntries, 'Analytics should include shared Bereich entries for members');
+		$t->assertContains("eq('e.entry_kind'", $loadEntries, 'Analytics should count only materialized personal payments');
+		$t->assertContains("eq('e.user_id'", $loadEntries, 'Analytics personal payments should belong to the current user');
+		$t->assertNotContains("cobudget_members", $loadEntries, 'Analytics totals must not count shared source payments through membership');
 		$t->assertContains("'e.is_settled'", $loadEntries, 'Analytics should expose settlement state for shared Bereich summaries');
 		$t->assertContains("'e.split_user_id'", $loadEntries, 'Analytics entries should expose explicit single-user split targets');
 
 		$entriesForRange = $t->methodBody('lib/Controller/AnalyticsController.php', 'entriesForAnalyticsRange');
 		$t->assertContains('filterEntriesByRange($loadedEntries, $start, $end)', $entriesForRange, 'Analytics should avoid duplicate DB reads when a range is inside already loaded entries');
-		$t->assertContains('loadAnalyticsEntries($workspaceId, $sharesByProject, $start, $end)', $entriesForRange, 'Analytics should query bounded ranges when extra data is needed');
+		$t->assertContains('loadAnalyticsEntries($workspaceId, $start, $end)', $entriesForRange, 'Analytics should query bounded personal ranges when extra data is needed');
 
 		$loadShared = $t->methodBody('lib/Controller/AnalyticsController.php', 'loadSharedProjectEntries');
 		$t->assertContains("eq('e.type'", $loadShared, 'Shared Bereich analytics should load expenses only');
@@ -554,6 +581,7 @@ return [
 		$t->assertContains("lt('e.date'", $loadShared, 'Shared Bereich analytics should respect the selected period end');
 		$t->assertContains('storedOrCalculatedShareCents($row', $loadShared, 'Shared Bereich analytics should prefer the stored current-user share even when it is zero');
 		$t->assertContains("'e.split_user_id'", $loadShared, 'Shared Bereich analytics should expose explicit single-user split targets');
+		$t->assertContains("eq('m.personal_workspace_id'", $loadShared, 'Shared collaboration analytics should stay in the members active personal workspace');
 
 		$sharedProjects = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildSharedProjects');
 		$t->assertContains("(\$entry['type'] ?? '') !== 'expense'", $sharedProjects, 'Shared Bereich analytics should focus on expenses paid in shared areas');
@@ -575,6 +603,10 @@ return [
 		$t->assertContains("isNotNull('e.recurrence_next_date')", $upcoming, 'Analytics upcoming entries should include recurring next dates');
 		$t->assertContains("isNotNull('e.reminder_date')", $upcoming, 'Analytics upcoming entries should include reminders');
 		$t->assertContains("eq('e.reminder_notified'", $upcoming, 'Analytics upcoming reminders should be active only');
+		$t->assertContains("isNull('e.source_entry_id')", $upcoming, 'Analytics upcoming entries should exclude linked personal projections');
+		$t->assertContains("eq('e.entry_kind', \$qb->createNamedParameter('shared'))", $upcoming, 'Analytics upcoming entries should derive shared recurrences from their shared source');
+		$t->assertContains("eq('m.personal_workspace_id'", $upcoming, 'Shared upcoming entries should be scoped through the members personal workspace');
+		$t->assertContains("gt('future_share.amount_cents'", $upcoming, 'A zero-percent shared allocation should not appear as a planned personal payment');
 
 		$periods = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildPeriodOptions');
 		$t->assertContains("'current-year'", $periods, 'Analytics should include current year period first');
@@ -603,7 +635,7 @@ return [
 	},
 
 	'Initial migration includes tax relevant labels for entries and templates' => function(TestRunner $t): void {
-		$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+		$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 		$t->assertContains("'cobudget_entries'", $migration, 'Initial migration should create entries');
 		$t->assertContains("'cobudget_templates'", $migration, 'Initial migration should create templates');
 		$t->assertContains("'is_tax_relevant'", $migration, 'Initial migration should add is_tax_relevant');
@@ -631,7 +663,7 @@ return [
 	},
 
 	'Performance migration adds compound indexes and dashboard bulk loads project data' => function(TestRunner $t): void {
-		$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+		$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 		foreach ([
 			'cb_ent_ws_date_id',
 			'cb_ent_ws_type_dt',
@@ -656,15 +688,9 @@ return [
 		$t->assertContains('addIndexIfMissing', $migration, 'Initial migration index setup should be safe to rerun');
 		$t->assertContains("addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", $migration, 'Fresh installs should prevent duplicate area memberships');
 
-		$membershipMigration = $t->read('lib/Migration/Version000004Date20260710000000.php');
-		$t->assertContains('preSchemaChange', $membershipMigration, 'Membership upgrade should clean duplicates before adding the unique index');
-		$t->assertContains('$seen[$key]', $membershipMigration, 'Membership upgrade should preserve one deterministic project/user row');
-		$t->assertContains("delete('cobudget_members')", $membershipMigration, 'Membership upgrade should remove duplicate member rows');
-		$t->assertContains("addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", $membershipMigration, 'Membership upgrade should enforce project/user uniqueness');
-
 		$dashboardProjects = $t->methodBody('lib/Controller/EntryController.php', 'fetchDashboardProjects');
 		$t->assertContains('fetchProjectMembersByProjectIds($projectIds)', $dashboardProjects, 'Dashboard projects should bulk-load members');
-		$t->assertContains('fetchOpenExpenseEntriesByProjectIds($projectIds)', $dashboardProjects, 'Dashboard projects should bulk-load open entries');
+		$t->assertContains('fetchOpenSharedEntriesByProjectIds($projectIds)', $dashboardProjects, 'Dashboard projects should bulk-load open shared source payments');
 		$t->assertNotContains("from('cobudget_entries')", $dashboardProjects, 'Dashboard project loop should not query entries per project');
 		$t->assertNotContains("from('cobudget_members')", $dashboardProjects, 'Dashboard project loop should not query members per project');
 
@@ -672,16 +698,16 @@ return [
 		$t->assertContains('PARAM_INT_ARRAY', $bulkMembers, 'Bulk project member lookup should use integer array parameters');
 		$t->assertContains('array_chunk($projectIds, 500)', $bulkMembers, 'Bulk project member lookup should chunk large project sets');
 
-		$bulkEntries = $t->methodBody('lib/Controller/EntryController.php', 'fetchOpenExpenseEntriesByProjectIds');
+		$bulkEntries = $t->methodBody('lib/Controller/EntryController.php', 'fetchOpenSharedEntriesByProjectIds');
 		$t->assertContains('PARAM_INT_ARRAY', $bulkEntries, 'Bulk project entry lookup should use integer array parameters');
 		$t->assertContains("in('project_id'", $bulkEntries, 'Bulk shared project entry lookup should be scoped by visible project ids');
 		$t->assertNotContains("eq('workspace_id'", $bulkEntries, 'Bulk shared project entry lookup must not hide member-visible projects from other workspaces');
-		$t->assertContains("eq('type'", $bulkEntries, 'Bulk project entry lookup should only load expenses for balances');
+		$t->assertNotContains("eq('type'", $bulkEntries, 'Bulk project balance lookup should include both shared expenses and shared income');
 		$t->assertContains("eq('is_settled'", $bulkEntries, 'Bulk project entry lookup should only load open entries');
 	},
 
 	'Description hashtags are synced, filtered, exported and cleaned up' => function(TestRunner $t): void {
-		$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+		$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 		foreach ([
 			"'cobudget_hashtags'",
 			"'cobudget_entry_hashtags'",
@@ -716,7 +742,7 @@ return [
 
 		$entry = $t->read('lib/Controller/EntryController.php');
 		$t->assertContains('syncEntryHashtags($id, $workspaceId', $entry, 'Entry creates and updates should resync description hashtags');
-		$t->assertContains('deleteEntryHashtags($id)', $entry, 'Entry deletes should remove hashtag links');
+		$t->assertContains('deleteHashtagsForEntries($entryIds)', $entry, 'Entry deletes should remove hashtag links for the complete payment graph');
 		$t->assertContains('attachHashtagsToEntries($entries)', $entry, 'Entry payloads should include hashtags');
 		$t->assertContains('fetchVisibleHashtagsForUser($workspaceId', $entry, 'Entry list lookups should include visible hashtag filters');
 		$t->assertContains('exportHashtagLabels($entry)', $entry, 'CSV export should include hashtag labels');
@@ -737,14 +763,14 @@ return [
 	},
 
 	'Project operations enforce membership or owner visibility and keep critical actions transactional' => function(TestRunner $t): void {
-		foreach (['create', 'destroy', 'settle'] as $method) {
+		foreach (['create', 'settle'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
 			$t->assertContains('beginTransaction()', $body, 'Project ' . $method . ' should start a transaction');
 			$t->assertContains('commit()', $body, 'Project ' . $method . ' should commit transaction');
 			$t->assertContains('rollBack()', $body, 'Project ' . $method . ' should roll back transaction');
 		}
 
-		foreach (['update', 'destroy', 'archive', 'unarchive', 'show', 'addMember', 'removeMember', 'settle'] as $method) {
+		foreach (['update', 'destroy', 'archive', 'unarchive', 'show', 'addMember', 'removeMember', 'transferOwnership', 'settle'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
 			$hasGuard = strpos($body, 'projectMemberInActiveWorkspace(') !== false
 				|| strpos($body, 'projectOwnerInActiveWorkspace(') !== false
@@ -754,12 +780,17 @@ return [
 			$t->assertTrue($hasGuard, 'Project ' . $method . ' should verify membership/ownership visibility');
 		}
 
-		foreach (['destroy', 'archive', 'unarchive', 'addMember', 'removeMember', 'updateShares', 'settle'] as $method) {
+		foreach (['destroy', 'archive', 'unarchive', 'addMember', 'removeMember', 'updateShares', 'transferOwnership', 'settle'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
 			$t->assertContains('requireProjectOwner($id)', $body, 'Project ' . $method . ' should require the area creator');
 		}
 		$update = $t->methodBody('lib/Controller/ProjectController.php', 'update');
 		$t->assertContains('projectOwnerForCurrentUser($id)', $update, 'Project update should require the area creator');
+		$destroy = $t->methodBody('lib/Controller/ProjectController.php', 'destroy');
+		$t->assertContains('projectHasOpenSharedPayments($id, $workspaceId)', $destroy, 'Project delete should reject areas with open shared payments');
+		$t->assertContains("update('cobudget_projects')", $destroy, 'Project delete should archive the area instead of removing financial history');
+		$t->assertContains("set('is_archived'", $destroy, 'Project delete should set the archive flag');
+		$t->assertNotContains("delete('cobudget_projects')", $destroy, 'Project delete must not physically remove the area');
 
 		foreach (['show', 'settlements'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);
@@ -774,7 +805,7 @@ return [
 	},
 
 	'Area settlements store snapshots and repayment suggestions' => function(TestRunner $t): void {
-		$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+		$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 		foreach ([
 			"'settlement_id'",
 			"'cobudget_settlements'",
@@ -817,8 +848,8 @@ return [
 		$t->assertContains('loadSettlementEntries($settlementId, $projectId, $workspaceId)', $history, 'Settlement history should include entry tables when requested');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
-			throw new \RuntimeException('Initial public baseline should keep appinfo/info.xml on the 0.1 release line');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
+			throw new \RuntimeException('The clean initial baseline should keep appinfo/info.xml at version 0.2.0');
 		}
 	},
 
@@ -965,7 +996,7 @@ return [
 		$t->assertNotContains('recurrenceInterval', $source, 'Templates should not persist recurrence settings');
 		$t->assertNotContains('reminderDate', $source, 'Templates should not persist reminder settings');
 
-		$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+		$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 		$t->assertContains('usage_count', $migration, 'Template usage migration should add usage_count');
 
 		$index = $t->methodBody('lib/Controller/TemplateController.php', 'index');
@@ -990,7 +1021,7 @@ return [
 		$t->assertContains('templatesEnabled()', $create, 'Template create should respect the user setting');
 		$t->assertContains("if (\$type !== 'expense')", $create, 'Template create should keep subscription/fixed-cost expense-only');
 		foreach ([
-			'validateTemplatePayload($name, $type, $amount, $amountCents, $categoryId, $paymentPartnerId, $projectId)',
+			'validateTemplatePayload($name, $description, $type, $amount, $amountCents, $categoryId, $paymentPartnerId, $projectId)',
 			"'amount_cents'",
 			"'workspace_id'",
 			"'is_subscription'",
@@ -1022,8 +1053,8 @@ return [
 		$t->assertNotContains("eq('workspace_id'", $markUsed, 'Template usage marker relies on the active-workspace ownership guard instead of duplicating the workspace predicate');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
-			throw new \RuntimeException('Initial public baseline should keep appinfo/info.xml on the 0.1 release line');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
+			throw new \RuntimeException('The clean initial baseline should keep appinfo/info.xml at version 0.2.0');
 		}
 	},
 
@@ -1050,13 +1081,17 @@ return [
 		foreach (['cobudget_entry_attachments', 'cobudget_settlements', 'cobudget_settlement_balances', 'cobudget_settlement_transfers', 'cobudget_members'] as $table) {
 			$t->assertContains($table, $source, 'Workspace delete should handle dependent area rows from ' . $table);
 		}
-		$t->assertContains('ownedProjectIdsInWorkspace($id)', $destroy, 'Workspace delete should collect areas owned by the current user');
+		$t->assertContains('projectIdsInWorkspace($id)', $destroy, 'Workspace delete should inspect every area attached to the workspace');
+		$t->assertContains('projectIdsOwnedByOtherUsers($projectIds)', $destroy, 'Workspace delete should block areas whose ownership has moved to another user');
+		$t->assertContains('workspaceHasExternalMemberReferences($id, $projectIds)', $destroy, 'Workspace delete should preserve member workspaces used by areas outside the deletion graph');
 		$t->assertContains('workspaceDeleteHasSharedProjectData($projectIds)', $destroy, 'Workspace delete should block shared areas before deleting project data');
 		$t->assertContains('STATUS_CONFLICT', $destroy, 'Workspace delete should report shared areas as a conflict instead of deleting them');
 		$t->assertContains('projectIdsWithOtherMembers', $source, 'Workspace delete should detect owned areas with other members');
 		$t->assertContains('projectIdsWithOtherUserEntries', $source, 'Workspace delete should detect stale entries from other users in owned areas');
 		$t->assertContains("neq('user_id'", $source, 'Workspace delete should identify other users before deleting area rows');
+		$t->assertContains('entryProjectionService->prepareEntryDeletion(', $destroy, 'Workspace delete should expand entry removal to the complete projection graph');
 		$t->assertContains('entryIdsForWorkspaceDelete($id, $projectIds)', $destroy, 'Workspace delete should collect current-user entries only after shared-area checks pass');
+		$t->assertContains('dataIntegrityService->assertProjectionIntegrity()', $destroy, 'Workspace delete should verify the remaining projection graph before commit');
 		$t->assertContains("deleteRowsByColumnValues('cobudget_entry_attachments', 'entry_id', \$entryIds)", $destroy, 'Workspace delete should remove attachments before entries');
 		$t->assertContains('deleteHashtagsForEntries($entryIds)', $destroy, 'Workspace delete should remove hashtag links for deleted entries');
 		$t->assertContains('deleteWorkspaceHashtags($id)', $destroy, 'Workspace delete should remove remaining hashtags through the hashtag service');
@@ -1065,7 +1100,7 @@ return [
 		$t->assertContains("deleteRowsByColumnValues(\$table, 'project_id', \$projectIds)", $destroy, 'Workspace delete should remove project-scoped settings regardless of row user_id');
 		$t->assertContains("deleteRowsByWorkspaceAndUser(\$table, 'user_id', \$id)", $destroy, 'Workspace delete should keep personal settings scoped to the current user');
 		$t->assertContains("deleteRowsByColumnValues('cobudget_members', 'project_id', \$projectIds)", $destroy, 'Workspace delete should remove project members before deleting projects');
-		$t->assertContains("deleteRowsByIds('cobudget_projects', \$projectIds)", $destroy, 'Workspace delete should delete only owned projects collected for the workspace');
+		$t->assertContains("deleteRowsByIds('cobudget_projects', \$projectIds)", $destroy, 'Workspace delete should delete only projects that passed all ownership and sharing guards');
 		$t->assertContains('owner_id', $source, 'Workspace delete should scope projects by owner_id');
 		$t->assertContains('user_id', $source, 'Workspace delete should scope user-owned rows by user_id');
 		$t->assertContains('IQueryBuilder::PARAM_INT_ARRAY', $source, 'Workspace delete should use typed array parameters for id lists');
@@ -1228,7 +1263,7 @@ return [
 			$t->assertContains('fetchAllSettings($userIds)', $service, 'Full backup should export all effective CoBudget user settings');
 			$t->assertContains('self::SETTINGS_DEFAULTS[$key]', $service, 'Personal export should include defaulted settings values');
 			$t->assertContains('fetchAllSettings($userIds)', $service, 'Full backup should include effective settings for every exported user');
-			$t->assertContains('backupContainsWorkspaces(', $service, 'Restore should recover workspace-enabled state for older backups with workspace data');
+			$t->assertContains('backupContainsUserManagedWorkspaces(', $service, 'Restore should infer workspace-enabled state only for older backups that omit the setting and contain managed workspaces');
 			$t->assertContains('normalizeFullSettings($archive[\'settings\'], $tables)', $service, 'Full restore should normalize workspace settings with table context');
 			$t->assertContains('deleteAllBackupTables()', $service, 'Full restore should wipe existing app tables before import');
 			$t->assertContains('deleteAllCoBudgetSettings()', $service, 'Full restore should wipe existing app settings before import');
@@ -1279,13 +1314,13 @@ return [
 			$t->assertContains('cobudget_members', $userProjectScope, 'Personal exports should include shared areas where the user is a member');
 			$t->assertNotContains('workspace_id', $userProjectScope, 'Personal exports must not include foreign-owned areas through workspace scope');
 					$userEntriesScope = $t->methodBody('lib/Service/BackupService.php', 'fetchEntries');
-					$t->assertContains('$personalRows = $qb->expr()->andX(', $userEntriesScope, 'Personal exports should keep personal entries separate from shared area entries');
-					$t->assertContains("in('project_id'", $userEntriesScope, 'Personal exports should collect all shared-area entries for later share reduction');
-					$t->assertNotContains("in('workspace_id'", $userEntriesScope, 'Personal exports must not include shared area entries through workspace scope');
+					$t->assertContains("eq('user_id'", $userEntriesScope, 'Personal exports should include only payments owned by the exporting user');
+					$t->assertContains("eq('entry_kind'", $userEntriesScope, 'Personal exports should include only materialized personal payments');
+					$t->assertNotContains("in('project_id'", $userEntriesScope, 'Personal exports must not include shared source payments through area membership');
 					$collectPersonalExport = $t->methodBody('lib/Service/BackupService.php', 'collectBackupData');
-					$t->assertContains('$tables = $this->preparePersonalExportTables($tables, $userId)', $collectPersonalExport, 'Personal exports must reduce shared-area raw rows before the archive is written');
+					$t->assertContains('$tables = $this->preparePersonalExportTables($tables, $userId, $settingIdAliases)', $collectPersonalExport, 'Personal exports must reduce shared-area raw rows before the archive is written');
 					$preparePersonalExport = $t->methodBody('lib/Service/BackupService.php', 'preparePersonalExportTables');
-					$t->assertContains('preparePersonalImportTables($tables, $userId, $userId)', $preparePersonalExport, 'Personal exports should use the same personal-share sanitizer as restore, with the exporting user as source');
+					$t->assertContains('preparePersonalImportTables($tables, $userId, $userId, $settingIdAliases)', $preparePersonalExport, 'Personal exports should use the same personal-share sanitizer as restore, with the exporting user as source');
 					foreach (['fetchCategories', 'fetchPaymentPartners', 'fetchTemplates', 'fetchBudgetGoals', 'fetchBudgetSnapshots'] as $method) {
 						$methodScope = $t->methodBody('lib/Service/BackupService.php', $method);
 						$t->assertNotContains("in('workspace_id'", $methodScope, 'Personal exports must not include ' . $method . ' rows through workspace scope');
@@ -1326,17 +1361,17 @@ return [
 			$t->assertContains('createFullBackup(', $fullCommand, 'Full backup command should call createFullBackup');
 
 			$userRestoreCommand = $t->read('lib/Command/RestoreBackupCommand.php');
-			$t->assertContains("setName('cobudget:backup:restore')", $userRestoreCommand, 'Legacy personal restore command should keep the expected OCC name');
-			$t->assertContains('addArgument(\'user\'', $userRestoreCommand, 'Legacy personal restore command should keep the target user argument for compatibility');
-			$t->assertContains('addArgument(\'file\'', $userRestoreCommand, 'Legacy personal restore command should keep the backup file argument for compatibility');
+			$t->assertContains("setName('cobudget:backup:restore')", $userRestoreCommand, 'Personal restore command should keep the expected OCC name');
+			$t->assertContains('addArgument(\'user\'', $userRestoreCommand, 'Personal restore command should require the target user argument');
+			$t->assertContains('addArgument(\'file\'', $userRestoreCommand, 'Personal restore command should require the export file argument');
 			$t->assertContains("addOption('folder'", $userRestoreCommand, 'Personal restore command should support a custom export folder');
-			$t->assertContains("addOption('force'", $userRestoreCommand, 'Legacy personal restore command should keep explicit force options for compatibility');
+			$t->assertContains("addOption('force'", $userRestoreCommand, 'Personal restore command should require explicit confirmation');
 			$t->assertContains('Bestehende CoBudget-Daten blockieren den Import.', $userRestoreCommand, 'Personal restore command should explain that imports require an empty target');
 			$t->assertContains('restoreBackup(', $userRestoreCommand, 'Personal restore command should call the guarded restore service');
 			$t->assertContains('Sicherheitsexport:', $userRestoreCommand, 'Personal restore command should print the safety export');
-			$t->assertNotContains('Restore-Protokoll:', $userRestoreCommand, 'Legacy personal restore command should not print a restore report');
-			$t->assertNotContains('User-Mapping:', $userRestoreCommand, 'Legacy personal restore command should not print mapped users');
-			$t->assertNotContains('Beleg-Pfade:', $userRestoreCommand, 'Legacy personal restore command should not print receipt path import notes');
+			$t->assertContains('Importierte Daten:', $userRestoreCommand, 'Personal restore command should print imported table counts');
+			$t->assertContains('User-Mapping:', $userRestoreCommand, 'Personal restore command should print source-to-target account mapping');
+			$t->assertContains('Beleg-Pfade:', $userRestoreCommand, 'Personal restore command should print receipt path import notes');
 
 			$fullRestoreCommand = $t->read('lib/Command/RestoreFullBackupCommand.php');
 			$t->assertContains("setName('cobudget:backup:restore-full')", $fullRestoreCommand, 'Full restore command should expose the expected OCC name');
@@ -1433,14 +1468,9 @@ return [
 			$t->assertContains('blocking_shared_projects', $resetService, 'User reset preview should expose shared areas that block the reset');
 			$t->assertContains('countUnsettledProjectEntries', $resetService, 'User reset should block shared areas with open entries');
 			$t->assertContains('transferable_shared_projects', $resetService, 'User reset preview should report owned settled shared areas whose member shares will be preserved');
-			$t->assertContains('materializeSettledProjectShares($projectId, $userId)', $resetService, 'User reset should materialize other member shares before deleting an owned shared area');
-			$t->assertContains('personalShareCentsForEntry', $resetService, 'User reset should calculate per-member shares centrally');
-			$t->assertContains('settlementSharesByIdForProject', $resetService, 'User reset should use the historical share snapshot from each settlement');
-			$t->assertContains("(string)(\$entry['split_mode'] ?? '') === 'single_user'", $resetService, 'User reset should preserve full single-user assignments');
-			$t->assertContains('intdiv(($amountCents * $recipientShare * 2) + $totalShare, $totalShare * 2)', $resetService, 'User reset should round percentage shares to the nearest cent');
-			$t->assertContains('defaultWorkspaceIdForUser', $resetService, 'Transferred shares should use each recipients personal default workspace');
-			$t->assertContains('personalReferenceIdForTransfer', $resetService, 'Transferred shares should not retain invalid area-scoped category or payment-partner references');
-			$t->assertContains('copyRecipientOwnedAttachments', $resetService, 'Transferred shares should preserve receipt links owned by the recipient');
+				$t->assertContains('entryProjectionService->detachSettledMember($projectId', $resetService, 'User reset should detach already-materialized personal payments before deleting an owned shared area');
+				$t->assertContains('transferred_personal_entries', $resetService, 'User reset should report preserved personal payments for other members');
+				$t->assertContains('transferred_attachments', $resetService, 'User reset should report preserved personal receipt copies for other members');
 			$t->assertContains('leaveSettledSharedProject', $resetService, 'User reset should leave settled shared areas created by another member');
 			$t->assertContains('$fileOwnerUserId !== null', $resetService, 'User reset should never delete another members receipt file');
 			$t->assertContains("getUserValue(\$userId, self::APP_ID, 'delete_receipts_with_entry'", $resetService, 'User reset should respect the receipt file deletion setting');
@@ -1550,13 +1580,13 @@ return [
 			$t->assertTrue(($routeNames['budget#update'] ?? null) === '/api/budgets/{id}', 'Budget update route should exist');
 			$t->assertTrue(($routeNames['budget#destroy'] ?? null) === '/api/budgets/{id}', 'Budget delete route should exist');
 
-			$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+			$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 			$t->assertContains('cobudget_budget_goals', $migration, 'Budget migration should create the goals table');
 			$t->assertContains("'amount_cents'", $migration, 'Budget migration should store amounts as integer cents');
 			$t->assertContains("'criteria_json'", $migration, 'Budget migration should store flexible criteria JSON');
 			$t->assertContains("['user_id', 'workspace_id']", $migration, 'Budget migration should index user/workspace lookups');
 
-			$snapshotMigration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+			$snapshotMigration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 			$t->assertContains('cobudget_budget_snapshots', $snapshotMigration, 'Budget snapshot migration should create the history table');
 			foreach (["'snapshot_reason'", "'goal_name'", "'spent_cents'", "'planned_cents'", "'buffer_cents'", "'forecast_cents'", "'progress_tenths'", "'status'"] as $column) {
 				$t->assertContains($column, $snapshotMigration, 'Budget snapshot migration should include ' . $column);
@@ -1602,11 +1632,13 @@ return [
 			$t->assertContains("eq('e.workspace_id'", $entries, 'Budget entries should be scoped to the active workspace');
 			$t->assertContains("eq('e.type'", $entries, 'Budget entries should include only expenses');
 			$t->assertContains("eq('e.user_id'", $entries, 'Budget personal entries should be scoped to the current user');
-			$t->assertContains("isNotNull('m.user_id')", $entries, 'Budget shared entries should require project membership');
+			$t->assertContains("eq('e.entry_kind'", $entries, 'Budget evaluation should count only materialized personal payments');
+			$t->assertNotContains('cobudget_members', $entries, 'Budget evaluation must not count shared source payments a second time');
 			$t->assertContains("'e.split_user_id'", $entries, 'Budget entries should expose explicit single-user split targets');
 
-			$entryPersonalCents = $t->methodBody('lib/Controller/BudgetController.php', 'entryPersonalCents');
-			$t->assertContains('entryShareCentsForUser', $entryPersonalCents, 'Budget evaluation should use the same personal-share helper as dashboards');
+			$evaluateGoal = $t->methodBody('lib/Controller/BudgetController.php', 'evaluateGoal');
+			$t->assertContains('$spentCents += max(0, $this->amountCentsFromRow($entry) ?? 0)', $evaluateGoal, 'Budget evaluation should sum the exact materialized personal cents');
+			$t->assertNotContains('entryPersonalCents', $evaluateGoal, 'Budget evaluation must not recalculate a materialized share from current area defaults');
 
 			$entryMatchesCriteria = $t->methodBody('lib/Controller/BudgetController.php', 'entryMatchesCriteria');
 			$t->assertContains("if (\$rules === []) {\n\t\t\treturn true;", $entryMatchesCriteria, 'Budget goals without criteria should match all visible expenses');
@@ -1621,7 +1653,8 @@ return [
 			$t->assertContains('public function history', $snapshotService, 'Budget snapshot service should expose history for analytics');
 			$t->assertContains("cobudget_budget_snapshots", $snapshotService, 'Budget snapshot service should write the snapshot table');
 			$t->assertContains("'period_closed'", $snapshotService, 'Budget snapshot service should distinguish closed periods');
-			$t->assertContains('entryShareCentsForUser', $snapshotService, 'Budget snapshots should evaluate personal shares');
+			$t->assertContains('$spentCents += max(0, $this->amountCentsFromRow($entry) ?? 0)', $snapshotService, 'Budget snapshots should sum exact materialized personal cents');
+			$t->assertNotContains('entryShareCentsForUser', $snapshotService, 'Budget snapshots must not recalculate materialized shares');
 			$t->assertContains("'e.split_user_id'", $snapshotService, 'Budget snapshots should include explicit single-user split targets');
 			$t->assertContains('snapshotExists', $snapshotService, 'Budget snapshot cron should avoid duplicate closed-period snapshots');
 
@@ -1634,8 +1667,8 @@ return [
 
 			$infoXml = $t->read('appinfo/info.xml');
 			$t->assertContains('OCA\\CoBudget\\Cron\\BudgetSnapshotJob', $infoXml, 'Budget snapshot job should be listed in app metadata');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
-				throw new \RuntimeException('Initial public baseline should keep appinfo/info.xml on the 0.1 release line');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
+				throw new \RuntimeException('The clean initial baseline should keep appinfo/info.xml at version 0.2.0');
 			}
 		},
 
@@ -1647,7 +1680,7 @@ return [
 			$t->assertTrue(($routeNames['entry#downloadAttachment'] ?? null) === '/api/entries/{id}/attachments/{attachmentId}/download', 'Entry attachment display route should exist');
 			$t->assertTrue(($routeNames['entry#destroyAttachment'] ?? null) === '/api/entries/{id}/attachments/{attachmentId}', 'Entry attachment delete route should exist');
 
-			$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+			$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 			foreach (["'cobudget_entry_attachments'", "'entry_id'", "'workspace_id'", "'owner_user_id'", "'file_path'", "'file_name'"] as $needle) {
 				$t->assertContains($needle, $migration, 'Attachment migration should include ' . $needle);
 			}
@@ -1775,7 +1808,7 @@ return [
 			$routeNames = array_column($routes['routes'], 'url', 'name');
 			$t->assertTrue(($routeNames['project#updateShares'] ?? null) === '/api/projects/{id}/shares', 'Project share update route should exist');
 
-			$migration = $t->read('lib/Migration/Version000001Date20260624000000.php');
+			$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 			$t->assertContains("'share_basis_points'", $migration, 'Flexible shares migration should add member share_basis_points');
 			$t->assertContains("'split_mode'", $migration, 'Flexible shares migration should add entry/template split_mode');
 			$t->assertContains("'split_user_id'", $migration, 'Flexible shares migration should add entry/template split target users');
@@ -1828,8 +1861,8 @@ return [
 			$t->assertContains("'split_user_id' => \$qb->createNamedParameter(\$splitUserId", $templateCreate, 'Template create should persist split target');
 
 			$infoXml = $t->read('appinfo/info.xml');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
-				throw new \RuntimeException('Initial public baseline should keep appinfo/info.xml on the 0.1 release line');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
+				throw new \RuntimeException('The clean initial baseline should keep appinfo/info.xml at version 0.2.0');
 			}
 		},
 	];

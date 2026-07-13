@@ -40,6 +40,7 @@ class BackupService {
 	private const VALID_BACKUP_SCHEDULES = ['none', 'daily', 'weekly', 'monthly'];
 
 	private const BACKUP_TABLES = [
+		'cobudget_deleted_users',
 		'cobudget_workspaces',
 		'cobudget_projects',
 		'cobudget_members',
@@ -60,6 +61,12 @@ class BackupService {
 	];
 
 	private const BACKUP_TABLE_COLUMNS = [
+		'cobudget_deleted_users' => [
+			'id',
+			'tombstone_id',
+			'display_name',
+			'deleted_at',
+		],
 		'cobudget_workspaces' => [
 			'id',
 			'name',
@@ -81,6 +88,9 @@ class BackupService {
 			'project_id',
 			'user_id',
 			'share_basis_points',
+			'personal_workspace_id',
+			'expense_rounding_units',
+			'income_rounding_units',
 		],
 		'cobudget_categories' => [
 			'id',
@@ -128,7 +138,12 @@ class BackupService {
 		'cobudget_entries' => [
 			'id',
 			'user_id',
+			'created_by',
 			'project_id',
+			'entry_kind',
+			'source_entry_id',
+			'is_locked',
+			'allocation_basis_points',
 			'type',
 			'amount',
 			'amount_cents',
@@ -165,6 +180,9 @@ class BackupService {
 			'user_id',
 			'share_basis_points',
 			'amount_cents',
+			'personal_entry_id',
+			'rounding_bucket',
+			'rounding_residual_units',
 		],
 		'cobudget_entry_history' => [
 			'id',
@@ -199,6 +217,7 @@ class BackupService {
 		'cobudget_entry_attachments' => [
 			'id',
 			'entry_id',
+			'source_attachment_id',
 			'workspace_id',
 			'owner_user_id',
 			'file_id',
@@ -223,6 +242,8 @@ class BackupService {
 			'display_name',
 			'paid_cents',
 			'share_cents',
+			'received_cents',
+			'income_share_cents',
 			'balance_cents',
 			'share_basis_points',
 		],
@@ -277,7 +298,7 @@ class BackupService {
 		'cobudget_categories' => ['user_id'],
 		'cobudget_payment_partners' => ['user_id'],
 		'cobudget_templates' => ['user_id'],
-		'cobudget_entries' => ['user_id'],
+		'cobudget_entries' => ['user_id', 'created_by', 'split_user_id'],
 		'cobudget_entry_shares' => ['user_id'],
 		'cobudget_entry_history' => ['changed_by'],
 		'cobudget_entry_attachments' => ['owner_user_id'],
@@ -291,6 +312,7 @@ class BackupService {
 	private const BACKUP_INTERNAL_REFERENCES = [
 		['sourceTable' => 'cobudget_projects', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_members', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
+		['sourceTable' => 'cobudget_members', 'column' => 'personal_workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_categories', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_categories', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
 		['sourceTable' => 'cobudget_payment_partners', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
@@ -303,10 +325,12 @@ class BackupService {
 		['sourceTable' => 'cobudget_entries', 'column' => 'category_id', 'targetTable' => 'cobudget_categories'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'payment_partner_id', 'targetTable' => 'cobudget_payment_partners'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
+		['sourceTable' => 'cobudget_entries', 'column' => 'source_entry_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'settlement_id', 'targetTable' => 'cobudget_settlements'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'recurrence_parent_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'recurrence_series_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entry_shares', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
+		['sourceTable' => 'cobudget_entry_shares', 'column' => 'personal_entry_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entry_history', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_entry_history', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_entry_history', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
@@ -315,6 +339,7 @@ class BackupService {
 		['sourceTable' => 'cobudget_entry_hashtags', 'column' => 'hashtag_id', 'targetTable' => 'cobudget_hashtags'],
 		['sourceTable' => 'cobudget_entry_hashtags', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_entry_attachments', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
+		['sourceTable' => 'cobudget_entry_attachments', 'column' => 'source_attachment_id', 'targetTable' => 'cobudget_entry_attachments'],
 		['sourceTable' => 'cobudget_entry_attachments', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_settlements', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
 		['sourceTable' => 'cobudget_settlements', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
@@ -397,6 +422,8 @@ class BackupService {
 		private IRootFolder $rootFolder,
 		private IUserManager $userManager,
 		private IGroupManager $groupManager,
+		private ParticipantService $participantService,
+		private DataIntegrityService $dataIntegrityService,
 	) {
 	}
 
@@ -751,7 +778,8 @@ class BackupService {
 			$this->db->beginTransaction();
 			try {
 				$this->deletePersonalImportTarget($userId);
-				$this->insertTablesWithGeneratedIds($tables);
+				$idMaps = $this->insertTablesWithGeneratedIds($tables);
+				$settings[$userId] = $this->remapPersonalImportSettings($settings[$userId], $idMaps);
 				$this->restoreUserSettings($userId, $settings[$userId]);
 				$this->db->commit();
 			} catch (\Throwable $e) {
@@ -802,6 +830,7 @@ class BackupService {
 				$this->insertTables($tables);
 				$this->restoreAllSettings($settings);
 				$this->synchronizeAutoincrementSequences($tables);
+				$this->dataIntegrityService->assertProjectionIntegrity();
 				$this->db->commit();
 			} catch (\Throwable $e) {
 				$this->db->rollBack();
@@ -1232,14 +1261,112 @@ class BackupService {
 			(string)($normalized['backup_storage_folder'] ?? self::DEFAULT_PERSONAL_EXPORT_FOLDER)
 		);
 
-		if (
-			(!array_key_exists('enable_workspaces', $settings) && $this->backupContainsWorkspaces($tables, $userId))
-			|| ((string)($normalized['enable_workspaces'] ?? '') !== 'yes' && $this->backupContainsUserManagedWorkspaces($tables, $userId))
-		) {
+		if (!array_key_exists('enable_workspaces', $settings) && $this->backupContainsUserManagedWorkspaces($tables, $userId)) {
 			$normalized['enable_workspaces'] = 'yes';
 		}
 
 		return $normalized;
+	}
+
+	private function preparePersonalExportSettings(array $settings, array $tables, array $settingIdAliases): array {
+		$workspaceAliases = $this->identityIdAliases($tables['cobudget_workspaces'] ?? []);
+		$projectAliases = $this->identityIdAliases($tables['cobudget_projects'] ?? []);
+
+		$settings['hidden_workspaces'] = $this->remapJsonIdSetting(
+			$settings['hidden_workspaces'] ?? '[]',
+			$workspaceAliases
+		);
+		$settings['hidden_categories'] = $this->remapJsonIdSetting(
+			$settings['hidden_categories'] ?? '[]',
+			$settingIdAliases['cobudget_categories'] ?? []
+		);
+		$settings['hidden_payment_partners'] = $this->remapJsonIdSetting(
+			$settings['hidden_payment_partners'] ?? '[]',
+			$settingIdAliases['cobudget_payment_partners'] ?? []
+		);
+		$settings['default_start_page'] = $this->remapDefaultStartPage(
+			(string)($settings['default_start_page'] ?? 'personal'),
+			$projectAliases
+		);
+
+		return $settings;
+	}
+
+	private function remapPersonalImportSettings(array $settings, array $idMaps): array {
+		$settings['hidden_workspaces'] = $this->remapJsonIdSetting(
+			$settings['hidden_workspaces'] ?? '[]',
+			$idMaps['cobudget_workspaces'] ?? []
+		);
+		$settings['hidden_categories'] = $this->remapJsonIdSetting(
+			$settings['hidden_categories'] ?? '[]',
+			$idMaps['cobudget_categories'] ?? []
+		);
+		$settings['hidden_payment_partners'] = $this->remapJsonIdSetting(
+			$settings['hidden_payment_partners'] ?? '[]',
+			$idMaps['cobudget_payment_partners'] ?? []
+		);
+		$settings['default_start_page'] = $this->remapDefaultStartPage(
+			(string)($settings['default_start_page'] ?? 'personal'),
+			$idMaps['cobudget_projects'] ?? []
+		);
+
+		return $settings;
+	}
+
+	private function identityIdAliases(array $rows): array {
+		$aliases = [];
+		foreach ($rows as $row) {
+			$id = $this->nullableId($row['id'] ?? null);
+			if ($id !== null) {
+				$aliases[$id] = [$id];
+			}
+		}
+
+		return $aliases;
+	}
+
+	private function remapJsonIdSetting(mixed $value, array $idAliases): string {
+		$sourceIds = json_decode((string)$value, true);
+		if (!is_array($sourceIds)) {
+			return '[]';
+		}
+
+		$mappedIds = [];
+		foreach ($sourceIds as $sourceId) {
+			$sourceId = $this->nullableId($sourceId);
+			if ($sourceId === null || !array_key_exists($sourceId, $idAliases)) {
+				continue;
+			}
+			$targets = is_array($idAliases[$sourceId]) ? $idAliases[$sourceId] : [$idAliases[$sourceId]];
+			foreach ($targets as $targetId) {
+				$targetId = $this->nullableId($targetId);
+				if ($targetId !== null) {
+					$mappedIds[$targetId] = true;
+				}
+			}
+		}
+
+		$ids = array_map('intval', array_keys($mappedIds));
+		sort($ids, SORT_NUMERIC);
+
+		return json_encode($ids, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]';
+	}
+
+	private function remapDefaultStartPage(string $defaultStartPage, array $projectIdAliases): string {
+		if (preg_match('/^project:([1-9]\d*)$/', $defaultStartPage, $matches) !== 1) {
+			return $defaultStartPage;
+		}
+
+		$sourceProjectId = (int)$matches[1];
+		if (!array_key_exists($sourceProjectId, $projectIdAliases)) {
+			return 'personal';
+		}
+		$targets = is_array($projectIdAliases[$sourceProjectId])
+			? $projectIdAliases[$sourceProjectId]
+			: [$projectIdAliases[$sourceProjectId]];
+		$targetProjectId = $this->nullableId($targets[0] ?? null);
+
+		return $targetProjectId !== null ? 'project:' . $targetProjectId : 'personal';
 	}
 
 	private function normalizeFullSettings(array $settings, array $tables = []): array {
@@ -1301,7 +1428,7 @@ class BackupService {
 		$rows = [];
 		foreach ($userIds as $userId) {
 			$userId = trim((string)$userId);
-			if ($userId === '') {
+			if ($userId === '' || ParticipantService::isReservedFormerId($userId)) {
 				continue;
 			}
 			$targetUserId = $suggestedMap[$userId] ?? $userId;
@@ -1320,12 +1447,7 @@ class BackupService {
 	}
 
 	private function displayNameForUser(string $userId): string {
-		$user = $this->userManager->get($userId);
-		if ($user === null) {
-			return $userId;
-		}
-
-		return trim((string)$user->getDisplayName()) ?: $userId;
+		return $this->participantService->displayName($userId);
 	}
 
 	private function normalizeUserMap(array $userMap): array {
@@ -1335,6 +1457,9 @@ class BackupService {
 			$target = trim((string)$target);
 			if ($source === '' || $target === '') {
 				throw new \InvalidArgumentException('User-Mapping muss im Format alt:neu angegeben werden');
+			}
+			if (ParticipantService::isReservedFormerId($source) || ParticipantService::isReservedFormerId($target)) {
+				throw new \InvalidArgumentException('Ehemalige Mitglieder dürfen nicht per User-Mapping verändert werden.');
 			}
 			$normalized[$source] = $target;
 		}
@@ -1351,7 +1476,7 @@ class BackupService {
 			foreach ($rows as &$row) {
 				foreach (self::USER_COLUMNS[$table] ?? [] as $column) {
 					$value = (string)($row[$column] ?? '');
-					if ($value !== '' && isset($userMap[$value])) {
+					if ($value !== '' && !ParticipantService::isReservedFormerId($value) && isset($userMap[$value])) {
 						$row[$column] = $userMap[$value];
 					}
 				}
@@ -1386,11 +1511,11 @@ class BackupService {
 		return $settings;
 	}
 
-	private function preparePersonalExportTables(array $tables, string $userId): array {
-		return $this->preparePersonalImportTables($tables, $userId, $userId);
+	private function preparePersonalExportTables(array $tables, string $userId, ?array &$settingIdAliases = null): array {
+		return $this->preparePersonalImportTables($tables, $userId, $userId, $settingIdAliases);
 	}
 
-	private function preparePersonalImportTables(array $tables, string $userId, ?string $sourceUserId = null): array {
+	private function preparePersonalImportTables(array $tables, string $userId, ?string $sourceUserId = null, ?array &$settingIdAliases = null): array {
 		$sourceUserId = trim((string)($sourceUserId ?? ''));
 		if ($sourceUserId === '') {
 			$sourceUserId = $userId;
@@ -1417,7 +1542,12 @@ class BackupService {
 		}
 		$prepared['cobudget_workspaces'] = $workspaces;
 		$workspaceIds = $this->oldIdSet($workspaces);
-		$primaryWorkspaceId = $this->firstOldId($workspaces);
+		$primaryWorkspaceId = $this->defaultOldWorkspaceId($workspaces);
+		$memberWorkspaceByProject = $this->memberPersonalWorkspaceByProject(
+			$prepared['cobudget_members'],
+			$sourceUserId,
+			$workspaceIds
+		);
 
 		$projects = [];
 		foreach ($prepared['cobudget_projects'] as $row) {
@@ -1434,6 +1564,14 @@ class BackupService {
 		}
 		$prepared['cobudget_projects'] = $projects;
 		$projectIds = $this->oldIdSet($projects);
+		$projectWorkspaceById = [];
+		foreach ($projects as $project) {
+			$projectId = $this->nullableId($project['id'] ?? null);
+			$workspaceId = $this->nullableId($project['workspace_id'] ?? null);
+			if ($projectId !== null && $workspaceId !== null && isset($workspaceIds[$workspaceId])) {
+				$projectWorkspaceById[$projectId] = $workspaceId;
+			}
+		}
 
 		$members = [];
 		$memberProjectIds = [];
@@ -1442,8 +1580,12 @@ class BackupService {
 			if ($projectId === null || !isset($projectIds[$projectId]) || isset($memberProjectIds[$projectId])) {
 				continue;
 			}
+			$personalWorkspaceId = $this->nullableId($row['personal_workspace_id'] ?? null);
 			$row['user_id'] = $userId;
 			$row['share_basis_points'] = 10000;
+			$row['personal_workspace_id'] = $personalWorkspaceId !== null && isset($workspaceIds[$personalWorkspaceId])
+				? $personalWorkspaceId
+				: ($projectWorkspaceById[$projectId] ?? $primaryWorkspaceId);
 			$members[] = $row;
 			$memberProjectIds[$projectId] = true;
 		}
@@ -1458,42 +1600,47 @@ class BackupService {
 				'project_id' => $projectId,
 				'user_id' => $userId,
 				'share_basis_points' => 10000,
+				'personal_workspace_id' => $projectWorkspaceById[$projectId] ?? $primaryWorkspaceId,
 			];
 		}
 		$prepared['cobudget_members'] = $members;
 
-		foreach (['cobudget_categories', 'cobudget_payment_partners'] as $table) {
-			$rows = [];
-			foreach ($prepared[$table] as $row) {
-				$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
-				$projectId = $this->nullableId($row['project_id'] ?? null);
-				if ($projectId !== null && isset($sharedProjectIds[$projectId])) {
-					if ($primaryWorkspaceId === null) {
-						continue;
-					}
-					$row['workspace_id'] = $primaryWorkspaceId;
-					$row['project_id'] = null;
-				} elseif ((bool)($row['is_global'] ?? false)) {
-					if ($primaryWorkspaceId === null) {
-						continue;
-					}
-					$row['workspace_id'] = $primaryWorkspaceId;
-					$row['project_id'] = null;
-				} else {
-					if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
-						continue;
-					}
-					$row['workspace_id'] = $workspaceId;
-					$row['project_id'] = $projectId !== null && isset($projectIds[$projectId]) ? $projectId : null;
-				}
-				$row['user_id'] = $userId;
-				$row['is_global'] = false;
-				$rows[] = $row;
-			}
-			$prepared[$table] = $rows;
-		}
-		$categoryIds = $this->oldIdSet($prepared['cobudget_categories']);
-		$paymentPartnerIds = $this->oldIdSet($prepared['cobudget_payment_partners']);
+		$lookupWorkspaceUsage = $this->personalLookupWorkspaceUsage(
+			$prepared,
+			$sourceUserId,
+			$workspaceIds,
+			$sharedProjectIds,
+			$memberWorkspaceByProject,
+			$primaryWorkspaceId
+		);
+		$categoryPreparation = $this->preparePersonalLookupRows(
+			$prepared['cobudget_categories'],
+			$lookupWorkspaceUsage['cobudget_categories'],
+			$sourceUserId,
+			$userId,
+			$workspaceIds,
+			$projectIds,
+			$sharedProjectIds,
+			$primaryWorkspaceId
+		);
+		$paymentPartnerPreparation = $this->preparePersonalLookupRows(
+			$prepared['cobudget_payment_partners'],
+			$lookupWorkspaceUsage['cobudget_payment_partners'],
+			$sourceUserId,
+			$userId,
+			$workspaceIds,
+			$projectIds,
+			$sharedProjectIds,
+			$primaryWorkspaceId
+		);
+		$prepared['cobudget_categories'] = $categoryPreparation['rows'];
+		$prepared['cobudget_payment_partners'] = $paymentPartnerPreparation['rows'];
+		$categoryIdByWorkspace = $categoryPreparation['id_by_workspace'];
+		$paymentPartnerIdByWorkspace = $paymentPartnerPreparation['id_by_workspace'];
+		$settingIdAliases = [
+			'cobudget_categories' => $categoryPreparation['aliases'],
+			'cobudget_payment_partners' => $paymentPartnerPreparation['aliases'],
+		];
 
 		$templates = [];
 		foreach ($prepared['cobudget_templates'] as $row) {
@@ -1501,10 +1648,15 @@ class BackupService {
 				continue;
 			}
 			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
+			$projectId = $this->nullableId($row['project_id'] ?? null);
 			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $projectId !== null
+					? ($memberWorkspaceByProject[$projectId] ?? $primaryWorkspaceId)
+					: $primaryWorkspaceId;
+			}
+			if ($workspaceId === null) {
 				continue;
 			}
-			$projectId = $this->nullableId($row['project_id'] ?? null);
 			$categoryId = $this->nullableId($row['category_id'] ?? null);
 			$paymentPartnerId = $this->nullableId($row['payment_partner_id'] ?? null);
 			$row['user_id'] = $userId;
@@ -1513,12 +1665,10 @@ class BackupService {
 			if ($projectId !== null && isset($sharedProjectIds[$projectId])) {
 				$row['project_id'] = null;
 			}
-			$row['category_id'] = $categoryId !== null && isset($categoryIds[$categoryId]) ? $categoryId : null;
-			$row['payment_partner_id'] = $paymentPartnerId !== null && isset($paymentPartnerIds[$paymentPartnerId]) ? $paymentPartnerId : null;
-			if ($row['project_id'] === null) {
-				$row['split_mode'] = 'personal';
-				$row['split_user_id'] = null;
-			}
+			$row['category_id'] = $this->personalLookupIdForWorkspace($categoryId, $workspaceId, $categoryIdByWorkspace);
+			$row['payment_partner_id'] = $this->personalLookupIdForWorkspace($paymentPartnerId, $workspaceId, $paymentPartnerIdByWorkspace);
+			$row['split_mode'] = 'personal';
+			$row['split_user_id'] = null;
 			$templates[] = $row;
 		}
 		$prepared['cobudget_templates'] = $templates;
@@ -1531,10 +1681,35 @@ class BackupService {
 			$projectId = $this->nullableId($row['project_id'] ?? null);
 			$categoryId = $this->nullableId($row['category_id'] ?? null);
 			$paymentPartnerId = $this->nullableId($row['payment_partner_id'] ?? null);
-			$isSharedProjectEntry = $projectId !== null && isset($sharedProjectIds[$projectId]);
+			$isProjectedPersonalEntry = (string)($row['entry_kind'] ?? 'personal') === 'personal'
+				&& $projectId !== null
+				&& isset($sharedProjectIds[$projectId]);
+			$isSharedProjectEntry = !$isProjectedPersonalEntry
+				&& $projectId !== null
+				&& isset($sharedProjectIds[$projectId]);
 
-			if ($isSharedProjectEntry) {
-				if ($primaryWorkspaceId === null) {
+			if ($isProjectedPersonalEntry) {
+				if ($entryUserId !== $sourceUserId) {
+					continue;
+				}
+				$workspaceId = $workspaceId !== null && isset($workspaceIds[$workspaceId])
+					? $workspaceId
+					: ($memberWorkspaceByProject[$projectId] ?? $primaryWorkspaceId);
+				if ($workspaceId === null) {
+					continue;
+				}
+				$row['project_id'] = null;
+				$row['split_mode'] = 'personal';
+				$row['split_user_id'] = null;
+				$row['recurrence_interval'] = null;
+				$row['recurrence_multiplier'] = null;
+				$row['recurrence_next_date'] = null;
+				$row['recurrence_end_date'] = null;
+				$row['recurrence_parent_id'] = null;
+				$row['recurrence_series_id'] = null;
+			} elseif ($isSharedProjectEntry) {
+				$workspaceId = $memberWorkspaceByProject[$projectId] ?? $primaryWorkspaceId;
+				if ($workspaceId === null) {
 					continue;
 				}
 				$shareCents = $this->personalImportEntryShareCents($row, $sourceUserId, $memberSharesByProject, $storedEntryShares);
@@ -1556,55 +1731,63 @@ class BackupService {
 				$row['recurrence_end_date'] = null;
 				$row['recurrence_parent_id'] = null;
 				$row['recurrence_series_id'] = null;
-				$workspaceId = $primaryWorkspaceId;
 			} else {
-				if ($workspaceId === null || !isset($workspaceIds[$workspaceId]) || $entryUserId !== $sourceUserId) {
+				if ($entryUserId !== $sourceUserId) {
+					continue;
+				}
+				if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+					$workspaceId = $primaryWorkspaceId;
+				}
+				if ($workspaceId === null) {
 					continue;
 				}
 			}
 
 			$row['user_id'] = $userId;
+			$row['created_by'] = $userId;
 			$row['workspace_id'] = $workspaceId;
-			if (!$isSharedProjectEntry) {
+			if (!$isSharedProjectEntry && !$isProjectedPersonalEntry) {
 				$row['project_id'] = $projectId !== null && isset($projectIds[$projectId]) ? $projectId : null;
 			}
-			$row['category_id'] = $categoryId !== null && isset($categoryIds[$categoryId]) ? $categoryId : null;
-			$row['payment_partner_id'] = $paymentPartnerId !== null && isset($paymentPartnerIds[$paymentPartnerId]) ? $paymentPartnerId : null;
-			if ($row['project_id'] === null) {
-				$row['split_mode'] = 'personal';
-				$row['split_user_id'] = null;
-			}
+			$row['category_id'] = $this->personalLookupIdForWorkspace($categoryId, $workspaceId, $categoryIdByWorkspace);
+			$row['payment_partner_id'] = $this->personalLookupIdForWorkspace($paymentPartnerId, $workspaceId, $paymentPartnerIdByWorkspace);
+			$row['split_mode'] = 'personal';
+			$row['split_user_id'] = null;
 			$row['is_settled'] = false;
 			$row['settled_at'] = null;
 			$row['settlement_id'] = null;
+			$row['entry_kind'] = 'personal';
+			$row['source_entry_id'] = null;
+			$row['is_locked'] = false;
+			$row['allocation_basis_points'] = null;
 			$entries[] = $row;
 		}
 		$prepared['cobudget_entries'] = $entries;
 		$entryIds = $this->oldIdSet($entries);
-
-		$entryShares = [];
-		foreach ($prepared['cobudget_entry_shares'] as $row) {
-			$entryId = $this->nullableId($row['entry_id'] ?? null);
-			if ($entryId === null || !isset($entryIds[$entryId]) || isset($convertedSharedEntryIds[$entryId])) {
-				continue;
+		$entryWorkspaceById = [];
+		foreach ($entries as $entry) {
+			$entryId = $this->nullableId($entry['id'] ?? null);
+			$entryWorkspaceId = $this->nullableId($entry['workspace_id'] ?? null);
+			if ($entryId !== null && $entryWorkspaceId !== null) {
+				$entryWorkspaceById[$entryId] = $entryWorkspaceId;
 			}
-			if (trim((string)($row['user_id'] ?? '')) !== $sourceUserId) {
-				continue;
-			}
-			$row['entry_id'] = $entryId;
-			$row['user_id'] = $userId;
-			$entryShares[] = $row;
 		}
-		$prepared['cobudget_entry_shares'] = $entryShares;
+
+		// Imported personal payments are independent records. Allocation snapshots belong
+		// exclusively to their shared source and must not cross server boundaries.
+		$prepared['cobudget_entry_shares'] = [];
 
 		$history = [];
 		foreach ($prepared['cobudget_entry_history'] as $row) {
 			$entryId = $this->nullableId($row['entry_id'] ?? null);
 			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
-			if (
-				$entryId === null || !isset($entryIds[$entryId]) || isset($convertedSharedEntryIds[$entryId])
-				|| $workspaceId === null || !isset($workspaceIds[$workspaceId])
-			) {
+			if ($entryId === null || !isset($entryIds[$entryId]) || isset($convertedSharedEntryIds[$entryId])) {
+				continue;
+			}
+			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $entryWorkspaceById[$entryId] ?? null;
+			}
+			if ($workspaceId === null) {
 				continue;
 			}
 			$projectId = $this->nullableId($row['project_id'] ?? null);
@@ -1640,15 +1823,14 @@ class BackupService {
 			if (
 				$entryId === null || !isset($entryIds[$entryId])
 				|| $hashtagId === null || !isset($hashtagIds[$hashtagId])
-				|| $workspaceId === null
 			) {
 				continue;
 			}
-			if (!isset($workspaceIds[$workspaceId])) {
-				if ($primaryWorkspaceId === null) {
+			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $entryWorkspaceById[$entryId] ?? $primaryWorkspaceId;
+				if ($workspaceId === null) {
 					continue;
 				}
-				$workspaceId = $primaryWorkspaceId;
 			}
 			$row['entry_id'] = $entryId;
 			$row['hashtag_id'] = $hashtagId;
@@ -1661,15 +1843,19 @@ class BackupService {
 		foreach ($prepared['cobudget_entry_attachments'] as $row) {
 			$entryId = $this->nullableId($row['entry_id'] ?? null);
 			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
-			if (
-				$entryId === null || !isset($entryIds[$entryId]) || isset($convertedSharedEntryIds[$entryId])
-				|| $workspaceId === null || !isset($workspaceIds[$workspaceId])
-			) {
+			if ($entryId === null || !isset($entryIds[$entryId]) || isset($convertedSharedEntryIds[$entryId])) {
+				continue;
+			}
+			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $entryWorkspaceById[$entryId] ?? null;
+			}
+			if ($workspaceId === null) {
 				continue;
 			}
 			$row['entry_id'] = $entryId;
 			$row['workspace_id'] = $workspaceId;
 			$row['owner_user_id'] = $userId;
+			$row['source_attachment_id'] = null;
 			$attachments[] = $row;
 		}
 		$prepared['cobudget_entry_attachments'] = $attachments;
@@ -1685,35 +1871,266 @@ class BackupService {
 			}
 			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
 			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $primaryWorkspaceId;
+			}
+			if ($workspaceId === null) {
 				continue;
 			}
 			$row['user_id'] = $userId;
 			$row['workspace_id'] = $workspaceId;
-			$row['criteria_json'] = $this->sanitizeBudgetCriteriaJson($row['criteria_json'] ?? '{}', $projectIds, $categoryIds);
+			$row['criteria_json'] = $this->sanitizePersonalBudgetCriteriaJson(
+				$row['criteria_json'] ?? '{}',
+				$projectIds,
+				$categoryIdByWorkspace,
+				$workspaceId
+			);
 			$budgetGoals[] = $row;
 		}
 		$prepared['cobudget_budget_goals'] = $budgetGoals;
 		$budgetGoalIds = $this->oldIdSet($budgetGoals);
+		$budgetGoalWorkspaceById = [];
+		foreach ($budgetGoals as $goal) {
+			$goalId = $this->nullableId($goal['id'] ?? null);
+			$goalWorkspaceId = $this->nullableId($goal['workspace_id'] ?? null);
+			if ($goalId !== null && $goalWorkspaceId !== null) {
+				$budgetGoalWorkspaceById[$goalId] = $goalWorkspaceId;
+			}
+		}
 
 		$budgetSnapshots = [];
 		foreach ($prepared['cobudget_budget_snapshots'] as $row) {
 			$budgetGoalId = $this->nullableId($row['budget_goal_id'] ?? null);
 			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
-			if (
-				$budgetGoalId === null || !isset($budgetGoalIds[$budgetGoalId])
-				|| $workspaceId === null || !isset($workspaceIds[$workspaceId])
-			) {
+			if ($budgetGoalId === null || !isset($budgetGoalIds[$budgetGoalId])) {
+				continue;
+			}
+			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $budgetGoalWorkspaceById[$budgetGoalId] ?? $primaryWorkspaceId;
+			}
+			if ($workspaceId === null) {
 				continue;
 			}
 			$row['user_id'] = $userId;
 			$row['workspace_id'] = $workspaceId;
 			$row['budget_goal_id'] = $budgetGoalId;
-			$row['criteria_json'] = $this->sanitizeBudgetCriteriaJson($row['criteria_json'] ?? '{}', $projectIds, $categoryIds);
+			$row['criteria_json'] = $this->sanitizePersonalBudgetCriteriaJson(
+				$row['criteria_json'] ?? '{}',
+				$projectIds,
+				$categoryIdByWorkspace,
+				$workspaceId
+			);
 			$budgetSnapshots[] = $row;
 		}
 		$prepared['cobudget_budget_snapshots'] = $budgetSnapshots;
 
 		return $prepared;
+	}
+
+	private function personalLookupWorkspaceUsage(
+		array $tables,
+		string $sourceUserId,
+		array $workspaceIds,
+		array $sharedProjectIds,
+		array $memberWorkspaceByProject,
+		?int $primaryWorkspaceId,
+	): array {
+		$usage = [
+			'cobudget_categories' => [],
+			'cobudget_payment_partners' => [],
+		];
+		$record = static function (array &$target, ?int $lookupId, ?int $workspaceId): void {
+			if ($lookupId === null || $workspaceId === null) {
+				return;
+			}
+			$target[$lookupId][$workspaceId] = true;
+		};
+
+		foreach ($tables['cobudget_entries'] ?? [] as $row) {
+			$projectId = $this->nullableId($row['project_id'] ?? null);
+			$entryKind = (string)($row['entry_kind'] ?? 'personal');
+			$entryUserId = trim((string)($row['user_id'] ?? ''));
+			$isSharedSource = $projectId !== null && isset($sharedProjectIds[$projectId]) && $entryKind !== 'personal';
+			if (!$isSharedSource && ($entryKind !== 'personal' || $entryUserId !== $sourceUserId)) {
+				continue;
+			}
+
+			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
+			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $projectId !== null
+					? ($memberWorkspaceByProject[$projectId] ?? $primaryWorkspaceId)
+					: $primaryWorkspaceId;
+			}
+			$record($usage['cobudget_categories'], $this->nullableId($row['category_id'] ?? null), $workspaceId);
+			$record($usage['cobudget_payment_partners'], $this->nullableId($row['payment_partner_id'] ?? null), $workspaceId);
+		}
+
+		foreach ($tables['cobudget_templates'] ?? [] as $row) {
+			if (trim((string)($row['user_id'] ?? '')) !== $sourceUserId) {
+				continue;
+			}
+			$projectId = $this->nullableId($row['project_id'] ?? null);
+			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
+			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $projectId !== null
+					? ($memberWorkspaceByProject[$projectId] ?? $primaryWorkspaceId)
+					: $primaryWorkspaceId;
+			}
+			$record($usage['cobudget_categories'], $this->nullableId($row['category_id'] ?? null), $workspaceId);
+			$record($usage['cobudget_payment_partners'], $this->nullableId($row['payment_partner_id'] ?? null), $workspaceId);
+		}
+
+		foreach ($tables['cobudget_budget_goals'] ?? [] as $row) {
+			if (trim((string)($row['user_id'] ?? '')) !== $sourceUserId) {
+				continue;
+			}
+			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
+			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				$workspaceId = $primaryWorkspaceId;
+			}
+			$criteria = json_decode((string)($row['criteria_json'] ?? '{}'), true);
+			if (!is_array($criteria)) {
+				continue;
+			}
+			$rules = isset($criteria['rules']) && is_array($criteria['rules']) ? $criteria['rules'] : [$criteria];
+			foreach ($rules as $rule) {
+				if (is_array($rule)) {
+					$record(
+						$usage['cobudget_categories'],
+						$this->nullableId($rule['categoryId'] ?? $rule['category_id'] ?? null),
+						$workspaceId
+					);
+				}
+			}
+		}
+
+		return $usage;
+	}
+
+	private function preparePersonalLookupRows(
+		array $rows,
+		array $workspaceUsage,
+		string $sourceUserId,
+		string $targetUserId,
+		array $workspaceIds,
+		array $projectIds,
+		array $sharedProjectIds,
+		?int $primaryWorkspaceId,
+	): array {
+		$preparedRows = [];
+		$idByWorkspace = [];
+		$aliases = [];
+		$nextSyntheticId = 1;
+		foreach ($rows as $row) {
+			$nextSyntheticId = max($nextSyntheticId, (int)($row['id'] ?? 0) + 1);
+		}
+
+		foreach ($rows as $row) {
+			$oldId = $this->nullableId($row['id'] ?? null);
+			if ($oldId === null) {
+				continue;
+			}
+			$rowUserId = trim((string)($row['user_id'] ?? ''));
+			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
+			$projectId = $this->nullableId($row['project_id'] ?? null);
+			$isGlobal = (bool)($row['is_global'] ?? false);
+			$isSharedProjectLookup = $projectId !== null && isset($sharedProjectIds[$projectId]);
+			$isRetainedPersonalLookup = !$isGlobal
+				&& $rowUserId === $sourceUserId
+				&& $workspaceId !== null
+				&& isset($workspaceIds[$workspaceId])
+				&& ($projectId === null || isset($projectIds[$projectId]));
+
+			if (!$isGlobal && !$isSharedProjectLookup && !$isRetainedPersonalLookup) {
+				continue;
+			}
+
+			$targetWorkspaceIds = array_map('intval', array_keys($workspaceUsage[$oldId] ?? []));
+			if ($isRetainedPersonalLookup && $workspaceId !== null) {
+				array_unshift($targetWorkspaceIds, $workspaceId);
+			} elseif ($targetWorkspaceIds === [] && $primaryWorkspaceId !== null) {
+				array_unshift($targetWorkspaceIds, $primaryWorkspaceId);
+			}
+			$targetWorkspaceIds = array_values(array_unique(array_filter(
+				$targetWorkspaceIds,
+				static fn (int $candidate): bool => isset($workspaceIds[$candidate])
+			)));
+			if ($targetWorkspaceIds === []) {
+				continue;
+			}
+
+			$first = true;
+			foreach ($targetWorkspaceIds as $targetWorkspaceId) {
+				$preparedId = $first ? $oldId : $nextSyntheticId++;
+				$first = false;
+				$copy = $row;
+				$copy['id'] = $preparedId;
+				$copy['user_id'] = $targetUserId;
+				$copy['workspace_id'] = $targetWorkspaceId;
+				// Keep the source scope as a portable marker. During personal restore an
+				// existing visible global row with the same normalized name and type is
+				// reused; only missing globals are converted into private rows.
+				$copy['is_global'] = $isGlobal;
+				$copy['project_id'] = $isRetainedPersonalLookup
+					&& $projectId !== null
+					&& $targetWorkspaceId === $workspaceId
+					? $projectId
+					: null;
+				$preparedRows[] = $copy;
+				$idByWorkspace[$oldId][$targetWorkspaceId] = $preparedId;
+				$aliases[$oldId][] = $preparedId;
+			}
+		}
+
+		return [
+			'rows' => $preparedRows,
+			'id_by_workspace' => $idByWorkspace,
+			'aliases' => $aliases,
+		];
+	}
+
+	private function personalLookupIdForWorkspace(?int $oldId, ?int $workspaceId, array $idByWorkspace): ?int {
+		if ($oldId === null || $workspaceId === null) {
+			return null;
+		}
+
+		return isset($idByWorkspace[$oldId][$workspaceId])
+			? (int)$idByWorkspace[$oldId][$workspaceId]
+			: null;
+	}
+
+	private function sanitizePersonalBudgetCriteriaJson(
+		mixed $criteriaJson,
+		array $projectIds,
+		array $categoryIdByWorkspace,
+		int $workspaceId,
+	): string {
+		$criteria = json_decode((string)($criteriaJson ?: '{}'), true);
+		if (!is_array($criteria)) {
+			return '{"rules":[]}';
+		}
+
+		$rules = [];
+		$sourceRules = isset($criteria['rules']) && is_array($criteria['rules']) ? $criteria['rules'] : [$criteria];
+		foreach ($sourceRules as $rule) {
+			if (!is_array($rule)) {
+				continue;
+			}
+			$projectId = $this->nullableId($rule['projectId'] ?? $rule['project_id'] ?? null);
+			$categoryId = $this->nullableId($rule['categoryId'] ?? $rule['category_id'] ?? null);
+			$tag = trim((string)($rule['tag'] ?? ''));
+			$projectId = $projectId !== null && isset($projectIds[$projectId]) ? $projectId : null;
+			$categoryId = $this->personalLookupIdForWorkspace($categoryId, $workspaceId, $categoryIdByWorkspace);
+			if ($projectId === null && $categoryId === null && $tag === '') {
+				continue;
+			}
+			$rules[] = [
+				'projectId' => $projectId,
+				'categoryId' => $categoryId,
+				'tag' => $tag,
+			];
+		}
+
+		return json_encode(['rules' => array_values($rules)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{"rules":[]}';
 	}
 
 	private function projectMemberSharesByProject(array $memberRows, string $sourceUserId): array {
@@ -1917,30 +2334,64 @@ class BackupService {
 		$this->deleteSettingsForUsers([$userId]);
 	}
 
-	private function insertTablesWithGeneratedIds(array $tables): void {
+	private function insertTablesWithGeneratedIds(array $tables): array {
 		$idMaps = array_fill_keys(self::BACKUP_TABLES, []);
 		$pendingEntryReferences = [];
+		$pendingAttachmentReferences = [];
+		$existingGlobalLookupIds = $this->existingVisibleGlobalLookupIds();
 
 		foreach (self::BACKUP_TABLES as $table) {
 			foreach ($tables[$table] ?? [] as $row) {
 				$oldId = $this->nullableId($row['id'] ?? null);
+				if (
+					$oldId !== null
+					&& in_array($table, ['cobudget_categories', 'cobudget_payment_partners'], true)
+					&& (bool)($row['is_global'] ?? false)
+				) {
+					$globalKey = $this->globalLookupKey(
+						(string)($row['name'] ?? ''),
+						(string)($row['type'] ?? '')
+					);
+					$existingGlobalId = $existingGlobalLookupIds[$table][$globalKey] ?? null;
+					if ($existingGlobalId !== null) {
+						$idMaps[$table][$oldId] = (int)$existingGlobalId;
+						continue;
+					}
+
+					// The source server had a global value which is unavailable on the
+					// target server. Preserve it as a private value in the imported workspace.
+					$row['is_global'] = false;
+				}
 				$oldParentId = $table === 'cobudget_entries' ? $this->nullableId($row['recurrence_parent_id'] ?? null) : null;
 				$oldSeriesId = $table === 'cobudget_entries' ? $this->nullableId($row['recurrence_series_id'] ?? null) : null;
+				$oldSourceEntryId = $table === 'cobudget_entries' ? $this->nullableId($row['source_entry_id'] ?? null) : null;
+				$oldSourceAttachmentId = $table === 'cobudget_entry_attachments' ? $this->nullableId($row['source_attachment_id'] ?? null) : null;
 				$row = $this->remapGeneratedRowReferences($table, $row, $idMaps);
 				if ($table === 'cobudget_entries') {
 					$row['recurrence_parent_id'] = null;
 					$row['recurrence_series_id'] = null;
+					$row['source_entry_id'] = null;
+				}
+				if ($table === 'cobudget_entry_attachments') {
+					$row['source_attachment_id'] = null;
 				}
 
 				$newId = $this->insertRowGenerated($table, $row);
 				if ($oldId !== null && $newId > 0) {
 					$idMaps[$table][$oldId] = $newId;
 				}
-				if ($table === 'cobudget_entries' && $newId > 0 && ($oldParentId !== null || $oldSeriesId !== null)) {
+				if ($table === 'cobudget_entries' && $newId > 0 && ($oldParentId !== null || $oldSeriesId !== null || $oldSourceEntryId !== null)) {
 					$pendingEntryReferences[] = [
 						'new_id' => $newId,
 						'old_parent_id' => $oldParentId,
 						'old_series_id' => $oldSeriesId,
+						'old_source_id' => $oldSourceEntryId,
+					];
+				}
+				if ($table === 'cobudget_entry_attachments' && $newId > 0 && $oldSourceAttachmentId !== null) {
+					$pendingAttachmentReferences[] = [
+						'new_id' => $newId,
+						'old_source_id' => $oldSourceAttachmentId,
 					];
 				}
 			}
@@ -1950,7 +2401,8 @@ class BackupService {
 		foreach ($pendingEntryReferences as $reference) {
 			$parentId = $reference['old_parent_id'] !== null ? ($entryMap[$reference['old_parent_id']] ?? null) : null;
 			$seriesId = $reference['old_series_id'] !== null ? ($entryMap[$reference['old_series_id']] ?? null) : null;
-			if ($parentId === null && $seriesId === null) {
+			$sourceId = $reference['old_source_id'] !== null ? ($entryMap[$reference['old_source_id']] ?? null) : null;
+			if ($parentId === null && $seriesId === null && $sourceId === null) {
 				continue;
 			}
 
@@ -1963,8 +2415,66 @@ class BackupService {
 			if ($seriesId !== null) {
 				$qb->set('recurrence_series_id', $qb->createNamedParameter((int)$seriesId, \PDO::PARAM_INT));
 			}
+			if ($sourceId !== null) {
+				$qb->set('source_entry_id', $qb->createNamedParameter((int)$sourceId, \PDO::PARAM_INT));
+			}
 			$qb->executeStatement();
 		}
+
+		$attachmentMap = $idMaps['cobudget_entry_attachments'];
+		foreach ($pendingAttachmentReferences as $reference) {
+			$sourceId = $attachmentMap[$reference['old_source_id']] ?? null;
+			if ($sourceId === null) {
+				continue;
+			}
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('cobudget_entry_attachments')
+				->set('source_attachment_id', $qb->createNamedParameter((int)$sourceId, \PDO::PARAM_INT))
+				->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$reference['new_id'], \PDO::PARAM_INT)));
+			$qb->executeStatement();
+		}
+
+		return $idMaps;
+	}
+
+	private function existingVisibleGlobalLookupIds(): array {
+		$lookupIds = [
+			'cobudget_categories' => [],
+			'cobudget_payment_partners' => [],
+		];
+
+		foreach (array_keys($lookupIds) as $table) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('id', 'name', 'type')
+				->from($table)
+				->where($qb->expr()->eq('is_global', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)))
+				->andWhere($qb->expr()->eq('is_hidden', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))
+				->orderBy('id', 'ASC');
+
+			$result = $qb->executeQuery();
+			try {
+				while ($row = $result->fetch()) {
+					$key = $this->globalLookupKey(
+						(string)($row['name'] ?? ''),
+						(string)($row['type'] ?? '')
+					);
+					if ($key !== '|' && !isset($lookupIds[$table][$key])) {
+						$lookupIds[$table][$key] = (int)$row['id'];
+					}
+				}
+			} finally {
+				$result->closeCursor();
+			}
+		}
+
+		return $lookupIds;
+	}
+
+	private function globalLookupKey(string $name, string $type): string {
+		$name = trim((string)preg_replace('/\s+/u', ' ', $name));
+		$name = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+
+		return strtolower(trim($type)) . '|' . $name;
 	}
 
 	private function remapGeneratedRowReferences(string $table, array $row, array $idMaps): array {
@@ -1981,7 +2491,10 @@ class BackupService {
 
 		match ($table) {
 			'cobudget_projects' => $mapColumn('workspace_id', 'cobudget_workspaces'),
-			'cobudget_members' => $mapColumn('project_id', 'cobudget_projects'),
+			'cobudget_members' => (function () use ($mapColumn): void {
+				$mapColumn('project_id', 'cobudget_projects');
+				$mapColumn('personal_workspace_id', 'cobudget_workspaces');
+			})(),
 			'cobudget_categories', 'cobudget_payment_partners' => (function () use ($mapColumn): void {
 				$mapColumn('workspace_id', 'cobudget_workspaces');
 				$mapColumn('project_id', 'cobudget_projects');
@@ -1999,7 +2512,10 @@ class BackupService {
 				$mapColumn('project_id', 'cobudget_projects');
 				$mapColumn('settlement_id', 'cobudget_settlements');
 			})(),
-			'cobudget_entry_shares' => $mapColumn('entry_id', 'cobudget_entries'),
+			'cobudget_entry_shares' => (function () use ($mapColumn): void {
+				$mapColumn('entry_id', 'cobudget_entries');
+				$mapColumn('personal_entry_id', 'cobudget_entries');
+			})(),
 			'cobudget_entry_history' => (function () use ($mapColumn): void {
 				$mapColumn('entry_id', 'cobudget_entries');
 				$mapColumn('workspace_id', 'cobudget_workspaces');
@@ -2136,7 +2652,17 @@ class BackupService {
 		return $ids;
 	}
 
-	private function firstOldId(array $rows): ?int {
+	private function defaultOldWorkspaceId(array $rows): ?int {
+		foreach ($rows as $row) {
+			if (!(bool)($row['is_default'] ?? false)) {
+				continue;
+			}
+			$id = $this->nullableId($row['id'] ?? null);
+			if ($id !== null) {
+				return $id;
+			}
+		}
+
 		foreach ($rows as $row) {
 			$id = $this->nullableId($row['id'] ?? null);
 			if ($id !== null) {
@@ -2147,15 +2673,21 @@ class BackupService {
 		return null;
 	}
 
-	private function backupContainsWorkspaces(array $tables, ?string $userId = null): bool {
-		foreach ($tables['cobudget_workspaces'] ?? [] as $workspace) {
-			if ($userId !== null && (string)($workspace['user_id'] ?? '') !== $userId) {
+	private function memberPersonalWorkspaceByProject(array $memberRows, string $userId, array $workspaceIds): array {
+		$workspaceByProject = [];
+		foreach ($memberRows as $row) {
+			if (trim((string)($row['user_id'] ?? '')) !== $userId) {
 				continue;
 			}
-			return true;
+			$projectId = $this->nullableId($row['project_id'] ?? null);
+			$workspaceId = $this->nullableId($row['personal_workspace_id'] ?? null);
+			if ($projectId === null || $workspaceId === null || !isset($workspaceIds[$workspaceId])) {
+				continue;
+			}
+			$workspaceByProject[$projectId] = $workspaceId;
 		}
 
-		return false;
+		return $workspaceByProject;
 	}
 
 	private function backupContainsUserManagedWorkspaces(array $tables, ?string $userId = null): bool {
@@ -2354,9 +2886,13 @@ class BackupService {
 			if ($projectId === null) {
 				continue;
 			}
-			$this->assertProjectWorkspaceMatches($entry, $projectWorkspaces, 'cobudget_entries');
+			$entryKind = (string)($entry['entry_kind'] ?? 'personal');
+			if ($entryKind === 'shared') {
+				$this->assertProjectWorkspaceMatches($entry, $projectWorkspaces, 'cobudget_entries');
+			}
 			$userId = trim((string)($entry['user_id'] ?? ''));
-			if ($userId === '' || !isset($membersByProject[$projectId][$userId])) {
+			$allowsFormerPayer = $entryKind === 'shared' && (bool)($entry['is_settled'] ?? false);
+			if (!$allowsFormerPayer && ($userId === '' || !isset($membersByProject[$projectId][$userId]))) {
 				throw new \InvalidArgumentException('Backup enthält eine Bereichszahlung für einen Benutzer, der kein Mitglied des Bereichs ist.');
 			}
 		}
@@ -2375,46 +2911,15 @@ class BackupService {
 				}
 			}
 
-		$settlementProjects = [];
 		foreach ($tables['cobudget_settlements'] ?? [] as $settlement) {
-			$settlementId = (int)($settlement['id'] ?? 0);
 			$projectId = $this->nullableId($settlement['project_id'] ?? null);
-			if ($settlementId <= 0 || $projectId === null) {
+			if ($projectId === null) {
 				continue;
 			}
 			$this->assertProjectWorkspaceMatches($settlement, $projectWorkspaces, 'cobudget_settlements');
-			$createdBy = trim((string)($settlement['created_by'] ?? ''));
-			if ($createdBy !== '' && !isset($membersByProject[$projectId][$createdBy])) {
-				throw new \InvalidArgumentException('Backup enthält eine Bereichsabrechnung von einem Benutzer, der kein Mitglied des Bereichs ist.');
-			}
-			$settlementProjects[$settlementId] = $projectId;
 		}
 
-		foreach ($tables['cobudget_settlement_balances'] ?? [] as $balance) {
-			$settlementId = (int)($balance['settlement_id'] ?? 0);
-			$projectId = $settlementProjects[$settlementId] ?? null;
-			if ($projectId === null) {
-				continue;
-			}
-			$userId = trim((string)($balance['user_id'] ?? ''));
-			if ($userId === '' || !isset($membersByProject[$projectId][$userId])) {
-				throw new \InvalidArgumentException('Backup enthält einen Abrechnungssaldo für einen Benutzer, der kein Mitglied des Bereichs ist.');
-			}
-		}
-
-		foreach ($tables['cobudget_settlement_transfers'] ?? [] as $transfer) {
-			$settlementId = (int)($transfer['settlement_id'] ?? 0);
-			$projectId = $settlementProjects[$settlementId] ?? null;
-			if ($projectId === null) {
-				continue;
-			}
-			foreach (['from_user_id', 'to_user_id'] as $column) {
-				$userId = trim((string)($transfer[$column] ?? ''));
-				if ($userId === '' || !isset($membersByProject[$projectId][$userId])) {
-					throw new \InvalidArgumentException('Backup enthält eine Rückzahlung für einen Benutzer, der kein Mitglied des Bereichs ist.');
-				}
-			}
-		}
+		ProjectionGraphValidator::assertValid($tables);
 	}
 
 	private function assertProjectWorkspaceMatches(array $row, array $projectWorkspaces, string $table): void {
@@ -2431,10 +2936,31 @@ class BackupService {
 	}
 
 	private function assertReferencedUsersExist(array $tables, array $settingsUserIds): void {
+		$referencedFormerIds = [];
+		foreach ($tables as $table => $rows) {
+			foreach ($rows as $row) {
+				foreach (self::USER_COLUMNS[$table] ?? [] as $column) {
+					$userId = trim((string)($row[$column] ?? ''));
+					if (ParticipantService::isReservedFormerId($userId)) {
+						$referencedFormerIds[] = $userId;
+					}
+				}
+			}
+		}
+		$knownFormerIds = array_fill_keys(array_values(array_filter(array_map(
+			static fn (array $row): string => trim((string)($row['tombstone_id'] ?? '')),
+			$tables['cobudget_deleted_users'] ?? []
+		))), true);
+		foreach (array_values(array_unique($referencedFormerIds)) as $formerId) {
+			if (!isset($knownFormerIds[$formerId])) {
+				throw new \InvalidArgumentException('Backup references an unknown former member.');
+			}
+		}
+
 		$userIds = array_values(array_unique(array_merge($this->collectUserIdsFromTables($tables), $settingsUserIds)));
 		sort($userIds, SORT_STRING);
 		foreach ($userIds as $userId) {
-			if ($userId === '') {
+			if ($userId === '' || ParticipantService::isReservedFormerId($userId)) {
 				continue;
 			}
 			if (!$this->userManager->userExists($userId)) {
@@ -2595,6 +3121,7 @@ class BackupService {
 		$hashtagIds = $this->idsFromColumn($entryHashtags, 'hashtag_id');
 
 		$tables = [
+			'cobudget_deleted_users' => [],
 			'cobudget_workspaces' => $workspaces,
 			'cobudget_projects' => $projects,
 			'cobudget_members' => $this->fetchRowsByIds('cobudget_members', 'project_id', $projectIds),
@@ -2613,10 +3140,16 @@ class BackupService {
 			'cobudget_budget_goals' => $this->fetchBudgetGoals($userId, $workspaceIds),
 			'cobudget_budget_snapshots' => $this->fetchBudgetSnapshots($userId, $workspaceIds),
 		];
-		$tables = $this->preparePersonalExportTables($tables, $userId);
+		$settingIdAliases = [];
+		$tables = $this->preparePersonalExportTables($tables, $userId, $settingIdAliases);
+		$settings = $this->preparePersonalExportSettings(
+			$this->fetchSettings($userId),
+			$tables,
+			$settingIdAliases
+		);
 
 		return [
-			'settings' => $this->fetchSettings($userId),
+			'settings' => $settings,
 			'tables' => $tables,
 		];
 	}
@@ -2741,20 +3274,11 @@ class BackupService {
 
 	private function fetchEntries(string $userId, array $workspaceIds, array $projectIds): array {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')->from('cobudget_entries');
-
-		$personalRows = $qb->expr()->andX(
-			$qb->expr()->eq('user_id', $qb->createNamedParameter($userId)),
-			$qb->expr()->isNull('project_id')
-		);
-		if ($projectIds !== []) {
-			$qb->where($qb->expr()->orX(
-				$personalRows,
-				$qb->expr()->in('project_id', $qb->createNamedParameter($projectIds, IQueryBuilder::PARAM_INT_ARRAY))
-			))->orderBy('id', 'ASC');
-		} else {
-			$qb->where($personalRows)->orderBy('id', 'ASC');
-		}
+		$qb->select('*')
+			->from('cobudget_entries')
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('entry_kind', $qb->createNamedParameter('personal')))
+			->orderBy('id', 'ASC');
 
 		return $qb->executeQuery()->fetchAll();
 	}
@@ -2868,7 +3392,7 @@ class BackupService {
 			foreach ($rows as $row) {
 				foreach (self::USER_COLUMNS[$table] ?? [] as $column) {
 					$userId = trim((string)($row[$column] ?? ''));
-					if ($userId !== '') {
+					if ($userId !== '' && !ParticipantService::isReservedFormerId($userId)) {
 						$userIds[] = $userId;
 					}
 				}

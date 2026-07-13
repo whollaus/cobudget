@@ -256,7 +256,7 @@ try {
 	$assertContains($backupService, "'hidden_workspaces' => '[]'", 'BackupService tracks hidden workspace settings defaults');
 	$assertContains($backupService, 'settingsDefaultForUser($userId, $key)', 'Personal export includes effective defaulted settings values');
 	$assertContains($backupService, "if (\$key === 'enable_workspaces' && \$this->userHasManagedWorkspaces(\$userId))", 'BackupService exports workspace feature enabled when extra workspaces exist');
-	$assertContains($backupService, 'backupContainsUserManagedWorkspaces($tables, $userId)', 'Full restore recovers workspace-enabled state when extra workspaces exist despite older default no settings');
+	$assertContains($backupService, "!array_key_exists('enable_workspaces', \$settings) && \$this->backupContainsUserManagedWorkspaces(\$tables, \$userId)", 'Restore infers workspace activation only for older backups that omit the setting');
 	$assertContains($backupService, 'normalizeFullSettings($archive[\'settings\'], $tables)', 'Full restore normalizes settings with table context');
 	$assertContains($backupService, 'fetchAllSettings($userIds)', 'Full backup includes effective settings for every exported user');
 	$assertContains($backupService, 'createFullBackup(string $storageUserId', 'BackupService exposes full backup creation');
@@ -285,7 +285,6 @@ try {
 	$assertContains($backupService, "eq('owner_id'", 'Personal export areas are owner-scoped');
 	$assertContains($backupService, 'applyUserMapToTables(', 'Restore supports user mapping');
 	$assertContains($backupService, 'buildBackupUserRows(', 'Backup inspection returns user mapping rows');
-	$assertContains($backupService, 'backupContainsWorkspaces(', 'Restore recovers workspace settings from older workspace backups');
 	$assertContains($backupService, '$safetyBackup = $this->createBackup(', 'Personal export restore creates a safety export before the empty-state import');
 	$assertContains($backupService, '$safetyBackup = $this->createFullBackup(', 'Full restore creates a safety backup first');
 	$assertContains($backupService, "'safety_backup' => \$safetyBackup", 'Restore responses include the safety backup');
@@ -366,14 +365,18 @@ try {
 	$assertContains($budget, "snapshotGoalForCurrentPeriod((string)\$this->userId, \$currentGoal, 'deleted')", 'BudgetController snapshots previous state before delete');
 	$assertContains($budget, 'projectMemberInActiveWorkspace', 'BudgetController checks project criteria membership');
 	$assertContains($budget, 'categorySelectableForBudget', 'BudgetController checks category criteria visibility');
-	$assertContains($budget, 'entryShareCentsForUser', 'BudgetController evaluates personal shares for shared areas');
+	$assertContains($budget, "eq('e.entry_kind'", 'BudgetController evaluates only materialized personal payments');
+	$assertContains($budget, '$spentCents += max(0, $this->amountCentsFromRow($entry) ?? 0)', 'BudgetController sums exact personal cents');
+	$assertNotContains($budget, 'entryShareCentsForUser', 'BudgetController does not recalculate materialized shares from area defaults');
 	$assertContains($budget, "eq('user_id'", 'BudgetController scopes budget goals by user');
 	$assertContains($budget, "eq('workspace_id'", 'BudgetController scopes budget goals by workspace');
 
 	$budgetSnapshotService = $read('lib/Service/BudgetSnapshotService.php');
 	$assertContains($budgetSnapshotService, 'createDueSnapshots', 'BudgetSnapshotService closes due budget periods');
 	$assertContains($budgetSnapshotService, 'cobudget_budget_snapshots', 'BudgetSnapshotService writes snapshot table');
-	$assertContains($budgetSnapshotService, 'entryShareCentsForUser', 'BudgetSnapshotService evaluates personal shared-area shares');
+	$assertContains($budgetSnapshotService, "eq('e.entry_kind'", 'BudgetSnapshotService evaluates only materialized personal payments');
+	$assertContains($budgetSnapshotService, '$spentCents += max(0, $this->amountCentsFromRow($entry) ?? 0)', 'BudgetSnapshotService sums exact personal cents');
+	$assertNotContains($budgetSnapshotService, 'entryShareCentsForUser', 'BudgetSnapshotService does not recalculate materialized shares');
 	$assertContains($budgetSnapshotService, 'snapshotExists', 'BudgetSnapshotService prevents duplicate period snapshots');
 	$assertContains($budgetSnapshotService, "innerJoin('s', 'cobudget_budget_goals'", 'BudgetSnapshotService hides deleted budget goals from analytics history');
 
@@ -392,9 +395,11 @@ try {
 	$assertContains($analytics, "'rangeLowCents'", 'AnalyticsController exposes a cautious low forecast range');
 	$assertContains($analytics, "'rangeHighCents'", 'AnalyticsController exposes a cautious high forecast range');
 	$assertContains($analytics, 'loadAnalyticsEntryDates($workspaceId)', 'AnalyticsController builds period options with a lightweight date query');
-	$assertContains($analytics, 'loadAnalyticsEntries($workspaceId, $sharesByProject, (int)$selectedPeriod[\'start\'], (int)$selectedPeriod[\'end\'])', 'AnalyticsController loads only the selected analytics period');
+	$assertContains($analytics, 'loadAnalyticsEntries($workspaceId, (int)$selectedPeriod[\'start\'], (int)$selectedPeriod[\'end\'])', 'AnalyticsController loads only personal entries for the selected analytics period');
 	$assertContains($analytics, 'attachAnalyticsAttachmentFlags($periodEntries, $workspaceId)', 'AnalyticsController attaches receipt flags after period filtering');
-	$assertContains($analytics, 'entriesForAnalyticsRange($workspaceId, $sharesByProject, $periodEntries, $selectedPeriod', 'AnalyticsController reuses selected period entries for overlapping analytics ranges');
+	$assertContains($analytics, 'entriesForAnalyticsRange($workspaceId, $periodEntries, $selectedPeriod', 'AnalyticsController reuses selected personal period entries for overlapping analytics ranges');
+	$assertContains($analytics, "isNull('e.source_entry_id')", 'AnalyticsController excludes linked personal projections from planned payments');
+	$assertContains($analytics, "gt('future_share.amount_cents'", 'AnalyticsController includes only positive personal allocations from shared future sources');
 	$assertContains($analytics, 'IQueryBuilder::PARAM_INT_ARRAY', 'AnalyticsController batches attachment lookups with typed array parameters');
 	$assertNotContains($analytics, 'ICacheFactory', 'AnalyticsController keeps analytics responses live instead of cache-backed');
 	$assertContains($analytics, 'comparisonPeriodFor($selectedPeriod)', 'AnalyticsController compares Schwerpunkte with a matching previous period');
@@ -457,7 +462,12 @@ try {
 	$project = $read('lib/Controller/ProjectController.php');
 	$assertContains($project, 'shareapi_allow_share_dialog_user_enumeration', 'Direct project member additions honor Nextcloud user enumeration policy');
 	$assertContains($project, 'if (!$this->userSearchAllowed())', 'Direct project member additions are blocked when enumeration is disabled');
+	$assertContains($project, 'MAX_PROJECT_MEMBERS', 'Area member lists are bounded');
+	$assertContains($project, "'User could not be added.'", 'Project membership errors do not reveal guessed account IDs');
+	$assertNotContains($project, 'User not found:', 'Bulk project creation does not expose guessed user IDs');
 	$assertNotContains($project, "['error' => 'User not found']", 'Project membership API does not disclose guessed user existence');
+	$assertContains($project, "eq('m.personal_workspace_id'", 'Area lists are isolated by the members active personal workspace');
+	$assertContains($entry, "eq('m.personal_workspace_id'", 'Shared payment access is isolated by the members active personal workspace');
 
 	$assertContains($entry, 'deleteEntryAttachmentFilesAfterCommit', 'Physical receipt cleanup is deferred until payment database changes commit');
 	$assertContains($entry, 'Failed to notify shared-area members after payment commit', 'Notification failures after payment commit are logged without rolling back stored payments');
@@ -502,7 +512,7 @@ try {
 	$assertContains($projectNotificationService, 'enable_shared_projects', 'Project notifications depend on shared areas setting');
 	$assertContains($projectNotificationService, 'linkToRouteAbsolute', 'Project notifications link to the area');
 
-	$initialMigration = $read('lib/Migration/Version000001Date20260624000000.php');
+	$initialMigration = $read('lib/Migration/Version000001Date20260713000000.php');
 	$assertContains($initialMigration, "'amount_cents'", 'Initial migration stores cents');
 	$assertContains($initialMigration, "'bigint'", 'Initial migration stores cents as bigint');
 	$assertContains($initialMigration, 'recurrence_series_id', 'Initial migration adds recurrence_series_id');
@@ -516,12 +526,8 @@ try {
 	$assertContains($initialMigration, 'cobudget_settlement_transfers', 'Initial migration creates transfer snapshot table');
 	$assertContains($initialMigration, 'usage_count', 'Initial migration adds template usage_count');
 	$assertContains($initialMigration, "addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", 'Initial migration prevents duplicate area memberships');
-	$membershipMigration = $read('lib/Migration/Version000004Date20260710000000.php');
-	$assertContains($membershipMigration, 'preSchemaChange', 'Membership migration removes duplicates before adding uniqueness');
-	$assertContains($membershipMigration, "delete('cobudget_members')", 'Membership migration removes duplicate member rows');
-	$assertContains($membershipMigration, "addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", 'Membership migration enforces project/user uniqueness');
 
-	$performanceMigration = $read('lib/Migration/Version000001Date20260624000000.php');
+	$performanceMigration = $initialMigration;
 	foreach ([
 		'cb_ent_ws_date_id',
 		'cb_ent_ws_type_dt',
@@ -538,7 +544,7 @@ try {
 		$assertContains($performanceMigration, $indexName, 'Performance migration should keep index ' . $indexName);
 	}
 
-	$hashtagMigration = $read('lib/Migration/Version000001Date20260624000000.php');
+	$hashtagMigration = $initialMigration;
 	$assertContains($hashtagMigration, 'cobudget_hashtags', 'Initial migration creates hashtag table');
 	$assertContains($hashtagMigration, 'cobudget_entry_hashtags', 'Initial migration creates entry hashtag link table');
 	$assertContains($hashtagMigration, 'cb_hash_ws_name', 'Initial migration prevents duplicate hashtag names per workspace');
@@ -553,10 +559,10 @@ try {
 
 	$entryController = $read('lib/Controller/EntryController.php');
 	$assertContains($entryController, 'fetchProjectMembersByProjectIds', 'Entry dashboard should bulk-load project members');
-	$assertContains($entryController, 'fetchOpenExpenseEntriesByProjectIds', 'Entry dashboard should bulk-load open project entries');
+	$assertContains($entryController, 'fetchOpenSharedEntriesByProjectIds', 'Entry dashboard should bulk-load open shared source payments');
 	$assertContains($entryController, 'PARAM_INT_ARRAY', 'Entry dashboard bulk queries should use array parameters');
 	$assertContains($entryController, 'syncEntryHashtags', 'EntryController should sync hashtags after create/update');
-	$assertContains($entryController, 'deleteEntryHashtags', 'EntryController should delete hashtag links before deleting entries');
+	$assertContains($entryController, 'deleteHashtagsForEntries', 'EntryController should delete hashtag links for the complete shared-entry graph before deleting entries');
 	$assertContains($entryController, 'attachHashtagsToEntries', 'EntryController should include hashtags in entry payloads');
 	$assertContains($entryController, 'exportHashtagLabels', 'EntryController CSV export should include hashtags');
 	$assertContains($entryController, 'hashtag_filter.workspace_id', 'EntryController hashtag filter should stay workspace-scoped');
@@ -584,8 +590,8 @@ try {
 	$assertContains($paymentPartnerController, 'DEFAULT_PAYMENT_PARTNERS_SEEDED_KEY', 'Payment partner seeding is guarded by an app setting');
 
 	$infoXml = $read('appinfo/info.xml');
-	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || preg_match('/^0\.1(?:\.|$)/', $versionMatch[1]) !== 1) {
-		$failures[] = 'Initial public baseline should keep appinfo/info.xml on the 0.1 release line';
+	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
+		$failures[] = 'The clean initial baseline should keep appinfo/info.xml at version 0.2.0';
 	}
 	if (
 		preg_match('/<nextcloud[^>]*min-version="([^"]+)"[^>]*max-version="([^"]+)"/', $infoXml, $nextcloudMatch) !== 1

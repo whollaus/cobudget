@@ -148,7 +148,7 @@
 						<span class="stat-value" :class="card.valueClass">{{ card.value }}</span>
 					</TableTooltip>
 				</div>
-				<div class="stat-sub-info">
+				<div v-if="hasAdditionalProjectMembers" class="stat-sub-info">
 					<div class="stat-sub-line">
 						<span>{{ $texts.areaDetail.notSettled() }}</span>
 						<span>{{ $texts.areaDetail.entryCount(card.metric.activeCount) }}</span>
@@ -174,11 +174,15 @@
 							<span>{{ b.displayName }}</span>
 						</div>
 						<div class="balance-actions">
-							<span v-if="b.userId === project.owner_id" class="owner-badge">{{ $texts.areaDetail.creator() }}</span>
+							<AreaAdminIndicator
+								v-if="b.userId === project.owner_id"
+								:label="$texts.areaSettings.areaAdmin()" />
 						</div>
 					</div>
 					<div class="balance-detail">{{ $texts.areaDetail.paid() }}: {{ formatCurrency(b.paid) }}</div>
 					<div class="balance-detail">{{ $texts.areaDetail.share() }}: {{ formatCurrency(b.fairShare) }} ({{ formatSharePercent(b.shareBasisPoints) }}%)</div>
+					<div v-if="b.receivedCents" class="balance-detail">{{ $texts.areaDetail.received() }}: {{ formatCurrency(b.received) }}</div>
+					<div v-if="b.incomeShareCents" class="balance-detail">{{ $texts.areaDetail.incomeShare() }}: {{ formatCurrency(b.incomeShare) }}</div>
 					<div class="balance-amount">
 						<template v-if="b.balance > 0">{{ $texts.areaDetail.getsBack(formatCurrency(b.balance)) }}</template>
 						<template v-else-if="b.balance < 0">{{ $texts.areaDetail.owes(formatCurrency(Math.abs(b.balance))) }}</template>
@@ -225,6 +229,7 @@
 				:project-name-resolver="getProjectName"
 				:project-style-resolver="getProjectTagStyle"
 				:member-name-resolver="getMemberName"
+				:show-paid-by="hasAdditionalProjectMembers"
 				@sort="toggleSort"
 				@row-click="onRowClick"
 				@edit="editEntry"
@@ -324,6 +329,7 @@ import ConfirmModal from '../components/ConfirmModal.vue'
 import EntryTable from '../components/EntryTable.vue'
 import EntryHistoryModal from '../components/EntryHistoryModal.vue'
 import TableTooltip from '../components/TableTooltip.vue'
+import AreaAdminIndicator from '../components/AreaAdminIndicator.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import CheckAllIcon from 'vue-material-design-icons/CheckAll.vue'
 import MagnifyIcon from 'vue-material-design-icons/Magnify.vue'
@@ -355,7 +361,7 @@ import { downloadBlobResponse } from '../services/downloads'
 
 export default {
 	name: 'ProjectDetail',
-	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, EntryHistoryModal, TableTooltip, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, DeleteIcon, DownloadIcon, TableFilters, DraggableScroller },
+	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, EntryHistoryModal, TableTooltip, AreaAdminIndicator, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, DeleteIcon, DownloadIcon, TableFilters, DraggableScroller },
 	props: ['id'],
 	data() {
 		return {
@@ -426,7 +432,9 @@ export default {
 		},
 		projectMemberCount() {
 			if (this.project && Array.isArray(this.project.members)) {
-				return this.project.members.length;
+				return new Set(this.project.members
+					.map(member => String(member?.id || member?.user_id || member?.userId || '').trim())
+					.filter(Boolean)).size;
 			}
 			if (this.project && Array.isArray(this.project.balances)) {
 				return this.project.balances.length;
@@ -434,13 +442,16 @@ export default {
 			return parseInt(this.project?.member_count || 0, 10) || 0;
 		},
 		hasAdditionalProjectMembers() {
+			if (this.project?.is_shared !== undefined) {
+				return this.isTruthy(this.project.is_shared);
+			}
 			return this.projectMemberCount > 1;
 		},
 		showMemberBalances() {
-			return this.$enableSharedProjects || this.hasAdditionalProjectMembers;
+			return this.hasAdditionalProjectMembers;
 		},
 		showSettlementControls() {
-			return this.$enableSharedProjects || this.hasAdditionalProjectMembers;
+			return this.hasAdditionalProjectMembers;
 		},
 		canManageProject() {
 			return this.isTruthy(this.project?.is_owner);
@@ -748,6 +759,7 @@ export default {
 
 			const params = {
 				projectId: this.projectId,
+				entryScope: this.hasAdditionalProjectMembers ? 'shared' : 'personal',
 				isSettled: isSettled,
 				isRecurring: isRecurring,
 				isSubscription: isSubscription,
@@ -1008,7 +1020,8 @@ export default {
 			});
 			if (confirmed) {
 				try {
-					await axios.delete(generateUrl(`/apps/cobudget/api/entries/${entry.id}`))
+					const deleteId = Number(entry.editable_entry_id || entry.source_entry_id || entry.id)
+					await axios.delete(generateUrl(`/apps/cobudget/api/entries/${deleteId}`))
 					showToast(this.$texts.entry.entryDeleted());
 					window.dispatchEvent(new CustomEvent('cobudget-data-changed'));
 					this.fetchProjectData()
@@ -1195,15 +1208,6 @@ export default {
 
 .stat-sub-line span:last-child {
 	white-space: nowrap;
-}
-
-.owner-badge {
-	font-size: var(--cobudget-font-xs);
-	padding: 2px 8px;
-	border-radius: 10px;
-	background: var(--color-primary-element-light, #e0f0ff);
-	color: var(--color-primary, #0082c9);
-	font-weight: 600;
 }
 
 /* Balances */

@@ -1,6 +1,7 @@
 <?php
 namespace OCA\CoBudget\Controller;
 
+use OCA\CoBudget\Service\ParticipantService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
@@ -15,13 +16,15 @@ class TemplateController extends Controller {
 	private IDBConnection $db;
 	private ?string $userId;
 	private IConfig $config;
+	private ParticipantService $participantService;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, ParticipantService $participantService) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
 		$this->config = $config;
+		$this->participantService = $participantService;
 		$this->initWorkspace();
 	}
 
@@ -43,10 +46,11 @@ class TemplateController extends Controller {
 				->from('cobudget_templates', 't')
 				->leftJoin('t', 'cobudget_categories', 'c', $qb->expr()->eq('t.category_id', 'c.id'))
 				->leftJoin('t', 'cobudget_payment_partners', 'p', $qb->expr()->eq('t.payment_partner_id', 'p.id'))
-				->leftJoin('t', 'cobudget_members', 'm', $qb->expr()->andX(
-					$qb->expr()->eq('t.project_id', 'm.project_id'),
-					$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId))
-				))
+					->leftJoin('t', 'cobudget_members', 'm', $qb->expr()->andX(
+						$qb->expr()->eq('t.project_id', 'm.project_id'),
+						$qb->expr()->eq('m.user_id', $qb->createNamedParameter($this->userId)),
+						$qb->expr()->eq('m.personal_workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))
+					))
 				->where($qb->expr()->eq('t.user_id', $qb->createNamedParameter($this->userId)))
 				->andWhere($qb->expr()->orX(
 					$qb->expr()->andX(
@@ -116,7 +120,7 @@ class TemplateController extends Controller {
 			}
 
 				$amountCents = null;
-				if ($validationError = $this->validateTemplatePayload($name, $type, $amount, $amountCents, $categoryId, $paymentPartnerId, $projectId)) {
+					if ($validationError = $this->validateTemplatePayload($name, $description, $type, $amount, $amountCents, $categoryId, $paymentPartnerId, $projectId)) {
 					return $validationError;
 				}
 			if ($validationError = $this->validateSplitMode($splitMode)) {
@@ -124,6 +128,9 @@ class TemplateController extends Controller {
 			}
 			if ($validationError = $this->validateProjectSplitUser($projectId, $splitMode, $splitUserId, (string)$this->userId)) {
 				return $validationError;
+			}
+			if ($splitUserId !== null && !$this->participantService->isActive($splitUserId)) {
+				return $this->errorResponse('A former or inactive member cannot receive a new payment allocation.', Http::STATUS_BAD_REQUEST);
 			}
 			if ($type !== 'expense') {
 				$isSubscription = false;
