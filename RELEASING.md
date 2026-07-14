@@ -29,19 +29,58 @@ Protect the private key:
 chmod 600 ~/.nextcloud/certificates/cobudget.key
 ```
 
+## Recommended: Interactive Release Assistant
+
+The release assistant reads the version from `appinfo/info.xml`, verifies it
+against `package.json`, `package-lock.json`, and `CHANGELOG.md`, runs the test
+and build pipeline, reviews Git changes, and asks separately before creating a
+commit, tag, branch push, tag push, or GitHub asset upload:
+
+```sh
+npm run release:assistant
+```
+
+Useful modes:
+
+```sh
+# Read-only preflight
+npm run release:assistant -- --check
+
+# Show the planned flow without changing anything
+npm run release:assistant -- --dry-run
+
+# Include local Nextcloud signing
+PHP_BIN=/usr/bin/php84 npm run release:assistant -- --sign \
+  /absolute/path/to/nextcloud/occ \
+  ~/.nextcloud/certificates/cobudget.key \
+  ~/.nextcloud/certificates/cobudget.crt
+
+# Resume after signing on another machine and copying the three artifacts back
+npm run release:assistant -- --upload-only
+```
+
+The assistant is resumable from Git state. If the matching tag already points
+to `HEAD`, it does not rebuild and overwrite an existing signed archive. It
+never overwrites tags and deliberately leaves the final inspection and
+publication of the GitHub draft as manual steps.
+
+The commands below document the equivalent manual fallback.
+
 ## 1. Verify And Tag The Release
 
 From the repository root:
 
 ```sh
+VERSION="$(node -p "require('./package.json').version")"
+TAG="v$VERSION"
 npm ci
 npm run test
 git status
 git add .
-git commit -m "Prepare CoBudget 0.2.0 alpha release"
+git commit -m "Prepare CoBudget $VERSION alpha release"
 git push origin main
-git tag -a v0.2.0 -m "CoBudget 0.2.0"
-git push origin v0.2.0
+git tag -a "$TAG" -m "CoBudget $VERSION"
+git push origin "$TAG"
 ```
 
 The tag workflow verifies the version, tests the app, checks the runtime package, and creates a **draft prerelease without an installable archive**. This prevents an unsigned package from being published accidentally.
@@ -81,7 +120,9 @@ shasum -a 256 -c ../SHA256SUMS
 Upload the locally signed artifacts:
 
 ```sh
-gh release upload v0.2.0 \
+VERSION="$(node -p "require('./package.json').version")"
+TAG="v$VERSION"
+gh release upload "$TAG" \
   ../cobudget.tar.gz \
   ../cobudget.tar.gz.signature \
   ../SHA256SUMS \
@@ -91,7 +132,7 @@ gh release upload v0.2.0 \
 Inspect the draft on GitHub. Confirm that the installable archive contains the top-level `cobudget/` directory and `cobudget/appinfo/signature.json`. Then publish it as an alpha prerelease:
 
 ```sh
-gh release edit v0.2.0 --draft=false --prerelease
+gh release edit "$TAG" --draft=false --prerelease
 ```
 
 Alternatively, upload the three files and publish the draft through the GitHub web interface.
@@ -105,7 +146,7 @@ For an App Store release, use the direct HTTPS URL of the signed GitHub release 
 The downloadable archive URL follows this pattern:
 
 ```text
-https://github.com/whollaus/cobudget/releases/download/v0.2.0/cobudget.tar.gz
+https://github.com/whollaus/cobudget/releases/download/vX.Y.Z/cobudget.tar.gz
 ```
 
 Keep the private key permanently. Future updates must be signed with the same key and certificate identity.

@@ -73,6 +73,7 @@ require_file "$ARCHIVE"
 mkdir -p "$TEMP_DIR/package"
 tar -xzf "$ARCHIVE" -C "$TEMP_DIR/package"
 require_file "$TEMP_DIR/package/cobudget/appinfo/info.xml"
+find "$TEMP_DIR/package/cobudget" -type f \( -name '._*' -o -name '.DS_Store' \) -delete
 rm -f "$TEMP_DIR/package/cobudget/appinfo/signature.json"
 
 echo "Creating Nextcloud app signature..."
@@ -103,17 +104,8 @@ else
 	(cd "$WORKSPACE_DIR" && shasum -a 256 "$(basename "$ARCHIVE")" > "$(basename "$CHECKSUM_FILE")")
 fi
 
-tar -tzf "$ARCHIVE" | grep -q '^cobudget/appinfo/info.xml$'
+"$SCRIPT_DIR/verify-release-archive.sh" "$ARCHIVE"
 tar -tzf "$ARCHIVE" | grep -q '^cobudget/appinfo/signature.json$'
-tar -tzf "$ARCHIVE" | grep -q '^cobudget/js/'
-if tar -tzf "$ARCHIVE" | grep -Eq '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md)(/|$)'; then
-	echo "Release archive contains repository-only files." >&2
-	exit 65
-fi
-if tar -tzf "$ARCHIVE" | grep -Eq '(^|/)(\._[^/]+|\.DS_Store)(/|$)'; then
-	echo "Release archive contains macOS metadata files." >&2
-	exit 65
-fi
 
 echo
 echo "Signed release prepared:"

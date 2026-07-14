@@ -848,8 +848,8 @@ return [
 		$t->assertContains('loadSettlementEntries($settlementId, $projectId, $workspaceId)', $history, 'Settlement history should include entry tables when requested');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
-			throw new \RuntimeException('The clean initial baseline should keep appinfo/info.xml at version 0.2.0');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.1') {
+			throw new \RuntimeException('The package-only bootstrap hotfix should keep appinfo/info.xml at version 0.2.1');
 		}
 	},
 
@@ -1053,8 +1053,8 @@ return [
 		$t->assertNotContains("eq('workspace_id'", $markUsed, 'Template usage marker relies on the active-workspace ownership guard instead of duplicating the workspace predicate');
 
 		$infoXml = $t->read('appinfo/info.xml');
-		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
-			throw new \RuntimeException('The clean initial baseline should keep appinfo/info.xml at version 0.2.0');
+		if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.1') {
+			throw new \RuntimeException('The package-only bootstrap hotfix should keep appinfo/info.xml at version 0.2.1');
 		}
 	},
 
@@ -1667,8 +1667,8 @@ return [
 
 			$infoXml = $t->read('appinfo/info.xml');
 			$t->assertContains('OCA\\CoBudget\\Cron\\BudgetSnapshotJob', $infoXml, 'Budget snapshot job should be listed in app metadata');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
-				throw new \RuntimeException('The clean initial baseline should keep appinfo/info.xml at version 0.2.0');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.1') {
+				throw new \RuntimeException('The package-only bootstrap hotfix should keep appinfo/info.xml at version 0.2.1');
 			}
 		},
 
@@ -1861,8 +1861,8 @@ return [
 			$t->assertContains("'split_user_id' => \$qb->createNamedParameter(\$splitUserId", $templateCreate, 'Template create should persist split target');
 
 			$infoXml = $t->read('appinfo/info.xml');
-			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.0') {
-				throw new \RuntimeException('The clean initial baseline should keep appinfo/info.xml at version 0.2.0');
+			if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.1') {
+				throw new \RuntimeException('The package-only bootstrap hotfix should keep appinfo/info.xml at version 0.2.1');
 			}
 		},
 	];

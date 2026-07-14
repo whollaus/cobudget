@@ -47,12 +47,7 @@ jobs:
         run: npm run release
 
       - name: Verify release archive
-        run: |
-          test -f ../cobudget.tar.gz
-          tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/appinfo/info.xml$'
-          tar -tzf ../cobudget.tar.gz | grep -q '^cobudget/js/'
-          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md)(/|$)'
-          ! tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(\._[^/]+|\.DS_Store)(/|$)'
+        run: npm run release:verify
 
       - name: Create release notes
         run: |

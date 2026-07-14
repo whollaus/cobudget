@@ -2,6 +2,13 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.1] - 2026-07-14
+
+### Fixed
+
+- Rebuilt the installable package without macOS AppleDouble and Finder metadata. The polluted `0.2.0` App Store archive made Nextcloud interpret files such as `._BackupController.php` as PHP classes and fail during app bootstrap.
+- Centralized release-archive validation for CI, local builds and signed releases so packages containing macOS metadata or repository-only files are rejected before publication.
+
 ## [0.2.0] - 2026-07-13
 
 ### Initial Alpha Baseline
