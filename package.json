@@ -15,7 +15,6 @@
     "release:verify": "./scripts/verify-release-archive.sh",
     "release": "npm run build && npm run release:tar && npm run release:verify",
     "release:signed": "./scripts/prepare-signed-release.sh",
-    "release:signed-remote": "./scripts/prepare-signed-release-remote.sh",
     "release:assistant": "./scripts/release-assistant.sh"
   },
   "dependencies": {

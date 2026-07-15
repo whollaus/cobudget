@@ -86,7 +86,7 @@ confirm() {
 		fail "Interaktive Bestätigung erforderlich: $question (für CI bitte --check verwenden)"
 	fi
 
-	printf '%s %s ' "$question" "$hint"
+	printf '\n%s\nAntwort %s: ' "$question" "$hint" >&2
 	IFS= read -r answer
 	if [ -z "$answer" ]; then
 		[ "$default_answer" = "yes" ]
@@ -104,7 +104,7 @@ read_with_default() {
 	local default_value="$2"
 	local answer=""
 
-	printf '%s [%s]: ' "$question" "$default_value" >&2
+	printf '\n%s\nVorgabe [%s]: ' "$question" "$default_value" >&2
 	IFS= read -r answer
 	if [ -z "$answer" ]; then
 		printf '%s' "$default_value"
@@ -126,8 +126,13 @@ remote_tag_commit() {
 	local output=""
 	local peeled=""
 	local direct=""
+	local ssh_command="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o ConnectTimeout=5 -o ConnectionAttempts=1}"
 
-	if ! output="$(git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" 2>/dev/null)"; then
+	if [[ "$REMOTE_URL" == git@* || "$REMOTE_URL" == ssh://* ]]; then
+		if ! output="$(GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$ssh_command" git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" 2>/dev/null)"; then
+			return 2
+		fi
+	elif ! output="$(GIT_TERMINAL_PROMPT=0 git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=10 ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" 2>/dev/null)"; then
 		return 2
 	fi
 
@@ -169,6 +174,27 @@ verify_archive() {
 		else
 			(cd "$WORKSPACE_DIR" && shasum -a 256 -c "$(basename "$CHECKSUM_FILE")" >/dev/null) || return 1
 		fi
+	fi
+
+	return 0
+}
+
+verify_signed_artifact_metadata() {
+	local archive_xml=""
+	local archive_version=""
+
+	[ -s "$ARCHIVE" ] || return 1
+	[ -s "$DETACHED_SIGNATURE" ] || return 1
+	[ -s "$CHECKSUM_FILE" ] || return 1
+
+	archive_xml="$(tar -xOf "$ARCHIVE" cobudget/appinfo/info.xml 2>/dev/null)" || return 1
+	archive_version="$(printf '%s\n' "$archive_xml" | sed -n 's#.*<version>[[:space:]]*\([^<]*\)[[:space:]]*</version>.*#\1#p' | head -n 1)"
+	[ "$archive_version" = "$VERSION" ] || return 1
+
+	if command -v sha256sum >/dev/null 2>&1; then
+		(cd "$WORKSPACE_DIR" && sha256sum -c "$(basename "$CHECKSUM_FILE")" >/dev/null 2>&1) || return 1
+	else
+		(cd "$WORKSPACE_DIR" && shasum -a 256 -c "$(basename "$CHECKSUM_FILE")" >/dev/null 2>&1) || return 1
 	fi
 
 	return 0
@@ -323,7 +349,11 @@ if [ "$REMOTE_TAG_EXISTS" -eq 1 ]; then
 	TAG_PUSHED=1
 fi
 
-if verify_archive 1; then
+if [ "$MODE" = "check" ]; then
+	if verify_signed_artifact_metadata; then
+		SIGNED_READY=1
+	fi
+elif [ "$DRY_RUN" -eq 0 ] && verify_archive 1; then
 	SIGNED_READY=1
 fi
 
@@ -333,6 +363,7 @@ printf '  Tag:     %s\n' "$TAG"
 printf '  Branch:  %s\n' "$BRANCH"
 printf '  Commit:  %s\n' "$HEAD_COMMIT"
 printf '  Remote:  %s\n\n' "$REMOTE_URL"
+info "Der Assistent ist interaktiv. Bei Rückfragen mit j/ja, n/nein oder Enter für die Vorgabe antworten."
 
 if [ "$MODE" = "check" ]; then
 	git status --short --branch
