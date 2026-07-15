@@ -2,6 +2,20 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.4] - 2026-07-15
+
+### Added
+
+- Added a remote signing helper for hosted Nextcloud installations that need `occ integrity:sign-app` to run on the server.
+
+### Fixed
+
+- Fixed frontend smoke checks for analytics when income tracking is disabled.
+
+### Documentation
+
+- Documented the internal remote signing workflow for future releases.
+
 ## [0.2.3] - 2026-07-15
 
 ### Fixed
