@@ -17,8 +17,8 @@
 				</strong>
 				<small>{{ remainingLabel }}</small>
 			</div>
-			<div class="available-forecast-metrics">
-				<div>
+			<div :class="['available-forecast-metrics', { 'without-income': !incomeEnabled }]">
+				<div v-if="incomeEnabled">
 					<span>{{ $texts.analytics.expectedIncome() }}</span>
 					<strong class="positive">{{ formatCents(forecast.expectedIncomeCents) }}</strong>
 				</div>
@@ -73,6 +73,10 @@ export default {
 		rangeLabel: {
 			type: String,
 			required: true
+		},
+		incomeEnabled: {
+			type: Boolean,
+			default: true
 		},
 		amountClass: {
 			type: Function,
@@ -164,6 +168,10 @@ export default {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 12px;
+}
+
+.available-forecast-metrics.without-income {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .available-forecast-metrics strong {

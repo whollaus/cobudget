@@ -1,10 +1,9 @@
-import { createApp, defineAsyncComponent, h } from 'vue'
+import { createApp, h } from 'vue'
+import AdminSettings from './components/AdminSettings.vue'
 import { installTexts } from './l10n/texts'
 import './styles/tokens.css'
 
 let mountAttempts = 0
-
-const AdminSettings = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-admin-settings" */ './components/AdminSettings.vue'))
 
 const mountAdminSettings = () => {
 	const appEl = document.getElementById('cobudget-settings')

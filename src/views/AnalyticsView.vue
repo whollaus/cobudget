@@ -100,9 +100,11 @@
 					:zero-line-y="zeroLineY"
 					:cumulative-chart-points="cumulativeChartPoints"
 					:last-chart-point="lastChartPoint"
-					:series="series"
-					:bar-height="barHeight"
-					:show-series-label="showSeriesLabel" />
+				:series="series"
+				:bar-height="barHeight"
+				:format-cents="formatCents"
+				:income-enabled="incomeEnabled"
+				:show-series-label="showSeriesLabel" />
 
 				<AnalyticsForecastCard
 					v-if="availableForecast"
@@ -113,6 +115,7 @@
 					:main-label="availableForecastMainLabel"
 					:remaining-label="availableForecastRemainingLabel"
 					:range-label="availableForecastRangeLabel"
+					:income-enabled="incomeEnabled"
 					:amount-class="amountClass"
 					:format-cents="formatCents"
 					:format-signed-cents="formatSignedCents" />
@@ -141,7 +144,7 @@
 						</div>
 						<div class="mini-switch no-print">
 							<button type="button" :class="{ active: breakdownType === 'expense' }" @click="breakdownType = 'expense'">{{ $texts.analytics.expenses() }}</button>
-							<button type="button" :class="{ active: breakdownType === 'income' }" @click="breakdownType = 'income'">{{ $texts.analytics.income() }}</button>
+							<button v-if="incomeEnabled" type="button" :class="{ active: breakdownType === 'income' }" @click="breakdownType = 'income'">{{ $texts.analytics.income() }}</button>
 						</div>
 					</div>
 
@@ -201,10 +204,13 @@
 										<td>
 											<TableTooltip :text="breakdownTooltip(item, activeBreakdownSection)">
 												<span class="breakdown-name-line">
-													<span v-if="isBreakdownDrilldownRow(activeBreakdownSection, item)" class="breakdown-link breakdown-name-tooltip">
-														{{ item.name }}
+													<span
+														v-if="isBreakdownDrilldownRow(activeBreakdownSection, item)"
+														class="breakdown-link breakdown-name-tooltip"
+														@click.stop="selectBreakdownDrilldown(activeBreakdownSection, item)">
+														{{ decodeHtmlEntities(item.name) }}
 													</span>
-													<span v-else class="breakdown-name-tooltip">{{ item.name }}</span>
+													<span v-else class="breakdown-name-tooltip">{{ decodeHtmlEntities(item.name) }}</span>
 													<span
 														v-if="item.trend"
 														class="breakdown-trend-badge"
@@ -256,7 +262,7 @@
 											<tr v-for="item in section.items" :key="`${group.key}-${section.key}-${item.id || item.name}`">
 												<td>
 													<span class="breakdown-name-line">
-														<span>{{ item.name }}</span>
+														<span>{{ decodeHtmlEntities(item.name) }}</span>
 														<span v-if="item.trend" class="breakdown-trend-badge" :class="breakdownTrendClass(item.trend)">
 															{{ breakdownTrendIcon(item.trend) }}
 														</span>
@@ -573,9 +579,12 @@ export default {
 				|| this.upcomingPlanned.length > 0
 				|| this.receiptCheckItems.length > 0
 		},
+		incomeEnabled() {
+			return this.$enableIncomes !== false
+		},
 		summaryCards() {
 			const summary = this.analytics.summary || {}
-			return [
+			const cards = [
 				{
 					key: 'income',
 					label: this.$texts.analytics.income(),
@@ -614,6 +623,10 @@ export default {
 					className: ''
 				}
 			]
+
+			return this.incomeEnabled
+				? cards
+				: cards.filter(card => !['income', 'averageIncome', 'balance'].includes(card.key))
 		},
 		summaryAverageUnit() {
 			if (this.analytics.period?.kind === 'current-month') {
@@ -633,9 +646,15 @@ export default {
 			return Array.isArray(this.analytics.series) ? this.analytics.series : []
 		},
 		seriesMaxAmount() {
-			return Math.max(1, ...this.series.map(item => Math.max(Math.abs(item.incomeCents || 0), Math.abs(item.expenseCents || 0))))
+			return Math.max(1, ...this.series.map(item => Math.max(
+				this.incomeEnabled ? Math.abs(item.incomeCents || 0) : 0,
+				Math.abs(item.expenseCents || 0)
+			)))
 		},
 		cumulativeValues() {
+			if (!this.incomeEnabled) {
+				return []
+			}
 			return this.series.map(item => Number(item.cumulativeBalanceCents || 0))
 		},
 		chartRange() {
@@ -671,7 +690,7 @@ export default {
 			if (!this.comparison) {
 				return []
 			}
-			return [
+			const cards = [
 				{
 					key: 'income',
 					label: this.$texts.analytics.income(),
@@ -694,6 +713,8 @@ export default {
 					className: this.amountClass(this.comparison.deltaBalanceCents || 0)
 				}
 			]
+
+			return this.incomeEnabled ? cards : cards.filter(card => !['income', 'balance'].includes(card.key))
 		},
 		projection() {
 			return this.analytics.projection
@@ -730,16 +751,21 @@ export default {
 			if (!forecast) {
 				return ''
 			}
-				return [
-					this.availableForecastTitle,
-					this.$texts.analytics.availableForecast(),
-					`${this.$texts.analytics.expectedIncome()}: ${this.formatCents(forecast.expectedIncomeCents)}`,
-					`${this.$texts.analytics.expectedExpenses()}: ${this.formatCents(forecast.expectedExpenseCents)}`,
-					this.$texts.analytics.currentBalance(this.formatSignedCents(forecast.currentBalanceCents)),
-					this.$texts.analytics.remainingChangeFromToday(this.formatSignedCents(forecast.remainingChangeCents)),
-					this.$texts.analytics.range(this.availableForecastRangeLabel),
+			const lines = [
+				this.availableForecastTitle,
+				this.$texts.analytics.availableForecast()
+			]
+			if (this.incomeEnabled) {
+				lines.push(`${this.$texts.analytics.expectedIncome()}: ${this.formatCents(forecast.expectedIncomeCents)}`)
+			}
+			lines.push(
+				`${this.$texts.analytics.expectedExpenses()}: ${this.formatCents(forecast.expectedExpenseCents)}`,
+				this.$texts.analytics.currentBalance(this.formatSignedCents(forecast.currentBalanceCents)),
+				this.$texts.analytics.remainingChangeFromToday(this.formatSignedCents(forecast.remainingChangeCents)),
+				this.$texts.analytics.range(this.availableForecastRangeLabel),
 				forecast.confidenceLabel
-			].join('\n')
+			)
+			return lines.filter(Boolean).join('\n')
 		},
 			breakdownTypeLabel() {
 				return this.formatBreakdownTypeLabel(this.breakdownType)
@@ -751,7 +777,7 @@ export default {
 			return this.analytics.categoryDrilldowns?.[this.breakdownType]?.[this.activeCategoryDrilldown] || null
 		},
 		activeCategoryDrilldownLabel() {
-			return this.activeCategoryDrilldownData?.label || ''
+			return this.decodeHtmlEntities(this.activeCategoryDrilldownData?.label || '')
 		},
 		activePaymentPartnerDrilldownData() {
 			if (!this.activePaymentPartnerDrilldown) {
@@ -760,7 +786,7 @@ export default {
 			return this.analytics.paymentPartnerDrilldowns?.[this.breakdownType]?.[this.activePaymentPartnerDrilldown] || null
 		},
 		activePaymentPartnerDrilldownLabel() {
-			return this.activePaymentPartnerDrilldownData?.label || ''
+			return this.decodeHtmlEntities(this.activePaymentPartnerDrilldownData?.label || '')
 		},
 		activeTagDrilldownData() {
 			if (!this.activeTagDrilldown) {
@@ -769,7 +795,7 @@ export default {
 			return this.analytics.tagDrilldowns?.[this.breakdownType]?.[this.activeTagDrilldown] || null
 		},
 		activeTagDrilldownLabel() {
-			return this.activeTagDrilldownData?.label || ''
+			return this.decodeHtmlEntities(this.activeTagDrilldownData?.label || '')
 		},
 		activeHashtagDrilldownData() {
 			if (!this.activeHashtagDrilldown) {
@@ -778,7 +804,7 @@ export default {
 			return this.analytics.hashtagDrilldowns?.[this.breakdownType]?.[this.activeHashtagDrilldown] || null
 		},
 		activeHashtagDrilldownLabel() {
-			return this.activeHashtagDrilldownData?.label || ''
+			return this.decodeHtmlEntities(this.activeHashtagDrilldownData?.label || '')
 		},
 		activeProjectDrilldownData() {
 			if (!this.activeProjectDrilldown) {
@@ -787,7 +813,7 @@ export default {
 			return this.analytics.projectDrilldowns?.[this.breakdownType]?.[this.activeProjectDrilldown] || null
 		},
 		activeProjectDrilldownLabel() {
-			return this.activeProjectDrilldownData?.label || ''
+			return this.decodeHtmlEntities(this.activeProjectDrilldownData?.label || '')
 		},
 		breakdownSections() {
 			if (this.activeCategoryDrilldownData) {
@@ -819,18 +845,20 @@ export default {
 					: this.$texts.analytics.averagePerMonthShort()
 			},
 		printBreakdownGroups() {
-			return [
-					{
-						key: 'expense',
-						title: this.$texts.analytics.expenses(),
-						sections: this.getBreakdownSections('expense')
-					},
-					{
-						key: 'income',
-						title: this.$texts.analytics.income(),
+			const groups = [
+				{
+					key: 'expense',
+					title: this.$texts.analytics.expenses(),
+					sections: this.getBreakdownSections('expense')
+				},
+				{
+					key: 'income',
+					title: this.$texts.analytics.income(),
 					sections: this.getBreakdownSections('income')
 				}
 			]
+
+			return this.incomeEnabled ? groups : groups.filter(group => group.key !== 'income')
 		},
 		outliers() {
 			return this.analytics.outliers || { baselineCents: 0, items: [] }
@@ -872,6 +900,14 @@ export default {
 		}
 	},
 	watch: {
+		incomeEnabled: {
+			immediate: true,
+			handler(enabled) {
+				if (!enabled && this.breakdownType === 'income') {
+					this.breakdownType = 'expense'
+				}
+			}
+		},
 		selectedPeriod() {
 			this.clearAllDrilldowns()
 			this.fetchAnalytics()
@@ -887,7 +923,34 @@ export default {
 	mounted() {
 		this.fetchAnalytics()
 	},
-		methods: {
+	methods: {
+		decodeHtmlEntities(value) {
+			const text = String(value ?? '')
+			const namedEntities = {
+				amp: '&',
+				lt: '<',
+				gt: '>',
+				quot: '"',
+				apos: "'"
+			}
+
+			return text.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (match, entity) => {
+				const key = entity.toLowerCase()
+				if (key.startsWith('#x')) {
+					const codePoint = Number.parseInt(key.slice(2), 16)
+					return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+						? String.fromCodePoint(codePoint)
+						: match
+				}
+				if (key.startsWith('#')) {
+					const codePoint = Number.parseInt(key.slice(1), 10)
+					return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+						? String.fromCodePoint(codePoint)
+						: match
+				}
+				return namedEntities[key] ?? match
+			})
+		},
 			formatBreakdownTypeLabel(type) {
 				return type === 'expense' ? this.$texts.analytics.expenses() : this.$texts.analytics.income()
 			},
@@ -948,7 +1011,7 @@ export default {
 			},
 			getCategoryDrilldownSections(type, drilldown) {
 				const typeLabel = this.formatBreakdownTypeLabel(type)
-				const label = drilldown?.label || this.$texts.analytics.category()
+				const label = this.decodeHtmlEntities(drilldown?.label || this.$texts.analytics.category())
 				const totalCents = this.breakdownItemsTotal(drilldown?.paymentPartners || [])
 				const sections = [
 					{
@@ -996,7 +1059,7 @@ export default {
 			},
 			getPaymentPartnerDrilldownSections(type, drilldown) {
 				const typeLabel = this.formatBreakdownTypeLabel(type)
-				const label = drilldown?.label || this.$texts.analytics.paymentPartner()
+				const label = this.decodeHtmlEntities(drilldown?.label || this.$texts.analytics.paymentPartner())
 				const totalCents = this.breakdownItemsTotal(drilldown?.categories || [])
 				const sections = [
 					{
@@ -1044,7 +1107,7 @@ export default {
 			},
 			getTagDrilldownSections(type, drilldown) {
 				const typeLabel = this.formatBreakdownTypeLabel(type)
-				const label = drilldown?.label || this.$texts.analytics.labels()
+				const label = this.decodeHtmlEntities(drilldown?.label || this.$texts.analytics.labels())
 				const totalCents = this.breakdownItemsTotal(drilldown?.categories || [])
 				const sections = [
 					{
@@ -1092,7 +1155,7 @@ export default {
 			},
 			getHashtagDrilldownSections(type, drilldown) {
 				const typeLabel = this.formatBreakdownTypeLabel(type)
-				const label = drilldown?.label || this.$texts.analytics.hashtag()
+				const label = this.decodeHtmlEntities(drilldown?.label || this.$texts.analytics.hashtag())
 				const totalCents = this.breakdownItemsTotal(drilldown?.categories || [])
 				const sections = [
 					{
@@ -1140,7 +1203,7 @@ export default {
 			},
 			getProjectDrilldownSections(type, drilldown) {
 				const typeLabel = this.formatBreakdownTypeLabel(type)
-				const label = drilldown?.label || this.$texts.analytics.area()
+				const label = this.decodeHtmlEntities(drilldown?.label || this.$texts.analytics.area())
 				const totalCents = this.breakdownItemsTotal(drilldown?.categories || [])
 				const sections = [
 					{
@@ -2540,58 +2603,58 @@ export default {
 				return ''
 			}
 
-				const isDirection = context === 'direction'
-				if (trend.direction === 'new') {
-					return isDirection
-						? this.$texts.analytics.newRecentTrend(this.formatCents(trend.previousCents))
-						: this.$texts.analytics.newComparisonTrend(this.formatCents(trend.previousCents))
-				}
-				if (trend.direction === 'gone') {
-					return isDirection
-						? this.$texts.analytics.goneRecentTrend(this.formatCents(trend.previousCents))
-						: this.$texts.analytics.goneComparisonTrend(this.formatCents(trend.previousCents))
-				}
+			const isDirection = context === 'direction'
+			if (trend.direction === 'new') {
+				return isDirection
+					? this.$texts.analytics.newRecentTrend(this.formatCents(trend.previousCents))
+					: this.$texts.analytics.newComparisonTrend(this.formatCents(trend.previousCents))
+			}
+			if (trend.direction === 'gone') {
+				return isDirection
+					? this.$texts.analytics.goneRecentTrend(this.formatCents(trend.previousCents))
+					: this.$texts.analytics.goneComparisonTrend(this.formatCents(trend.previousCents))
+			}
 
-				const percent = this.breakdownTrendPercentLabel(trend)
-				return this.$texts.analytics.trendValue(
-					this.formatSignedCents(trend.deltaCents),
-					percent,
-					isDirection ? this.$texts.analytics.recentDevelopment() : this.$texts.analytics.comparisonPeriod()
-				)
-			},
+			const percent = this.breakdownTrendPercentLabel(trend)
+			return this.$texts.analytics.trendValue(
+				this.formatSignedCents(trend.deltaCents),
+				percent,
+				isDirection ? this.$texts.analytics.recentDevelopment() : this.$texts.analytics.comparisonPeriod()
+			)
+		},
 		breakdownTooltip(item, section) {
-				const lines = [
-					String(item.name || section.shortTitle || this.$texts.analytics.focus()),
-					this.bookingCountLabel(item.count),
-					this.$texts.analytics.shareLabel(this.breakdownShareLabel(item, section)),
-					this.$texts.analytics.totalLabel(this.formatCents(item.amountCents)),
-					this.$texts.analytics.averagePerMonthLabel(this.formatCents(this.averageCents(item.amountCents, this.breakdownMonthDivisor()))),
-					this.$texts.analytics.averagePerWeekLabel(this.formatCents(this.averageCents(item.amountCents, this.periodWeeks()))),
-					this.$texts.analytics.averagePerDayLabel(this.formatCents(this.averageCents(item.amountCents, this.periodDays())))
-				]
-				if (item.trend) {
-					lines.splice(1, 0, this.$texts.analytics.directionLabel(this.breakdownTrendLabel(item.trend, 'direction')))
-				}
-				if (item.comparison) {
-					lines.splice(item.trend ? 2 : 1, 0, this.$texts.analytics.comparisonLabel(this.breakdownTrendLabel(item.comparison, 'comparison')))
-				}
+			const lines = [
+				this.decodeHtmlEntities(item.name || section.shortTitle || this.$texts.analytics.focus()),
+				this.bookingCountLabel(item.count),
+				this.$texts.analytics.shareLabel(this.breakdownShareLabel(item, section)),
+				this.$texts.analytics.totalLabel(this.formatCents(item.amountCents)),
+				this.$texts.analytics.averagePerMonthLabel(this.formatCents(this.averageCents(item.amountCents, this.breakdownMonthDivisor()))),
+				this.$texts.analytics.averagePerWeekLabel(this.formatCents(this.averageCents(item.amountCents, this.periodWeeks()))),
+				this.$texts.analytics.averagePerDayLabel(this.formatCents(this.averageCents(item.amountCents, this.periodDays())))
+			]
+			if (item.trend) {
+				lines.splice(1, 0, this.$texts.analytics.directionLabel(this.breakdownTrendLabel(item.trend, 'direction')))
+			}
+			if (item.comparison) {
+				lines.splice(item.trend ? 2 : 1, 0, this.$texts.analytics.comparisonLabel(this.breakdownTrendLabel(item.comparison, 'comparison')))
+			}
 			return lines.join('\n')
 		},
 		breakdownSectionTooltip(section) {
-				const totalCents = this.breakdownSectionTotalCents(section)
-				return [
-					this.$texts.analytics.totalSuffix(section?.shortTitle || section?.title || this.$texts.analytics.focus()),
-					this.bookingCountLabel(this.breakdownSectionBookingCount(section)),
-					this.$texts.analytics.shareLabel(this.breakdownSectionShareLabel(section)),
-					this.$texts.analytics.totalLabel(this.formatCents(totalCents)),
-					this.$texts.analytics.averagePerMonthLabel(this.formatCents(this.averageCents(totalCents, this.breakdownMonthDivisor()))),
-					this.$texts.analytics.averagePerWeekLabel(this.formatCents(this.averageCents(totalCents, this.periodWeeks()))),
-					this.$texts.analytics.averagePerDayLabel(this.formatCents(this.averageCents(totalCents, this.periodDays())))
-				].join('\n')
-			},
-			bookingCountLabel(count) {
-				return this.$texts.analytics.bookings(Number(count || 0))
-			},
+			const totalCents = this.breakdownSectionTotalCents(section)
+			return [
+				this.$texts.analytics.totalSuffix(section?.shortTitle || section?.title || this.$texts.analytics.focus()),
+				this.bookingCountLabel(this.breakdownSectionBookingCount(section)),
+				this.$texts.analytics.shareLabel(this.breakdownSectionShareLabel(section)),
+				this.$texts.analytics.totalLabel(this.formatCents(totalCents)),
+				this.$texts.analytics.averagePerMonthLabel(this.formatCents(this.averageCents(totalCents, this.breakdownMonthDivisor()))),
+				this.$texts.analytics.averagePerWeekLabel(this.formatCents(this.averageCents(totalCents, this.periodWeeks()))),
+				this.$texts.analytics.averagePerDayLabel(this.formatCents(this.averageCents(totalCents, this.periodDays())))
+			].join('\n')
+		},
+		bookingCountLabel(count) {
+			return this.$texts.analytics.bookings(Number(count || 0))
+		},
 		averageCents(amountCents, divisor) {
 			return Math.round(Number(amountCents || 0) / Math.max(1, Number(divisor || 1)))
 		},

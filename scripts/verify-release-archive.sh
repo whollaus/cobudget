@@ -13,7 +13,9 @@ if [ ! -s "$ARCHIVE" ]; then
 fi
 
 LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/cobudget-archive-list.XXXXXX")"
-trap 'rm -f "$LIST_FILE"' EXIT
+EXTRACT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cobudget-archive.XXXXXX")"
+REFERENCES_FILE="$(mktemp "${TMPDIR:-/tmp}/cobudget-js-refs.XXXXXX")"
+trap 'rm -f "$LIST_FILE" "$REFERENCES_FILE"; rm -rf "$EXTRACT_DIR"' EXIT
 
 if ! tar -tzf "$ARCHIVE" > "$LIST_FILE"; then
 	echo "Release archive cannot be read: $ARCHIVE" >&2
@@ -43,6 +45,23 @@ fi
 if grep -Eq '(^|/)(\._[^/]+|\.DS_Store)(/|$)' "$LIST_FILE"; then
 	echo "Release archive contains macOS AppleDouble or Finder metadata." >&2
 	exit 65
+fi
+
+if ! tar -xzf "$ARCHIVE" -C "$EXTRACT_DIR"; then
+	echo "Release archive cannot be extracted: $ARCHIVE" >&2
+	exit 65
+fi
+
+if [ -d "$EXTRACT_DIR/cobudget/js" ]; then
+	find "$EXTRACT_DIR/cobudget/js" -type f -name '*.js' -exec grep -ohE 'cobudget-[A-Za-z0-9_./-]+\.js' {} + \
+		| sort -u > "$REFERENCES_FILE" || true
+
+	while IFS= read -r referencedChunk; do
+		if [ -n "$referencedChunk" ] && ! grep -qx "cobudget/js/$referencedChunk" "$LIST_FILE"; then
+			echo "Release archive is missing referenced frontend chunk: cobudget/js/$referencedChunk" >&2
+			exit 65
+		fi
+	done < "$REFERENCES_FILE"
 fi
 
 echo "Release archive verified: $ARCHIVE"

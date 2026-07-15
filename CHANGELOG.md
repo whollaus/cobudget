@@ -2,6 +2,20 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.3] - 2026-07-15
+
+### Fixed
+
+- Hid income-only analytics values in forecast cards and related tooltips when the income module is disabled.
+- Kept analytics development charts focused on enabled modules so expense-only setups no longer show income or saldo context.
+
+## [0.2.2] - 2026-07-14
+
+### Fixed
+
+- Fixed the administrator settings bundle so it no longer depends on an asynchronously loaded settings component chunk that can be missing after packaged App Store installs.
+- Extended release-archive validation to reject installable packages that reference frontend chunks not included in the archive.
+
 ## [0.2.1] - 2026-07-14
 
 ### Fixed

@@ -590,8 +590,10 @@ try {
 	$assertContains($paymentPartnerController, 'DEFAULT_PAYMENT_PARTNERS_SEEDED_KEY', 'Payment partner seeding is guarded by an app setting');
 
 	$infoXml = $read('appinfo/info.xml');
-	if (preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== '0.2.1') {
-		$failures[] = 'The package-only bootstrap hotfix should keep appinfo/info.xml at version 0.2.1';
+	$packageJson = json_decode($read('package.json'), true);
+	$packageVersion = is_array($packageJson) ? ($packageJson['version'] ?? null) : null;
+	if (!$packageVersion || preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== $packageVersion) {
+		$failures[] = 'appinfo/info.xml version should match package.json';
 	}
 	if (
 		preg_match('/<nextcloud[^>]*min-version="([^"]+)"[^>]*max-version="([^"]+)"/', $infoXml, $nextcloudMatch) !== 1
