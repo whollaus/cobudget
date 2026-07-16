@@ -87,26 +87,26 @@
 					<div class="entry-details-grid">
 						<div class="form-group detail-category">
 							<label>{{ $texts.entry.category() }}</label>
-							<div class="lookup-field category-input-wrap" :class="{ 'has-leading-icon': selectedCategoryIcon, 'has-clear-button': entry.categoryName }">
+							<div ref="categoryLookupField" class="lookup-field category-input-wrap" :class="{ 'has-leading-icon': selectedCategoryIcon, 'has-clear-button': entry.categoryName }">
 								<CategoryIcon v-if="selectedCategoryIcon" :icon="selectedCategoryIcon" :size="18" class="category-input-icon" />
-								<input
-									ref="categoryLookupInput"
-									type="text"
-									v-model="entry.categoryName"
-									class="form-control"
-									:placeholder="$texts.entry.lookupPlaceholder()"
-									autocomplete="off"
+								<button
+									ref="categoryLookupTrigger"
+									type="button"
+									class="form-control lookup-trigger"
 									role="combobox"
+									aria-haspopup="listbox"
 									:aria-expanded="showCategorySuggestions ? 'true' : 'false'"
 									aria-controls="category-suggestions"
-									@focus="openLookup('category')"
-									@click="openLookup('category')"
-									@input="onLookupInput('category')"
-									@keydown.down.prevent="moveLookupHighlight('category', 1)"
-									@keydown.up.prevent="moveLookupHighlight('category', -1)"
-									@keydown.enter="handleLookupEnter($event, 'category')"
-									@keydown.esc.stop.prevent="closeLookup"
-									@blur="deferLookupClose('category')">
+									@click="toggleLookup('category')"
+									@keydown.down.prevent="openLookupAndMove('category', 1)"
+									@keydown.up.prevent="openLookupAndMove('category', -1)"
+									@keydown.enter.prevent="handleLookupTriggerEnter('category')"
+									@keydown.esc.stop.prevent="closeLookup">
+									<span class="lookup-trigger-value" :class="{ 'is-placeholder': !entry.categoryName }">
+										{{ entry.categoryName || $texts.entry.selectPlaceholder() }}
+									</span>
+									<ChevronDownIcon :size="18" class="lookup-chevron" aria-hidden="true" />
+								</button>
 								<button
 									v-if="entry.categoryName"
 									type="button"
@@ -117,48 +117,71 @@
 									@click.prevent="clearLookupValue('category')">
 									<CloseIcon :size="16" aria-hidden="true" />
 								</button>
-								<div v-if="showCategorySuggestions" id="category-suggestions" class="lookup-menu" role="listbox">
-									<template v-for="section in categorySuggestionSections" :key="section.label || 'category-results'">
-										<div v-if="section.label && section.items.length" class="lookup-group-label">{{ section.label }}</div>
-										<button
-											v-for="cat in section.items"
-											:key="`${section.label || 'category'}-${cat.id}`"
-											type="button"
-											class="lookup-option"
-											:class="{ active: highlightedCategoryIndex === lookupIndex('category', cat) }"
-											role="option"
-											:aria-selected="highlightedCategoryIndex === lookupIndex('category', cat) ? 'true' : 'false'"
-											@mousedown.prevent="selectCategorySuggestion(cat)"
-											@click="selectCategorySuggestion(cat)">
-											<CategoryIcon :icon="cat.icon || 'Shape'" :size="16" />
-											<span>{{ cat.name }}</span>
+								<div v-if="showCategorySuggestions" id="category-suggestions" class="lookup-menu">
+									<div class="lookup-options" role="listbox">
+										<template v-for="section in categorySuggestionSections" :key="section.label || 'category-results'">
+											<div v-if="section.label && section.items.length" class="lookup-group-label">{{ section.label }}</div>
+											<button
+												v-for="cat in section.items"
+												:key="`${section.label || 'category'}-${cat.id}`"
+												type="button"
+												class="lookup-option"
+												:class="{ active: highlightedCategoryIndex === lookupIndex('category', cat) }"
+												role="option"
+												:aria-selected="highlightedCategoryIndex === lookupIndex('category', cat) ? 'true' : 'false'"
+										@click="selectCategorySuggestion(cat)">
+												<CategoryIcon :icon="cat.icon || 'Shape'" :size="16" />
+												<span>{{ cat.name }}</span>
+											</button>
+										</template>
+										<div v-if="categorySuggestions.length === 0" class="lookup-empty">{{ $texts.entry.noMatchingEntries() }}</div>
+									</div>
+									<div class="lookup-create">
+										<button v-if="lookupInputMode !== 'category'" type="button" class="lookup-add-button" @click="startLookupInput('category')">
+											<PlusIcon :size="18" aria-hidden="true" />
+											<span>{{ $texts.entry.addNewCategory() }}</span>
 										</button>
-									</template>
+										<div v-else class="lookup-create-form">
+											<input
+												ref="categoryCreateInput"
+												type="text"
+												v-model="lookupDraft.category"
+												class="form-control lookup-create-input"
+												:placeholder="$texts.entry.newCategoryPlaceholder()"
+												autocomplete="off"
+												@input="resetLookupHighlight('category')"
+												@keydown.enter.prevent="handleLookupDraftEnter('category')"
+												@keydown.esc.stop.prevent="cancelLookupInput('category')">
+											<button type="button" class="lookup-use-button" :disabled="!lookupDraft.category.trim()" @click="applyLookupDraft('category')">
+												{{ $texts.entry.useNewValue() }}
+											</button>
+										</div>
+									</div>
 								</div>
 							</div>
 						</div>
 
 						<div class="form-group detail-paymentPartner">
 							<label>{{ paymentPartnerLabel }}</label>
-							<div class="lookup-field" :class="{ 'has-clear-button': entry.paymentPartnerName }">
-								<input
-									ref="paymentPartnerLookupInput"
-									type="text"
-									v-model="entry.paymentPartnerName"
-									class="form-control"
-									:placeholder="$texts.entry.lookupPlaceholder()"
-									autocomplete="off"
+							<div ref="paymentPartnerLookupField" class="lookup-field" :class="{ 'has-clear-button': entry.paymentPartnerName }">
+								<button
+									ref="paymentPartnerLookupTrigger"
+									type="button"
+									class="form-control lookup-trigger"
 									role="combobox"
+									aria-haspopup="listbox"
 									:aria-expanded="showPaymentPartnerSuggestions ? 'true' : 'false'"
 									aria-controls="paymentPartner-suggestions"
-									@focus="openLookup('paymentPartner')"
-									@click="openLookup('paymentPartner')"
-									@input="onLookupInput('paymentPartner')"
-									@keydown.down.prevent="moveLookupHighlight('paymentPartner', 1)"
-									@keydown.up.prevent="moveLookupHighlight('paymentPartner', -1)"
-									@keydown.enter="handleLookupEnter($event, 'paymentPartner')"
-									@keydown.esc.stop.prevent="closeLookup"
-									@blur="deferLookupClose('paymentPartner')">
+									@click="toggleLookup('paymentPartner')"
+									@keydown.down.prevent="openLookupAndMove('paymentPartner', 1)"
+									@keydown.up.prevent="openLookupAndMove('paymentPartner', -1)"
+									@keydown.enter.prevent="handleLookupTriggerEnter('paymentPartner')"
+									@keydown.esc.stop.prevent="closeLookup">
+									<span class="lookup-trigger-value" :class="{ 'is-placeholder': !entry.paymentPartnerName }">
+										{{ entry.paymentPartnerName || $texts.entry.selectPlaceholder() }}
+									</span>
+									<ChevronDownIcon :size="18" class="lookup-chevron" aria-hidden="true" />
+								</button>
 								<button
 									v-if="entry.paymentPartnerName"
 									type="button"
@@ -169,22 +192,45 @@
 									@click.prevent="clearLookupValue('paymentPartner')">
 									<CloseIcon :size="16" aria-hidden="true" />
 								</button>
-								<div v-if="showPaymentPartnerSuggestions" id="paymentPartner-suggestions" class="lookup-menu" role="listbox">
-									<template v-for="section in paymentPartnerSuggestionSections" :key="section.label || 'paymentPartner-results'">
-										<div v-if="section.label && section.items.length" class="lookup-group-label">{{ section.label }}</div>
-										<button
-											v-for="paymentPartner in section.items"
-											:key="`${section.label || 'paymentPartner'}-${paymentPartner.id}`"
-											type="button"
-											class="lookup-option"
-											:class="{ active: highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) }"
-											role="option"
-											:aria-selected="highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) ? 'true' : 'false'"
-											@mousedown.prevent="selectPaymentPartnerSuggestion(paymentPartner)"
-											@click="selectPaymentPartnerSuggestion(paymentPartner)">
-											<span>{{ paymentPartner.name }}</span>
+								<div v-if="showPaymentPartnerSuggestions" id="paymentPartner-suggestions" class="lookup-menu">
+									<div class="lookup-options" role="listbox">
+										<template v-for="section in paymentPartnerSuggestionSections" :key="section.label || 'paymentPartner-results'">
+											<div v-if="section.label && section.items.length" class="lookup-group-label">{{ section.label }}</div>
+											<button
+												v-for="paymentPartner in section.items"
+												:key="`${section.label || 'paymentPartner'}-${paymentPartner.id}`"
+												type="button"
+												class="lookup-option"
+												:class="{ active: highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) }"
+												role="option"
+												:aria-selected="highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) ? 'true' : 'false'"
+										@click="selectPaymentPartnerSuggestion(paymentPartner)">
+												<span>{{ paymentPartner.name }}</span>
+											</button>
+										</template>
+										<div v-if="paymentPartnerSuggestions.length === 0" class="lookup-empty">{{ $texts.entry.noMatchingEntries() }}</div>
+									</div>
+									<div class="lookup-create">
+										<button v-if="lookupInputMode !== 'paymentPartner'" type="button" class="lookup-add-button" @click="startLookupInput('paymentPartner')">
+											<PlusIcon :size="18" aria-hidden="true" />
+											<span>{{ $texts.entry.addNewPaymentPartner() }}</span>
 										</button>
-									</template>
+										<div v-else class="lookup-create-form">
+											<input
+												ref="paymentPartnerCreateInput"
+												type="text"
+												v-model="lookupDraft.paymentPartner"
+												class="form-control lookup-create-input"
+												:placeholder="$texts.entry.newPaymentPartnerPlaceholder()"
+												autocomplete="off"
+												@input="resetLookupHighlight('paymentPartner')"
+												@keydown.enter.prevent="handleLookupDraftEnter('paymentPartner')"
+												@keydown.esc.stop.prevent="cancelLookupInput('paymentPartner')">
+											<button type="button" class="lookup-use-button" :disabled="!lookupDraft.paymentPartner.trim()" @click="applyLookupDraft('paymentPartner')">
+												{{ $texts.entry.useNewValue() }}
+											</button>
+										</div>
+									</div>
 								</div>
 							</div>
 						</div>
@@ -402,11 +448,13 @@ import { readWorkspaceId } from '../services/workspaceStorage'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
+import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
+import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import CbIconButton from './CbIconButton.vue'
 
 export default {
 	name: 'AddEntryModal',
-	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, CbIconButton },
+	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, ChevronDownIcon, PlusIcon, CbIconButton },
 	props: {
 		projectId: {
 			type: Number,
@@ -460,9 +508,10 @@ export default {
 			showPlanningOptions: false,
 			confirmDialog: null,
 			focusedLookupField: null,
-			lookupSearchMode: {
-				category: false,
-				paymentPartner: false
+			lookupInputMode: null,
+			lookupDraft: {
+				category: '',
+				paymentPartner: ''
 			},
 			highlightedCategoryIndex: -1,
 			highlightedPaymentPartnerIndex: -1,
@@ -562,10 +611,10 @@ export default {
 			return this.paymentPartnerSuggestionSections.flatMap(section => section.items);
 		},
 		showCategorySuggestions() {
-			return this.focusedLookupField === 'category' && this.categorySuggestions.length > 0;
+			return this.focusedLookupField === 'category';
 		},
 		showPaymentPartnerSuggestions() {
-			return this.focusedLookupField === 'paymentPartner' && this.paymentPartnerSuggestions.length > 0;
+			return this.focusedLookupField === 'paymentPartner';
 		},
 		isEditing() {
 			return !!this.internalEditingEntry;
@@ -797,9 +846,11 @@ export default {
 	mounted() {
 		// Data lists are now fetched when modal opens
 		window.addEventListener('popstate', this.handleModalPopState);
+		document.addEventListener('mousedown', this.handleLookupOutside);
 	},
 	beforeUnmount() {
 		window.removeEventListener('popstate', this.handleModalPopState);
+		document.removeEventListener('mousedown', this.handleLookupOutside);
 		if (this.ignorePopStateTimer) {
 			window.clearTimeout(this.ignorePopStateTimer);
 			this.ignorePopStateTimer = null;
@@ -1192,51 +1243,140 @@ export default {
 		lookupSuggestions(field) {
 			return field === 'category' ? this.categorySuggestions : this.paymentPartnerSuggestions;
 		},
-		setLookupSearchMode(field, isSearching) {
-			this.lookupSearchMode = {
-				...this.lookupSearchMode,
-				[field]: isSearching
-			};
-		},
-		exactLookupMatch(field) {
-			const value = String(this.lookupValue(field) || '').trim().toLowerCase();
-			if (!value) {
+		exactLookupMatch(field, value = this.lookupDraft[field]) {
+			const normalizedValue = String(value || '').trim().toLowerCase();
+			if (!normalizedValue) {
 				return null;
 			}
 
-			return this.lookupItems(field).find(item => String(item.name || '').trim().toLowerCase() === value) || null;
+			return this.lookupItems(field).find(item => String(item.name || '').trim().toLowerCase() === normalizedValue) || null;
 		},
 		lookupQueryForField(field) {
-			const value = String(this.lookupValue(field) || '').trim();
-			if (!value) {
-				return '';
-			}
-
-			if (this.focusedLookupField === field && !this.lookupSearchMode[field] && this.exactLookupMatch(field)) {
-				return '';
-			}
-
-			return value.toLowerCase();
+			return this.lookupInputMode === field
+				? String(this.lookupDraft[field] || '').trim().toLowerCase()
+				: '';
 		},
 		lookupIndex(field, item) {
 			const suggestions = field === 'category' ? this.categorySuggestions : this.paymentPartnerSuggestions;
 			return suggestions.findIndex(suggestion => suggestion.id === item.id);
 		},
+		lookupField(field) {
+			return field === 'category' ? this.$refs.categoryLookupField : this.$refs.paymentPartnerLookupField;
+		},
+		lookupTrigger(field) {
+			return field === 'category' ? this.$refs.categoryLookupTrigger : this.$refs.paymentPartnerLookupTrigger;
+		},
+		lookupCreateInput(field) {
+			return field === 'category' ? this.$refs.categoryCreateInput : this.$refs.paymentPartnerCreateInput;
+		},
+		toggleLookup(field) {
+			if (this.focusedLookupField === field) {
+				this.closeLookup();
+				return;
+			}
+
+			this.openLookup(field);
+		},
 		openLookup(field) {
 			this.focusedLookupField = field;
-			const value = String(this.lookupValue(field) || '').trim();
-			this.setLookupSearchMode(field, value !== '' && !this.exactLookupMatch(field));
+			this.lookupInputMode = null;
+			this.lookupDraft = { category: '', paymentPartner: '' };
 			this.resetLookupHighlight(field);
 		},
-		onLookupInput(field) {
+		openLookupAndMove(field, direction) {
+			if (this.focusedLookupField !== field) {
+				this.openLookup(field);
+				if (direction < 0 && this.lookupSuggestions(field).length > 0) {
+					const lastIndex = this.lookupSuggestions(field).length - 1;
+					if (field === 'category') {
+						this.highlightedCategoryIndex = lastIndex;
+					} else {
+						this.highlightedPaymentPartnerIndex = lastIndex;
+					}
+				}
+				return;
+			}
+
+			this.moveLookupHighlight(field, direction);
+		},
+		handleLookupTriggerEnter(field) {
+			if (this.focusedLookupField !== field) {
+				this.openLookup(field);
+				return;
+			}
+
+			if (!this.chooseHighlightedLookup(field)) {
+				this.closeLookup();
+			}
+		},
+		startLookupInput(field) {
 			this.focusedLookupField = field;
-			this.setLookupSearchMode(field, true);
+			this.lookupInputMode = field;
+			this.lookupDraft = { ...this.lookupDraft, [field]: '' };
 			this.resetLookupHighlight(field);
+			this.$nextTick(() => this.lookupCreateInput(field)?.focus());
+		},
+		cancelLookupInput(field) {
+			this.lookupInputMode = null;
+			this.lookupDraft = { ...this.lookupDraft, [field]: '' };
+			this.resetLookupHighlight(field);
+			this.$nextTick(() => this.lookupTrigger(field)?.focus());
+		},
+		applyLookupDraft(field) {
+			const name = String(this.lookupDraft[field] || '').trim();
+			if (!name) {
+				return;
+			}
+
+			const exactMatch = this.exactLookupMatch(field, name);
+			if (exactMatch) {
+				if (field === 'category') {
+					this.selectCategorySuggestion(exactMatch);
+				} else {
+					this.selectPaymentPartnerSuggestion(exactMatch);
+				}
+				return;
+			}
+
+			if (field === 'category') {
+				this.entry.categoryName = name;
+			} else {
+				this.entry.paymentPartnerName = name;
+			}
+			this.closeLookup();
+			this.blurLookupTrigger(field);
+		},
+		handleLookupDraftEnter(field) {
+			const suggestions = this.lookupSuggestions(field);
+			const highlightedIndex = field === 'category' ? this.highlightedCategoryIndex : this.highlightedPaymentPartnerIndex;
+			const item = highlightedIndex >= 0 ? suggestions[highlightedIndex] : null;
+			if (item) {
+				if (field === 'category') {
+					this.selectCategorySuggestion(item);
+				} else {
+					this.selectPaymentPartnerSuggestion(item);
+				}
+				return;
+			}
+
+			this.applyLookupDraft(field);
 		},
 		closeLookup() {
 			this.focusedLookupField = null;
+			this.lookupInputMode = null;
+			this.lookupDraft = { category: '', paymentPartner: '' };
 			this.highlightedCategoryIndex = -1;
 			this.highlightedPaymentPartnerIndex = -1;
+		},
+		handleLookupOutside(event) {
+			if (!this.focusedLookupField) {
+				return;
+			}
+
+			const field = this.lookupField(this.focusedLookupField);
+			if (field && !field.contains(event.target)) {
+				this.closeLookup();
+			}
 		},
 		resetScopedLookups() {
 			this.entry.categoryName = '';
@@ -1284,41 +1424,23 @@ export default {
 		clearLookupValue(field) {
 			if (field === 'category') {
 				this.entry.categoryName = '';
-			} else if (field === 'paymentPartner') {
+			} else {
 				this.entry.paymentPartnerName = '';
 			}
-
-			this.focusedLookupField = field;
-			this.setLookupSearchMode(field, false);
-			this.$nextTick(() => {
-				const input = field === 'category' ? this.$refs.categoryLookupInput : this.$refs.paymentPartnerLookupInput;
-				if (input && typeof input.focus === 'function') {
-					input.focus();
-				}
-				this.resetLookupHighlight(field);
-			});
-		},
-		deferLookupClose(field) {
-			window.setTimeout(() => {
-				if (this.focusedLookupField === field) {
-					this.closeLookup();
-				}
-			}, 120);
+			this.openLookup(field);
+			this.$nextTick(() => this.lookupTrigger(field)?.focus());
 		},
 		resetLookupHighlight(field) {
-			const suggestions = this.lookupSuggestions(field);
-			const exactMatch = !this.lookupSearchMode[field] ? this.exactLookupMatch(field) : null;
-			const exactIndex = exactMatch ? suggestions.findIndex(suggestion => suggestion.id === exactMatch.id) : -1;
-			const nextIndex = exactIndex >= 0 ? exactIndex : (suggestions.length > 0 ? 0 : -1);
+			const nextIndex = this.lookupSuggestions(field).length > 0 ? 0 : -1;
 
 			if (field === 'category') {
 				this.highlightedCategoryIndex = nextIndex;
-			} else if (field === 'paymentPartner') {
+			} else {
 				this.highlightedPaymentPartnerIndex = nextIndex;
 			}
 		},
 		moveLookupHighlight(field, direction) {
-			const suggestions = field === 'category' ? this.categorySuggestions : this.paymentPartnerSuggestions;
+			const suggestions = this.lookupSuggestions(field);
 			if (!suggestions.length) return;
 			this.focusedLookupField = field;
 			const current = field === 'category' ? this.highlightedCategoryIndex : this.highlightedPaymentPartnerIndex;
@@ -1330,47 +1452,33 @@ export default {
 			}
 		},
 		chooseHighlightedLookup(field) {
-			if (field === 'category') {
-				const item = this.categorySuggestions[this.highlightedCategoryIndex];
-				if (item) {
-					this.selectCategorySuggestion(item);
-				}
-			} else if (field === 'paymentPartner') {
-				const item = this.paymentPartnerSuggestions[this.highlightedPaymentPartnerIndex];
-				if (item) {
-					this.selectPaymentPartnerSuggestion(item);
-				}
-			}
-		},
-		handleLookupEnter(event, field) {
-			const suggestions = field === 'category' ? this.categorySuggestions : this.paymentPartnerSuggestions;
+			const suggestions = this.lookupSuggestions(field);
 			const highlightedIndex = field === 'category' ? this.highlightedCategoryIndex : this.highlightedPaymentPartnerIndex;
 			const item = suggestions[highlightedIndex];
-			if (item) {
-				event.preventDefault();
-				this.chooseHighlightedLookup(field);
-				return;
+			if (!item) {
+				return false;
 			}
-			this.closeLookup();
+
+			if (field === 'category') {
+				this.selectCategorySuggestion(item);
+			} else {
+				this.selectPaymentPartnerSuggestion(item);
+			}
+			return true;
 		},
 		selectCategorySuggestion(category) {
 			this.entry.categoryName = category.name;
-			this.setLookupSearchMode('category', false);
 			this.closeLookup();
-			this.blurLookupInput('category');
+			this.blurLookupTrigger('category');
 		},
 		selectPaymentPartnerSuggestion(paymentPartner) {
 			this.entry.paymentPartnerName = paymentPartner.name;
-			this.setLookupSearchMode('paymentPartner', false);
 			this.closeLookup();
-			this.blurLookupInput('paymentPartner');
+			this.blurLookupTrigger('paymentPartner');
 		},
-		blurLookupInput(field) {
+		blurLookupTrigger(field) {
 			this.$nextTick(() => {
-				const input = field === 'category' ? this.$refs.categoryLookupInput : this.$refs.paymentPartnerLookupInput;
-				if (input && typeof input.blur === 'function') {
-					input.blur();
-				}
+				this.lookupTrigger(field)?.blur();
 				this.syncMobileHeaderSaveVisibility();
 			});
 		},
@@ -2426,15 +2534,18 @@ form {
 .core-amount,
 .core-template-name,
 .core-template-amount,
-.core-description,
 .detail-category,
-.detail-paymentPartner,
-.detail-tags {
+.detail-paymentPartner {
 	grid-column: span 1;
 }
 
+.core-description,
+.detail-tags,
 .detail-attachments {
 	grid-column: 1 / -1;
+}
+
+.detail-attachments {
 	margin-top: -4px;
 }
 
@@ -2443,12 +2554,45 @@ form {
 	width: 100%;
 }
 
-.lookup-field.has-leading-icon .form-control {
+.lookup-field.has-leading-icon > .lookup-trigger {
 	padding-left: 52px;
 }
 
-.lookup-field.has-clear-button .form-control {
-	padding-right: 44px;
+.lookup-field.has-clear-button > .lookup-trigger {
+	padding-right: 76px;
+}
+
+.lookup-trigger {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: 44px;
+	box-sizing: border-box;
+	text-align: left;
+	cursor: pointer;
+  font-weight: normal;
+}
+
+.lookup-trigger-value {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.lookup-trigger-value.is-placeholder {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	font-weight: 400;
+}
+
+.lookup-chevron {
+	position: absolute;
+	top: 50%;
+	right: 12px;
+	z-index: 2;
+	transform: translateY(-50%);
+	pointer-events: none;
 }
 
 .category-input-icon {
@@ -2464,8 +2608,8 @@ form {
 .lookup-clear-button {
 	position: absolute;
 	z-index: 3;
-	top: 50%;
-	right: 8px;
+  top: 18px;
+  right: 30px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -2498,12 +2642,89 @@ form {
 	top: calc(100% + 6px);
 	left: 0;
 	right: 0;
-	overflow-x: hidden;
-	padding: 6px;
+	overflow: hidden;
+	padding: 6px 0 0;
 	border: 1px solid var(--cobudget-border, #ddd);
 	border-radius: var(--border-radius-large, 8px);
 	background: var(--cobudget-surface, #fff);
 	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.lookup-options {
+	position: relative;
+	z-index: 1;
+	max-height: min(320px, 42vh);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+	padding: 0 6px 6px;
+}
+
+.lookup-create {
+	position: relative;
+	z-index: 1;
+	padding: 6px;
+	border-top: 1px solid var(--cobudget-border, #ddd);
+	background: var(--cobudget-surface, var(--color-main-background, #fff));
+}
+
+.lookup-add-button {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	min-height: 44px;
+	margin: 0;
+	padding: 0 10px;
+	border: 0;
+	border-radius: var(--border-radius, 6px);
+	background: transparent;
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-weight: 600;
+	text-align: left;
+	cursor: pointer;
+}
+
+.lookup-add-button:hover,
+.lookup-add-button:focus-visible {
+
+	outline: none;
+}
+
+.lookup-create-form {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 6px;
+	align-items: center;
+}
+
+.lookup-create-input {
+	min-width: 0;
+	height: 44px;
+	box-sizing: border-box;
+}
+
+.lookup-use-button {
+	min-height: 44px;
+	margin: 0;
+	padding: 0 14px;
+	border: 0;
+	border-radius: var(--border-radius, 6px);
+	background: var(--cobudget-surface-muted, var(--color-background-hover, #f2f2f2));
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.lookup-use-button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.lookup-empty {
+	padding: 12px 10px;
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
 }
 
 .lookup-menu::before {
@@ -2552,6 +2773,7 @@ form {
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	font-size: var(--cobudget-font-base);
 	text-align: left;
+  font-weight: normal;
 	cursor: pointer;
 }
 

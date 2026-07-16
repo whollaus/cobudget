@@ -2,6 +2,13 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.5] - 2026-07-16
+
+### Changed
+
+- Reworked category and payment-partner selection so routine choices open a scrollable list without immediately showing the mobile keyboard. New values can still be added explicitly and are created when the payment or template is saved.
+- Gave the purpose or description field the full form width and moved labels to a separate row for a calmer payment and template entry layout.
+
 ## [0.2.4] - 2026-07-15
 
 ### Added
