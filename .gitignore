@@ -25,6 +25,7 @@ appinfo/signature.json
 # Nextcloud signing material and locally generated release metadata
 .signing/
 release-artifacts/
+/release-private/
 scripts/prepare-signed-release-remote.sh
 *.key
 *.csr
