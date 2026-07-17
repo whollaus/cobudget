@@ -2,6 +2,14 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.6] - 2026-07-17
+
+### Changed
+
+- Made area assignment directly visible in payment and template forms, placed it below the description, and simplified area option labels.
+- Clarified shared-area allocation wording so the default split and full allocation to one member are easier to understand.
+- Grouped receipts with recurrence and reminders as optional details, while giving receipt uploads their own clearly structured panel.
+
 ## [0.2.5] - 2026-07-16
 
 ### Changed

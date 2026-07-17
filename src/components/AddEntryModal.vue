@@ -240,70 +240,15 @@
 							<input type="text" v-model="entry.description" class="form-control" :placeholder="$texts.entry.descriptionPlaceholder()">
 						</div>
 
-						<div class="form-group tags-group detail-tags" v-if="hasAvailableTags">
-							<div class="tags-toggles">
-								<label class="tag-toggle" v-if="$enableImportantPayments">
-									<input type="checkbox" v-model="entry.isImportant">
-									<span class="tag-btn" :class="{active: entry.isImportant}">{{ $texts.labels.important() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="$enableReviewPayments">
-									<input type="checkbox" v-model="entry.needsReview">
-									<span class="tag-btn" :class="{active: entry.needsReview}">{{ $texts.labels.review() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableFixedCosts">
-									<input type="checkbox" v-model="entry.isFixedCost">
-									<span class="tag-btn" :class="{active: entry.isFixedCost}">{{ $texts.labels.fixedCosts() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="$enableChildRelated">
-									<input type="checkbox" v-model="entry.isChildRelated">
-									<span class="tag-btn" :class="{active: entry.isChildRelated}">{{ $texts.labels.children() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableSubscriptions">
-									<input type="checkbox" v-model="entry.isSubscription">
-									<span class="tag-btn" :class="{active: entry.isSubscription}">{{ $texts.labels.subscription() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="$enableTaxRelevant">
-									<input type="checkbox" v-model="entry.isTaxRelevant">
-									<span class="tag-btn" :class="{active: entry.isTaxRelevant}">{{ $texts.labels.taxRelevant() }}</span>
-								</label>
-							</div>
-						</div>
-
-						<div class="attachments-inline detail-attachments" v-if="showAttachmentSection">
-							<label class="attachment-upload-btn">
-								<input ref="attachmentInput" type="file" multiple @change="onAttachmentFilesSelected">
-								<span>{{ $texts.entry.addReceipt() }}</span>
-							</label>
-
-							<div v-if="attachmentsLoading" class="attachments-empty">{{ $texts.entry.receiptsLoading() }}</div>
-							<ul v-if="hasAttachments" class="attachment-list">
-								<li v-for="attachment in attachments" :key="`existing-${attachment.id}`">
-									<a :href="attachmentDownloadUrl(attachment)" target="_blank" rel="noopener">
-										{{ attachment.file_name }}
-									</a>
-									<span class="attachment-meta">{{ formatFileSize(attachment.file_size) }}</span>
-									<button v-if="canDeleteAttachment(attachment)" type="button" class="attachment-remove" :disabled="loading" @click="deleteAttachment(attachment)" :aria-label="$texts.entry.removeReceipt()">×</button>
-								</li>
-								<li v-for="(file, index) in pendingAttachments" :key="`pending-${index}-${file.name}`" class="attachment-pending">
-									<span>{{ file.name }}</span>
-									<span class="attachment-meta">{{ $texts.entry.uploadOnSave() }}</span>
-									<button type="button" class="attachment-remove" :disabled="loading" @click="removePendingAttachment(index)" :aria-label="$texts.entry.removeSelection()">×</button>
-								</li>
-							</ul>
-						</div>
-
-					</div>
-					<details class="assignment-section" v-if="!isTemplateMode && $enableProjects">
-						<summary>{{ assignmentSummary }}</summary>
-						<div class="assignment-card">
+						<div class="assignment-fields" v-if="!isTemplateMode && $enableProjects">
 							<div class="project-assignment-row" :class="{ 'has-project-payer': showProjectPayerSelect, 'has-split-mode': showProjectSplitMode }">
 								<div class="form-group detail-project">
-									<label>{{ $texts.entry.assignment() }}</label>
-									<select v-model="entry.projectId" class="form-control select-control" :aria-label="$texts.entry.assignment()">
+									<label>{{ $texts.entry.area() }}</label>
+									<select v-model="entry.projectId" class="form-control select-control" :aria-label="$texts.entry.area()">
 										<option :value="null">{{ $texts.entry.personalAssignment() }}</option>
 										<optgroup v-if="activeProjects.length" :label="$texts.entry.areas()">
 											<option v-for="p in activeProjects" :key="p.id" :value="p.id">
-												{{ projectOptionLabel(p) }}
+												{{ p.name }}
 											</option>
 										</optgroup>
 									</select>
@@ -335,10 +280,63 @@
 								</div>
 							</div>
 						</div>
-					</details>
+
+						<div class="form-group tags-group detail-tags" v-if="hasAvailableTags">
+							<div class="tags-toggles">
+								<label class="tag-toggle" v-if="$enableImportantPayments">
+									<input type="checkbox" v-model="entry.isImportant">
+									<span class="tag-btn" :class="{active: entry.isImportant}">{{ $texts.labels.important() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="$enableReviewPayments">
+									<input type="checkbox" v-model="entry.needsReview">
+									<span class="tag-btn" :class="{active: entry.needsReview}">{{ $texts.labels.review() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableFixedCosts">
+									<input type="checkbox" v-model="entry.isFixedCost">
+									<span class="tag-btn" :class="{active: entry.isFixedCost}">{{ $texts.labels.fixedCosts() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="$enableChildRelated">
+									<input type="checkbox" v-model="entry.isChildRelated">
+									<span class="tag-btn" :class="{active: entry.isChildRelated}">{{ $texts.labels.children() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableSubscriptions">
+									<input type="checkbox" v-model="entry.isSubscription">
+									<span class="tag-btn" :class="{active: entry.isSubscription}">{{ $texts.labels.subscription() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="$enableTaxRelevant">
+									<input type="checkbox" v-model="entry.isTaxRelevant">
+									<span class="tag-btn" :class="{active: entry.isTaxRelevant}">{{ $texts.labels.taxRelevant() }}</span>
+								</label>
+							</div>
+						</div>
+					</div>
 
 					<details class="planning-section" v-if="!isTemplateMode" :open="showPlanningOptions" @toggle="showPlanningOptions = $event.target.open">
-						<summary>{{ $texts.entry.planning() }}</summary>
+						<summary>{{ showAttachmentSection ? $texts.entry.planningWithReceipts() : $texts.entry.planning() }}</summary>
+						<div v-if="showAttachmentSection" class="planning-card planning-attachments-card">
+							<div class="attachments-inline planning-attachments">
+								<label class="attachment-upload-btn">
+									<input ref="attachmentInput" type="file" multiple @change="onAttachmentFilesSelected">
+									<span>{{ $texts.entry.addReceipt() }}</span>
+								</label>
+
+								<div v-if="attachmentsLoading" class="attachments-empty">{{ $texts.entry.receiptsLoading() }}</div>
+								<ul v-if="hasAttachments" class="attachment-list">
+									<li v-for="attachment in attachments" :key="`existing-${attachment.id}`">
+										<a :href="attachmentDownloadUrl(attachment)" target="_blank" rel="noopener">
+											{{ attachment.file_name }}
+										</a>
+										<span class="attachment-meta">{{ formatFileSize(attachment.file_size) }}</span>
+										<button v-if="canDeleteAttachment(attachment)" type="button" class="attachment-remove" :disabled="loading" @click="deleteAttachment(attachment)" :aria-label="$texts.entry.removeReceipt()">×</button>
+									</li>
+									<li v-for="(file, index) in pendingAttachments" :key="`pending-${index}-${file.name}`" class="attachment-pending">
+										<span>{{ file.name }}</span>
+										<span class="attachment-meta">{{ $texts.entry.uploadOnSave() }}</span>
+										<button type="button" class="attachment-remove" :disabled="loading" @click="removePendingAttachment(index)" :aria-label="$texts.entry.removeSelection()">×</button>
+									</li>
+								</ul>
+							</div>
+						</div>
 						<div class="planning-grid">
 							<div class="form-group recurrence-group planning-card" v-if="$enableFuturePayments">
 								<div class="recurrence-options">
@@ -755,24 +753,8 @@ export default {
 				this.entry.splitUserId = null;
 			}
 		},
-		assignmentSummary() {
-			if (!this.selectedProject) {
-				return this.$texts.entry.personalAssignmentSummary();
-			}
-
-			if (this.entry.splitMode === 'single_user') {
-				return this.$texts.entry.areaOnlyUser(this.selectedSplitUserLabel);
-			}
-
-			return this.$texts.entry.areaAssigned(this.selectedProject.name, this.projectShareLabel(this.selectedProject));
-		},
 		selectedProjectUserLabel() {
 			const member = this.normalizedProjectMembers.find(option => option.id === this.entry.userId);
-			return member ? member.displayName : this.$texts.entry.selectedUser();
-		},
-		selectedSplitUserLabel() {
-			const splitUserId = this.entry.splitUserId || this.entry.userId;
-			const member = this.normalizedProjectMembers.find(option => option.id === splitUserId);
 			return member ? member.displayName : this.$texts.entry.selectedUser();
 		},
 		nextRecurrence() {
@@ -1661,10 +1643,10 @@ export default {
 			await this.ensureProjectMembers(this.entry.projectId);
 			this.syncEntryUserWithProject(this.entry.userId);
 			this.isInitializingEntry = false;
-			this.showPlanningOptions = this.shouldExpandPlanningOptions();
 			if (entryToEdit && !this.isTemplateMode) {
 				await this.fetchAttachments(entryToEdit.id);
 			}
+			this.showPlanningOptions = this.shouldExpandPlanningOptions();
 			this.focusInitialField();
 		},
 		focusInitialField() {
@@ -1728,6 +1710,7 @@ export default {
 				return;
 			}
 			this.pendingAttachments = this.pendingAttachments.concat(files);
+			this.showPlanningOptions = true;
 			event.target.value = '';
 		},
 		removePendingAttachment(index) {
@@ -1874,36 +1857,13 @@ export default {
 			const p = this.projects.find(p => p.id === id)
 			return p ? p.name : ''
 		},
-		projectOptionLabel(project) {
-			return `${project.name} (${this.projectShareLabel(project)})`;
-		},
-		projectShareLabel(project) {
-			if (!this.$enableSharedProjects) {
-				return this.$texts.entry.myShare(100);
-			}
-
-			const memberCount = Math.max(1, parseInt(project?.member_count, 10) || 1);
-			if (memberCount === 1) {
-				return this.$texts.entry.myShare(100);
-			}
-
-			const shareBasisPoints = parseInt(project?.my_share_basis_points, 10);
-			if (Number.isFinite(shareBasisPoints) && shareBasisPoints > 0) {
-				return this.$texts.entry.myShare(this.formatShareBasisPoints(shareBasisPoints));
-			}
-
-			return this.$texts.entry.myShare(Math.round(100 / memberCount));
-		},
-			formatShareBasisPoints(shareBasisPoints) {
-				const value = Math.round((parseInt(shareBasisPoints, 10) || 0) / 100);
-				return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
-			},
 		shouldExpandPlanningOptions() {
 			return !this.isTemplateMode && (
 				this.entry.recurrenceInterval !== 'none'
 				|| !!this.entry.recurrenceEndDate
 				|| !!this.entry.hasReminder
 				|| !!this.entry.reminderText
+				|| this.hasAttachments
 			);
 		},
 		entryUserIdForSave() {
@@ -2479,11 +2439,6 @@ form {
 	margin-top: 14px;
 }
 
-.assignment-section {
-
-}
-
-.assignment-section,
 .planning-section {
 	grid-column: 1 / -1;
 	margin-top: 18px;
@@ -2492,7 +2447,6 @@ form {
 	background: var(--cobudget-surface-muted, #f7f7f7);
 }
 
-.assignment-section summary,
 .planning-section summary {
 	cursor: pointer;
   font-weight: 600;
@@ -2500,7 +2454,6 @@ form {
   color: var(--cobudget-text, var(--color-main-text, #333));
 }
 
-.assignment-section summary:focus-visible,
 .planning-section summary:focus-visible {
 	outline: 2px solid var(--color-primary, #0082c9);
 	outline-offset: 2px;
@@ -2518,6 +2471,11 @@ form {
 	grid-template-columns: minmax(0, 1fr);
 	gap: 16px;
 	align-items: end;
+}
+
+.assignment-fields {
+	grid-column: 1 / -1;
+	margin-top: 0;
 }
 
 .project-assignment-row.has-project-payer,
@@ -2540,13 +2498,8 @@ form {
 }
 
 .core-description,
-.detail-tags,
-.detail-attachments {
+.detail-tags {
 	grid-column: 1 / -1;
-}
-
-.detail-attachments {
-	margin-top: -4px;
 }
 
 .lookup-field {
@@ -2792,7 +2745,6 @@ form {
 	overflow-wrap: anywhere;
 }
 
-.assignment-card,
 .planning-card {
 	margin: 0;
 	padding: 12px;
@@ -2801,7 +2753,7 @@ form {
 	background: var(--cobudget-surface, #fff);
 }
 
-.assignment-card {
+.planning-attachments-card {
 	margin-top: 14px;
 }
 
@@ -2810,7 +2762,7 @@ form {
 	gap: 12px;
 }
 
-.assignment-card .form-group,
+.assignment-fields .form-group,
 .planning-card .form-group {
 	margin-bottom: 0;
 }
@@ -3036,6 +2988,10 @@ form {
 	align-items: flex-start;
 	gap: 8px;
 	margin-top: 10px;
+}
+
+.planning-attachments {
+	margin-top: 0;
 }
 
 .attachments-empty,

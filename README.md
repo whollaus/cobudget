@@ -11,7 +11,7 @@ It helps you track income, expenses, budgets, receipts and shared areas directly
 
 ## Project Status
 
-CoBudget `0.2.0` is a new early-alpha baseline and is currently in a test phase.
+CoBudget is a new early-alpha baseline and is currently in a test phase.
 
 - The app is not yet published in the Nextcloud App Store.
 - The Nextcloud signing certificate has been issued and the signed release process is prepared.
@@ -19,7 +19,6 @@ CoBudget `0.2.0` is a new early-alpha baseline and is currently in a test phase.
 - Public GitHub releases are the first goal.
 - App Store publication is planned later.
 - Backups are strongly recommended before every update.
-- Unpublished `0.1.x` test installations are not supported as in-place upgrades. Remove/reset the old alpha installation and install `0.2.0` with a fresh database schema.
 
 ## Screenshots
 
