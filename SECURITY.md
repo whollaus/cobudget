@@ -1,6 +1,6 @@
 # Security Policy
 
-CoBudget is currently an early alpha project.
+CoBudget is published in the Nextcloud App Store and remains an early alpha project.
 
 Security issues should be reported through GitHub Issues:
 
@@ -8,7 +8,7 @@ https://github.com/whollaus/cobudget/issues
 
 ## Supported Versions
 
-During the alpha phase, only the latest `0.2.x` development or release version is considered supported. Unpublished `0.1.x` test installations are outside the supported upgrade path.
+During the alpha phase, only the latest published `0.2.x` release and the current `main` branch are considered supported. Older alpha releases should be updated before reporting a vulnerability.
 
 ## Reporting A Vulnerability
 
@@ -73,4 +73,4 @@ Each Nextcloud user can occur only once in an area. The `0.2.0` install schema c
 
 ## Current Status
 
-The app is not yet recommended for critical production use without independent review and regular backups.
+The App Store publication does not imply a completed independent security audit. CoBudget is not yet recommended as the only system of record for critical financial data; use regular backups and keep Nextcloud and CoBudget updated.

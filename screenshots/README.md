@@ -1,8 +1,8 @@
 # Screenshots
 
-These screenshots are documentation assets for GitHub and for preparing the future Nextcloud App Store listing.
+These screenshots are documentation assets for GitHub and the published Nextcloud App Store listing.
 
-They are intentionally kept in the repository but excluded from release ZIP archives. The installable Nextcloud app package should only contain runtime files such as `appinfo/`, `css/`, `img/`, `js/`, `lib/`, `l10n/`, `templates/`, and `composer.json`.
+They are intentionally kept in the repository but excluded from installable release archives. The installable Nextcloud app package should only contain runtime files such as `appinfo/`, `css/`, `img/`, `js/`, `lib/`, `l10n/`, `templates/`, and `composer.json`.
 
 The matching `*_small.jpg` files are optimized thumbnails for Nextcloud's
 integrated app list. Keep each thumbnail in sync with its full-size screenshot.

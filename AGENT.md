@@ -119,7 +119,7 @@ The private key must be the exact key used for the certificate signing request. 
 The signed release produces `cobudget.tar.gz`, `cobudget.tar.gz.signature`, and `SHA256SUMS` in the workspace root.
 The release archive must keep the top-level `cobudget/` folder. Repository-only assets such as `screenshots/`, tests, GitHub metadata, and development dependencies must not be included in release archives.
 
-GitHub release drafts are created only from pushed tags matching `v*`, for example `v0.2.0`. The tag version must match `appinfo/info.xml`, `package.json`, and `package-lock.json`. The tag workflow must never publish or attach the unsigned CI archive. Upload the locally signed artifacts and inspect them before publishing the draft.
+GitHub release drafts are created only from pushed tags matching `v*`, for example `vX.Y.Z`. The tag version must match `appinfo/info.xml`, `package.json`, and `package-lock.json`. The tag workflow must never publish or attach the unsigned CI archive. Upload the locally signed artifacts and inspect them before publishing the draft.
 
 Any modification after signing invalidates both signatures and requires a complete rebuild and re-sign.
 

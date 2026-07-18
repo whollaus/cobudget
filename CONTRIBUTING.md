@@ -1,6 +1,6 @@
 # Contributing To CoBudget
 
-CoBudget is currently maintained as an early alpha Nextcloud app.
+CoBudget is an App Store-published Nextcloud app under active early-alpha development.
 
 ## Development Setup
 
@@ -55,4 +55,4 @@ Before creating a release package:
 6. Exclude development-only files from the release archive.
 7. Sign the app before App Store publication.
 
-Official Nextcloud App Store publication will require signed release archives.
+Every official Nextcloud App Store update requires a signed release archive and detached App Store signature. See [RELEASING.md](RELEASING.md) for the complete process.

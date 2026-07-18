@@ -1,6 +1,6 @@
 # CoBudget Features
 
-CoBudget `0.2.0` is the clean initial alpha baseline. It combines the previously tested functionality in one fresh install schema; unpublished `0.1.x` installations must be reset before installation.
+CoBudget's current `0.2.x` release line is available through the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and as signed packages on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
 
 > [!WARNING]
 > CoBudget is an early alpha version. Features, data structures and workflows may still change at any time.
@@ -8,15 +8,14 @@ CoBudget `0.2.0` is the clean initial alpha baseline. It combines the previously
 
 CoBudget is a Nextcloud app for personal and shared household budgeting.
 
-CoBudget is not yet submitted to or published in the Nextcloud App Store. During the alpha test phase, installable builds are provided through GitHub release archives.
-
 ## Payments
 
 - Create income and expense entries.
-- Add date, amount, description, category and payment partner.
+- Add date, amount, payment reference or note, category and payment partner.
+- Suggest a category from safe, repeated payment-partner habits without overwriting a manual selection.
 - Review change history for edited payments, including changed fields and previous values.
 - Mark entries with labels for important payments, payments to review, fixed costs, subscriptions, children and tax relevant payments.
-- Add free-form `#tags` directly in the description field.
+- Add free-form `#tags` directly in the payment note field.
 - Attach receipts and invoices.
 - Use recurring payments and reminders.
 - Filter, search, paginate and export payment lists, including tags when available.

@@ -2,7 +2,7 @@
 
 > [!WARNING]
 > CoBudget is an early alpha version. Features, data structures and workflows may still change at any time.
-> This is a vibe-coding project, and the codebase has not yet been fully manually reviewed line by line. Use it only with regular backups and do not rely on it as the only source for critical financial records.
+> Development is AI-assisted. The app has automated and targeted security and integrity tests, but it has not been independently audited or fully reviewed line by line. Use it only with regular backups and do not rely on it as the only source for critical financial records.
 > During the alpha phase, updates or test data resets may require manual database corrections.
 
 CoBudget is a Nextcloud app for personal and shared household budgeting.
@@ -11,14 +11,14 @@ It helps you track income, expenses, budgets, receipts and shared areas directly
 
 ## Project Status
 
-CoBudget is a new early-alpha baseline and is currently in a test phase.
+CoBudget is available in the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and remains under active early-alpha development.
 
-- The app is not yet published in the Nextcloud App Store.
-- The Nextcloud signing certificate has been issued and the signed release process is prepared.
-- It has not yet been submitted to the Nextcloud App Store.
-- Public GitHub releases are the first goal.
-- App Store publication is planned later.
-- Backups are strongly recommended before every update.
+- The supported release line is `0.2.x`; see the [changelog](CHANGELOG.md) for the latest changes.
+- Nextcloud 33 and 34 are supported.
+- App Store releases are signed and mirrored as installable assets on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
+- Features, data structures and upgrade behavior may still change before `1.0.0`.
+- Backups are strongly recommended before every update, especially for shared areas and restore workflows.
+- Bugs and feature requests are tracked through [GitHub Issues](https://github.com/whollaus/cobudget/issues).
 
 ## Screenshots
 
@@ -38,7 +38,7 @@ The screenshots below show the current alpha UI and may change during the test p
 - Review payment change history with changed fields, previous values and new values
 - Organize payments by categories and payment partners
 - Add labels such as important, review, fixed costs, subscriptions, children and tax relevant
-- Add free-form `#tags` directly in the payment description
+- Add free-form `#tags` directly in the payment note
 - Create shared areas for household costs, trips or other shared budgets
 - Use one-member areas as simple personal groupings without balances or settlements
 - Add the first additional member only while an area has no personal payments, avoiding ambiguous retroactive splits
@@ -71,11 +71,21 @@ See [FEATURES.md](FEATURES.md) for a more detailed overview.
 
 ## Installation
 
-CoBudget is not available in the Nextcloud App Store yet.
+### Nextcloud App Store
 
-For testing, install a release archive manually:
+Install or update CoBudget from the Apps section of your Nextcloud administration. The official listing is available at [apps.nextcloud.com/apps/cobudget](https://apps.nextcloud.com/apps/cobudget).
 
-1. Download the release package.
+Administrators can also install it with OCC:
+
+```sh
+occ app:install cobudget
+```
+
+### Manual installation
+
+If the App Store is unavailable, install a signed GitHub release manually:
+
+1. Download the `cobudget.tar.gz` asset from [GitHub Releases](https://github.com/whollaus/cobudget/releases).
 2. Extract or upload it so the app folder is named `cobudget`.
 3. Place it in the Nextcloud `apps/` or `custom_apps/` directory.
 4. Enable the app in Nextcloud.
@@ -118,17 +128,19 @@ Before creating a tag, make sure the version matches in:
 
 - `appinfo/info.xml`
 - `package.json`
-- the tag name, for example `v0.2.0`
+- the tag name, for example `vX.Y.Z`
 
 Release command flow:
 
 ```sh
+VERSION="$(node -p "require('./package.json').version")"
+
 git add .
-git commit -m "Prepare release 0.2.0"
+git commit -m "Prepare CoBudget $VERSION release"
 git push
 
-git tag -a v0.2.0 -m "CoBudget 0.2.0"
-git push origin v0.2.0
+git tag -a "v$VERSION" -m "CoBudget $VERSION"
+git push origin "v$VERSION"
 ```
 
 After the draft exists, the maintainer builds and signs the final archive locally with the Nextcloud certificate and its matching private key. The signed archive, detached App Store signature, and checksum are uploaded before the draft is published. See [RELEASING.md](RELEASING.md) for the complete procedure.
