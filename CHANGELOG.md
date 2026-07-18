@@ -2,6 +2,14 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.8] - 2026-07-18
+
+### Changed
+
+- Renamed the optional payment text field to "Payment reference or note" and removed its dated example placeholder for a calmer, future-proof payment form.
+- Refined the English and German App Store descriptions to better explain personal budgeting, shared expenses, flexible areas and the early alpha status.
+- Added optimized App Store thumbnails while retaining the full-size screenshots for the detailed app listing.
+
 ## [0.2.7] - 2026-07-18
 
 ### Added

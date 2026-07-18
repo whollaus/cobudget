@@ -252,7 +252,7 @@
 
 						<div class="form-group core-description detail-description">
 							<label>{{ $texts.entry.description() }}</label>
-							<input type="text" v-model="entry.description" class="form-control" :placeholder="$texts.entry.descriptionPlaceholder()">
+							<input type="text" v-model="entry.description" class="form-control">
 						</div>
 
 						<div class="form-group tags-group detail-tags" v-if="hasAvailableTags">

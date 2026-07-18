@@ -330,7 +330,7 @@ assertContains(addEntryModal, 'grid-template-columns: 1fr', 'AddEntryModal stays
 assertNotContains(addEntryModal, 'Beschreibung / Verwendungszweck (optional)', 'AddEntryModal description label')
 assertNotContains(addEntryModal, 'Beschreibung / Verwendungszweck</label>', 'AddEntryModal old description label')
 assertContains(addEntryModal, '$texts.entry.description()', 'AddEntryModal uses natural description label')
-assertContains(addEntryModal, '$texts.entry.descriptionPlaceholder()', 'AddEntryModal description placeholder avoids category/paymentPartner examples')
+assertNotContains(addEntryModal, 'descriptionPlaceholder()', 'AddEntryModal keeps the optional note field visually neutral')
 assertNotContains(addEntryModal, 'z.B. Supermarkt, Miete...', 'AddEntryModal old description placeholder')
 assertContains(addEntryModal, 'dateLabel()', 'AddEntryModal has a dynamic date label')
 assertContains(addEntryModal, '$texts.entry.paidOn()', 'AddEntryModal expense date label')

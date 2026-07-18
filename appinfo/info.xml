@@ -3,18 +3,18 @@
       xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
     <id>cobudget</id>
     <name>CoBudget</name>
-    <summary>Personal and shared budgeting for Nextcloud</summary>
-    <description lang="en"><![CDATA[CoBudget is a Nextcloud app for tracking personal and shared household finances.
+	<summary>Personal budgeting and shared expenses for Nextcloud</summary>
+	<description lang="en"><![CDATA[[Early alpha version] Features, data structures and workflows may still change. Manual database corrections may occasionally be required.
 
-    Early alpha warning: Features, data structures and workflows can still change. Manual database corrections may be required during the alpha phase.
+CoBudget combines personal finance tracking with shared expense management directly in Nextcloud. Record income and expenses, organize personal or shared costs in flexible areas for households, trips, projects or other groups, split payments using custom shares and settle outstanding balances.
 
-    It helps you manage payments, budgets, receipts, workspaces, shared areas, settlements and financial insights directly inside Nextcloud.]]></description>
-    <description lang="de"><![CDATA[CoBudget ist eine Nextcloud-App zur Verwaltung persönlicher und gemeinsamer Haushaltsfinanzen.
+Budget goals, receipts, recurring payments, reminders, workspaces, personal exports, admin backups and financial reports help keep everything in one place.]]></description>
+	<description lang="de"><![CDATA[[Frühe Alpha-Version] Funktionen, Datenstrukturen und Abläufe können sich noch ändern. Gelegentlich können manuelle Korrekturen in der Datenbank erforderlich sein.
 
-    Hinweis zur frühen Alpha-Version: Funktionen, Datenstrukturen und Abläufe können sich noch ändern. Während der Alpha-Phase können manuelle Korrekturen in der Datenbank erforderlich sein.
+CoBudget verbindet ein persönliches Haushaltsbuch mit gemeinsamer Kostenverwaltung direkt in Nextcloud. Erfasse Einnahmen und Ausgaben, organisiere persönliche oder gemeinsame Kosten in flexiblen Bereichen für Haushalt, Reisen, Projekte oder andere Gruppen, teile Zahlungen nach individuellen Anteilen auf und rechne offene Salden ab.
 
-    Mit CoBudget verwaltest du Zahlungen, Budgetziele, Belege, Workspaces, gemeinsame Bereiche, Abrechnungen und Auswertungen direkt in Nextcloud.]]></description>
-	<version>0.2.7</version>
+Budgetziele, Belege, wiederkehrende Zahlungen, Erinnerungen, Workspaces, persönliche Exporte, Admin-Backups und Auswertungen halten alles an einem Ort zusammen.]]></description>
+	<version>0.2.8</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
@@ -27,10 +27,10 @@
     </documentation>
     <bugs>https://github.com/whollaus/cobudget/issues</bugs>
     <repository>https://github.com/whollaus/cobudget</repository>
-    <screenshot>https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot1.jpg</screenshot>
-    <screenshot>https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot2.jpg</screenshot>
-    <screenshot>https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot3.jpg</screenshot>
-    <screenshot>https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot4.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot1_small.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot1.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot2_small.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot2.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot3_small.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot3.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot4_small.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot4.jpg</screenshot>
     <donation title="Support CoBudget on GitHub Sponsors">https://github.com/sponsors/whollaus</donation>
     <donation title="Support CoBudget with Stripe" type="stripe">https://donate.stripe.com/aFaeVdfARbPNe897bu5J600</donation>
     <dependencies>
