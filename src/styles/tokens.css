@@ -115,7 +115,7 @@
 #app-navigation-vue li[aria-selected="true"] a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
 #app-navigation-vue .active a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon,
 #app-navigation-vue .selected a[href*="/settings/admin/cobudget"] .app-navigation-entry-icon {
-	filter: brightness(0) invert(1) !important;
+	filter: brightness(0) !important;
 }
 
 #app-navigation img[src*="cobudget"],
@@ -145,7 +145,7 @@
 #app-navigation-vue [aria-current="page"] .app-navigation-entry-icon[style*="cobudget"],
 #app-navigation-vue [aria-selected="true"] .app-navigation-entry-icon[style*="cobudget"],
 #app-navigation-vue a[aria-current="page"] .app-navigation-entry-icon[style*="cobudget"] {
-	filter: brightness(0) invert(1) !important;
+	filter: brightness(0) !important;
 }
 
 @media (prefers-color-scheme: dark) {

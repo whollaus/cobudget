@@ -4,17 +4,53 @@
     <id>cobudget</id>
     <name>CoBudget</name>
 	<summary>Personal budgeting and shared expenses for Nextcloud</summary>
-	<description lang="en"><![CDATA[[Early alpha version] Features, data structures and workflows may still change. Manual database corrections may occasionally be required.
+	<description lang="en"><![CDATA[[Early alpha version]
 
-CoBudget combines personal finance tracking with shared expense management directly in Nextcloud. Record income and expenses, organize personal or shared costs in flexible areas for households, trips, projects or other groups, split payments using custom shares and settle outstanding balances.
+**CoBudget brings personal budgeting and shared expense management into Nextcloud.** Keep track of everyday finances on your own or organize costs together with partners, families, travel groups and project teams.
 
-Budget goals, receipts, recurring payments, reminders, workspaces, personal exports, admin backups and financial reports help keep everything in one place.]]></description>
-	<description lang="de"><![CDATA[[Frühe Alpha-Version] Funktionen, Datenstrukturen und Abläufe können sich noch ändern. Gelegentlich können manuelle Korrekturen in der Datenbank erforderlich sein.
+### Personal finances
 
-CoBudget verbindet ein persönliches Haushaltsbuch mit gemeinsamer Kostenverwaltung direkt in Nextcloud. Erfasse Einnahmen und Ausgaben, organisiere persönliche oder gemeinsame Kosten in flexiblen Bereichen für Haushalt, Reisen, Projekte oder andere Gruppen, teile Zahlungen nach individuellen Anteilen auf und rechne offene Salden ab.
+- Record income and expenses with categories, payment partners, labels and free-form tags
+- Add receipts, recurring payments and reminders
+- Set budget goals and explore trends, forecasts and detailed financial reports
+- Separate financial contexts with workspaces and move your data using personal exports
 
-Budgetziele, Belege, wiederkehrende Zahlungen, Erinnerungen, Workspaces, persönliche Exporte, Admin-Backups und Auswertungen halten alles an einem Ort zusammen.]]></description>
-	<version>0.2.8</version>
+### Shared expenses
+
+- Create areas for a household, trip, event, project or any other shared purpose
+- Record who paid and split payments equally, by custom shares or entirely to one member
+- Keep personal shares and outstanding balances visible, then settle an area with a clear history
+- Use area-specific categories and payment partners when needed
+
+### Built for Nextcloud
+
+- Keep your financial data in your own Nextcloud
+- Receive notifications about activity in shared areas
+- Create full administrator backups for disaster recovery]]></description>
+	<description lang="de"><![CDATA[[Frühe Alpha-Version]
+
+**CoBudget bringt persönliches Haushaltsbuch und gemeinsame Kostenverwaltung direkt in Nextcloud zusammen.** Behalte deine alltäglichen Finanzen alleine im Blick oder organisiere Kosten gemeinsam mit Partnern, Familie, Reisegruppen und Projektteams.
+
+### Persönliche Finanzen
+
+- Erfasse Einnahmen und Ausgaben mit Kategorien, Zahlungspartnern, Labels und freien Tags
+- Füge Belege, wiederkehrende Zahlungen und Erinnerungen hinzu
+- Lege Budgetziele fest und analysiere Entwicklungen, Prognosen und ausführliche Auswertungen
+- Trenne finanzielle Kontexte mit Workspaces und nimm deine Daten per persönlichem Export mit
+
+### Gemeinsame Kosten
+
+- Erstelle Bereiche für Haushalt, Reise, Veranstaltung, Projekt oder jeden anderen gemeinsamen Zweck
+- Halte fest, wer bezahlt hat, und teile Zahlungen gleichmäßig, nach individuellen Anteilen oder vollständig einer Person zu
+- Behalte persönliche Anteile und offene Salden im Blick und rechne Bereiche mit nachvollziehbarer Historie ab
+- Nutze bei Bedarf eigene Kategorien und Zahlungspartner je Bereich
+
+### Für Nextcloud gemacht
+
+- Deine Finanzdaten bleiben in deiner eigenen Nextcloud
+- Erhalte Benachrichtigungen über Aktivitäten in gemeinsamen Bereichen
+- Erstelle vollständige Admin-Backups für den Wiederherstellungsfall]]></description>
+	<version>0.2.9</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
@@ -27,10 +63,10 @@ Budgetziele, Belege, wiederkehrende Zahlungen, Erinnerungen, Workspaces, persön
     </documentation>
     <bugs>https://github.com/whollaus/cobudget/issues</bugs>
     <repository>https://github.com/whollaus/cobudget</repository>
-    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot1_small.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot1.jpg</screenshot>
-    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot2_small.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot2.jpg</screenshot>
-    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot3_small.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot3.jpg</screenshot>
-    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot4_small.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot4.jpg</screenshot>
+    <screenshot>https://github.com/whollaus/cobudget/raw/main/screenshots/appstore-preview-1.jpg</screenshot>
+    <screenshot>https://github.com/whollaus/cobudget/raw/main/screenshots/appstore-preview-2.jpg</screenshot>
+    <screenshot>https://github.com/whollaus/cobudget/raw/main/screenshots/appstore-preview-3.jpg</screenshot>
+    <screenshot>https://github.com/whollaus/cobudget/raw/main/screenshots/appstore-preview-4.jpg</screenshot>
     <donation title="Support CoBudget on GitHub Sponsors">https://github.com/sponsors/whollaus</donation>
     <donation title="Support CoBudget with Stripe" type="stripe">https://donate.stripe.com/aFaeVdfARbPNe897bu5J600</donation>
     <dependencies>
@@ -40,7 +76,7 @@ Budgetziele, Belege, wiederkehrende Zahlungen, Erinnerungen, Workspaces, persön
         <navigation>
             <name>CoBudget</name>
             <route>cobudget.page.index</route>
-            <icon>app.svg</icon>
+            <icon>app-navigation.svg</icon>
             <order>50</order>
         </navigation>
     </navigations>

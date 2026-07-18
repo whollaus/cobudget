@@ -2,6 +2,18 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.9] - 2026-07-18
+
+### Changed
+
+- Reworked the English and German App Store descriptions into clearer Markdown sections with a shorter early-alpha notice.
+- Replaced the legacy App Store thumbnails with dedicated, proxy-friendly preview assets while retaining the full-size screenshots for project documentation.
+- Split the app icon treatment into a dark App Store icon and a dedicated navigation icon for reliable contrast across Nextcloud surfaces.
+
+### Fixed
+
+- Fixed low-contrast CoBudget icons in the top navigation and selected administrator navigation entries.
+
 ## [0.2.8] - 2026-07-18
 
 ### Changed
