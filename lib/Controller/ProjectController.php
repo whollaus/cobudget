@@ -69,6 +69,75 @@ class ProjectController extends Controller {
 		return $qb->executeQuery()->fetchOne() !== false;
 	}
 
+	private function projectHasLifecycleHistory(int $projectId): bool {
+		foreach (['cobudget_settlements', 'cobudget_entry_history'] as $table) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('id')
+				->from($table)
+				->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+				->setMaxResults(1);
+			if ($qb->executeQuery()->fetchOne() !== false) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function projectScopedCategoryIds(int $projectId): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_categories')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)));
+		$result = $qb->executeQuery();
+		$ids = array_map('intval', array_column($result->fetchAll(), 'id'));
+		$result->closeCursor();
+
+		return array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
+	}
+
+	private function budgetGoalsReferenceProject(int $projectId, int $workspaceId, array $categoryIds): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('criteria_json')
+			->from('cobudget_budget_goals')
+			->where($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+		$result = $qb->executeQuery();
+		$rows = $result->fetchAll();
+		$result->closeCursor();
+		$categoryIds = array_fill_keys(array_map('intval', $categoryIds), true);
+
+		foreach ($rows as $row) {
+			$criteria = json_decode((string)($row['criteria_json'] ?? ''), true);
+			if (!is_array($criteria)) {
+				continue;
+			}
+
+			foreach (($criteria['rules'] ?? []) as $rule) {
+				if (!is_array($rule)) {
+					continue;
+				}
+				$ruleProjectId = (int)($rule['projectId'] ?? $rule['project_id'] ?? 0);
+				$ruleCategoryId = (int)($rule['categoryId'] ?? $rule['category_id'] ?? 0);
+				if ($ruleProjectId === $projectId || isset($categoryIds[$ruleCategoryId])) {
+					return true;
+				}
+			}
+
+			$legacyProjectIds = $criteria['projectIds'] ?? $criteria['project_ids'] ?? [];
+			if (in_array($projectId, array_map('intval', is_array($legacyProjectIds) ? $legacyProjectIds : []), true)) {
+				return true;
+			}
+			$legacyCategoryIds = $criteria['categoryIds'] ?? $criteria['category_ids'] ?? [];
+			foreach (array_map('intval', is_array($legacyCategoryIds) ? $legacyCategoryIds : []) as $categoryId) {
+				if (isset($categoryIds[$categoryId])) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
 	private function memberManagementLockReason(int $projectId, int $workspaceId, int $memberCount): ?string {
 		if ($memberCount <= 1) {
 			return $this->projectHasPayments($projectId)
@@ -470,18 +539,35 @@ class ProjectController extends Controller {
 				return $this->errorResponse('Area not found.', Http::STATUS_NOT_FOUND);
 			}
 			$workspaceId = (int)$project['workspace_id'];
-			if ($this->projectHasOpenSharedPayments($id, $workspaceId)) {
-				return $this->errorResponse('Settle the area before archiving it.', Http::STATUS_CONFLICT);
+			if ($this->projectHasPayments($id) || $this->projectHasLifecycleHistory($id)) {
+				return $this->errorResponse('This area contains payments or settlement history and can only be archived.', Http::STATUS_CONFLICT);
+			}
+			$categoryIds = $this->projectScopedCategoryIds($id);
+			if ($this->budgetGoalsReferenceProject($id, $workspaceId, $categoryIds)) {
+				return $this->errorResponse('Remove this area from budget goals before permanently deleting it.', Http::STATUS_CONFLICT);
 			}
 
-			$qb = $this->db->getQueryBuilder();
-			$qb->update('cobudget_projects')
-				->set('is_archived', $qb->createNamedParameter(true, \PDO::PARAM_BOOL))
-				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-			$qb->executeStatement();
+			$this->db->beginTransaction();
+			try {
+				$this->deleteRowsByColumnValues('cobudget_templates', 'project_id', [$id]);
+				$this->deleteRowsByColumnValues('cobudget_categories', 'project_id', [$id]);
+				$this->deleteRowsByColumnValues('cobudget_payment_partners', 'project_id', [$id]);
+				$this->deleteRowsByColumnValues('cobudget_members', 'project_id', [$id]);
 
-			return new DataResponse(['status' => 'success', 'archived' => true]);
+				$qb = $this->db->getQueryBuilder();
+				$qb->delete('cobudget_projects')
+					->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
+					->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				if ($qb->executeStatement() !== 1) {
+					throw new \RuntimeException('Area could not be deleted.');
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
+
+			return new DataResponse(['status' => 'success', 'deleted' => true]);
 		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}

@@ -2,6 +2,24 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.7] - 2026-07-18
+
+### Added
+
+- Added conservative category suggestions based on repeated payment-partner choices by the current user in the same workspace, area and payment type.
+
+### Changed
+
+- Streamlined payment and template entry with compact date and amount fields, payment-partner-first selection and clearer placement of descriptions and labels.
+- Added direct, color-aware area choices for short area lists while retaining the dropdown for larger lists, and standardized area colors across payment and area views.
+- Improved shared-area allocation wording, optional-detail status hints and focus styling throughout the payment form.
+- Kept desktop amount autofocus while preventing the mobile keyboard from opening automatically with a new payment.
+
+### Fixed
+
+- Empty areas are now permanently deleted instead of appearing under archived areas; areas with payments, settlement history or budget references remain protected.
+- Fixed amount input validation and leading-minus handling so valid calculator expressions no longer produce browser console warnings.
+
 ## [0.2.6] - 2026-07-17
 
 ### Changed

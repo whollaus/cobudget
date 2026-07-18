@@ -358,6 +358,7 @@ import DraggableScroller from '../components/DraggableScroller.vue'
 import { normalizeEntryPageSize, shouldIgnorePaginationKeydown } from '../services/pagination'
 import { showRequestError, showToast } from '../services/notifications'
 import { downloadBlobResponse } from '../services/downloads'
+import { getAreaColorStyle } from '../utils/areaColor'
 
 export default {
 	name: 'ProjectDetail',
@@ -882,30 +883,7 @@ export default {
 				return {}
 			}
 
-			let hexcolor = this.project.color || '#0082c9'
-			hexcolor = hexcolor.replace('#', '')
-			if (hexcolor.length === 3) {
-				hexcolor = hexcolor.split('').map(c => c + c).join('')
-			}
-			const r = parseInt(hexcolor.substr(0, 2), 16)
-			const g = parseInt(hexcolor.substr(2, 2), 16)
-			const b = parseInt(hexcolor.substr(4, 2), 16)
-			const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000
-			let textR = r
-			let textG = g
-			let textB = b
-
-			if (yiq > 180) {
-				textR = Math.floor(r * 0.55)
-				textG = Math.floor(g * 0.55)
-				textB = Math.floor(b * 0.55)
-			}
-
-			return {
-				backgroundColor: `rgba(${r}, ${g}, ${b}, 0.12)`,
-				color: `rgb(${textR}, ${textG}, ${textB})`,
-				border: `1px solid rgb(${textR}, ${textG}, ${textB})`
-			}
+			return getAreaColorStyle(this.project.color)
 		},
 		formatDate(timestamp) {
 			if (!timestamp) return '-'
@@ -2023,10 +2001,9 @@ th.col-desc {
 
 .form-group label {
 	display: block;
-	margin-bottom: 6px;
-	font-weight: 600;
-	font-size: var(--cobudget-font-compact);
-	color: var(--color-main-text, #222);
+  color: var(--cobudget-text-muted, #888);
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
 }
 
 .form-control {

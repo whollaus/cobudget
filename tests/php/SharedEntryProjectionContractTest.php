@@ -153,16 +153,19 @@ return [
 		$shares = $t->methodBody('lib/Controller/ProjectController.php', 'updateShares');
 		$destroy = $t->methodBody('lib/Controller/ProjectController.php', 'destroy');
 
-		foreach ([$add, $remove, $shares, $destroy] as $method) {
+		foreach ([$add, $remove, $shares] as $method) {
 			$t->assertContains('$this->projectHasOpenSharedPayments(', $method, 'Area structure changes must reject open shared source payments');
 		}
 		$t->assertContains('$this->requireProjectOwner($id)', $add, 'Only the owner may add members');
 		$t->assertContains('$this->requireProjectOwner($id)', $remove, 'Only the owner may remove members');
 		$t->assertContains('$this->requireProjectOwner($id)', $shares, 'Only the owner may change default shares');
 		$t->assertContains('$this->entryProjectionService->detachSettledMember($id, $userId)', $remove, 'A departing member keeps independent settled personal payments');
-		$t->assertContains("set('is_archived'", $destroy, 'Deleting an area archives it instead of erasing financial history');
+		$t->assertContains('$this->projectHasPayments($id)', $destroy, 'Permanent deletion must reject areas that still contain payments');
+		$t->assertContains('$this->projectHasLifecycleHistory($id)', $destroy, 'Permanent deletion must preserve settlement and audit history');
+		$t->assertContains('$this->budgetGoalsReferenceProject($id, $workspaceId, $categoryIds)', $destroy, 'Permanent deletion must not orphan budget criteria');
 		$t->assertContains("eq('entry_kind'", $t->methodBody('lib/Controller/ProjectController.php', 'projectHasOpenSharedPayments'), 'Open-payment guards inspect only shared sources');
-		$t->assertNotContains("delete('cobudget_projects')", $destroy, 'Area deletion must not physically delete the area');
+		$t->assertContains("delete('cobudget_projects')", $destroy, 'A genuinely empty area should be deleted instead of archived');
+		$t->assertNotContains("set('is_archived'", $destroy, 'Permanent deletion must remain distinct from archiving');
 		$t->assertContains("addUniqueIndex(['project_id', 'user_id']", $t->read('lib/Migration/Version000001Date20260713000000.php'), 'Concurrent member additions are blocked by the database too');
 	},
 

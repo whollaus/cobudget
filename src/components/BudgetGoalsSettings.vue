@@ -376,9 +376,9 @@ export default {
 
 .form-group label {
 	display: block;
-	font-size: var(--cobudget-font-compact);
-	font-weight: 700;
-	margin-bottom: 6px;
+  color: var(--cobudget-text-muted, #888);
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
 }
 
 .form-control {

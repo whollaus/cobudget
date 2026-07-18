@@ -59,32 +59,121 @@
 						</div>
 
 						<div class="form-group date-col core-date" v-else>
-							<label>{{ dateLabel }}</label>
-							<input type="date" v-model="dateString" :min="minFutureDate" class="form-control" required />
+							<input
+								type="date"
+								v-model="dateString"
+								:min="minFutureDate"
+								:aria-label="dateLabel"
+								class="form-control"
+								required>
 						</div>
 
 						<div class="form-group amount-col" :class="isTemplateMode ? 'core-template-amount' : 'core-amount'">
-							<label>{{ amountLabel }}</label>
-							<input
-								type="text"
-								ref="amountInput"
-								v-model="entry.amountDisplay"
-								inputmode="text"
-								autocomplete="off"
-								autocapitalize="off"
-								autocorrect="off"
-								spellcheck="false"
-								pattern="[0-9.,+\-*/]*"
-								@input="sanitizeAmountInput"
-								@blur="evaluateAmount"
-								class="form-control amount-input"
-								:class="{'bg-income': entry.type === 'income', 'bg-expense': entry.type === 'expense'}"
-								:required="!isTemplateMode"
-								placeholder="0.00">
+							<label v-if="isTemplateMode">{{ amountLabel }}</label>
+							<div
+								class="amount-input-wrap"
+								:class="{
+									'has-currency': $currency,
+									'is-income': entry.type === 'income',
+									'is-expense': entry.type === 'expense',
+								}">
+								<span v-if="$currency" class="amount-currency-prefix" aria-hidden="true">{{ $currency }}</span>
+								<input
+									type="text"
+									ref="amountInput"
+									v-model="entry.amountDisplay"
+									:aria-label="amountLabel"
+									inputmode="text"
+									autocomplete="off"
+									autocapitalize="off"
+									autocorrect="off"
+									spellcheck="false"
+									pattern="[0-9.,+*\/\-]*"
+									@input="sanitizeAmountInput"
+									@blur="evaluateAmount"
+									class="form-control amount-input"
+									:class="{'bg-income': entry.type === 'income', 'bg-expense': entry.type === 'expense'}"
+									:required="!isTemplateMode"
+									placeholder="0.00">
+							</div>
 						</div>
 					</div>
 
 					<div class="entry-details-grid">
+						<div class="form-group detail-paymentPartner">
+							<label>{{ paymentPartnerLabel }}</label>
+							<div ref="paymentPartnerLookupField" class="lookup-field" :class="{ 'has-clear-button': entry.paymentPartnerName }">
+								<button
+									ref="paymentPartnerLookupTrigger"
+									type="button"
+									class="form-control lookup-trigger"
+									role="combobox"
+									aria-haspopup="listbox"
+									:aria-expanded="showPaymentPartnerSuggestions ? 'true' : 'false'"
+									aria-controls="paymentPartner-suggestions"
+									@click="toggleLookup('paymentPartner')"
+									@keydown.down.prevent="openLookupAndMove('paymentPartner', 1)"
+									@keydown.up.prevent="openLookupAndMove('paymentPartner', -1)"
+									@keydown.enter.prevent="handleLookupTriggerEnter('paymentPartner')"
+									@keydown.esc.stop.prevent="closeLookup">
+									<span class="lookup-trigger-value" :class="{ 'is-placeholder': !entry.paymentPartnerName }">
+										{{ entry.paymentPartnerName || $texts.entry.selectPlaceholder() }}
+									</span>
+									<ChevronDownIcon :size="18" class="lookup-chevron" aria-hidden="true" />
+								</button>
+								<button
+									v-if="entry.paymentPartnerName"
+									type="button"
+									class="lookup-clear-button"
+									:aria-label="$texts.entry.clearPaymentPartner()"
+									:title="$texts.entry.clearPaymentPartner()"
+									@mousedown.prevent
+									@click.prevent="clearLookupValue('paymentPartner')">
+									<CloseIcon :size="16" aria-hidden="true" />
+								</button>
+								<div v-if="showPaymentPartnerSuggestions" id="paymentPartner-suggestions" class="lookup-menu">
+									<div class="lookup-options" role="listbox">
+										<template v-for="section in paymentPartnerSuggestionSections" :key="section.label || 'paymentPartner-results'">
+											<div v-if="section.label && section.items.length" class="lookup-group-label">{{ section.label }}</div>
+											<button
+												v-for="paymentPartner in section.items"
+												:key="`${section.label || 'paymentPartner'}-${paymentPartner.id}`"
+												type="button"
+												class="lookup-option"
+												:class="{ active: highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) }"
+												role="option"
+												:aria-selected="highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) ? 'true' : 'false'"
+												@click="selectPaymentPartnerSuggestion(paymentPartner)">
+												<span>{{ paymentPartner.name }}</span>
+											</button>
+										</template>
+										<div v-if="paymentPartnerSuggestions.length === 0" class="lookup-empty">{{ $texts.entry.noMatchingEntries() }}</div>
+									</div>
+									<div class="lookup-create">
+										<button v-if="lookupInputMode !== 'paymentPartner'" type="button" class="lookup-add-button" @click="startLookupInput('paymentPartner')">
+											<PlusIcon :size="18" aria-hidden="true" />
+											<span>{{ $texts.entry.addNewPaymentPartner() }}</span>
+										</button>
+										<div v-else class="lookup-create-form">
+											<input
+												ref="paymentPartnerCreateInput"
+												type="text"
+												v-model="lookupDraft.paymentPartner"
+												class="form-control lookup-create-input"
+												:placeholder="$texts.entry.newPaymentPartnerPlaceholder()"
+												autocomplete="off"
+												@input="resetLookupHighlight('paymentPartner')"
+												@keydown.enter.prevent="handleLookupDraftEnter('paymentPartner')"
+												@keydown.esc.stop.prevent="cancelLookupInput('paymentPartner')">
+											<button type="button" class="lookup-use-button" :disabled="!lookupDraft.paymentPartner.trim()" @click="applyLookupDraft('paymentPartner')">
+												{{ $texts.entry.useNewValue() }}
+											</button>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
 						<div class="form-group detail-category">
 							<label>{{ $texts.entry.category() }}</label>
 							<div ref="categoryLookupField" class="lookup-field category-input-wrap" :class="{ 'has-leading-icon': selectedCategoryIcon, 'has-clear-button': entry.categoryName }">
@@ -129,7 +218,7 @@
 												:class="{ active: highlightedCategoryIndex === lookupIndex('category', cat) }"
 												role="option"
 												:aria-selected="highlightedCategoryIndex === lookupIndex('category', cat) ? 'true' : 'false'"
-										@click="selectCategorySuggestion(cat)">
+												@click="selectCategorySuggestion(cat)">
 												<CategoryIcon :icon="cat.icon || 'Shape'" :size="16" />
 												<span>{{ cat.name }}</span>
 											</button>
@@ -161,90 +250,71 @@
 							</div>
 						</div>
 
-						<div class="form-group detail-paymentPartner">
-							<label>{{ paymentPartnerLabel }}</label>
-							<div ref="paymentPartnerLookupField" class="lookup-field" :class="{ 'has-clear-button': entry.paymentPartnerName }">
-								<button
-									ref="paymentPartnerLookupTrigger"
-									type="button"
-									class="form-control lookup-trigger"
-									role="combobox"
-									aria-haspopup="listbox"
-									:aria-expanded="showPaymentPartnerSuggestions ? 'true' : 'false'"
-									aria-controls="paymentPartner-suggestions"
-									@click="toggleLookup('paymentPartner')"
-									@keydown.down.prevent="openLookupAndMove('paymentPartner', 1)"
-									@keydown.up.prevent="openLookupAndMove('paymentPartner', -1)"
-									@keydown.enter.prevent="handleLookupTriggerEnter('paymentPartner')"
-									@keydown.esc.stop.prevent="closeLookup">
-									<span class="lookup-trigger-value" :class="{ 'is-placeholder': !entry.paymentPartnerName }">
-										{{ entry.paymentPartnerName || $texts.entry.selectPlaceholder() }}
-									</span>
-									<ChevronDownIcon :size="18" class="lookup-chevron" aria-hidden="true" />
-								</button>
-								<button
-									v-if="entry.paymentPartnerName"
-									type="button"
-									class="lookup-clear-button"
-									:aria-label="$texts.entry.clearPaymentPartner()"
-									:title="$texts.entry.clearPaymentPartner()"
-									@mousedown.prevent
-									@click.prevent="clearLookupValue('paymentPartner')">
-									<CloseIcon :size="16" aria-hidden="true" />
-								</button>
-								<div v-if="showPaymentPartnerSuggestions" id="paymentPartner-suggestions" class="lookup-menu">
-									<div class="lookup-options" role="listbox">
-										<template v-for="section in paymentPartnerSuggestionSections" :key="section.label || 'paymentPartner-results'">
-											<div v-if="section.label && section.items.length" class="lookup-group-label">{{ section.label }}</div>
-											<button
-												v-for="paymentPartner in section.items"
-												:key="`${section.label || 'paymentPartner'}-${paymentPartner.id}`"
-												type="button"
-												class="lookup-option"
-												:class="{ active: highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) }"
-												role="option"
-												:aria-selected="highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) ? 'true' : 'false'"
-										@click="selectPaymentPartnerSuggestion(paymentPartner)">
-												<span>{{ paymentPartner.name }}</span>
-											</button>
-										</template>
-										<div v-if="paymentPartnerSuggestions.length === 0" class="lookup-empty">{{ $texts.entry.noMatchingEntries() }}</div>
-									</div>
-									<div class="lookup-create">
-										<button v-if="lookupInputMode !== 'paymentPartner'" type="button" class="lookup-add-button" @click="startLookupInput('paymentPartner')">
-											<PlusIcon :size="18" aria-hidden="true" />
-											<span>{{ $texts.entry.addNewPaymentPartner() }}</span>
-										</button>
-										<div v-else class="lookup-create-form">
-											<input
-												ref="paymentPartnerCreateInput"
-												type="text"
-												v-model="lookupDraft.paymentPartner"
-												class="form-control lookup-create-input"
-												:placeholder="$texts.entry.newPaymentPartnerPlaceholder()"
-												autocomplete="off"
-												@input="resetLookupHighlight('paymentPartner')"
-												@keydown.enter.prevent="handleLookupDraftEnter('paymentPartner')"
-												@keydown.esc.stop.prevent="cancelLookupInput('paymentPartner')">
-											<button type="button" class="lookup-use-button" :disabled="!lookupDraft.paymentPartner.trim()" @click="applyLookupDraft('paymentPartner')">
-												{{ $texts.entry.useNewValue() }}
-											</button>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-
 						<div class="form-group core-description detail-description">
 							<label>{{ $texts.entry.description() }}</label>
 							<input type="text" v-model="entry.description" class="form-control" :placeholder="$texts.entry.descriptionPlaceholder()">
+						</div>
+
+						<div class="form-group tags-group detail-tags" v-if="hasAvailableTags">
+							<div class="tags-toggles">
+								<label class="tag-toggle" v-if="$enableImportantPayments">
+									<input type="checkbox" v-model="entry.isImportant">
+									<span class="tag-btn" :class="{active: entry.isImportant}">{{ $texts.labels.important() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="$enableReviewPayments">
+									<input type="checkbox" v-model="entry.needsReview">
+									<span class="tag-btn" :class="{active: entry.needsReview}">{{ $texts.labels.review() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableFixedCosts">
+									<input type="checkbox" v-model="entry.isFixedCost">
+									<span class="tag-btn" :class="{active: entry.isFixedCost}">{{ $texts.labels.fixedCosts() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="$enableChildRelated">
+									<input type="checkbox" v-model="entry.isChildRelated">
+									<span class="tag-btn" :class="{active: entry.isChildRelated}">{{ $texts.labels.children() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableSubscriptions">
+									<input type="checkbox" v-model="entry.isSubscription">
+									<span class="tag-btn" :class="{active: entry.isSubscription}">{{ $texts.labels.subscription() }}</span>
+								</label>
+								<label class="tag-toggle" v-if="$enableTaxRelevant">
+									<input type="checkbox" v-model="entry.isTaxRelevant">
+									<span class="tag-btn" :class="{active: entry.isTaxRelevant}">{{ $texts.labels.taxRelevant() }}</span>
+								</label>
+							</div>
 						</div>
 
 						<div class="assignment-fields" v-if="!isTemplateMode && $enableProjects">
 							<div class="project-assignment-row" :class="{ 'has-project-payer': showProjectPayerSelect, 'has-split-mode': showProjectSplitMode }">
 								<div class="form-group detail-project">
 									<label>{{ $texts.entry.area() }}</label>
-									<select v-model="entry.projectId" class="form-control select-control" :aria-label="$texts.entry.area()">
+									<div
+										v-if="useDirectAreaSelection"
+										class="area-choice-grid"
+										:style="{ '--area-choice-count': areaSelectionOptions.length }"
+										role="radiogroup"
+										:aria-label="$texts.entry.area()">
+										<button
+											v-for="option in areaSelectionOptions"
+											:key="option.key"
+											type="button"
+											class="area-choice"
+											:class="{
+												'area-choice--selected': isAreaSelected(option.id),
+												'area-choice--project': option.id !== null,
+											}"
+											:style="areaChoiceStyle(option)"
+											role="radio"
+											:aria-checked="isAreaSelected(option.id) ? 'true' : 'false'"
+											@click="selectArea(option.id)">
+											<span class="area-choice__icon" aria-hidden="true">
+												<WalletIcon v-if="option.id === null" :size="22" />
+												<FolderIcon v-else :size="22" :fillColor="option.color || 'currentColor'" />
+											</span>
+											<span class="area-choice__label">{{ option.name }}</span>
+										</button>
+									</div>
+									<select v-else v-model="entry.projectId" class="form-control select-control" :aria-label="$texts.entry.area()">
 										<option :value="null">{{ $texts.entry.personalAssignment() }}</option>
 										<optgroup v-if="activeProjects.length" :label="$texts.entry.areas()">
 											<option v-for="p in activeProjects" :key="p.id" :value="p.id">
@@ -281,38 +351,17 @@
 							</div>
 						</div>
 
-						<div class="form-group tags-group detail-tags" v-if="hasAvailableTags">
-							<div class="tags-toggles">
-								<label class="tag-toggle" v-if="$enableImportantPayments">
-									<input type="checkbox" v-model="entry.isImportant">
-									<span class="tag-btn" :class="{active: entry.isImportant}">{{ $texts.labels.important() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="$enableReviewPayments">
-									<input type="checkbox" v-model="entry.needsReview">
-									<span class="tag-btn" :class="{active: entry.needsReview}">{{ $texts.labels.review() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableFixedCosts">
-									<input type="checkbox" v-model="entry.isFixedCost">
-									<span class="tag-btn" :class="{active: entry.isFixedCost}">{{ $texts.labels.fixedCosts() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="$enableChildRelated">
-									<input type="checkbox" v-model="entry.isChildRelated">
-									<span class="tag-btn" :class="{active: entry.isChildRelated}">{{ $texts.labels.children() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableSubscriptions">
-									<input type="checkbox" v-model="entry.isSubscription">
-									<span class="tag-btn" :class="{active: entry.isSubscription}">{{ $texts.labels.subscription() }}</span>
-								</label>
-								<label class="tag-toggle" v-if="$enableTaxRelevant">
-									<input type="checkbox" v-model="entry.isTaxRelevant">
-									<span class="tag-btn" :class="{active: entry.isTaxRelevant}">{{ $texts.labels.taxRelevant() }}</span>
-								</label>
-							</div>
-						</div>
 					</div>
 
 					<details class="planning-section" v-if="!isTemplateMode" :open="showPlanningOptions" @toggle="showPlanningOptions = $event.target.open">
-						<summary>{{ showAttachmentSection ? $texts.entry.planningWithReceipts() : $texts.entry.planning() }}</summary>
+						<summary>
+							<span>{{ showAttachmentSection ? $texts.entry.planningWithReceipts() : $texts.entry.planning() }}</span>
+							<span
+								v-if="!showPlanningOptions && planningStatusItems.length"
+								class="planning-summary-status">
+								{{ planningStatusItems.join(' · ') }}
+							</span>
+						</summary>
 						<div v-if="showAttachmentSection" class="planning-card planning-attachments-card">
 							<div class="attachments-inline planning-attachments">
 								<label class="attachment-upload-btn">
@@ -443,16 +492,19 @@ import ModalActions from './ModalActions.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import { showRequestError, showToast } from '../services/notifications'
 import { readWorkspaceId } from '../services/workspaceStorage'
+import { getAreaColorPalette } from '../utils/areaColor'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
+import WalletIcon from 'vue-material-design-icons/Wallet.vue'
+import FolderIcon from 'vue-material-design-icons/Folder.vue'
 import CbIconButton from './CbIconButton.vue'
 
 export default {
 	name: 'AddEntryModal',
-	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, ChevronDownIcon, PlusIcon, CbIconButton },
+	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, ChevronDownIcon, PlusIcon, WalletIcon, FolderIcon, CbIconButton },
 	props: {
 		projectId: {
 			type: Number,
@@ -525,7 +577,9 @@ export default {
 			ignoreNextPopState: false,
 			ignorePopStateTimer: null,
 			mobileFormFieldFocused: false,
-			mobileFocusTimer: null
+			mobileFocusTimer: null,
+			categorySelectionSource: null,
+			categorySuggestionRequestId: 0
 		}
 	},
 	computed: {
@@ -623,6 +677,22 @@ export default {
 		hasAttachments() {
 			return this.attachments.length > 0 || this.pendingAttachments.length > 0;
 		},
+		planningStatusItems() {
+			const items = [];
+			const receiptCount = this.attachments.length + this.pendingAttachments.length;
+
+			if (this.showAttachmentSection && receiptCount > 0) {
+				items.push(this.$texts.entry.linkedReceipts(receiptCount));
+			}
+			if (this.$enableFuturePayments && this.entry.recurrenceInterval !== 'none') {
+				items.push(this.$texts.entry.recurrenceActive());
+			}
+			if (this.entry.hasReminder) {
+				items.push(this.$texts.entry.reminderActive());
+			}
+
+			return items;
+		},
 		saveActionLabel() {
 			if (this.isTemplateMode) {
 				return this.$texts.entry.saveTemplate();
@@ -681,6 +751,25 @@ export default {
 				return [];
 			}
 			return this.projects.filter(p => !p.is_archived);
+		},
+		useDirectAreaSelection() {
+			return this.activeProjects.length <= 3;
+		},
+		areaSelectionOptions() {
+			return [
+				{
+					key: 'personal',
+					id: null,
+					name: this.$texts.entry.personalAssignment(),
+					color: 'var(--color-primary-element, #00679e)'
+				},
+				...this.activeProjects.map(project => ({
+					key: `area-${project.id}`,
+					id: project.id,
+					name: project.name,
+					color: project.color || 'var(--color-primary-element, #00679e)'
+				}))
+			];
 		},
 		selectedProject() {
 			if (!this.entry.projectId) {
@@ -846,17 +935,50 @@ export default {
 				return;
 			}
 
+			const previousCategorySource = this.categorySelectionSource;
 			const globalLookups = this.selectedGlobalLookupNames();
+			if (previousCategorySource === 'suggested') {
+				globalLookups.category = '';
+			}
+			this.invalidateCategorySuggestion(true);
 			this.entry.splitMode = 'project_shares';
 			this.entry.splitUserId = null;
 			this.resetScopedLookups();
 			await this.fetchDataLists(projectId);
 			this.restoreGlobalLookupNames(globalLookups);
+			this.categorySelectionSource = this.entry.categoryName ? previousCategorySource : null;
 			await this.ensureProjectMembers(projectId);
 			this.syncEntryUserWithProject(this.currentUserId());
+			await this.maybeSuggestCategory();
 		}
 	},
 	methods: {
+		areaChoiceStyle(option) {
+			if (option.id === null || !this.isAreaSelected(option.id)) {
+				return {};
+			}
+
+			const palette = getAreaColorPalette(option.color);
+			return {
+				'--area-choice-selected-background': palette.background,
+				'--area-choice-selected-text': palette.foreground,
+				'--area-choice-selected-border': palette.foreground
+			};
+		},
+		isAreaSelected(projectId) {
+			if (projectId === null) {
+				return !this.entry.projectId;
+			}
+
+			return Number(this.entry.projectId) === Number(projectId);
+		},
+		selectArea(projectId) {
+			if (this.isAreaSelected(projectId)) {
+				return;
+			}
+
+			this.entry.projectId = projectId;
+		},
 		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary' }) {
 			return new Promise(resolve => {
 				this.confirmDialog = {
@@ -1036,6 +1158,8 @@ export default {
 				return;
 			}
 
+			this.invalidateCategorySuggestion(true);
+			this.categorySelectionSource = null;
 			this.entry.type = nextType;
 			this.entry.categoryName = '';
 			this.entry.paymentPartnerName = '';
@@ -1321,8 +1445,11 @@ export default {
 			}
 
 			if (field === 'category') {
+				this.invalidateCategorySuggestion();
 				this.entry.categoryName = name;
+				this.categorySelectionSource = 'manual';
 			} else {
+				this.invalidateCategorySuggestion(true);
 				this.entry.paymentPartnerName = name;
 			}
 			this.closeLookup();
@@ -1405,8 +1532,11 @@ export default {
 		},
 		clearLookupValue(field) {
 			if (field === 'category') {
+				this.invalidateCategorySuggestion();
 				this.entry.categoryName = '';
+				this.categorySelectionSource = null;
 			} else {
+				this.invalidateCategorySuggestion(true);
 				this.entry.paymentPartnerName = '';
 			}
 			this.openLookup(field);
@@ -1449,14 +1579,76 @@ export default {
 			return true;
 		},
 		selectCategorySuggestion(category) {
+			this.invalidateCategorySuggestion();
 			this.entry.categoryName = category.name;
+			this.categorySelectionSource = 'manual';
 			this.closeLookup();
 			this.blurLookupTrigger('category');
 		},
 		selectPaymentPartnerSuggestion(paymentPartner) {
+			this.invalidateCategorySuggestion(true);
 			this.entry.paymentPartnerName = paymentPartner.name;
 			this.closeLookup();
 			this.blurLookupTrigger('paymentPartner');
+			void this.maybeSuggestCategory();
+		},
+		invalidateCategorySuggestion(clearSuggested = false) {
+			this.categorySuggestionRequestId += 1;
+			if (clearSuggested && this.categorySelectionSource === 'suggested') {
+				this.entry.categoryName = '';
+				this.categorySelectionSource = null;
+			}
+		},
+		selectedPaymentPartner() {
+			const value = String(this.entry.paymentPartnerName || '').trim();
+			if (!value) {
+				return null;
+			}
+
+			return this.filteredPaymentPartners.find(item => {
+				return String(item.name || '').trim().localeCompare(value, undefined, { sensitivity: 'base' }) === 0;
+			}) || null;
+		},
+		async maybeSuggestCategory() {
+			if (this.categorySelectionSource === 'manual' || this.categorySelectionSource === 'preset') {
+				return;
+			}
+
+			const paymentPartner = this.selectedPaymentPartner();
+			this.invalidateCategorySuggestion(true);
+			if (!paymentPartner?.id) {
+				return;
+			}
+
+			const requestId = this.categorySuggestionRequestId;
+			try {
+				const params = {
+					paymentPartnerId: paymentPartner.id,
+					type: this.entry.type
+				};
+				if (this.entry.projectId) {
+					params.projectId = this.entry.projectId;
+				}
+
+				const response = await axios.get(
+					generateUrl('/apps/cobudget/api/entries/category-suggestion'),
+					{ params }
+				);
+				if (requestId !== this.categorySuggestionRequestId) {
+					return;
+				}
+
+				const suggestion = response.data?.suggestion;
+				const category = this.filteredCategories.find(item => Number(item.id) === Number(suggestion?.categoryId));
+				if (!category || this.categorySelectionSource === 'manual' || this.categorySelectionSource === 'preset') {
+					return;
+				}
+
+				this.entry.categoryName = category.name;
+				this.categorySelectionSource = 'suggested';
+			} catch {
+				// Recommendations are optional and must never block payment entry.
+			}
 		},
 		blurLookupTrigger(field) {
 			this.$nextTick(() => {
@@ -1465,6 +1657,8 @@ export default {
 			});
 		},
 		async openModal(entryToEdit = null, defaultProjectId = null, isFutureContext = false, templateToLoad = null, isTemplateMode = false, entryToDuplicate = null, defaultType = 'expense') {
+			this.invalidateCategorySuggestion(true);
+			this.categorySelectionSource = null;
 			if (!this.$enableTemplates) {
 				templateToLoad = null;
 				isTemplateMode = false;
@@ -1640,6 +1834,10 @@ export default {
 			}
 			await this.fetchDataLists(this.entry.projectId);
 			this.syncLookupNamesFromIds(entryToEdit || templateToLoad || entryToDuplicate || null);
+			this.categorySelectionSource = null;
+			if ((entryToEdit || templateToLoad || entryToDuplicate) && this.entry.categoryName) {
+				this.categorySelectionSource = 'preset';
+			}
 			await this.ensureProjectMembers(this.entry.projectId);
 			this.syncEntryUserWithProject(this.entry.userId);
 			this.isInitializingEntry = false;
@@ -1653,6 +1851,9 @@ export default {
 			if (this.isEditing && !this.isTemplateMode) {
 				return;
 			}
+			if (this.isMobileViewport()) {
+				return;
+			}
 
 			this.$nextTick(() => {
 				const target = this.isTemplateMode ? this.$refs.templateNameInput : this.$refs.amountInput;
@@ -1664,6 +1865,11 @@ export default {
 					target.select();
 				}
 			});
+		},
+		isMobileViewport() {
+			return typeof window !== 'undefined'
+				&& typeof window.matchMedia === 'function'
+				&& window.matchMedia('(max-width: 768px)').matches;
 		},
 		closeModal({ preserveHistory = false, skipHistory = false } = {}) {
 			if (!preserveHistory && !skipHistory) {
@@ -2253,7 +2459,9 @@ export default {
 			if (!this.entry.amountDisplay) {
 				return;
 			}
-			const sanitized = String(this.entry.amountDisplay).replace(/[^0-9.,+\-*/]/g, '');
+			const sanitized = String(this.entry.amountDisplay)
+				.replace(/[^0-9.,+\-*/]/g, '')
+				.replace(/^-+/, '');
 			if (sanitized !== this.entry.amountDisplay) {
 				this.entry.amountDisplay = sanitized;
 			}
@@ -2460,6 +2668,18 @@ form {
 	border-radius: var(--border-radius, 6px);
 }
 
+.planning-summary-status {
+	margin-inline-start: 8px;
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #6b6b6b));
+	font-size: var(--cobudget-font-small);
+	font-weight: 400;
+}
+
+.planning-summary-status::before {
+	content: '·';
+	margin-inline-end: 8px;
+}
+
 .core-type,
 .planning-card {
 	grid-column: 1 / -1;
@@ -2476,6 +2696,73 @@ form {
 .assignment-fields {
 	grid-column: 1 / -1;
 	margin-top: 0;
+}
+
+.area-choice-grid {
+	display: grid;
+	grid-template-columns: repeat(var(--area-choice-count), minmax(0, 1fr));
+	gap: 10px;
+}
+
+.area-choice {
+	display: grid;
+	grid-template-columns: 28px minmax(0, 1fr);
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+	min-height: 40px;
+	margin: 0;
+	padding: 8px 10px;
+	border: 1px solid var(--color-border, #d8d8d8);
+  border-radius: var(--border-radius, 6px);
+	background: var(--color-main-background, #fff);
+	box-shadow: none;
+  font-weight: normal;
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	text-align: left;
+	transform: none;
+	transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.area-choice:hover:not(:disabled) {
+	border-color: var(--color-border-dark, var(--color-border, #aaa));
+	background: var(--color-background-hover, #f2f2f2);
+	box-shadow: none;
+	transform: none;
+}
+
+.area-choice:focus-visible {
+	outline: 1px solid var(--color-primary-element, #00679e);
+	outline-offset: 1px;
+}
+
+.area-choice--selected,
+.area-choice--selected:hover:not(:disabled) {
+	border-color: var(--color-primary-element, #00679e);
+	background: var(--color-primary-element-light, #e5f1f8);
+	box-shadow: none;
+}
+
+.area-choice--project.area-choice--selected,
+.area-choice--project.area-choice--selected:hover:not(:disabled) {
+	border-color: var(--area-choice-selected-border);
+	background: var(--area-choice-selected-background);
+	box-shadow: none;
+	color: var(--area-choice-selected-text);
+}
+
+.area-choice__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	color: currentColor;
+}
+
+.area-choice__label {
+	min-width: 0;
+	overflow-wrap: anywhere;
 }
 
 .project-assignment-row.has-project-payer,
@@ -2499,7 +2786,7 @@ form {
 
 .core-description,
 .detail-tags {
-	grid-column: 1 / -1;
+	grid-column: span 1;
 }
 
 .lookup-field {
@@ -2524,6 +2811,19 @@ form {
 	text-align: left;
 	cursor: pointer;
   font-weight: normal;
+}
+
+.lookup-trigger:hover:not(:disabled) {
+	background: var(--cobudget-surface, var(--color-main-background, #fff));
+}
+
+button.lookup-trigger:focus,
+button.lookup-trigger:focus-visible {
+	background: var(--cobudget-surface, var(--color-main-background, #fff)) !important;
+	border-width: 2px !important;
+	border-color: var(--color-primary, #0082c9) !important;
+	outline: none !important;
+	box-shadow: none !important;
 }
 
 .lookup-trigger-value {
@@ -2795,8 +3095,8 @@ form {
 	display: flex;
 	width: 100%;
 	background: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
-	border-radius: var(--border-radius-large, 8px);
-	padding: 4px;
+	border-radius: var(--border-radius, 6px);
+  padding-left: 3px;
 	box-sizing: border-box;
 }
 .type-btn {
@@ -2836,9 +3136,9 @@ form {
 
 .form-group label {
 	display: block;
-	font-weight: 600;
-	font-size: var(--cobudget-font-compact);
-	color: var(--cobudget-text, var(--color-main-text, #333));
+  color: var(--cobudget-text-muted, #888);
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
 }
 
 .form-control {
@@ -2882,6 +3182,39 @@ form {
 	line-height: 40px;
 	text-align: right;
 	transition: background-color 0.2s, color 0.2s;
+}
+
+.amount-input-wrap {
+	position: relative;
+}
+
+.amount-currency-prefix {
+	position: absolute;
+	z-index: 1;
+	inset-inline-start: 14px;
+	top: 50%;
+	max-width: 52px;
+	overflow: hidden;
+	transform: translateY(-50%);
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
+	font-size: var(--cobudget-font-compact);
+	font-weight: 600;
+	line-height: 1;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.amount-input-wrap.has-currency .amount-input {
+	padding-inline-start: 76px !important;
+}
+
+.amount-input-wrap.is-expense .amount-currency-prefix {
+	color: var(--cobudget-error);
+}
+
+.amount-input-wrap.is-income .amount-currency-prefix {
+	color: var(--cobudget-success);
 }
 
 .amount-col label {
@@ -3198,6 +3531,16 @@ form {
 }
 
 @media (max-width: 780px) {
+	.planning-summary-status {
+		display: block;
+		margin-block-start: 4px;
+		margin-inline-start: 18px;
+	}
+
+	.planning-summary-status::before {
+		display: none;
+	}
+
 	.modal-content {
 		width: min(560px, calc(100vw - 24px));
 	}
@@ -3236,6 +3579,14 @@ form {
 	.project-assignment-row.has-project-payer,
 	.project-assignment-row.has-split-mode {
 		grid-template-columns: 1fr;
+	}
+
+	.area-choice-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.area-choice {
+		min-height: 52px;
 	}
 
 	.core-type {
@@ -3322,10 +3673,12 @@ form {
 }
 
 @media (prefers-color-scheme: dark) {
+	.amount-input-wrap.is-expense .amount-currency-prefix,
 	.amount-input.bg-expense {
 		color: #ffb4ba !important;
 	}
 
+	.amount-input-wrap.is-income .amount-currency-prefix,
 	.amount-input.bg-income {
 		color: #b8f7c5 !important;
 	}

@@ -641,15 +641,14 @@ export default {
 .form-group {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
 	min-width: 0;
 }
 
 .form-group label {
 	display: block;
-	font-size: var(--cobudget-font-compact);
-	font-weight: 600;
-	color: var(--color-main-text, #333);
+  color: var(--cobudget-text-muted, #888);
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
 }
 
 .form-control {

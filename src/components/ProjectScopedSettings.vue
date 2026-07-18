@@ -591,9 +591,10 @@ export default {
 
 .form-group label {
 	display: block;
-	font-weight: 700;
-	margin-bottom: 8px;
-	color: var(--cobudget-text, var(--color-main-text, #222));
+  color: var(--cobudget-text-muted, #888);
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
+
 }
 
 @media (max-width: 900px) {

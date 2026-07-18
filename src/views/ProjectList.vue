@@ -502,10 +502,9 @@ body.theme--dark:not(.cobudget-theme-light) .project-create-modal-backdrop {
 }
 .form-group label {
 	display: block;
-	margin-bottom: 6px;
-	font-weight: 600;
-	font-size: var(--cobudget-font-compact);
-	color: var(--cobudget-text, var(--color-main-text, #222));
+  color: var(--cobudget-text-muted, #888);
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
 }
 .form-control {
 	width: 100%;

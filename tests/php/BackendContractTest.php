@@ -29,6 +29,30 @@ return [
 		}
 	},
 
+	'Category suggestions use only clear personal habits from the exact payment context' => function(TestRunner $t): void {
+		$config = require $t->path('appinfo/routes.php');
+		$routeNames = array_column($config['routes'], 'url', 'name');
+		$t->assertSame(
+			'/api/entries/category-suggestion',
+			$routeNames['entry#suggestCategory'] ?? null,
+			'Category suggestion route should exist'
+		);
+
+		$body = $t->methodBody('lib/Controller/EntryController.php', 'suggestCategory');
+		$t->assertContains("eq('e.user_id',", $body, 'Category suggestions should be scoped to the current user');
+		$t->assertContains("eq('e.workspace_id',", $body, 'Category suggestions should be scoped to the active workspace');
+		$t->assertContains("eq('e.entry_kind',", $body, 'Category suggestions should use personal payment projections only');
+		$t->assertContains("createNamedParameter('personal')", $body, 'Category suggestions should explicitly require personal entries');
+		$t->assertContains("eq('e.type',", $body, 'Category suggestions should keep income and expenses separate');
+		$t->assertContains("eq('e.payment_partner_id',", $body, 'Category suggestions should require the exact payment partner');
+		$t->assertContains("isNull('e.project_id')", $body, 'Personal-finance suggestions should not mix in area payments');
+		$t->assertContains("eq('e.project_id',", $body, 'Area suggestions should require the exact area');
+		$t->assertContains('if ($total < 3)', $body, 'Category suggestions should require at least three matching payments');
+		$t->assertContains('$top[\'usage_count\'] / $total < 0.8', $body, 'Category suggestions should require at least 80 percent confidence');
+		$t->assertContains('$candidates[1][\'usage_count\']', $body, 'Category suggestions should reject tied winners');
+		$t->assertContains('categoryAvailableInActiveWorkspace($categoryId, $projectId)', $body, 'Category suggestions should only return categories valid in the current context');
+	},
+
 	'User-data API route methods check authentication and workspace header errors' => function(TestRunner $t): void {
 		$config = require $t->path('appinfo/routes.php');
 		$skip = [
@@ -787,10 +811,11 @@ return [
 		$update = $t->methodBody('lib/Controller/ProjectController.php', 'update');
 		$t->assertContains('projectOwnerForCurrentUser($id)', $update, 'Project update should require the area creator');
 		$destroy = $t->methodBody('lib/Controller/ProjectController.php', 'destroy');
-		$t->assertContains('projectHasOpenSharedPayments($id, $workspaceId)', $destroy, 'Project delete should reject areas with open shared payments');
-		$t->assertContains("update('cobudget_projects')", $destroy, 'Project delete should archive the area instead of removing financial history');
-		$t->assertContains("set('is_archived'", $destroy, 'Project delete should set the archive flag');
-		$t->assertNotContains("delete('cobudget_projects')", $destroy, 'Project delete must not physically remove the area');
+		$t->assertContains('projectHasPayments($id)', $destroy, 'Project delete should reject areas that still contain payments');
+		$t->assertContains('projectHasLifecycleHistory($id)', $destroy, 'Project delete should reject areas with settlement or audit history');
+		$t->assertContains('budgetGoalsReferenceProject($id, $workspaceId, $categoryIds)', $destroy, 'Project delete should reject referenced budget criteria');
+		$t->assertContains("delete('cobudget_projects')", $destroy, 'A genuinely empty project should be permanently removed');
+		$t->assertNotContains("set('is_archived'", $destroy, 'Permanent deletion must remain distinct from archive');
 
 		foreach (['show', 'settlements'] as $method) {
 			$body = $t->methodBody('lib/Controller/ProjectController.php', $method);

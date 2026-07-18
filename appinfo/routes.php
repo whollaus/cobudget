@@ -8,6 +8,7 @@ return [
 		['name' => 'entry#index', 'url' => '/api/entries', 'verb' => 'GET'],
 		['name' => 'entry#exportCsv', 'url' => '/api/entries/export', 'verb' => 'GET'],
 		['name' => 'entry#dashboard', 'url' => '/api/dashboard', 'verb' => 'GET'],
+		['name' => 'entry#suggestCategory', 'url' => '/api/entries/category-suggestion', 'verb' => 'GET'],
 		['name' => 'entry#show', 'url' => '/api/entries/{id}', 'verb' => 'GET'],
 		['name' => 'entry#create', 'url' => '/api/entries', 'verb' => 'POST'],
 		['name' => 'entry#update', 'url' => '/api/entries/{id}', 'verb' => 'PUT'],

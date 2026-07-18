@@ -185,10 +185,12 @@ return [
 		$integrity = $t->read('lib/Service/DataIntegrityService.php');
 		$repair = $t->methodBody('lib/Service/DataIntegrityService.php', 'repair');
 
-		$t->assertContains('projectHasOpenSharedPayments($id, $workspaceId)', $destroy, 'Area delete should reject open shared payments');
-		$t->assertContains("update('cobudget_projects')", $destroy, 'Area delete should preserve the financial tree by archiving the area');
-		$t->assertContains("set('is_archived'", $destroy, 'Area delete should set the archive flag');
-		$t->assertNotContains("delete('cobudget_projects')", $destroy, 'Area delete must not physically remove settlement history');
+		$t->assertContains('projectHasPayments($id)', $destroy, 'Area delete should reject every area that still contains payments');
+		$t->assertContains('projectHasLifecycleHistory($id)', $destroy, 'Area delete should preserve settlement and audit history');
+		$t->assertContains('budgetGoalsReferenceProject($id, $workspaceId, $categoryIds)', $destroy, 'Area delete should preserve budget references');
+		$t->assertContains("delete('cobudget_projects')", $destroy, 'A genuinely empty area should be removed permanently');
+		$t->assertContains('$this->db->beginTransaction()', $destroy, 'Area deletion should remove dependent configuration atomically');
+		$t->assertNotContains("set('is_archived'", $destroy, 'Permanent deletion should not archive the area');
 
 		$t->assertContains("'repairAction' => 'delete'", $integrity, 'Integrity repair should support deleting orphan child rows');
 		$t->assertContains("'repairAction' => 'deleteSettlement'", $integrity, 'Integrity repair should support deleting orphan settlement groups');

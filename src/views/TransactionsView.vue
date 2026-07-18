@@ -490,6 +490,7 @@ import AppPageHeader from '../components/AppPageHeader.vue'
 import { normalizeEntryPageSize, shouldIgnorePaginationKeydown } from '../services/pagination'
 import { showRequestError, showToast } from '../services/notifications'
 import { downloadBlobResponse } from '../services/downloads'
+import { getAreaColorStyle } from '../utils/areaColor'
 
 const emptyMetricGroup = () => ({
 	income: 0,
@@ -1307,34 +1308,7 @@ export default {
 			return p && p.color ? p.color : '#0082c9';
 		},
 		getProjectTagStyle(id) {
-			let hexcolor = this.getProjectColor(id);
-			if (!hexcolor) return {};
-			hexcolor = hexcolor.replace('#', '');
-			if (hexcolor.length === 3) {
-				hexcolor = hexcolor.split('').map(c => c + c).join('');
-			}
-			const r = parseInt(hexcolor.substr(0, 2), 16);
-			const g = parseInt(hexcolor.substr(2, 2), 16);
-			const b = parseInt(hexcolor.substr(4, 2), 16);
-			
-			// Berechne Helligkeit, um Lesbarkeit auf hellem Hintergrund zu gewährleisten
-			const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-			
-			let textR = r, textG = g, textB = b;
-			
-			// Wenn die Farbe zu hell ist (wie gelb, hellgrün), dunkle sie für den Text und Rahmen ab
-			if (yiq > 180) {
-				// Abdunkeln um ca. 45% für besseren Kontrast auf hellem Hintergrund
-				textR = Math.floor(r * 0.55);
-				textG = Math.floor(g * 0.55);
-				textB = Math.floor(b * 0.55);
-			}
-
-			return {
-				backgroundColor: `rgba(${r}, ${g}, ${b}, 0.12)`,
-				color: `rgb(${textR}, ${textG}, ${textB})`,
-				border: `1px solid rgb(${textR}, ${textG}, ${textB})`
-			};
+			return getAreaColorStyle(this.getProjectColor(id));
 		},
 		isSharedProject(id) {
 			const p = this.projects.find(p => String(p.id) === String(id));

@@ -195,6 +195,103 @@ class EntryController extends Controller {
 	}
 
 	/**
+	 * Suggests a category only when this user's personal payment history shows
+	 * a clear habit for the exact workspace, area, type and payment partner.
+	 *
+	 * @NoAdminRequired
+	 */
+	#[UserRateLimit(limit: 120, period: 60)]
+	public function suggestCategory(int $paymentPartnerId, string $type = 'expense', ?int $projectId = null): DataResponse {
+		try {
+			if ($error = $this->authErrorResponse()) {
+				return $error;
+			}
+			if ($validationError = $this->validatePositiveId($paymentPartnerId, 'Invalid payment partner id')) {
+				return $validationError;
+			}
+			if (!in_array($type, ['expense', 'income'], true)) {
+				return $this->errorResponse('Invalid payment type', Http::STATUS_BAD_REQUEST);
+			}
+			if ($projectId !== null && $projectId <= 0) {
+				return $this->errorResponse('Invalid area id', Http::STATUS_BAD_REQUEST);
+			}
+			if ($projectId !== null && $this->projectVisibleForCurrentUser($projectId) === null) {
+				return $this->errorResponse('Area not found', Http::STATUS_NOT_FOUND);
+			}
+			if (!$this->paymentPartnerAvailableInActiveWorkspace($paymentPartnerId, $projectId)) {
+				return $this->errorResponse('Payment partner not found', Http::STATUS_NOT_FOUND);
+			}
+
+			$workspaceId = $this->getWorkspaceId();
+			if ($workspaceId === null) {
+				return $this->errorResponse('Workspace not found', Http::STATUS_FORBIDDEN);
+			}
+
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('e.category_id')
+				->selectAlias($qb->createFunction('COUNT(*)'), 'usage_count')
+				->from('cobudget_entries', 'e')
+				->where($qb->expr()->eq('e.user_id', $qb->createNamedParameter($this->userId)))
+				->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, IQueryBuilder::PARAM_INT)))
+				->andWhere($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')))
+				->andWhere($qb->expr()->eq('e.type', $qb->createNamedParameter($type)))
+				->andWhere($qb->expr()->eq('e.payment_partner_id', $qb->createNamedParameter($paymentPartnerId, IQueryBuilder::PARAM_INT)))
+				->groupBy('e.category_id');
+
+			if ($projectId === null) {
+				$qb->andWhere($qb->expr()->isNull('e.project_id'));
+			} else {
+				$qb->andWhere($qb->expr()->eq('e.project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)));
+			}
+
+			$rows = $qb->executeQuery()->fetchAll();
+			$total = array_sum(array_map(static fn(array $row): int => (int)$row['usage_count'], $rows));
+			if ($total < 3) {
+				return new DataResponse(['suggestion' => null]);
+			}
+
+			$hiddenCategoryIds = json_decode(
+				$this->config->getUserValue((string)$this->userId, 'cobudget', 'hidden_categories', '[]'),
+				true
+			);
+			$hiddenCategoryIds = is_array($hiddenCategoryIds)
+				? array_map('intval', $hiddenCategoryIds)
+				: [];
+			$candidates = [];
+			foreach ($rows as $row) {
+				$categoryId = isset($row['category_id']) ? (int)$row['category_id'] : 0;
+				if ($categoryId <= 0
+					|| in_array($categoryId, $hiddenCategoryIds, true)
+					|| !$this->categoryAvailableInActiveWorkspace($categoryId, $projectId)) {
+					continue;
+				}
+				$candidates[] = [
+					'category_id' => $categoryId,
+					'usage_count' => (int)$row['usage_count'],
+				];
+			}
+			usort($candidates, static fn(array $left, array $right): int => $right['usage_count'] <=> $left['usage_count']);
+			$top = $candidates[0] ?? null;
+			if ($top === null
+				|| $top['usage_count'] / $total < 0.8
+				|| (($candidates[1]['usage_count'] ?? -1) === $top['usage_count'])) {
+				return new DataResponse(['suggestion' => null]);
+			}
+
+			return new DataResponse([
+				'suggestion' => [
+					'categoryId' => $top['category_id'],
+					'sampleCount' => $total,
+					'matchCount' => $top['usage_count'],
+					'confidence' => $top['usage_count'] / $total,
+				],
+			]);
+		} catch (\Throwable $e) {
+			return $this->loggedErrorResponse($e);
+		}
+	}
+
+	/**
 	 * Returns one payment that is visible to the current user. Locked personal
 	 * payments use this endpoint to open their shared source for editing.
 	 *

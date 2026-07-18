@@ -105,6 +105,7 @@ import EntryTable from '../components/EntryTable.vue'
 import EntryHistoryModal from '../components/EntryHistoryModal.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import { showRequestError } from '../services/notifications'
+import { getAreaColorStyle } from '../utils/areaColor'
 
 export default {
 	name: 'ProjectSettlementsView',
@@ -244,21 +245,7 @@ export default {
 			if (!id || !this.project || String(this.project.id) !== String(id)) {
 				return {}
 			}
-			let hexcolor = this.project.color || '#0082c9'
-			hexcolor = hexcolor.replace('#', '')
-			if (hexcolor.length === 3) {
-				hexcolor = hexcolor.split('').map(c => c + c).join('')
-			}
-			const r = parseInt(hexcolor.substr(0, 2), 16)
-			const g = parseInt(hexcolor.substr(2, 2), 16)
-			const b = parseInt(hexcolor.substr(4, 2), 16)
-			const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000
-			const factor = yiq > 180 ? 0.55 : 1
-			return {
-				backgroundColor: `rgba(${r}, ${g}, ${b}, 0.12)`,
-				color: `rgb(${Math.floor(r * factor)}, ${Math.floor(g * factor)}, ${Math.floor(b * factor)})`,
-				border: `1px solid rgb(${Math.floor(r * factor)}, ${Math.floor(g * factor)}, ${Math.floor(b * factor)})`,
-			}
+			return getAreaColorStyle(this.project.color)
 		},
 		noop() {},
 	},
