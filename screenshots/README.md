@@ -8,6 +8,19 @@ The matching `appstore-preview-*.jpg` files are optimized previews for
 Nextcloud's integrated app list. Keep each preview in sync with its full-size
 screenshot.
 
+## Compatibility aliases
+
+The Nextcloud App Store may continue to serve screenshot metadata from an
+older published release. The following files therefore intentionally remain
+available as compatibility aliases and must not be removed:
+
+- `screenshot1.jpg` to `screenshot4.jpg`
+- `screenshot1_small.jpg` to `screenshot4_small.jpg`
+
+They currently mirror the latest versioned screenshots and previews. These
+aliases keep older App Store metadata functional while new releases use unique,
+versioned URLs for cache busting.
+
 The Nextcloud App Store image proxy caches screenshots by source URL and may
 continue serving old content after a file is replaced. Therefore every visual
 screenshot update must use a new revision in both filenames and `info.xml`.
