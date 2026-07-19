@@ -50,7 +50,7 @@
 - Deine Finanzdaten bleiben in deiner eigenen Nextcloud
 - Erhalte Benachrichtigungen über Aktivitäten in gemeinsamen Bereichen
 - Erstelle vollständige Admin-Backups für den Wiederherstellungsfall]]></description>
-	<version>0.2.9</version>
+	<version>0.2.10</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
@@ -63,10 +63,10 @@
     </documentation>
     <bugs>https://github.com/whollaus/cobudget/issues</bugs>
     <repository>https://github.com/whollaus/cobudget</repository>
-    <screenshot>https://github.com/whollaus/cobudget/raw/main/screenshots/appstore-preview-1.jpg</screenshot>
-    <screenshot>https://github.com/whollaus/cobudget/raw/main/screenshots/appstore-preview-2.jpg</screenshot>
-    <screenshot>https://github.com/whollaus/cobudget/raw/main/screenshots/appstore-preview-3.jpg</screenshot>
-    <screenshot>https://github.com/whollaus/cobudget/raw/main/screenshots/appstore-preview-4.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/appstore-preview-v0.2.10-1.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot-v0.2.10-1.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/appstore-preview-v0.2.10-2.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot-v0.2.10-2.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/appstore-preview-v0.2.10-3.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot-v0.2.10-3.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/appstore-preview-v0.2.10-4.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot-v0.2.10-4.jpg</screenshot>
     <donation title="Support CoBudget on GitHub Sponsors">https://github.com/sponsors/whollaus</donation>
     <donation title="Support CoBudget with Stripe" type="stripe">https://donate.stripe.com/aFaeVdfARbPNe897bu5J600</donation>
     <dependencies>

@@ -1,6 +1,6 @@
 {
   "name": "cobudget",
-	"version": "0.2.9",
+	"version": "0.2.10",
   "description": "Personal and shared budgeting for Nextcloud",
   "private": true,
   "scripts": {

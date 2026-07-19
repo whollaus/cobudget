@@ -2,6 +2,13 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.10] - 2026-07-19
+
+### Fixed
+
+- Switched App Store screenshots to direct, revisioned GitHub raw URLs so Nextcloud's image proxy cannot keep serving stale or empty cached images after a screenshot update.
+- Added dedicated `small-thumbnail` images for the integrated Nextcloud app list while retaining full-size screenshots for the detailed App Store view and GitHub documentation.
+
 ## [0.2.9] - 2026-07-18
 
 ### Changed

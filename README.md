@@ -24,13 +24,13 @@ CoBudget is available in the official [Nextcloud App Store](https://apps.nextclo
 
 The screenshots below show the current alpha UI and may change during the test phase.
 
-![CoBudget payment overview](screenshots/screenshot1.jpg)
+![CoBudget payment overview](screenshots/screenshot-v0.2.10-1.jpg)
 
-![CoBudget shared areas](screenshots/screenshot2.jpg)
+![CoBudget shared areas](screenshots/screenshot-v0.2.10-2.jpg)
 
-![CoBudget analytics](screenshots/screenshot3.jpg)
+![CoBudget analytics](screenshots/screenshot-v0.2.10-3.jpg)
 
-![CoBudget settings](screenshots/screenshot4.jpg)
+![CoBudget settings](screenshots/screenshot-v0.2.10-4.jpg)
 
 ## Features
 
