@@ -501,12 +501,21 @@ export default {
 			if (this.isProjectMode || !entry.project_id || !this.isSharedProjectResolver(entry.project_id)) {
 				return ''
 			}
-			const paidByName = entry.user_display_name || this.memberName(entry.user_id)
+			const paidByName = this.actualPayerName(entry)
 			const statusText = entry.is_settled
 				? this.$texts.entry.amountAlreadySettled()
 				: this.$texts.entry.amountNotSettled()
 
 			return paidByName ? `${this.$texts.entry.paidByPerson(paidByName)}\n${statusText}` : statusText
+		},
+		actualPayerName(entry) {
+			if (entry.paid_by_display_name) {
+				return entry.paid_by_display_name
+			}
+			if (entry.paid_by_user_id) {
+				return this.memberName(entry.paid_by_user_id)
+			}
+			return entry.user_display_name || this.memberName(entry.user_id)
 		},
 		projectName(projectId) {
 			if (!projectId) {

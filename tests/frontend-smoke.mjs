@@ -804,6 +804,8 @@ assertContains(entryTable, ':enable-tax-relevant="enableTaxRelevant"', 'EntryTab
 assertContains(entryTable, 'return !!(entry.project_id && this.projectName(entry.project_id))', 'EntryTable shows project chips for every project entry')
 assertContains(entryTable, 'class="entry-actions"', 'EntryTable centered actions menu')
 assertContains(entryTable, 'this.$texts.entry.paidByPerson(paidByName)', 'EntryTable shared-project tooltip includes the payer')
+assertContains(entryTable, 'entry.paid_by_display_name', 'EntryTable shared-project tooltip prefers the payer from the shared source entry')
+assertContains(entryTable, 'this.memberName(entry.paid_by_user_id)', 'EntryTable resolves the shared source payer when only its user ID is available')
 assertContains(entryTable, 'this.$texts.entry.amountNotSettled()', 'EntryTable shared-project tooltip explains open settlement status')
 assertContains(entryTable, 'this.$texts.entry.amountAlreadySettled()', 'EntryTable shared-project tooltip explains settled status')
 assertNotContains(entryTable, 'Offen in:', 'EntryTable shared-project tooltip no longer repeats the project name for open entries')

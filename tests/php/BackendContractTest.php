@@ -388,6 +388,11 @@ return [
 		$normalizeEntryRow = $t->methodBody('lib/Controller/EntryController.php', 'normalizeEntryRow');
 		$t->assertContains('user_display_name', $normalizeEntryRow, 'Entry rows should expose payer display names for shared-project tooltips');
 		$t->assertContains('$this->participantService->participant($userId)', $normalizeEntryRow, 'Entry rows should resolve active and former payer display names through the participant service');
+		$t->assertContains("\$entry['paid_by_user_id']", $normalizeEntryRow, 'Personal projection rows should expose the shared source payer ID');
+		$t->assertContains("\$entry['paid_by_display_name']", $normalizeEntryRow, 'Personal projection rows should expose the shared source payer display name');
+
+		$show = $t->methodBody('lib/Controller/EntryController.php', 'show');
+		$t->assertContains('source_e.user_id AS source_user_id', $show, 'Single-entry responses should retain the payer of their shared source entry');
 
 		$applyFilters = $t->methodBody('lib/Controller/EntryController.php', 'applyFilters');
 		foreach (['is_child_related', 'is_important', 'needs_review', 'is_tax_relevant'] as $column) {

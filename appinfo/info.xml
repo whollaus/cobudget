@@ -50,7 +50,7 @@
 - Deine Finanzdaten bleiben in deiner eigenen Nextcloud
 - Erhalte Benachrichtigungen über Aktivitäten in gemeinsamen Bereichen
 - Erstelle vollständige Admin-Backups für den Wiederherstellungsfall]]></description>
-	<version>0.2.10</version>
+	<version>0.2.11</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>

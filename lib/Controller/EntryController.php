@@ -313,7 +313,7 @@ class EntryController extends Controller {
 			}
 
 			$qb = $this->db->getQueryBuilder();
-			$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled')
+			$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.user_id AS source_user_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled')
 				->from('cobudget_entries', 'e')
 				->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
 				->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'))

@@ -2,6 +2,12 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.11] - 2026-07-21
+
+### Fixed
+
+- Corrected the payer tooltip for shared-area payments in personal finance views so it shows the member who actually paid instead of the owner of the personal allocation.
+
 ## [0.2.10] - 2026-07-19
 
 ### Fixed
