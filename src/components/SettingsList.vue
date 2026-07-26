@@ -4,7 +4,10 @@
 			v-for="(item, index) in items"
 			:key="itemKey(item, index)"
 			class="settings-list-item"
-			:class="{ 'is-hidden': isHidden(item) }">
+			:class="{
+				'is-hidden': isHidden(item),
+				'is-subcategory': isSubcategory(item)
+			}">
 			<slot name="item" :item="item" />
 		</li>
 		<li v-if="items.length === 0" class="settings-list-empty">{{ emptyText }}</li>
@@ -44,6 +47,9 @@ export default {
 			}
 			const value = item[this.hiddenField];
 			return value === true || value === 1 || value === '1' || value === 'true';
+		},
+		isSubcategory(item) {
+			return Number(item?.parent_category_id || 0) > 0;
 		}
 	}
 }
@@ -65,6 +71,7 @@ export default {
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
+	position: relative;
 	padding: 10px 15px;
 	border-bottom: 1px solid var(--cobudget-border, #eee);
 	color: var(--cobudget-text, var(--color-main-text, #222));
@@ -77,6 +84,19 @@ export default {
 .settings-list-item.is-hidden {
 	background: var(--cobudget-surface-muted, #f9f9f9);
 	color: var(--cobudget-text-muted, #666);
+}
+
+.settings-list-item.is-subcategory {
+	padding-inline-start: calc(30px + var(--default-grid-baseline, 4px) * 5);
+}
+
+.settings-list-item.is-subcategory::before {
+	color: var(--color-text-light);
+	content: '↳';
+	font-weight: 700;
+	inset-inline-start: 28px;
+	position: absolute;
+	top: 16px;
 }
 
 .settings-list-item.is-hidden :deep(.settings-list-info),

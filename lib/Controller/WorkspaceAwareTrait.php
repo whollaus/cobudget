@@ -889,6 +889,32 @@ trait WorkspaceAwareTrait {
 		return $project;
 	}
 
+	protected function projectHiddenCategoryIds(int $projectId): array {
+		$project = $this->projectVisibleForCurrentUser($projectId);
+		if ($project === null) {
+			return [];
+		}
+
+		$decoded = json_decode((string)($project['hidden_category_ids'] ?? '[]'), true);
+		if (!is_array($decoded)) {
+			return [];
+		}
+
+		$ids = [];
+		foreach ($decoded as $value) {
+			if (!is_numeric($value)) {
+				continue;
+			}
+			$id = (int)$value;
+			if ($id > 0) {
+				$ids[$id] = $id;
+			}
+		}
+		ksort($ids, SORT_NUMERIC);
+
+		return array_values($ids);
+	}
+
 	protected function projectWorkspaceIdForCurrentUser(?int $projectId): ?int {
 		if ($projectId === null) {
 			return $this->getWorkspaceId();
@@ -1105,7 +1131,7 @@ trait WorkspaceAwareTrait {
 		}
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'name', 'icon', 'type', 'is_global', 'user_id', 'workspace_id', 'project_id')
+		$qb->select('id', 'name', 'code', 'icon', 'type', 'is_global', 'user_id', 'workspace_id', 'project_id', 'parent_category_id')
 		   ->from('cobudget_categories')
 		   ->where($qb->expr()->eq('id', $qb->createNamedParameter($categoryId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))

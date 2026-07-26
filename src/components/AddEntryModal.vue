@@ -46,13 +46,6 @@
 					</div>
 
 					<div class="entry-required-panel">
-						<div class="form-group type-group core-type" v-if="$enableIncomes">
-							<div class="type-toggle">
-								<button type="button" class="type-btn" :class="{active: entry.type === 'income', 'income-active': entry.type === 'income'}" @click="setEntryType('income')">{{ $texts.common.income() }}</button>
-								<button type="button" class="type-btn" :class="{active: entry.type === 'expense', 'expense-active': entry.type === 'expense'}" @click="setEntryType('expense')">{{ $texts.common.expense() }}</button>
-							</div>
-						</div>
-
 						<div class="form-group core-template-name" v-if="isTemplateMode">
 							<label>{{ $texts.entry.templateName() }} <span class="required-marker">*</span></label>
 							<input ref="templateNameInput" type="text" v-model="templateName" class="form-control" :placeholder="$texts.entry.templateNamePlaceholder()" required>
@@ -77,24 +70,96 @@
 									'is-income': entry.type === 'income',
 									'is-expense': entry.type === 'expense',
 								}">
-								<span v-if="$currency" class="amount-currency-prefix" aria-hidden="true">{{ $currency }}</span>
-								<input
-									type="text"
-									ref="amountInput"
-									v-model="entry.amountDisplay"
-									:aria-label="amountLabel"
-									inputmode="text"
-									autocomplete="off"
-									autocapitalize="off"
-									autocorrect="off"
-									spellcheck="false"
-									pattern="[0-9.,+*\/\-]*"
-									@input="sanitizeAmountInput"
-									@blur="evaluateAmount"
-									class="form-control amount-input"
-									:class="{'bg-income': entry.type === 'income', 'bg-expense': entry.type === 'expense'}"
-									:required="!isTemplateMode"
-									placeholder="0.00">
+								<div v-if="$enableIncomes" class="amount-type-field">
+									<NcPopover
+										v-model:shown="typeMenuOpen"
+										:triggers="[]"
+										:no-focus-trap="true"
+										popup-role="listbox"
+										placement="bottom-start">
+										<template #trigger>
+											<NcButton
+												ref="amountTypeTrigger"
+												id="entry-type-trigger"
+												type="button"
+												variant="tertiary-no-background"
+												class="amount-type-trigger"
+												role="combobox"
+												aria-controls="entry-type-options"
+												:aria-label="selectedEntryTypeLabel"
+												:aria-activedescendant="typeMenuActiveDescendant || undefined"
+												:title="selectedEntryTypeLabel"
+												@click="toggleTypeMenu"
+												@keydown.down.prevent.stop="openTypeMenuAndMove(1)"
+												@keydown.up.prevent.stop="openTypeMenuAndMove(-1)"
+												@keydown.home.prevent.stop="openTypeMenuAt(0)"
+												@keydown.end.prevent.stop="openTypeMenuAt(entryTypeOptions.length - 1)"
+												@keydown.enter.prevent.stop="confirmTypeMenuSelection"
+												@keydown.space.prevent.stop="confirmTypeMenuSelection"
+												@keydown.esc.prevent.stop="closeTypeMenu(true)"
+												@keydown.tab="closeTypeMenu(false)">
+												<span class="amount-type-trigger-content">
+													<span class="amount-type-label">{{ selectedEntryTypeLabel }}</span>
+													<ChevronDownIcon :size="18" class="amount-type-chevron" aria-hidden="true" />
+												</span>
+											</NcButton>
+										</template>
+										<div
+											id="entry-type-options"
+											class="amount-type-menu"
+											role="listbox"
+											aria-labelledby="entry-type-trigger"
+											@keydown.esc.prevent.stop="closeTypeMenu(true)">
+											<NcButton
+												v-for="(option, index) in entryTypeOptions"
+												:id="typeOptionId(index)"
+												:key="option.value"
+												type="button"
+												variant="tertiary-no-background"
+												class="amount-type-option"
+												:class="[
+													`is-${option.value}`,
+													{
+														'is-selected': entry.type === option.value,
+														'is-highlighted': highlightedTypeIndex === index,
+													}
+												]"
+												role="option"
+												tabindex="-1"
+												:aria-selected="entry.type === option.value ? 'true' : 'false'"
+												@mouseenter="highlightedTypeIndex = index"
+												@mousedown.prevent
+												@click="selectEntryType(option.value)">
+												<span class="amount-type-option-content">
+													<span class="amount-type-check" aria-hidden="true">
+														<CheckIcon v-if="entry.type === option.value" :size="18" />
+													</span>
+													<span>{{ option.label }}</span>
+												</span>
+											</NcButton>
+										</div>
+									</NcPopover>
+								</div>
+								<div class="amount-value-wrap" @click="focusAmountInput">
+									<span v-if="$currency" class="amount-currency-prefix" aria-hidden="true">{{ $currency }}</span>
+									<input
+										type="text"
+										ref="amountInput"
+										v-model="entry.amountDisplay"
+										:aria-label="amountLabel"
+										inputmode="text"
+										autocomplete="off"
+										autocapitalize="off"
+										autocorrect="off"
+										spellcheck="false"
+										pattern="[0-9.,+*\/\-]*"
+										@input="sanitizeAmountInput"
+										@blur="evaluateAmount"
+										class="form-control amount-input"
+										:class="{'bg-income': entry.type === 'income', 'bg-expense': entry.type === 'expense'}"
+										:required="!isTemplateMode"
+										placeholder="0.00">
+								</div>
 							</div>
 						</div>
 					</div>
@@ -176,7 +241,14 @@
 
 						<div class="form-group detail-category">
 							<label>{{ $texts.entry.category() }}</label>
-							<div ref="categoryLookupField" class="lookup-field category-input-wrap" :class="{ 'has-leading-icon': selectedCategoryIcon, 'has-clear-button': entry.categoryName }">
+							<div
+								ref="categoryLookupField"
+									class="lookup-field category-input-wrap"
+									:class="{
+										'has-leading-icon': selectedCategoryIcon,
+										'has-clear-button': hasCategorySelection,
+										'has-category-code': selectedCategoryCode,
+									}">
 								<CategoryIcon v-if="selectedCategoryIcon" :icon="selectedCategoryIcon" :size="18" class="category-input-icon" />
 								<button
 									ref="categoryLookupTrigger"
@@ -191,13 +263,17 @@
 									@keydown.up.prevent="openLookupAndMove('category', -1)"
 									@keydown.enter.prevent="handleLookupTriggerEnter('category')"
 									@keydown.esc.stop.prevent="closeLookup">
-									<span class="lookup-trigger-value" :class="{ 'is-placeholder': !entry.categoryName }">
-										{{ entry.categoryName || $texts.entry.selectPlaceholder() }}
+									<span v-if="hasCategorySelection" class="lookup-trigger-value category-lookup-trigger-value">
+										<span v-if="selectedCategoryCode" class="lookup-trigger-code">{{ selectedCategoryCode }}</span>
+										<span class="lookup-trigger-name">{{ selectedCategoryDisplayName }}</span>
+									</span>
+									<span v-else class="lookup-trigger-value is-placeholder">
+										{{ $texts.entry.selectPlaceholder() }}
 									</span>
 									<ChevronDownIcon :size="18" class="lookup-chevron" aria-hidden="true" />
 								</button>
 								<button
-									v-if="entry.categoryName"
+									v-if="hasCategorySelection"
 									type="button"
 									class="lookup-clear-button"
 									:aria-label="$texts.entry.clearCategory()"
@@ -215,12 +291,19 @@
 												:key="`${section.label || 'category'}-${cat.id}`"
 												type="button"
 												class="lookup-option"
-												:class="{ active: highlightedCategoryIndex === lookupIndex('category', cat) }"
+												:class="{
+													active: highlightedCategoryIndex === lookupIndex('category', cat),
+													'is-selected': isCategorySelected(cat),
+													'is-subcategory': !!categoryParentId(cat)
+												}"
 												role="option"
-												:aria-selected="highlightedCategoryIndex === lookupIndex('category', cat) ? 'true' : 'false'"
-												@click="selectCategorySuggestion(cat)">
+												:aria-selected="isCategorySelected(cat) ? 'true' : 'false'"
+												@click.stop="selectCategorySuggestion(cat)">
 												<CategoryIcon :icon="cat.icon || 'Shape'" :size="16" />
-												<span>{{ cat.name }}</span>
+												<span class="lookup-option-label">
+													<span v-if="cat.code" class="lookup-option-code">{{ cat.code }}</span>
+													<span class="lookup-option-name">{{ cat.name }}</span>
+												</span>
 											</button>
 										</template>
 										<div v-if="categorySuggestions.length === 0" class="lookup-empty">{{ $texts.entry.noMatchingEntries() }}</div>
@@ -493,18 +576,27 @@ import ConfirmModal from './ConfirmModal.vue'
 import { showRequestError, showToast } from '../services/notifications'
 import { readWorkspaceId } from '../services/workspaceStorage'
 import { getAreaColorPalette } from '../utils/areaColor'
+import { categoryParentId, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
+import CheckIcon from 'vue-material-design-icons/Check.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import WalletIcon from 'vue-material-design-icons/Wallet.vue'
 import FolderIcon from 'vue-material-design-icons/Folder.vue'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcPopover from '@nextcloud/vue/components/NcPopover'
 import CbIconButton from './CbIconButton.vue'
+
+const normalizedPositiveId = value => {
+	const id = Number(value || 0)
+	return Number.isInteger(id) && id > 0 ? id : null
+}
 
 export default {
 	name: 'AddEntryModal',
-	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, ChevronDownIcon, PlusIcon, WalletIcon, FolderIcon, CbIconButton },
+	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, ChevronDownIcon, CheckIcon, PlusIcon, WalletIcon, FolderIcon, NcButton, NcPopover, CbIconButton },
 	props: {
 		projectId: {
 			type: Number,
@@ -524,6 +616,7 @@ export default {
 				type: 'expense',
 				amountDisplay: '',
 				description: '',
+				categoryId: null,
 				categoryName: '',
 				paymentPartnerName: '',
 				projectId: this.projectId,
@@ -557,6 +650,8 @@ export default {
 			templateDescription: '',
 			showPlanningOptions: false,
 			confirmDialog: null,
+			typeMenuOpen: false,
+			highlightedTypeIndex: -1,
 			focusedLookupField: null,
 			lookupInputMode: null,
 			lookupDraft: {
@@ -608,6 +703,23 @@ export default {
 			const base = this.isTemplateMode ? this.$texts.entry.amountOptional() : this.$texts.entry.amount();
 			return this.$currency ? `${base} (${this.$currency})` : base;
 		},
+		entryTypeOptions() {
+			return [
+				{ value: 'expense', label: this.$texts.common.expense() },
+				{ value: 'income', label: this.$texts.common.income() }
+			];
+		},
+		selectedEntryTypeLabel() {
+			return this.entry.type === 'income'
+				? this.$texts.common.income()
+				: this.$texts.common.expense();
+		},
+		typeMenuActiveDescendant() {
+			if (!this.typeMenuOpen || this.highlightedTypeIndex < 0) {
+				return '';
+			}
+			return this.typeOptionId(this.highlightedTypeIndex);
+		},
 		paymentPartnerLabel() {
 			return this.entry.type === 'income' ? this.$texts.entry.receivedFrom() : this.$texts.entry.paidTo();
 		},
@@ -625,11 +737,32 @@ export default {
 
 			return hasGeneralTags;
 		},
-		selectedCategoryIcon() {
+		selectedCategory() {
+			const categoryId = normalizedPositiveId(this.entry.categoryId)
+			if (categoryId !== null) {
+				return this.categories.find(category => Number(category.id) === categoryId) || null
+			}
+
 			const name = this.entry.categoryName;
 			if (!name) return null;
-			const cat = this.categories.find(c => c.name.toLowerCase() === name.toLowerCase());
-			return cat ? (cat.icon || 'Shape') : null;
+			return this.categories.find(c => c.name.toLowerCase() === name.toLowerCase()) || null;
+		},
+		selectedCategoryId() {
+			return normalizedPositiveId(this.entry.categoryId);
+		},
+		hasCategorySelection() {
+			return this.selectedCategoryId !== null || String(this.entry.categoryName || '').trim() !== '';
+		},
+		selectedCategoryIcon() {
+			return this.selectedCategory ? (this.selectedCategory.icon || 'Shape') : null;
+		},
+		selectedCategoryCode() {
+			return String(this.selectedCategory?.code ?? '').trim();
+		},
+		selectedCategoryDisplayName() {
+			return this.selectedCategory
+				? String(this.selectedCategory.name || '').trim()
+				: this.entry.categoryName;
 		},
 		isValid() {
 			if (this.isTemplateMode) {
@@ -639,7 +772,7 @@ export default {
 			return !isNaN(amt) && amt > 0;
 		},
 		filteredCategories() {
-			return this.categories.filter(c => c.type === this.entry.type || !c.type);
+			return sortCategoriesHierarchically(this.categories.filter(c => c.type === this.entry.type || !c.type));
 		},
 		filteredPaymentPartners() {
 			return this.paymentPartners.filter(p => p.type === this.entry.type || !p.type);
@@ -651,7 +784,13 @@ export default {
 			return this.lookupQueryForField('paymentPartner');
 		},
 		categorySuggestionSections() {
-			return this.buildSuggestionSections(this.filteredCategories, this.categoryLookupQuery, this.$texts.entry.allCategories());
+			return this.buildSuggestionSections(
+				this.filteredCategories,
+				this.categoryLookupQuery,
+				this.$texts.entry.allCategories(),
+				['code', 'parent_name'],
+				true
+			);
 		},
 		categorySuggestions() {
 			return this.categorySuggestionSections.flatMap(section => section.items);
@@ -930,6 +1069,16 @@ export default {
 		this.releaseModalHistory({ skipBack: true });
 	},
 	watch: {
+		typeMenuOpen(isOpen) {
+			if (!isOpen) {
+				this.highlightedTypeIndex = -1;
+				return;
+			}
+
+			if (this.highlightedTypeIndex < 0) {
+				this.highlightedTypeIndex = this.selectedTypeOptionIndex();
+			}
+		},
 		'entry.projectId': async function(projectId) {
 			if (this.isInitializingEntry) {
 				return;
@@ -1060,6 +1209,10 @@ export default {
 			if (this.confirmDialog || this.loading) {
 				return;
 			}
+			if (this.typeMenuOpen) {
+				this.closeTypeMenu(true);
+				return;
+			}
 			if (this.focusedLookupField) {
 				this.closeLookup();
 				return;
@@ -1152,6 +1305,78 @@ export default {
 
 			return '';
 		},
+		typeOptionId(index) {
+			const option = this.entryTypeOptions[index];
+			return `entry-type-option-${option ? option.value : index}`;
+		},
+		selectedTypeOptionIndex() {
+			const selectedIndex = this.entryTypeOptions.findIndex(option => option.value === this.entry.type);
+			return selectedIndex >= 0 ? selectedIndex : 0;
+		},
+		typeMenuIndex(index) {
+			const optionCount = this.entryTypeOptions.length;
+			if (optionCount === 0) {
+				return -1;
+			}
+			return Math.max(0, Math.min(optionCount - 1, Number(index) || 0));
+		},
+		typeTriggerElement() {
+			return this.$refs.amountTypeTrigger?.$el || this.$refs.amountTypeTrigger || null;
+		},
+		focusAmountInput() {
+			this.$refs.amountInput?.focus();
+		},
+		toggleTypeMenu() {
+			if (this.typeMenuOpen) {
+				this.closeTypeMenu(false);
+				return;
+			}
+
+			this.openTypeMenuAt(this.selectedTypeOptionIndex());
+		},
+		openTypeMenuAt(index) {
+			this.closeLookup();
+			this.highlightedTypeIndex = this.typeMenuIndex(index);
+			this.typeMenuOpen = true;
+		},
+		openTypeMenuAndMove(direction) {
+			if (!this.typeMenuOpen) {
+				this.openTypeMenuAt(this.selectedTypeOptionIndex());
+				return;
+			}
+
+			const optionCount = this.entryTypeOptions.length;
+			if (optionCount === 0) {
+				return;
+			}
+			const currentIndex = this.highlightedTypeIndex >= 0
+				? this.highlightedTypeIndex
+				: this.selectedTypeOptionIndex();
+			this.highlightedTypeIndex = (currentIndex + direction + optionCount) % optionCount;
+		},
+		confirmTypeMenuSelection() {
+			if (!this.typeMenuOpen) {
+				this.openTypeMenuAt(this.selectedTypeOptionIndex());
+				return;
+			}
+
+			const option = this.entryTypeOptions[this.highlightedTypeIndex];
+			if (option) {
+				this.selectEntryType(option.value);
+			}
+		},
+		selectEntryType(type) {
+			this.setEntryType(type);
+			this.closeTypeMenu(true);
+		},
+		closeTypeMenu(restoreFocus = false) {
+			const wasOpen = this.typeMenuOpen;
+			this.typeMenuOpen = false;
+			this.highlightedTypeIndex = -1;
+			if (restoreFocus && wasOpen) {
+				this.$nextTick(() => this.typeTriggerElement()?.focus());
+			}
+		},
 		setEntryType(type) {
 			const nextType = type === 'income' ? 'income' : 'expense';
 			if (this.entry.type === nextType) {
@@ -1161,6 +1386,7 @@ export default {
 			this.invalidateCategorySuggestion(true);
 			this.categorySelectionSource = null;
 			this.entry.type = nextType;
+			this.entry.categoryId = null;
 			this.entry.categoryName = '';
 			this.entry.paymentPartnerName = '';
 			this.closeLookup();
@@ -1319,17 +1545,21 @@ export default {
 				return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
 			});
 		},
-		buildSuggestionSections(items, query, allLabel) {
+		buildSuggestionSections(items, query, allLabel, additionalSearchFields = [], hierarchical = false) {
 			const normalizedQuery = String(query || '').trim().toLowerCase();
+			const searchFields = ['name', ...additionalSearchFields];
 			const candidates = normalizedQuery
-				? items.filter(item => String(item.name || '').toLowerCase().includes(normalizedQuery))
+				? items.filter(item => searchFields.some(field => String(item?.[field] ?? '').toLowerCase().includes(normalizedQuery)))
 				: items;
 
 			const frequent = this.sortByUsageThenName(candidates)
 				.filter(item => this.usageCount(item) > 0)
 				.slice(0, 5);
 			const frequentIds = new Set(frequent.map(item => item.id));
-			const remaining = this.sortByName(candidates.filter(item => !frequentIds.has(item.id)));
+			const remainingItems = candidates.filter(item => !frequentIds.has(item.id));
+			const remaining = hierarchical
+				? sortCategoriesHierarchically(remainingItems)
+				: this.sortByName(remainingItems);
 
 			if (normalizedQuery || frequent.length === 0) {
 				return [{ label: '', items: [...frequent, ...remaining] }];
@@ -1343,6 +1573,20 @@ export default {
 		lookupValue(field) {
 			return field === 'category' ? this.entry.categoryName : this.entry.paymentPartnerName;
 		},
+		categoryParentId,
+		isCategorySelected(category) {
+			const categoryId = normalizedPositiveId(category?.id);
+			if (categoryId !== null && this.selectedCategoryId !== null) {
+				return categoryId === this.selectedCategoryId;
+			}
+
+			return this.selectedCategoryId === null
+				&& String(category?.name || '').trim().localeCompare(
+					String(this.entry.categoryName || '').trim(),
+					undefined,
+					{ sensitivity: 'base' }
+				) === 0;
+		},
 		lookupItems(field) {
 			return field === 'category' ? this.filteredCategories : this.filteredPaymentPartners;
 		},
@@ -1355,7 +1599,12 @@ export default {
 				return null;
 			}
 
-			return this.lookupItems(field).find(item => String(item.name || '').trim().toLowerCase() === normalizedValue) || null;
+			return this.lookupItems(field).find(item => {
+				const nameMatches = String(item.name || '').trim().toLowerCase() === normalizedValue;
+				const codeMatches = field === 'category'
+					&& String(item.code ?? '').trim().toLowerCase() === normalizedValue;
+				return nameMatches || codeMatches;
+			}) || null;
 		},
 		lookupQueryForField(field) {
 			return this.lookupInputMode === field
@@ -1384,6 +1633,7 @@ export default {
 			this.openLookup(field);
 		},
 		openLookup(field) {
+			this.closeTypeMenu(false);
 			this.focusedLookupField = field;
 			this.lookupInputMode = null;
 			this.lookupDraft = { category: '', paymentPartner: '' };
@@ -1446,6 +1696,7 @@ export default {
 
 			if (field === 'category') {
 				this.invalidateCategorySuggestion();
+				this.entry.categoryId = null;
 				this.entry.categoryName = name;
 				this.categorySelectionSource = 'manual';
 			} else {
@@ -1488,6 +1739,7 @@ export default {
 			}
 		},
 		resetScopedLookups() {
+			this.entry.categoryId = null;
 			this.entry.categoryName = '';
 			this.entry.paymentPartnerName = '';
 			this.closeLookup();
@@ -1499,6 +1751,10 @@ export default {
 			};
 		},
 		selectedGlobalLookupName(field) {
+			if (field === 'category' && this.selectedCategory && this.isGlobalLookupItem(this.selectedCategory)) {
+				return String(this.selectedCategory.name || '').trim();
+			}
+
 			const value = String(this.lookupValue(field) || '').trim();
 			if (!value) {
 				return '';
@@ -1517,22 +1773,28 @@ export default {
 		restoreGlobalLookupNames(globalLookups) {
 			const categoryName = String(globalLookups?.category || '').trim();
 			const paymentPartnerName = String(globalLookups?.paymentPartner || '').trim();
-			this.entry.categoryName = this.globalLookupExists('category', categoryName) ? categoryName : '';
+			const category = this.globalLookupItem('category', categoryName);
+			this.entry.categoryId = category ? normalizedPositiveId(category.id) : null;
+			this.entry.categoryName = category ? String(category.name || '').trim() : '';
 			this.entry.paymentPartnerName = this.globalLookupExists('paymentPartner', paymentPartnerName) ? paymentPartnerName : '';
 		},
-		globalLookupExists(field, name) {
+		globalLookupItem(field, name) {
 			if (!name) {
-				return false;
+				return null;
 			}
 
-			return this.lookupItems(field).some(item => {
+			return this.lookupItems(field).find(item => {
 				return this.isGlobalLookupItem(item)
 					&& String(item.name || '').trim().localeCompare(name, undefined, { sensitivity: 'base' }) === 0;
-			});
+			}) || null;
+		},
+		globalLookupExists(field, name) {
+			return this.globalLookupItem(field, name) !== null;
 		},
 		clearLookupValue(field) {
 			if (field === 'category') {
 				this.invalidateCategorySuggestion();
+				this.entry.categoryId = null;
 				this.entry.categoryName = '';
 				this.categorySelectionSource = null;
 			} else {
@@ -1543,7 +1805,12 @@ export default {
 			this.$nextTick(() => this.lookupTrigger(field)?.focus());
 		},
 		resetLookupHighlight(field) {
-			const nextIndex = this.lookupSuggestions(field).length > 0 ? 0 : -1;
+			const suggestions = this.lookupSuggestions(field);
+			const selectedItem = field === 'category' ? this.selectedCategory : this.selectedPaymentPartner();
+			const selectedIndex = selectedItem
+				? suggestions.findIndex(item => Number(item.id) === Number(selectedItem.id))
+				: -1;
+			const nextIndex = selectedIndex >= 0 ? selectedIndex : (suggestions.length > 0 ? 0 : -1);
 
 			if (field === 'category') {
 				this.highlightedCategoryIndex = nextIndex;
@@ -1580,7 +1847,16 @@ export default {
 		},
 		selectCategorySuggestion(category) {
 			this.invalidateCategorySuggestion();
-			this.entry.categoryName = category.name;
+			const categoryId = normalizedPositiveId(category?.id);
+			if (categoryId === null) {
+				return;
+			}
+			const canonicalCategory = this.categories.find(item => Number(item.id) === categoryId) || category;
+			this.entry = {
+				...this.entry,
+				categoryId,
+				categoryName: String(canonicalCategory.name || '').trim()
+			};
 			this.categorySelectionSource = 'manual';
 			this.closeLookup();
 			this.blurLookupTrigger('category');
@@ -1595,6 +1871,7 @@ export default {
 		invalidateCategorySuggestion(clearSuggested = false) {
 			this.categorySuggestionRequestId += 1;
 			if (clearSuggested && this.categorySelectionSource === 'suggested') {
+				this.entry.categoryId = null;
 				this.entry.categoryName = '';
 				this.categorySelectionSource = null;
 			}
@@ -1644,7 +1921,11 @@ export default {
 					return;
 				}
 
-				this.entry.categoryName = category.name;
+				this.entry = {
+					...this.entry,
+					categoryId: normalizedPositiveId(category.id),
+					categoryName: category.name
+				};
 				this.categorySelectionSource = 'suggested';
 			} catch {
 				// Recommendations are optional and must never block payment entry.
@@ -1659,6 +1940,7 @@ export default {
 		async openModal(entryToEdit = null, defaultProjectId = null, isFutureContext = false, templateToLoad = null, isTemplateMode = false, entryToDuplicate = null, defaultType = 'expense') {
 			this.invalidateCategorySuggestion(true);
 			this.categorySelectionSource = null;
+			this.closeTypeMenu(false);
 			if (!this.$enableTemplates) {
 				templateToLoad = null;
 				isTemplateMode = false;
@@ -1694,6 +1976,7 @@ export default {
 					type: entryToEdit.type,
 					amountDisplay: this.$formatInputAmount(entryToEdit.amount),
 					description: entryToEdit.description,
+					categoryId: this.sourceCategoryId(entryToEdit),
 					categoryName: entryToEdit.category_name || '',
 					paymentPartnerName: entryToEdit.paymentPartner || (() => {
 						if (!entryToEdit.payment_partner_id) return '';
@@ -1725,11 +2008,8 @@ export default {
 					type: templateToLoad.type || 'expense',
 					amountDisplay: templateToLoad.amount ? this.$formatInputAmount(templateToLoad.amount) : '',
 					description: templateToLoad.description || '',
-					categoryName: (() => {
-						if (!templateToLoad.category_id) return '';
-						const cat = this.categories.find(c => c.id === templateToLoad.category_id);
-						return cat ? cat.name : '';
-					})(),
+					categoryId: this.sourceCategoryId(templateToLoad),
+					categoryName: templateToLoad.category_name || '',
 					paymentPartnerName: templateToLoad.paymentPartner || (() => {
 						if (!templateToLoad.payment_partner_id) return '';
 						const pay = this.paymentPartners.find(p => p.id === templateToLoad.payment_partner_id);
@@ -1759,6 +2039,7 @@ export default {
 					type: entryToDuplicate.type || 'expense',
 					amountDisplay: entryToDuplicate.amount ? this.$formatInputAmount(entryToDuplicate.amount) : '',
 					description: entryToDuplicate.description || '',
+					categoryId: this.sourceCategoryId(entryToDuplicate),
 					categoryName: entryToDuplicate.category_name || '',
 					paymentPartnerName: entryToDuplicate.paymentPartner || (() => {
 						if (!entryToDuplicate.payment_partner_id) return '';
@@ -1811,6 +2092,7 @@ export default {
 					type: resolvedDefaultType,
 					amountDisplay: '',
 					description: '',
+					categoryId: null,
 					categoryName: '',
 					paymentPartnerName: '',
 					projectId: defaultProjectId || this.projectId,
@@ -1881,6 +2163,7 @@ export default {
 			this.sourceTemplateId = null;
 			this.showPlanningOptions = false;
 			this.resetAttachments();
+			this.closeTypeMenu(false);
 			this.closeLookup();
 			this.clearMobileFocusTimer();
 			this.mobileFormFieldFocused = false;
@@ -2035,7 +2318,7 @@ export default {
 			try {
 				const params = this.$enableProjects && projectId ? { projectId } : {};
 				const catRes = await axios.get(generateUrl('/apps/cobudget/api/categories'), { params })
-				this.categories = (catRes.data || []).sort((a, b) => a.name.localeCompare(b.name))
+				this.categories = sortCategoriesHierarchically(catRes.data || [])
 				const payRes = await axios.get(generateUrl('/apps/cobudget/api/payment-partners'), { params })
 				this.paymentPartners = (payRes.data || []).sort((a, b) => a.name.localeCompare(b.name))
 			} catch (e) {
@@ -2049,15 +2332,38 @@ export default {
 				return;
 			}
 
-			if (!this.entry.categoryName && source.category_id) {
-				const category = this.categories.find(c => Number(c.id) === Number(source.category_id));
-				this.entry.categoryName = category ? category.name : '';
+			const sourceCategoryName = String(source.category_name || source.categoryName || '').trim();
+			const sourceCategoryId = this.sourceCategoryId(source);
+			const categoryById = sourceCategoryId !== null
+				? this.categories.find(category => Number(category.id) === sourceCategoryId) || null
+				: null;
+			const categoryByName = sourceCategoryName
+				? this.categories.find(category =>
+					String(category.name || '').trim().localeCompare(sourceCategoryName, undefined, { sensitivity: 'base' }) === 0
+					&& (!source.type || !category.type || category.type === source.type)
+				) || null
+				: null;
+			const category = categoryById
+				&& (!sourceCategoryName
+					|| String(categoryById.name || '').trim().localeCompare(sourceCategoryName, undefined, { sensitivity: 'base' }) === 0)
+				? categoryById
+				: categoryByName || categoryById;
+			if (category) {
+				this.entry.categoryId = normalizedPositiveId(category.id);
+				this.entry.categoryName = category.name;
+			} else if (sourceCategoryId !== null) {
+				this.entry.categoryId = sourceCategoryId;
+			} else if (!this.entry.categoryName) {
+				this.entry.categoryId = null;
 			}
 
 			if (!this.entry.paymentPartnerName && source.payment_partner_id) {
 				const paymentPartner = this.paymentPartners.find(p => Number(p.id) === Number(source.payment_partner_id));
 				this.entry.paymentPartnerName = paymentPartner ? paymentPartner.name : '';
 			}
+		},
+		sourceCategoryId(source) {
+			return normalizedPositiveId(source?.category_id ?? source?.categoryId ?? source?.category?.id);
 		},
 		getProjectName(id) {
 			const p = this.projects.find(p => p.id === id)
@@ -2207,21 +2513,27 @@ export default {
 					? saveAction.template
 					: null;
 
-				let categoryId = null;
+				let categoryId = normalizedPositiveId(this.entry.categoryId);
 				const rawCatName = this.entry.categoryName || '';
 				if (typeof rawCatName === 'string' && rawCatName.trim() !== '') {
 					const cName = rawCatName.trim();
-					let cat = (this.categories || []).find(c => c && c.name && String(c.name).toLowerCase() === String(cName).toLowerCase());
+					let cat = categoryId !== null
+						? (this.categories || []).find(c => Number(c?.id) === categoryId)
+						: (this.categories || []).find(c => c && c.name && String(c.name).toLowerCase() === String(cName).toLowerCase());
 					if (!cat) {
-						const res = await axios.post(generateUrl('/apps/cobudget/api/categories'), {
-							name: cName,
-							type: this.entry.type,
-							projectId: this.entry.projectId || null
-						});
-						categoryId = res.data.id;
+						if (categoryId === null) {
+							const res = await axios.post(generateUrl('/apps/cobudget/api/categories'), {
+								name: cName,
+								type: this.entry.type,
+								projectId: this.entry.projectId || null
+							});
+							categoryId = res.data.id;
+						}
 					} else {
 						categoryId = cat.id;
 					}
+				} else {
+					categoryId = null;
 				}
 
 				let paymentPartnerId = null;
@@ -2680,7 +2992,6 @@ form {
 	margin-inline-end: 8px;
 }
 
-.core-type,
 .planning-card {
 	grid-column: 1 / -1;
 }
@@ -2786,7 +3097,7 @@ form {
 
 .core-description,
 .detail-tags {
-	grid-column: span 1;
+	grid-column: 1 / -1;
 }
 
 .lookup-field {
@@ -2837,6 +3148,36 @@ button.lookup-trigger:focus-visible {
 .lookup-trigger-value.is-placeholder {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
 	font-weight: 400;
+}
+
+.category-lookup-trigger-value {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+	line-height: 1.2;
+}
+
+.category-lookup-trigger-value > span {
+	display: block;
+	width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.lookup-trigger-code {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	font-size: var(--cobudget-font-sm);
+	line-height: 1.1;
+}
+
+.lookup-trigger-name {
+	line-height: 1.2;
+}
+
+.category-input-wrap.has-category-code > .lookup-trigger {
+	padding-block: var(--default-grid-baseline, 4px);
 }
 
 .lookup-chevron {
@@ -3035,6 +3376,19 @@ button.lookup-trigger:focus-visible {
 	background: var(--cobudget-surface-muted, #f7f7f7);
 }
 
+.lookup-option.is-selected {
+	background: var(--color-primary-element-light, #e5f1f8);
+}
+
+.lookup-option.is-selected.active,
+.lookup-option.is-selected:hover {
+	background: var(--color-primary-element-light-hover, var(--color-primary-element-light, #e5f1f8));
+}
+
+.lookup-option.is-subcategory {
+	padding-inline-start: calc(10px + var(--default-grid-baseline, 4px) * 4);
+}
+
 .lookup-option :deep(.category-icon) {
 	flex: 0 0 auto;
 	margin-right: 0;
@@ -3043,6 +3397,26 @@ button.lookup-trigger:focus-visible {
 .lookup-option span {
 	min-width: 0;
 	overflow-wrap: anywhere;
+}
+
+.lookup-option-label {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	align-items: flex-start;
+	line-height: 1.25;
+}
+
+.lookup-option-name {
+	width: 100%;
+}
+
+.lookup-option-code {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	font-size: var(--cobudget-font-sm);
+	line-height: 1.2;
+	text-align: left;
+	width: 100%;
 }
 
 .planning-card {
@@ -3088,46 +3462,9 @@ button.lookup-trigger:focus-visible {
 	text-align: center;
 }
 
-.type-group {
-	margin-bottom: 0;
-}
-.type-toggle {
-	display: flex;
-	width: 100%;
-	background: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
-	border-radius: var(--border-radius, 6px);
-  padding-left: 3px;
-	box-sizing: border-box;
-}
-.type-btn {
-	flex: 1;
-	padding: 10px 0;
-	text-align: center;
-	border: none;
-	background: transparent;
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-ui);
-	font-weight: 600;
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-	cursor: pointer;
-	transition: all 0.2s ease;
-}
-
-.type-btn:focus-visible,
 .lookup-option:focus-visible {
 	outline: 2px solid var(--color-primary-element, var(--color-primary, #0082c9));
 	outline-offset: 2px;
-}
-
-.type-btn.active.expense-active {
-	background: var(--cobudget-surface, #fff);
-	color: var(--cobudget-error);
-	box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-.type-btn.active.income-active {
-	background: var(--cobudget-surface, #fff);
-	color: var(--cobudget-success);
-	box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .form-group {
@@ -3174,29 +3511,207 @@ button.lookup-trigger:focus-visible {
 }
 
 .amount-input {
+	flex: 1 1 80px;
+	width: 0;
+	min-width: 70px;
 	font-weight: 600;
 	font-family: monospace;
 	font-size: var(--cobudget-font-md);
-	height: 44px !important;
+	height: 40px !important;
 	padding: 0 12px !important;
 	line-height: 40px;
 	text-align: right;
+	border: 0 !important;
+	border-radius: 0;
+	outline: none;
+	background: transparent !important;
+	color: inherit !important;
+	box-shadow: none !important;
 	transition: background-color 0.2s, color 0.2s;
 }
 
+.amount-input:hover,
+.amount-input:focus,
+.amount-input:focus-visible,
+.amount-input:active {
+	border: 0 !important;
+	outline: none !important;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
 .amount-input-wrap {
+	--amount-accent: var(--cobudget-text, var(--color-main-text, #222));
 	position: relative;
+	display: flex;
+	align-items: stretch;
+	width: 100%;
+	height: 44px;
+	margin-block: 3px;
+	border: 2px solid var(--amount-accent);
+	border-radius: var(--border-radius, 6px);
+	box-sizing: border-box;
+	overflow: visible;
+	background: var(--cobudget-surface, var(--color-main-background, #fff));
+	color: var(--amount-accent);
+	outline: none;
+	box-shadow: none;
+	transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.amount-input-wrap.is-expense {
+	--amount-accent: var(--cobudget-error);
+	background: var(--cobudget-error-light);
+}
+
+.amount-input-wrap.is-income {
+	--amount-accent: var(--cobudget-success);
+	background: var(--cobudget-success-light);
+}
+
+.amount-input-wrap:focus-within {
+	outline: none;
+	box-shadow: none;
+}
+
+.amount-type-field {
+	flex: 0 1 auto;
+	align-self: stretch;
+	min-width: 0;
+	max-width: 48%;
+}
+
+.amount-type-field :deep(.v-popper) {
+	display: flex;
+	height: 100%;
+	max-width: 100%;
+}
+
+.amount-type-field :deep(.amount-type-trigger.button-vue) {
+	--button-size: 40px;
+	width: fit-content;
+	max-width: 100%;
+	height: 40px;
+	min-width: 0;
+	min-height: 40px;
+	padding: 0 10px !important;
+	overflow: hidden;
+	border: 0;
+	border-inline-end: 1px solid color-mix(in srgb, var(--amount-accent) 38%, transparent);
+	border-radius: calc(var(--border-radius, 6px) - 2px) 0 0 calc(var(--border-radius, 6px) - 2px);
+	background: transparent;
+	color: inherit;
+	box-shadow: none;
+}
+
+.amount-type-field :deep(.amount-type-trigger.button-vue:hover:not(:disabled)),
+.amount-type-field :deep(.amount-type-trigger.button-vue:focus),
+.amount-type-field :deep(.amount-type-trigger.button-vue:focus-visible),
+.amount-type-field :deep(.amount-type-trigger.button-vue:active:not(:disabled)),
+.amount-type-field :deep(.amount-type-trigger.button-vue[aria-expanded="true"]) {
+	background: transparent !important;
+	outline: none !important;
+	outline-offset: 0;
+	box-shadow: none !important;
+}
+
+.amount-type-field :deep(.amount-type-trigger .button-vue__wrapper),
+.amount-type-field :deep(.amount-type-trigger .button-vue__text) {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.amount-type-trigger-content {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.amount-type-label {
+	min-width: 0;
+	overflow: hidden;
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
+	line-height: 1.3;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.amount-type-chevron {
+	display: inline-flex;
+	flex: 0 0 auto;
+}
+
+.amount-type-menu {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 150px;
+	padding: 4px;
+}
+
+.amount-type-menu :deep(.amount-type-option.button-vue) {
+	width: 100%;
+	min-height: 40px;
+	justify-content: flex-start;
+	padding: 0 8px !important;
+	border: 0;
+	border-radius: var(--border-radius, 6px);
+	background: transparent;
+	box-shadow: none;
+}
+
+.amount-type-menu :deep(.amount-type-option.button-vue.is-expense) {
+	color: var(--cobudget-error);
+}
+
+.amount-type-menu :deep(.amount-type-option.button-vue.is-income) {
+	color: var(--cobudget-success);
+}
+
+.amount-type-menu :deep(.amount-type-option.button-vue:hover:not(:disabled)),
+.amount-type-menu :deep(.amount-type-option.button-vue.is-highlighted) {
+	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5)) !important;
+}
+
+.amount-type-menu :deep(.amount-type-option.button-vue.is-selected) {
+	background: color-mix(in srgb, currentColor 10%, transparent) !important;
+}
+
+.amount-type-option-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	font-weight: 600;
+}
+
+.amount-type-check {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 18px;
+	width: 18px;
+	height: 18px;
+}
+
+.amount-value-wrap {
+	display: flex;
+	align-items: center;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	cursor: text;
 }
 
 .amount-currency-prefix {
-	position: absolute;
-	z-index: 1;
-	inset-inline-start: 14px;
-	top: 50%;
+	flex: 0 1 auto;
+	margin-inline-start: 12px;
 	max-width: 52px;
 	overflow: hidden;
-	transform: translateY(-50%);
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
+	color: inherit;
 	font-size: var(--cobudget-font-compact);
 	font-weight: 600;
 	line-height: 1;
@@ -3205,41 +3720,17 @@ button.lookup-trigger:focus-visible {
 	pointer-events: none;
 }
 
-.amount-input-wrap.has-currency .amount-input {
-	padding-inline-start: 76px !important;
-}
-
-.amount-input-wrap.is-expense .amount-currency-prefix {
-	color: var(--cobudget-error);
-}
-
-.amount-input-wrap.is-income .amount-currency-prefix {
-	color: var(--cobudget-success);
-}
-
 .amount-col label {
 	text-align: right;
 }
 
-.amount-input.bg-expense {
-	border-color: var(--cobudget-error) !important;
-	background-color: var(--cobudget-error-light) !important;
-	color: var(--cobudget-error) !important;
-}
-
-.amount-input.bg-income {
-	border-color: var(--cobudget-success) !important;
-	background-color: var(--cobudget-success-light) !important;
-	color: var(--cobudget-success) !important;
-}
-
 .amount-input.bg-expense::placeholder {
-	color: var(--cobudget-error);
+	color: var(--amount-accent);
 	opacity: 0.7;
 }
 
 .amount-input.bg-income::placeholder {
-	color: var(--cobudget-success);
+	color: var(--amount-accent);
 	opacity: 0.7;
 }
 
@@ -3589,10 +4080,6 @@ button.lookup-trigger:focus-visible {
 		min-height: 52px;
 	}
 
-	.core-type {
-		grid-column: 1 / -1;
-	}
-
 	.form-row {
 		flex-direction: column;
 	}
@@ -3634,6 +4121,17 @@ button.lookup-trigger:focus-visible {
 }
 
 @media (max-width: 600px) {
+	.entry-required-panel {
+		grid-template-columns: 1fr;
+	}
+
+	.core-template-name,
+	.core-template-amount,
+	.core-date,
+	.core-amount {
+		grid-column: 1;
+	}
+
 	.modal-content {
 		width: 100%;
 		height: 100%;
@@ -3673,14 +4171,12 @@ button.lookup-trigger:focus-visible {
 }
 
 @media (prefers-color-scheme: dark) {
-	.amount-input-wrap.is-expense .amount-currency-prefix,
-	.amount-input.bg-expense {
-		color: #ffb4ba !important;
+	.amount-input-wrap.is-expense {
+		--amount-accent: var(--cobudget-error-dark, var(--cobudget-error));
 	}
 
-	.amount-input-wrap.is-income .amount-currency-prefix,
-	.amount-input.bg-income {
-		color: #b8f7c5 !important;
+	.amount-input-wrap.is-income {
+		--amount-accent: var(--cobudget-success);
 	}
 
 	.amount-input.bg-expense::placeholder,

@@ -552,6 +552,18 @@ class UserResetService {
 
 		$name = trim((string)($source['name'] ?? ''));
 		$type = (string)($source['type'] ?? 'expense');
+		$parentCategoryId = null;
+		if ($table === 'cobudget_categories') {
+			$sourceParentId = empty($source['parent_category_id']) ? null : (int)$source['parent_category_id'];
+			if ($sourceParentId !== null && $sourceParentId !== $sourceId) {
+				$parentCategoryId = $this->personalReferenceIdForTransfer(
+					'cobudget_categories',
+					$sourceParentId,
+					$recipientUserId,
+					$workspaceId
+				);
+			}
+		}
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('id')
 			->from($table)
@@ -563,6 +575,13 @@ class UserResetService {
 			->andWhere($qb->expr()->eq('name', $qb->createNamedParameter($name)))
 			->andWhere($qb->expr()->eq('type', $qb->createNamedParameter($type)))
 			->setMaxResults(1);
+		if ($table === 'cobudget_categories') {
+			if ($parentCategoryId === null) {
+				$qb->andWhere($qb->expr()->isNull('parent_category_id'));
+			} else {
+				$qb->andWhere($qb->expr()->eq('parent_category_id', $qb->createNamedParameter($parentCategoryId, \PDO::PARAM_INT)));
+			}
+		}
 		$existing = $this->fetchOne($qb);
 		if ($existing !== null) {
 			return (int)$existing['id'];
@@ -579,7 +598,16 @@ class UserResetService {
 			'is_hidden' => $insert->createNamedParameter(false, \PDO::PARAM_BOOL),
 		];
 		if ($table === 'cobudget_categories') {
+			$categoryCode = trim((string)($source['code'] ?? ''));
 			$values['icon'] = $insert->createNamedParameter((string)($source['icon'] ?? 'Shape'));
+			$values['code'] = $insert->createNamedParameter(
+				$categoryCode === '' ? null : $categoryCode,
+				$categoryCode === '' ? \PDO::PARAM_NULL : \PDO::PARAM_STR
+			);
+			$values['parent_category_id'] = $insert->createNamedParameter(
+				$parentCategoryId,
+				$parentCategoryId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT
+			);
 		}
 		$insert->insert($table)->values($values);
 		$insert->executeStatement();

@@ -195,8 +195,11 @@
 								<tbody>
 									<tr
 										v-for="item in activeBreakdownSection.items"
-										:key="`${activeBreakdownSection.key}-${item.id || item.name}`"
-										:class="{ 'is-clickable': isBreakdownDrilldownRow(activeBreakdownSection, item) }"
+										:key="`${activeBreakdownSection.key}-${breakdownItemKey(item)}`"
+										:class="[
+											breakdownCategoryRowClass(activeBreakdownSection, item),
+											{ 'is-clickable': isBreakdownDrilldownRow(activeBreakdownSection, item) }
+										]"
 										:tabindex="isBreakdownDrilldownRow(activeBreakdownSection, item) ? 0 : null"
 										@click="selectBreakdownDrilldown(activeBreakdownSection, item)"
 										@keydown.enter.prevent="selectBreakdownDrilldown(activeBreakdownSection, item)"
@@ -208,11 +211,11 @@
 														v-if="isBreakdownDrilldownRow(activeBreakdownSection, item)"
 														class="breakdown-link breakdown-name-tooltip"
 														@click.stop="selectBreakdownDrilldown(activeBreakdownSection, item)">
-														{{ decodeHtmlEntities(item.name) }}
-													</span>
-													<span v-else class="breakdown-name-tooltip">{{ decodeHtmlEntities(item.name) }}</span>
-													<span
-														v-if="item.trend"
+														{{ breakdownItemName(item, activeBreakdownSection) }}
+														</span>
+														<span v-else class="breakdown-name-tooltip">{{ breakdownItemName(item, activeBreakdownSection) }}</span>
+														<span
+															v-if="item.trend"
 														class="breakdown-trend-badge"
 														:class="breakdownTrendClass(item.trend)"
 														:aria-label="breakdownTrendLabel(item.trend, 'direction')">
@@ -259,11 +262,14 @@
 											</tr>
 										</thead>
 										<tbody>
-											<tr v-for="item in section.items" :key="`${group.key}-${section.key}-${item.id || item.name}`">
-												<td>
-													<span class="breakdown-name-line">
-														<span>{{ decodeHtmlEntities(item.name) }}</span>
-														<span v-if="item.trend" class="breakdown-trend-badge" :class="breakdownTrendClass(item.trend)">
+											<tr
+												v-for="item in section.items"
+												:key="`${group.key}-${section.key}-${breakdownItemKey(item)}`"
+												:class="breakdownCategoryRowClass(section, item)">
+													<td>
+														<span class="breakdown-name-line">
+															<span>{{ breakdownItemName(item, section) }}</span>
+															<span v-if="item.trend" class="breakdown-trend-badge" :class="breakdownTrendClass(item.trend)">
 															{{ breakdownTrendIcon(item.trend) }}
 														</span>
 													</span>
@@ -777,7 +783,7 @@ export default {
 			return this.analytics.categoryDrilldowns?.[this.breakdownType]?.[this.activeCategoryDrilldown] || null
 		},
 		activeCategoryDrilldownLabel() {
-			return this.decodeHtmlEntities(this.activeCategoryDrilldownData?.label || '')
+			return this.categoryDrilldownLabel(this.activeCategoryDrilldownData)
 		},
 		activePaymentPartnerDrilldownData() {
 			if (!this.activePaymentPartnerDrilldown) {
@@ -1011,7 +1017,7 @@ export default {
 			},
 			getCategoryDrilldownSections(type, drilldown) {
 				const typeLabel = this.formatBreakdownTypeLabel(type)
-				const label = this.decodeHtmlEntities(drilldown?.label || this.$texts.analytics.category())
+				const label = this.categoryDrilldownLabel(drilldown) || this.$texts.analytics.category()
 				const totalCents = this.breakdownItemsTotal(drilldown?.paymentPartners || [])
 				const sections = [
 					{
@@ -1248,7 +1254,9 @@ export default {
 				.filter(section => section.items.length > 0)
 		},
 		breakdownItemsTotal(items) {
-			return (Array.isArray(items) ? items : []).reduce((sum, item) => sum + Number(item.amountCents || 0), 0)
+			return (Array.isArray(items) ? items : [])
+				.filter(item => item?.rowType !== 'category-total')
+				.reduce((sum, item) => sum + Number(item.amountCents || 0), 0)
 		},
 		breakdownGridClass(sections) {
 			const keys = new Set(sections.map(section => section.key))
@@ -1311,7 +1319,7 @@ export default {
 
 			sections.forEach(section => {
 				(section.items || []).forEach(item => {
-					if ((item.key || '') === 'rest' || !item.trend) {
+					if ((item.key || '') === 'rest' || item.rowType === 'category-total' || !item.trend) {
 						return
 					}
 					if (item.trend.level !== 'strong' || item.trend.tone !== 'negative') {
@@ -1434,6 +1442,39 @@ export default {
 				return String(item.key)
 			}
 			return item?.id === null || item?.id === undefined ? 'none' : String(item.id)
+		},
+		categoryDrilldownLabel(drilldown) {
+			if (!drilldown) {
+				return ''
+			}
+			const label = this.decodeHtmlEntities(drilldown.label || '')
+			if (drilldown.rowType === 'category-total') {
+				return this.categoryGroupTotalLabel(label)
+			}
+			const parentName = this.decodeHtmlEntities(drilldown.parentName || '')
+			return drilldown.rowType === 'category-child' && parentName
+				? `${parentName} › ${label}`
+				: label
+		},
+		categoryGroupTotalLabel(value) {
+			const category = this.decodeHtmlEntities(value || '')
+			return this.decodeHtmlEntities(this.$texts.analytics.categoryGroupTotal(category))
+		},
+		breakdownItemName(item, section) {
+			const name = this.decodeHtmlEntities(item?.name || '')
+			return section?.key === 'categories' && item?.rowType === 'category-total'
+				? this.categoryGroupTotalLabel(name)
+				: name
+		},
+		breakdownCategoryRowClass(section, item) {
+			if (section?.key !== 'categories' || !item?.rowType) {
+				return ''
+			}
+			return {
+				'category-row-main': item.rowType === 'category-main',
+				'category-row-child': item.rowType === 'category-child',
+				'category-row-total': item.rowType === 'category-total'
+			}
 		},
 		isCategoryDrilldownRow(section, item) {
 			const key = this.breakdownItemKey(item)
@@ -2551,7 +2592,9 @@ export default {
 			return this.breakdownItemsTotal(section?.items || [])
 		},
 		breakdownSectionBookingCount(section) {
-			return (Array.isArray(section?.items) ? section.items : []).reduce((sum, item) => sum + Number(item.count || 0), 0)
+			return (Array.isArray(section?.items) ? section.items : [])
+				.filter(item => item?.rowType !== 'category-total')
+				.reduce((sum, item) => sum + Number(item.count || 0), 0)
 		},
 		breakdownSectionShareLabel(section) {
 			return this.breakdownSectionTotalCents(section) > 0 ? '100 %' : '0 %'
@@ -2624,7 +2667,7 @@ export default {
 		},
 		breakdownTooltip(item, section) {
 			const lines = [
-				this.decodeHtmlEntities(item.name || section.shortTitle || this.$texts.analytics.focus()),
+				this.breakdownItemName(item, section) || section.shortTitle || this.$texts.analytics.focus(),
 				this.bookingCountLabel(item.count),
 				this.$texts.analytics.shareLabel(this.breakdownShareLabel(item, section)),
 				this.$texts.analytics.totalLabel(this.formatCents(item.amountCents)),
@@ -2636,7 +2679,7 @@ export default {
 				lines.splice(1, 0, this.$texts.analytics.directionLabel(this.breakdownTrendLabel(item.trend, 'direction')))
 			}
 			if (item.comparison) {
-				lines.splice(item.trend ? 2 : 1, 0, this.$texts.analytics.comparisonLabel(this.breakdownTrendLabel(item.comparison, 'comparison')))
+				lines.splice(1 + (item.trend ? 1 : 0), 0, this.$texts.analytics.comparisonLabel(this.breakdownTrendLabel(item.comparison, 'comparison')))
 			}
 			return lines.join('\n')
 		},
@@ -3159,6 +3202,32 @@ export default {
 	align-items: center;
 	gap: 7px;
 	vertical-align: top;
+}
+
+.breakdown-table tr.category-row-main td:first-child {
+	font-weight: 700;
+}
+
+.breakdown-table tr.category-row-child td:first-child {
+	padding-inline-start: calc(10px + var(--default-grid-baseline, 4px) * 5);
+}
+
+.breakdown-table tr.category-row-child td:first-child::before {
+	color: var(--cobudget-text-muted, var(--color-text-light));
+	content: '↳';
+	display: inline-block;
+	font-weight: 700;
+	margin-inline-end: 7px;
+}
+
+.breakdown-table tr.category-row-total td {
+	background: var(--cobudget-surface-muted, var(--color-background-hover));
+	border-top: 1px solid var(--cobudget-border-strong, var(--color-border-dark));
+	font-weight: 800;
+}
+
+.breakdown-table tr.category-row-total td:first-child {
+	padding-inline-start: calc(var(--default-grid-baseline, 4px) * 8);
 }
 
 .breakdown-trend-badge {

@@ -36,7 +36,8 @@ The screenshots below show the current alpha UI and may change during the test p
 
 - Track income and expenses
 - Review payment change history with changed fields, previous values and new values
-- Organize payments by categories and payment partners
+- Organize payments by categories and payment partners, with optional searchable category numbers or codes and one level of main categories and subcategories
+- Combine area-specific categories with global categories that area owners can hide or show for the entire area
 - Add labels such as important, review, fixed costs, subscriptions, children and tax relevant
 - Add free-form `#tags` directly in the payment note
 - Create shared areas for household costs, trips or other shared budgets
@@ -53,8 +54,8 @@ The screenshots below show the current alpha UI and may change during the test p
 - Settle shared areas and keep settlement history
 - Attach receipts and invoices stored in Nextcloud Files
 - Create reusable payment templates
-- Define flexible budget goals
-- View analytics for spending, income, trends, labels, areas and budget signals
+- Define flexible budget goals with hierarchy-aware category choices
+- View analytics for spending, income, trends, labels, areas and budget signals, including direct main-category values, subcategory details and category-group totals
 - Use workspaces to separate independent data pools
 - Export payments as CSV
 - Create personal exports and administrator-owned full backups/restore

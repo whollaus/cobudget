@@ -74,15 +74,16 @@ class BackupService {
 			'is_default',
 			'created_at',
 		],
-		'cobudget_projects' => [
-			'id',
-			'name',
-			'owner_id',
-			'created_at',
-			'color',
-			'is_archived',
-			'workspace_id',
-		],
+			'cobudget_projects' => [
+				'id',
+				'name',
+				'owner_id',
+				'created_at',
+				'color',
+				'is_archived',
+				'workspace_id',
+				'hidden_category_ids',
+			],
 		'cobudget_members' => [
 			'id',
 			'project_id',
@@ -95,6 +96,7 @@ class BackupService {
 		'cobudget_categories' => [
 			'id',
 			'name',
+			'code',
 			'is_global',
 			'user_id',
 			'workspace_id',
@@ -102,6 +104,7 @@ class BackupService {
 			'type',
 			'project_id',
 			'is_hidden',
+			'parent_category_id',
 		],
 		'cobudget_payment_partners' => [
 			'id',
@@ -315,6 +318,7 @@ class BackupService {
 		['sourceTable' => 'cobudget_members', 'column' => 'personal_workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_categories', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_categories', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
+		['sourceTable' => 'cobudget_categories', 'column' => 'parent_category_id', 'targetTable' => 'cobudget_categories'],
 		['sourceTable' => 'cobudget_payment_partners', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_payment_partners', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
 		['sourceTable' => 'cobudget_templates', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
@@ -770,6 +774,8 @@ class BackupService {
 			$this->assertPersonalImportContainsOnlyUser($tables, $userId);
 			$this->assertReferencedUsersExist($tables, [$userId]);
 			$this->assertBackupInternalReferences($tables);
+			$this->assertCategoryHierarchyConsistency($tables);
+			$this->assertProjectCategoryVisibilityConsistency($tables);
 			$this->assertProjectMemberConsistency($tables);
 			$this->assertPersonalImportTargetIsEmpty($userId);
 
@@ -819,6 +825,8 @@ class BackupService {
 			$settings = $this->completeRestoreSettingsForTableUsers($settings, $tables);
 			$this->assertReferencedUsersExist($tables, array_keys($settings));
 			$this->assertBackupInternalReferences($tables);
+			$this->assertCategoryHierarchyConsistency($tables);
+			$this->assertProjectCategoryVisibilityConsistency($tables);
 			$this->assertProjectMemberConsistency($tables);
 
 			$safetyBackup = $this->createFullBackup($storageUserId, $folderOverride, $this->getSafetyBackupRetentionCount($storageUserId));
@@ -1350,6 +1358,25 @@ class BackupService {
 		sort($ids, SORT_NUMERIC);
 
 		return json_encode($ids, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]';
+	}
+
+	private function remapProjectHiddenCategorySetting(mixed $value, array $idAliases): string {
+		$mappedIds = json_decode($this->remapJsonIdSetting($value, $idAliases), true);
+		if (!is_array($mappedIds) || $mappedIds === []) {
+			return '[]';
+		}
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_categories')
+			->where($qb->expr()->in('id', $qb->createNamedParameter($mappedIds, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)));
+		$result = $qb->executeQuery();
+		$globalIds = array_map('intval', $result->fetchAll(\PDO::FETCH_COLUMN));
+		$result->closeCursor();
+		sort($globalIds, SORT_NUMERIC);
+
+		return json_encode(array_values(array_unique($globalIds)), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]';
 	}
 
 	private function remapDefaultStartPage(string $defaultStartPage, array $projectIdAliases): string {
@@ -2003,6 +2030,31 @@ class BackupService {
 			}
 		}
 
+		$categoriesById = [];
+		foreach ($tables['cobudget_categories'] ?? [] as $category) {
+			$categoryId = $this->nullableId($category['id'] ?? null);
+			if ($categoryId !== null) {
+				$categoriesById[$categoryId] = $category;
+			}
+		}
+		$pendingCategoryIds = array_map('intval', array_keys($usage['cobudget_categories']));
+		$visitedCategoryIds = [];
+		while ($pendingCategoryIds !== []) {
+			$categoryId = array_shift($pendingCategoryIds);
+			if ($categoryId <= 0 || isset($visitedCategoryIds[$categoryId])) {
+				continue;
+			}
+			$visitedCategoryIds[$categoryId] = true;
+			$parentId = $this->nullableId($categoriesById[$categoryId]['parent_category_id'] ?? null);
+			if ($parentId === null || !isset($categoriesById[$parentId])) {
+				continue;
+			}
+			foreach (array_keys($usage['cobudget_categories'][$categoryId] ?? []) as $workspaceId) {
+				$record($usage['cobudget_categories'], $parentId, (int)$workspaceId);
+			}
+			$pendingCategoryIds[] = $parentId;
+		}
+
 		return $usage;
 	}
 
@@ -2019,6 +2071,7 @@ class BackupService {
 		$preparedRows = [];
 		$idByWorkspace = [];
 		$aliases = [];
+		$sourceParentByPreparedId = [];
 		$nextSyntheticId = 1;
 		foreach ($rows as $row) {
 			$nextSyntheticId = max($nextSyntheticId, (int)($row['id'] ?? 0) + 1);
@@ -2078,8 +2131,24 @@ class BackupService {
 				$preparedRows[] = $copy;
 				$idByWorkspace[$oldId][$targetWorkspaceId] = $preparedId;
 				$aliases[$oldId][] = $preparedId;
+				if (array_key_exists('parent_category_id', $row)) {
+					$sourceParentByPreparedId[$preparedId] = $this->nullableId($row['parent_category_id']);
+				}
 			}
 		}
+
+		foreach ($preparedRows as &$preparedRow) {
+			$preparedId = (int)($preparedRow['id'] ?? 0);
+			if (!array_key_exists($preparedId, $sourceParentByPreparedId)) {
+				continue;
+			}
+			$oldParentId = $sourceParentByPreparedId[$preparedId];
+			$targetWorkspaceId = $this->nullableId($preparedRow['workspace_id'] ?? null);
+			$preparedRow['parent_category_id'] = $oldParentId !== null && $targetWorkspaceId !== null
+				? ($idByWorkspace[$oldParentId][$targetWorkspaceId] ?? null)
+				: null;
+		}
+		unset($preparedRow);
 
 		return [
 			'rows' => $preparedRows,
@@ -2336,6 +2405,8 @@ class BackupService {
 
 	private function insertTablesWithGeneratedIds(array $tables): array {
 		$idMaps = array_fill_keys(self::BACKUP_TABLES, []);
+		$pendingProjectCategoryVisibility = [];
+		$pendingCategoryReferences = [];
 		$pendingEntryReferences = [];
 		$pendingAttachmentReferences = [];
 		$existingGlobalLookupIds = $this->existingVisibleGlobalLookupIds();
@@ -2363,6 +2434,10 @@ class BackupService {
 					$row['is_global'] = false;
 				}
 				$oldParentId = $table === 'cobudget_entries' ? $this->nullableId($row['recurrence_parent_id'] ?? null) : null;
+				$oldHiddenCategoryIds = $table === 'cobudget_projects'
+					? (string)($row['hidden_category_ids'] ?? '[]')
+					: '[]';
+				$oldCategoryParentId = $table === 'cobudget_categories' ? $this->nullableId($row['parent_category_id'] ?? null) : null;
 				$oldSeriesId = $table === 'cobudget_entries' ? $this->nullableId($row['recurrence_series_id'] ?? null) : null;
 				$oldSourceEntryId = $table === 'cobudget_entries' ? $this->nullableId($row['source_entry_id'] ?? null) : null;
 				$oldSourceAttachmentId = $table === 'cobudget_entry_attachments' ? $this->nullableId($row['source_attachment_id'] ?? null) : null;
@@ -2371,6 +2446,12 @@ class BackupService {
 					$row['recurrence_parent_id'] = null;
 					$row['recurrence_series_id'] = null;
 					$row['source_entry_id'] = null;
+				}
+				if ($table === 'cobudget_categories') {
+					$row['parent_category_id'] = null;
+				}
+				if ($table === 'cobudget_projects') {
+					$row['hidden_category_ids'] = '[]';
 				}
 				if ($table === 'cobudget_entry_attachments') {
 					$row['source_attachment_id'] = null;
@@ -2388,6 +2469,18 @@ class BackupService {
 						'old_source_id' => $oldSourceEntryId,
 					];
 				}
+				if ($table === 'cobudget_categories' && $newId > 0 && $oldCategoryParentId !== null) {
+					$pendingCategoryReferences[] = [
+						'new_id' => $newId,
+						'old_parent_id' => $oldCategoryParentId,
+					];
+				}
+				if ($table === 'cobudget_projects' && $newId > 0 && $oldHiddenCategoryIds !== '[]') {
+					$pendingProjectCategoryVisibility[] = [
+						'new_id' => $newId,
+						'old_hidden_category_ids' => $oldHiddenCategoryIds,
+					];
+				}
 				if ($table === 'cobudget_entry_attachments' && $newId > 0 && $oldSourceAttachmentId !== null) {
 					$pendingAttachmentReferences[] = [
 						'new_id' => $newId,
@@ -2395,6 +2488,30 @@ class BackupService {
 					];
 				}
 			}
+		}
+
+		$categoryMap = $idMaps['cobudget_categories'];
+		foreach ($pendingProjectCategoryVisibility as $reference) {
+			$hiddenCategoryIds = $this->remapProjectHiddenCategorySetting(
+				$reference['old_hidden_category_ids'],
+				$categoryMap
+			);
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('cobudget_projects')
+				->set('hidden_category_ids', $qb->createNamedParameter($hiddenCategoryIds))
+				->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$reference['new_id'], \PDO::PARAM_INT)));
+			$qb->executeStatement();
+		}
+		foreach ($pendingCategoryReferences as $reference) {
+			$parentId = $categoryMap[$reference['old_parent_id']] ?? null;
+			if ($parentId === null || (int)$parentId === (int)$reference['new_id']) {
+				continue;
+			}
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('cobudget_categories')
+				->set('parent_category_id', $qb->createNamedParameter((int)$parentId, \PDO::PARAM_INT))
+				->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$reference['new_id'], \PDO::PARAM_INT)));
+			$qb->executeStatement();
 		}
 
 		$entryMap = $idMaps['cobudget_entries'];
@@ -2851,6 +2968,92 @@ class BackupService {
 						. $sourceTable . '.' . $column . ' -> ' . $targetTable
 						. ' (Zeile ' . $sourceId . ', Ziel-ID ' . $targetId . ').'
 					);
+				}
+			}
+		}
+	}
+
+	private function assertCategoryHierarchyConsistency(array $tables): void {
+		$categories = [];
+		foreach ($tables['cobudget_categories'] ?? [] as $category) {
+			$categoryId = $this->nullableId($category['id'] ?? null);
+			if ($categoryId !== null) {
+				$categories[$categoryId] = $category;
+			}
+		}
+
+		foreach ($categories as $categoryId => $category) {
+			$parentId = $this->nullableId($category['parent_category_id'] ?? null);
+			if ($parentId === null) {
+				continue;
+			}
+			$parent = $categories[$parentId] ?? null;
+			if ($parent === null || $parentId === $categoryId) {
+				throw new \InvalidArgumentException('Backup enthält eine ungültige Kategorie-Hierarchie.');
+			}
+			if ($this->nullableId($parent['parent_category_id'] ?? null) !== null) {
+				throw new \InvalidArgumentException('Backup enthält mehr als eine Unterkategorie-Ebene.');
+			}
+			if ((string)($parent['type'] ?? '') !== (string)($category['type'] ?? '')) {
+				throw new \InvalidArgumentException('Backup verknüpft Kategorien unterschiedlicher Typen.');
+			}
+
+			$categoryIsGlobal = $this->backupBool($category['is_global'] ?? false);
+			$parentIsGlobal = $this->backupBool($parent['is_global'] ?? false);
+			if ($categoryIsGlobal && !$parentIsGlobal) {
+				throw new \InvalidArgumentException('Backup verknüpft eine globale Kategorie mit einer lokalen Hauptkategorie.');
+			}
+			if ($parentIsGlobal) {
+				continue;
+			}
+
+			$categoryWorkspaceId = $this->nullableId($category['workspace_id'] ?? null);
+			$parentWorkspaceId = $this->nullableId($parent['workspace_id'] ?? null);
+			$categoryProjectId = $this->nullableId($category['project_id'] ?? null);
+			$parentProjectId = $this->nullableId($parent['project_id'] ?? null);
+			if ($categoryWorkspaceId === null || $categoryWorkspaceId !== $parentWorkspaceId) {
+				throw new \InvalidArgumentException('Backup verknüpft Kategorien aus unterschiedlichen Workspaces.');
+			}
+			if ($categoryProjectId !== $parentProjectId) {
+				throw new \InvalidArgumentException('Backup verknüpft Kategorien aus unterschiedlichen Bereichen.');
+			}
+			if ($categoryProjectId === null
+				&& trim((string)($category['user_id'] ?? '')) !== trim((string)($parent['user_id'] ?? ''))) {
+				throw new \InvalidArgumentException('Backup verknüpft persönliche Kategorien unterschiedlicher Benutzer.');
+			}
+		}
+	}
+
+	private function backupBool(mixed $value): bool {
+		if (is_bool($value)) {
+			return $value;
+		}
+		if (is_int($value)) {
+			return $value !== 0;
+		}
+
+		return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
+	}
+
+	private function assertProjectCategoryVisibilityConsistency(array $tables): void {
+		$categories = [];
+		foreach ($tables['cobudget_categories'] ?? [] as $category) {
+			$categoryId = $this->nullableId($category['id'] ?? null);
+			if ($categoryId !== null) {
+				$categories[$categoryId] = $category;
+			}
+		}
+
+		foreach ($tables['cobudget_projects'] ?? [] as $project) {
+			$hiddenCategoryIds = json_decode((string)($project['hidden_category_ids'] ?? '[]'), true);
+			if (!is_array($hiddenCategoryIds)) {
+				throw new \InvalidArgumentException('Backup enthält ungültige Kategorie-Sichtbarkeit für einen Bereich.');
+			}
+			foreach ($hiddenCategoryIds as $hiddenCategoryId) {
+				$categoryId = $this->nullableId($hiddenCategoryId);
+				$category = $categoryId !== null ? ($categories[$categoryId] ?? null) : null;
+				if ($category === null || !$this->backupBool($category['is_global'] ?? false)) {
+					throw new \InvalidArgumentException('Backup blendet in einem Bereich eine ungültige globale Kategorie aus.');
 				}
 			}
 		}

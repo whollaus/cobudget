@@ -480,14 +480,29 @@ final class EntryProjectionService {
 			return $categoryId;
 		}
 
-		$existing = $this->personalLookupId('cobudget_categories', (string)$row['name'], (string)$row['type'], $userId, $workspaceId);
+		$sourceParentId = empty($row['parent_category_id']) ? null : (int)$row['parent_category_id'];
+		$parentCategoryId = $sourceParentId !== null && $sourceParentId !== $categoryId
+			? $this->personalCategoryId($sourceParentId, $projectId, $userId, $workspaceId)
+			: null;
+		$existing = $this->personalCategoryLookupId(
+			(string)$row['name'],
+			(string)$row['type'],
+			$userId,
+			$workspaceId,
+			$parentCategoryId
+		);
 		if ($existing !== null) {
 			return $existing;
 		}
 
+		$categoryCode = trim((string)($row['code'] ?? ''));
 		$insert = $this->db->getQueryBuilder();
 		$insert->insert('cobudget_categories')->values([
 			'name' => $insert->createNamedParameter((string)$row['name']),
+			'code' => $insert->createNamedParameter(
+				$categoryCode === '' ? null : $categoryCode,
+				$categoryCode === '' ? \PDO::PARAM_NULL : \PDO::PARAM_STR
+			),
 			'is_global' => $insert->createNamedParameter(false, \PDO::PARAM_BOOL),
 			'user_id' => $insert->createNamedParameter($userId),
 			'workspace_id' => $insert->createNamedParameter($workspaceId, \PDO::PARAM_INT),
@@ -495,10 +510,36 @@ final class EntryProjectionService {
 			'type' => $insert->createNamedParameter((string)$row['type']),
 			'project_id' => $insert->createNamedParameter(null, \PDO::PARAM_NULL),
 			'is_hidden' => $insert->createNamedParameter(false, \PDO::PARAM_BOOL),
+			'parent_category_id' => $insert->createNamedParameter(
+				$parentCategoryId,
+				$parentCategoryId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT
+			),
 		]);
 		$insert->executeStatement();
 
 		return (int)$this->db->lastInsertId('*PREFIX*cobudget_categories');
+	}
+
+	private function personalCategoryLookupId(string $name, string $type, string $userId, int $workspaceId, ?int $parentCategoryId): ?int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_categories')
+			->where($qb->expr()->eq('name', $qb->createNamedParameter($name)))
+			->andWhere($qb->expr()->eq('type', $qb->createNamedParameter($type)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->isNull('project_id'))
+			->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))
+			->andWhere($qb->expr()->eq('is_hidden', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))
+			->setMaxResults(1);
+		if ($parentCategoryId === null) {
+			$qb->andWhere($qb->expr()->isNull('parent_category_id'));
+		} else {
+			$qb->andWhere($qb->expr()->eq('parent_category_id', $qb->createNamedParameter($parentCategoryId, \PDO::PARAM_INT)));
+		}
+
+		$row = $qb->executeQuery()->fetch();
+		return $row === false ? null : (int)$row['id'];
 	}
 
 	private function personalPaymentPartnerId(int $partnerId, int $projectId, string $userId, int $workspaceId): int {

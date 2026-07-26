@@ -26,6 +26,10 @@ CoBudget is a Nextcloud app for personal and shared household budgeting.
 - Use global categories and payment partners provided by an admin.
 - Hide global entries that are not relevant for your own workflow.
 - Use area-specific categories and payment partners for shared areas.
+- Let area owners hide or show global categories for the entire area.
+- Assign an optional free-text number or code to a category and find it by that value when entering or searching payments.
+- Organize categories into one optional level of main categories and subcategories.
+- See the category hierarchy in personal, area and administrator settings as well as while choosing a category for a payment.
 
 ## Shared Areas
 
@@ -70,6 +74,7 @@ Workspaces separate data into isolated pools, for example private and business d
 
 - Create flexible or fixed budget goals.
 - Define criteria using area, category and label combinations.
+- Distinguish main categories and subcategories when selecting category criteria.
 - Track personal share only.
 - Review progress, forecast and buffer.
 - Use budget insights in analytics.
@@ -85,6 +90,7 @@ Analytics show where money is going and how financial trends develop.
 - Forecasts for the selected period.
 - Planned shared recurrences derive the user's stored allocation from the shared source without double-counting personal projections.
 - Focus tables by category, payment partner, label and area.
+- Category focus tables show direct main-category bookings, each subcategory and a group total without double-counting the overall total.
 - Shared-area summaries.
 - Budget signals.
 - Missing receipt signals for review and tax relevant payments.

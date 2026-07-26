@@ -126,7 +126,7 @@ try {
 
 	$category = $read('lib/Controller/CategoryController.php');
 	$assertContains($category, 'editableCategoryInActiveWorkspace($id)', 'CategoryController delete guard');
-	$assertContains($category, 'categoryAvailableInActiveWorkspace($id)', 'CategoryController hide/unhide guard');
+	$assertContains($category, 'categoryAvailableInActiveWorkspace($id, $projectId)', 'CategoryController hide/unhide guard');
 	$assertContains($category, 'IGroupManager', 'CategoryController injects the Nextcloud admin group manager');
 	$assertContains($category, 'requireAdmin()', 'CategoryController admin routes use an explicit admin guard');
 	$assertContains($category, '$this->groupManager->isAdmin', 'CategoryController checks Nextcloud admin status');

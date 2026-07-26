@@ -250,12 +250,14 @@ class EntryController extends Controller {
 				return new DataResponse(['suggestion' => null]);
 			}
 
-			$hiddenCategoryIds = json_decode(
-				$this->config->getUserValue((string)$this->userId, 'cobudget', 'hidden_categories', '[]'),
-				true
-			);
+			$hiddenCategoryIds = $projectId !== null
+				? $this->projectHiddenCategoryIds($projectId)
+				: json_decode(
+					$this->config->getUserValue((string)$this->userId, 'cobudget', 'hidden_categories', '[]'),
+					true
+				);
 			$hiddenCategoryIds = is_array($hiddenCategoryIds)
-				? array_map('intval', $hiddenCategoryIds)
+				? array_values(array_unique(array_filter(array_map('intval', $hiddenCategoryIds), static fn(int $id): bool => $id > 0)))
 				: [];
 			$candidates = [];
 			foreach ($rows as $row) {
@@ -1586,7 +1588,8 @@ class EntryController extends Controller {
 			$qb->andWhere($qb->expr()->orX(
 				$qb->expr()->iLike('e.description', $searchParam),
 				$qb->expr()->iLike('p.name', $searchParam),
-				$qb->expr()->iLike('c.name', $searchParam)
+				$qb->expr()->iLike('c.name', $searchParam),
+				$qb->expr()->iLike('c.code', $searchParam)
 			));
 		}
 

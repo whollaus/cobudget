@@ -9,6 +9,14 @@ use OCP\IDBConnection;
 class DataIntegrityService {
 	private const REFERENCE_CHECKS = [
 		[
+			'sourceTable' => 'cobudget_categories',
+			'sourceLabel' => 'Unterkategorien',
+			'column' => 'parent_category_id',
+			'targetTable' => 'cobudget_categories',
+			'targetLabel' => 'Hauptkategorie',
+			'repairAction' => 'clear',
+		],
+		[
 			'sourceTable' => 'cobudget_entries',
 			'sourceLabel' => 'Eintraege',
 			'column' => 'category_id',
@@ -374,6 +382,8 @@ class DataIntegrityService {
 			'entriesUpdated' => 0,
 			'templatesUpdated' => 0,
 			'budgetGoalsUpdated' => 0,
+			'subcategoriesUpdated' => 0,
+			'areaVisibilityUpdated' => 0,
 			'removedRows' => 0,
 		];
 
@@ -383,6 +393,10 @@ class DataIntegrityService {
 			$result['templatesUpdated'] = $this->replaceReferences('cobudget_templates', $referenceColumn, $keepId, $mergeIds);
 			if ($target['criteriaField'] !== null) {
 				$result['budgetGoalsUpdated'] = $this->replaceBudgetCriteriaReferences((string)$target['criteriaField'], $keepId, $mergeIds);
+			}
+			if ($kind === 'category') {
+				$result['subcategoriesUpdated'] = $this->replaceReferences('cobudget_categories', 'parent_category_id', $keepId, $mergeIds);
+				$result['areaVisibilityUpdated'] = $this->replaceProjectHiddenCategoryReferences($keepId, $mergeIds);
 			}
 			$result['removedRows'] = $this->deleteRows($table, $mergeIds);
 			$this->db->commit();
@@ -501,8 +515,13 @@ class DataIntegrityService {
 	}
 
 	private function nameRows(string $table): array {
+		$columns = ['id', 'name', 'type', 'user_id', 'is_global', 'is_hidden', 'workspace_id', 'project_id'];
+		if ($table === 'cobudget_categories') {
+			$columns[] = 'parent_category_id';
+		}
+
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'name', 'type', 'user_id', 'is_global', 'is_hidden', 'workspace_id', 'project_id')
+		$qb->select(...$columns)
 			->from($table);
 
 		$result = $qb->executeQuery();
@@ -513,8 +532,13 @@ class DataIntegrityService {
 	}
 
 	private function nameRowById(string $table, int $id): ?array {
+		$columns = ['id', 'name', 'type', 'user_id', 'is_global', 'is_hidden', 'workspace_id', 'project_id'];
+		if ($table === 'cobudget_categories') {
+			$columns[] = 'parent_category_id';
+		}
+
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'name', 'type', 'user_id', 'is_global', 'is_hidden', 'workspace_id', 'project_id')
+		$qb->select(...$columns)
 			->from($table)
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 			->setMaxResults(1);
@@ -540,6 +564,21 @@ class DataIntegrityService {
 		if (!$this->rowsHaveSameDuplicateScope($keepRow, $mergeRow)) {
 			throw new \InvalidArgumentException('Dubletten koennen nur im gleichen Benutzer-/Workspace-/Bereichs-Scope zusammengefuehrt werden.');
 		}
+		$hasCategoryHierarchy = array_key_exists('parent_category_id', $keepRow)
+			|| array_key_exists('parent_category_id', $mergeRow);
+		if ($hasCategoryHierarchy
+			&& $this->nullableId($keepRow['parent_category_id'] ?? null) !== $this->nullableId($mergeRow['parent_category_id'] ?? null)) {
+			throw new \InvalidArgumentException('Kategorie-Dubletten koennen nur innerhalb derselben Hauptkategorie zusammengefuehrt werden.');
+		}
+	}
+
+	private function nullableId(mixed $value): ?int {
+		if ($value === null || $value === '' || !is_numeric($value)) {
+			return null;
+		}
+
+		$id = (int)$value;
+		return $id > 0 ? $id : null;
 	}
 
 	private function rowsHaveSameDuplicateScope(array $keepRow, array $mergeRow): bool {
@@ -607,6 +646,50 @@ class DataIntegrityService {
 				->set($column, $qb->createNamedParameter($keepId, \PDO::PARAM_INT))
 				->where($qb->expr()->eq($column, $qb->createNamedParameter($mergeId, \PDO::PARAM_INT)));
 			$updated += $qb->executeStatement();
+		}
+
+		return $updated;
+	}
+
+	private function replaceProjectHiddenCategoryReferences(int $keepId, array $mergeIds): int {
+		$mergeIdLookup = array_fill_keys($mergeIds, true);
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'hidden_category_ids')
+			->from('cobudget_projects');
+		$result = $qb->executeQuery();
+		$projects = $result->fetchAll();
+		$result->closeCursor();
+
+		$updated = 0;
+		foreach ($projects as $project) {
+			$hiddenIds = json_decode((string)($project['hidden_category_ids'] ?? '[]'), true);
+			if (!is_array($hiddenIds)) {
+				continue;
+			}
+
+			$nextIds = [];
+			$changed = false;
+			foreach ($hiddenIds as $value) {
+				if (!is_numeric($value) || (int)$value <= 0) {
+					continue;
+				}
+				$id = (int)$value;
+				if (isset($mergeIdLookup[$id])) {
+					$id = $keepId;
+					$changed = true;
+				}
+				$nextIds[$id] = $id;
+			}
+			if (!$changed) {
+				continue;
+			}
+			ksort($nextIds, SORT_NUMERIC);
+
+			$update = $this->db->getQueryBuilder();
+			$update->update('cobudget_projects')
+				->set('hidden_category_ids', $update->createNamedParameter(json_encode(array_values($nextIds)) ?: '[]'))
+				->where($update->expr()->eq('id', $update->createNamedParameter((int)$project['id'], \PDO::PARAM_INT)));
+			$updated += $update->executeStatement();
 		}
 
 		return $updated;

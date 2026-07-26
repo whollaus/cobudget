@@ -53,6 +53,129 @@ return [
 		$t->assertContains('categoryAvailableInActiveWorkspace($categoryId, $projectId)', $body, 'Category suggestions should only return categories valid in the current context');
 	},
 
+	'Category numbers are optional, searchable, and preserved across data copies' => function(TestRunner $t): void {
+		$migration = $t->read('lib/Migration/Version000002Date20260726000000.php');
+		$t->assertContains("hasTable('cobudget_categories')", $migration, 'Category number migration should guard the category table');
+		$t->assertContains("hasColumn('code')", $migration, 'Category number migration should be idempotent');
+		$t->assertContains("addColumn('code', 'string'", $migration, 'Category numbers should use a free-text database column');
+		$t->assertContains("'notnull' => false", $migration, 'Category numbers should remain optional');
+
+		$categorySource = $t->read('lib/Controller/CategoryController.php');
+		$t->assertContains("function update(int \$id, string \$name = '', ?string \$code = null, ?int \$parentCategoryId = null)", $categorySource, 'Personal and area category updates should accept an optional number');
+		$t->assertContains("function adminUpdate(int \$id, string \$name = '', ?string \$code = null, ?int \$parentCategoryId = null)", $categorySource, 'Global category updates should accept an optional number');
+		foreach (['update', 'adminUpdate'] as $method) {
+			$body = $t->methodBody('lib/Controller/CategoryController.php', $method);
+			$t->assertContains('normalizeOptionalString($code, 128)', $body, $method . ' should treat the category number as bounded free text');
+			$t->assertContains("set('code'", $body, $method . ' should persist the category number');
+			$t->assertContains('if ($code !== null)', $body, $method . ' should preserve a number when an older client omits the field');
+		}
+
+		$entryFilters = $t->methodBody('lib/Controller/EntryController.php', 'applyFilters');
+		$t->assertContains("iLike('c.code'", $entryFilters, 'Payment list search should match category numbers');
+		$t->assertContains("'code',", $t->read('lib/Service/BackupService.php'), 'Backups should preserve category numbers');
+		$t->assertContains("'code' => \$insert->createNamedParameter(", $t->read('lib/Service/EntryProjectionService.php'), 'Personal payment projections should copy area category numbers');
+		$t->assertContains("\$values['code'] = \$insert->createNamedParameter(", $t->read('lib/Service/UserResetService.php'), 'Category transfers should preserve category numbers');
+	},
+
+	'Categories support exactly one optional subcategory level across scopes, copies, backups, and analytics' => function(TestRunner $t): void {
+		$migration = $t->read('lib/Migration/Version000003Date20260726010000.php');
+		$t->assertContains("hasTable('cobudget_categories')", $migration, 'Category hierarchy migration should guard the category table');
+		$t->assertContains("hasColumn('parent_category_id')", $migration, 'Category hierarchy migration should be idempotent');
+		$t->assertContains("addColumn('parent_category_id', 'integer'", $migration, 'Category hierarchy should store an optional parent id');
+		$t->assertContains("'notnull' => false", $migration, 'Categories without a parent should remain main categories');
+		$t->assertContains("addIndex(['parent_category_id'], 'cb_cat_parent')", $migration, 'Parent category lookups should be indexed');
+
+		$categorySource = $t->read('lib/Controller/CategoryController.php');
+		$validateParent = $t->methodBody('lib/Controller/CategoryController.php', 'validateParentCategory');
+		$t->assertContains('$parentCategoryId === $categoryId', $validateParent, 'A category should not be its own parent');
+		$t->assertContains('$this->categoryHasChildren($categoryId)', $validateParent, 'A main category with children should not become a subcategory');
+		$t->assertContains('parentMatchesCategoryScope($parent, $category)', $validateParent, 'Parent categories should be constrained to the same visible scope');
+		$t->assertContains("\$parent['parent_category_id']", $validateParent, 'Only main categories should be accepted as parents');
+		$t->assertContains("\$parent['type']", $validateParent, 'Parent and child should retain the same income or expense type');
+		$t->assertContains('$parentId === $currentParentId', $t->methodBody('lib/Controller/CategoryController.php', 'parentMatchesCategoryScope'), 'A hidden global parent should remain retainable by an existing child');
+
+		foreach (['update', 'adminUpdate'] as $method) {
+			$body = $t->methodBody('lib/Controller/CategoryController.php', $method);
+			$t->assertContains('validateParentCategory($storedParentCategoryId, $category, $id)', $body, $method . ' should validate hierarchy changes');
+			$t->assertContains("set(\n\t\t\t\t\t'parent_category_id'", $body, $method . ' should persist hierarchy changes');
+			$t->assertContains('if ($parentCategoryId !== null)', $body, $method . ' should preserve the parent for older clients that omit the field');
+		}
+		$t->assertContains('attachCategoryHierarchy($categories)', $t->methodBody('lib/Controller/CategoryController.php', 'index'), 'Payment category choices should expose hierarchy metadata');
+		$t->assertContains('attachCategoryHierarchy($categories)', $t->methodBody('lib/Controller/CategoryController.php', 'settingsData'), 'Personal and area settings should expose hierarchy metadata');
+		$t->assertContains('attachCategoryHierarchy($categories)', $t->methodBody('lib/Controller/CategoryController.php', 'adminIndex'), 'Admin settings should expose hierarchy metadata');
+		$t->assertContains('$this->categoryHasChildren($id)', $t->methodBody('lib/Controller/CategoryController.php', 'destroy'), 'A local main category with children should not be deletable');
+		$t->assertContains('$this->categoryHasChildren($id)', $t->methodBody('lib/Controller/CategoryController.php', 'adminDestroy'), 'A global main category with children should not be deletable');
+		$t->assertContains("'parent_category_id'", $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'editableCategoryInActiveWorkspace'), 'Category edits should retain an existing parent when older clients omit it');
+
+		$projection = $t->read('lib/Service/EntryProjectionService.php');
+		$t->assertContains('personalCategoryId($sourceParentId', $projection, 'Area category projections should map the main category before a subcategory');
+		$t->assertContains("'parent_category_id' => \$insert->createNamedParameter(", $projection, 'Area category projections should preserve the mapped parent');
+		$reset = $t->read('lib/Service/UserResetService.php');
+		$t->assertContains('personalReferenceIdForTransfer(', $reset, 'Category transfers should map hierarchy references recursively');
+		$t->assertContains("\$values['parent_category_id']", $reset, 'Category transfers should preserve the mapped parent');
+
+		$backup = $t->read('lib/Service/BackupService.php');
+		$t->assertContains("'parent_category_id',", $backup, 'Backups should include category parents');
+		$t->assertContains("'column' => 'parent_category_id'", $backup, 'Backups should validate category self-references');
+		$t->assertContains('pendingCategoryReferences', $backup, 'Generated-id restores should reconnect category parents after insertion');
+		$t->assertContains('assertCategoryHierarchyConsistency($tables)', $backup, 'Restores should reject invalid hierarchy depth or scope');
+
+		$integrity = $t->read('lib/Service/DataIntegrityService.php');
+		$t->assertContains("'column' => 'parent_category_id'", $integrity, 'Integrity checks should detect orphaned category parents');
+		$t->assertContains("replaceReferences('cobudget_categories', 'parent_category_id'", $integrity, 'Duplicate merges should repoint subcategories');
+		$t->assertContains("if (\$table === 'cobudget_categories')", $t->methodBody('lib/Service/DataIntegrityService.php', 'nameRows'), 'Payment partner integrity checks should not query the category-only parent column');
+
+		$analytics = $t->read('lib/Controller/AnalyticsController.php');
+		$t->assertContains("'c.parent_category_id AS category_parent_id'", $analytics, 'Analytics should load category parent ids');
+		$t->assertContains("'parent_category.name AS category_parent_name'", $analytics, 'Analytics should load visible main category names');
+		$categoryRows = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildCategoryBreakdownRows');
+		$t->assertContains("'rowType' => 'category-main'", $categoryRows, 'Analytics should expose direct main-category rows');
+		$t->assertContains("'rowType' => \$isChild ? 'category-child' : 'category-main'", $categoryRows, 'Analytics should expose subcategory rows separately');
+		$t->assertContains("'rowType' => 'category-total'", $categoryRows, 'Analytics should add a total after every category group with children');
+		$t->assertContains("\$group['amountCents'] = (int)(\$directRows[\$mainKey]['amountCents'] ?? 0)", $categoryRows, 'Category group totals should start with direct main-category bookings');
+		$t->assertContains("\$group['amountCents'] += (int)\$directRows[\$childKey]['amountCents']", $categoryRows, 'Category group totals should add every subcategory');
+		$categoryFilter = $t->methodBody('lib/Controller/AnalyticsController.php', 'filterBreakdownEntries');
+		$t->assertContains("str_starts_with(\$key, 'category:total:')", $categoryFilter, 'Analytics total-row drilldowns should include the main category and its children');
+	},
+
+	'Area owners can manage shared visibility of global categories' => function(TestRunner $t): void {
+		$migration = $t->read('lib/Migration/Version000004Date20260726020000.php');
+		$t->assertContains("hasTable('cobudget_projects')", $migration, 'Area category visibility migration should guard the project table');
+		$t->assertContains("hasColumn('hidden_category_ids')", $migration, 'Area category visibility migration should be idempotent');
+		$t->assertContains("addColumn('hidden_category_ids', 'text'", $migration, 'Hidden global category ids should be stored with the area');
+		$t->assertContains("'default' => '[]'", $migration, 'Areas should show every available global category by default');
+
+		$trait = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'projectHiddenCategoryIds');
+		$t->assertContains('projectVisibleForCurrentUser($projectId)', $trait, 'Area category visibility should only be read for visible areas');
+		$t->assertContains("project['hidden_category_ids']", $trait, 'Area category visibility should be read from the shared area record');
+
+		$categorySource = $t->read('lib/Controller/CategoryController.php');
+		$t->assertContains('function hide(int $id, ?int $projectId = null)', $categorySource, 'Category hiding should accept an optional area scope');
+		$t->assertContains('function unhide(int $id, ?int $projectId = null)', $categorySource, 'Category showing should accept an optional area scope');
+		$settingsData = $t->methodBody('lib/Controller/CategoryController.php', 'settingsData');
+		$t->assertContains('$globalScope', $settingsData, 'Area settings should include visible global categories');
+		$t->assertContains('$this->hiddenCategoryIdsForScope($projectId)', $settingsData, 'Area settings should mark categories using shared area visibility');
+		foreach (['hide', 'unhide'] as $method) {
+			$body = $t->methodBody('lib/Controller/CategoryController.php', $method);
+			$t->assertContains('projectOwnerInActiveWorkspace($projectId)', $body, $method . ' should require the current area owner');
+			$t->assertContains('saveProjectHiddenCategoryIds($projectId', $body, $method . ' should persist visibility on the area');
+		}
+
+		$suggestion = $t->methodBody('lib/Controller/EntryController.php', 'suggestCategory');
+		$t->assertContains('$this->projectHiddenCategoryIds($projectId)', $suggestion, 'Area category suggestions should respect shared hidden categories');
+
+		$backup = $t->read('lib/Service/BackupService.php');
+		$t->assertContains("'hidden_category_ids',", $backup, 'Backups should preserve area category visibility');
+		$t->assertContains('pendingProjectCategoryVisibility', $backup, 'Generated-id restores should reconnect hidden category ids after category insertion');
+		$t->assertContains('remapProjectHiddenCategorySetting(', $backup, 'Personal restores should keep only target categories that remain global in area visibility');
+		$t->assertContains("update('cobudget_projects')", $backup, 'Generated-id restores should write remapped category visibility back to the area');
+		$t->assertContains('assertProjectCategoryVisibilityConsistency($tables)', $backup, 'Restores should reject invalid area category visibility');
+
+		$t->assertContains('removeProjectHiddenCategoryReference($id)', $t->methodBody('lib/Controller/CategoryController.php', 'adminDestroy'), 'Deleting a global category should remove stale area visibility references');
+		$integrity = $t->methodBody('lib/Service/DataIntegrityService.php', 'mergeDuplicate');
+		$t->assertContains('replaceProjectHiddenCategoryReferences($keepId, $mergeIds)', $integrity, 'Merging global category duplicates should remap shared area visibility');
+	},
+
 	'User-data API route methods check authentication and workspace header errors' => function(TestRunner $t): void {
 		$config = require $t->path('appinfo/routes.php');
 		$skip = [
@@ -539,12 +662,13 @@ return [
 
 		$breakdownEntryKey = $t->methodBody('lib/Controller/AnalyticsController.php', 'breakdownEntryKey');
 		$t->assertContains("return 'none'", $breakdownEntryKey, 'Analytics entry keys should collapse missing visible names into one bucket');
-		$t->assertContains('breakdownUsesNameKey($idKey)', $breakdownEntryKey, 'Analytics should switch category and payment partner breakdowns to visible-name grouping');
-		$t->assertContains("return 'name:' . \$this->normalizeBreakdownName(\$name)", $breakdownEntryKey, 'Analytics should merge duplicate visible category/payment partner names');
+		$t->assertContains('categoryEntryKey($entry, $fallbackName)', $breakdownEntryKey, 'Analytics should use hierarchy-aware category keys');
+		$t->assertContains('breakdownUsesNameKey($idKey)', $breakdownEntryKey, 'Analytics should switch payment partner breakdowns to visible-name grouping');
+		$t->assertContains("return 'name:' . \$this->normalizeBreakdownName(\$name)", $breakdownEntryKey, 'Analytics should merge duplicate visible payment partner names');
 		$t->assertContains('breakdownKey($entry[$idKey] ?? null)', $breakdownEntryKey, 'Analytics should keep Bereich breakdowns ID-based');
 
 		$breakdownUsesNameKey = $t->methodBody('lib/Controller/AnalyticsController.php', 'breakdownUsesNameKey');
-		$t->assertContains("['categoryId', 'paymentPartnerId']", $breakdownUsesNameKey, 'Analytics should group categories and payment partners by visible name');
+		$t->assertContains("\$idKey === 'paymentPartnerId'", $breakdownUsesNameKey, 'Analytics should group payment partners by visible name while categories use hierarchy-aware keys');
 
 		$normalizeBreakdownName = $t->methodBody('lib/Controller/AnalyticsController.php', 'normalizeBreakdownName');
 		$t->assertContains("preg_replace('/\\s+/u'", $normalizeBreakdownName, 'Analytics should normalize duplicate names before grouping');
@@ -940,7 +1064,7 @@ return [
 			'CategoryController.php' => [
 				'entity' => 'Category',
 				'editableGuard' => 'editableCategoryInActiveWorkspace($id)',
-				'availableGuard' => 'categoryAvailableInActiveWorkspace($id)',
+					'availableGuard' => 'categoryAvailableInActiveWorkspace($id, $projectId)',
 				'table' => 'cobudget_categories',
 				'globalError' => 'A global category with this name already exists.',
 			],

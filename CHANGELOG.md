@@ -2,6 +2,58 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.15] - 2026-07-26
+
+### Changed
+
+- Replaced the full-width income and expense toggle in payment and template forms with a compact selector inside the amount control, while keeping the currency separate and preserving the existing defaults, reset behavior and red/green states.
+- Gave the payment reference or note field the full form width and moved payment labels to their own full-width row below it.
+
+### Fixed
+
+- Refined the combined amount control so its segments no longer show isolated hover or focus treatments, its label text is not clipped and the complete control aligns with the date field.
+
+## [0.2.14] - 2026-07-26
+
+### Added
+
+- Area settings now list global categories alongside area-specific categories and let the area owner hide or show global categories for the entire area.
+
+### Changed
+
+- Simplified category hierarchy labels throughout settings, payment choices, budget goals and analytics, and changed grouped analytics totals to “Total - Category”.
+- Selected payment categories now use the same compact name-only display for main categories and subcategories, while the open category list retains its visual hierarchy without bold main-category labels.
+- Reordered administrator settings so category and payment-partner management appears before data quality and full backups.
+
+### Fixed
+
+- Payment editing and category selection now retain and display the exact selected subcategory by its stable category ID.
+- Analytics category labels now decode HTML entities correctly.
+
+## [0.2.13] - 2026-07-26
+
+### Added
+
+- Added one optional hierarchy level for personal, area-specific and global categories: every category can remain a main category or be assigned to another main category of the same type.
+- Category edit dialogs now offer only valid main categories as parents and prevent deeper nesting.
+- Analytics now show direct bookings on a main category, its individual subcategories and a final total for the complete category group.
+
+### Changed
+
+- Category lists, payment category choices and budget-goal category choices now make main categories and subcategories visually distinct.
+- Personal exports, full backups, integrity checks, area projections and account-transfer workflows now preserve and validate category hierarchy relationships.
+
+## [0.2.12] - 2026-07-26
+
+### Added
+
+- Added optional free-text numbers or codes to personal, area-specific and global categories.
+- Category numbers can now be used to find categories while entering payments and to find matching payments in the payment list.
+
+### Changed
+
+- Category edit dialogs now place the number before the name, while settings lists, payment category dropdown options and selected values display the number in a compact first line above the category name.
+
 ## [0.2.11] - 2026-07-21
 
 ### Fixed

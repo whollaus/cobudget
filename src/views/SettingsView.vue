@@ -290,13 +290,16 @@
 					<template #item="{ item: cat }">
 						<div class="settings-list-info">
 							<IconPicker :value="cat.icon || 'Shape'" @input="updateCategoryIcon(cat, $event)" :disabled="cat.is_global" />
-							<span>{{ cat.name }}</span>
+								<div class="category-list-label">
+									<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>
+									<span>{{ cat.name }}</span>
+								</div>
 							<span v-if="cat.is_global" class="badge-global">{{ $texts.common.global() }}</span>
 						</div>
 						<SettingsItemActions
 							class="settings-list-actions"
 							:can-edit="!cat.is_global"
-							:can-delete="!cat.is_global"
+							:can-delete="!cat.is_global && !cat.has_children"
 							:can-hide="!cat.is_hidden && (cat.is_global || cat.in_use)"
 							:can-unhide="cat.is_hidden"
 							@edit="openRenameSettingsItem('category', cat)"
@@ -496,10 +499,45 @@
 					</p>
 
 					<form @submit.prevent="saveRenameSettingsItem">
-						<div class="form-group">
-							<label for="settings-rename-name">{{ $texts.common.name() }}</label>
-							<input id="settings-rename-name" ref="renameSettingsItemInput"
-								v-model="renameSettingsItemName" class="form-control" type="text" required />
+						<div
+							class="rename-fields"
+							:class="{ 'has-category-number': renameSettingsItemType === 'category' }">
+							<div v-if="renameSettingsItemType === 'category'" class="form-group">
+								<label for="settings-category-code">{{ $texts.common.number() }}</label>
+								<input
+									id="settings-category-code"
+									ref="renameSettingsItemCodeInput"
+									v-model="renameSettingsItemCode"
+									class="form-control"
+									type="text"
+									maxlength="128"
+									autocomplete="off"
+									spellcheck="false" />
+							</div>
+							<div class="form-group">
+								<label for="settings-rename-name">{{ $texts.common.name() }}</label>
+								<input id="settings-rename-name" ref="renameSettingsItemInput"
+									v-model="renameSettingsItemName" class="form-control" type="text" maxlength="128" required />
+							</div>
+						</div>
+						<div v-if="renameSettingsItemType === 'category'" class="form-group category-parent-field">
+							<label for="settings-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
+							<select
+								id="settings-category-parent"
+								v-model="renameSettingsItemParentId"
+								class="form-control select-control"
+								:disabled="!!renameSettingsItem.has_children">
+								<option value="">{{ $texts.common.noParentMainCategory() }}</option>
+								<option
+									v-for="category in renameSettingsItemParentOptions"
+									:key="category.id"
+									:value="String(category.id)">
+									{{ category.name }}
+								</option>
+							</select>
+							<p v-if="renameSettingsItem.has_children" class="category-parent-hint">
+								{{ $texts.common.mainCategoryHasChildrenHint() }}
+							</p>
 						</div>
 						<p v-if="renameSettingsItemError" class="modal-error">{{ renameSettingsItemError }}</p>
 						<ModalActions
@@ -550,6 +588,7 @@ import { showSuccess, showInfo } from '@nextcloud/dialogs'
 import { ENTRY_PAGE_SIZE_OPTIONS, normalizeEntryPageSize } from '../services/pagination'
 import { applyThemeMode, normalizeThemeMode } from '../services/themeMode'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
+import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 import ModalActions from '../components/ModalActions.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import SettingsItemActions from '../components/SettingsItemActions.vue'
@@ -634,6 +673,8 @@ export default {
 			renameSettingsItemType: '',
 			renameSettingsItem: null,
 			renameSettingsItemName: '',
+			renameSettingsItemCode: '',
+			renameSettingsItemParentId: '',
 			renameSettingsItemError: '',
 			renameSettingsItemSaving: false,
 			confirmDialog: null
@@ -651,7 +692,7 @@ export default {
 		},
 		filteredCategories() {
 			const activeTab = this.$enableIncomes ? this.categoryTab : 'expense';
-			return this.categories.filter(c => c.type === activeTab);
+			return sortCategoriesHierarchically(this.categories.filter(c => c.type === activeTab));
 		},
 		activePaymentPartnerTab() {
 			return this.$enableIncomes ? this.paymentPartnerTab : 'expense';
@@ -684,11 +725,23 @@ export default {
 				? this.$texts.settings.categoryLabelWithArticle()
 				: this.$texts.settings.paymentPartnerLabelWithArticle();
 		},
+		renameSettingsItemParentOptions() {
+			if (this.renameSettingsItemType !== 'category' || !this.renameSettingsItem) {
+				return [];
+			}
+			return mainCategoryOptions(this.categories, this.renameSettingsItem);
+		},
 		canRenameSettingsItem() {
-			return this.renameSettingsItem
-				&& this.renameSettingsItemName.trim()
-				&& this.renameSettingsItemName.trim() !== this.renameSettingsItem.name
-				&& !this.renameSettingsItemSaving;
+			if (!this.renameSettingsItem || !this.renameSettingsItemName.trim() || this.renameSettingsItemSaving) {
+				return false;
+			}
+
+			const nameChanged = this.renameSettingsItemName.trim() !== this.renameSettingsItem.name;
+			const codeChanged = this.renameSettingsItemType === 'category'
+				&& this.renameSettingsItemCode.trim() !== String(this.renameSettingsItem.code || '').trim();
+			const parentChanged = this.renameSettingsItemType === 'category'
+				&& this.renameSettingsItemParentId !== String(this.renameSettingsItem.parent_category_id || '');
+			return nameChanged || codeChanged || parentChanged;
 		},
 		confirmDialogCanConfirm() {
 			if (!this.confirmDialog) {
@@ -1131,7 +1184,7 @@ export default {
 				}
 				this.normalizeDefaultStartPageForProjects();
 				const catRes = await this.fetchWorkspaceScopedWithRetry(generateUrl('/apps/cobudget/api/categories/settings'));
-				this.categories = (catRes.data || []).sort((a, b) => a.name.localeCompare(b.name));
+				this.categories = sortCategoriesHierarchically(catRes.data || []);
 				const paymentPartnerRes = await this.fetchWorkspaceScopedWithRetry(generateUrl('/apps/cobudget/api/payment-partners/settings'));
 				this.paymentPartners = (paymentPartnerRes.data || []).sort((a, b) => a.name.localeCompare(b.name));
 			} catch (e) {
@@ -1179,13 +1232,16 @@ export default {
 			this.renameSettingsItemType = type;
 			this.renameSettingsItem = item;
 			this.renameSettingsItemName = item.name;
+			this.renameSettingsItemCode = type === 'category' ? String(item.code || '') : '';
+			this.renameSettingsItemParentId = type === 'category' ? String(item.parent_category_id || '') : '';
 			this.renameSettingsItemError = '';
 			this.renameSettingsItemSaving = false;
 			this.$nextTick(() => {
-				if (this.$refs.renameSettingsItemInput) {
-					this.$refs.renameSettingsItemInput.focus();
-					this.$refs.renameSettingsItemInput.select();
-				}
+				const input = type === 'category'
+					? this.$refs.renameSettingsItemCodeInput
+					: this.$refs.renameSettingsItemInput;
+				input?.focus();
+				input?.select();
 			});
 		},
 		closeRenameSettingsItemModal() {
@@ -1198,6 +1254,8 @@ export default {
 			this.renameSettingsItemType = '';
 			this.renameSettingsItem = null;
 			this.renameSettingsItemName = '';
+			this.renameSettingsItemCode = '';
+			this.renameSettingsItemParentId = '';
 			this.renameSettingsItemError = '';
 			this.renameSettingsItemSaving = false;
 		},
@@ -1213,11 +1271,18 @@ export default {
 			const endpoint = type === 'category'
 				? `/apps/cobudget/api/categories/${item.id}`
 				: `/apps/cobudget/api/payment-partners/${item.id}`;
+			const payload = { name: newName };
+			if (type === 'category') {
+				payload.code = this.renameSettingsItemCode.trim();
+				payload.parentCategoryId = this.renameSettingsItemParentId
+					? Number(this.renameSettingsItemParentId)
+					: 0;
+			}
 
 			this.renameSettingsItemSaving = true;
 			this.renameSettingsItemError = '';
 			try {
-				const response = await axios.put(generateUrl(endpoint), { name: newName }, {
+				const response = await axios.put(generateUrl(endpoint), payload, {
 					headers: { Accept: 'application/json' }
 				});
 				if (response.data && typeof response.data === 'object' && response.data.error) {
@@ -1829,6 +1894,25 @@ export default {
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
+.category-list-label {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.25;
+}
+
+.category-list-label > span {
+	color: inherit;
+	overflow-wrap: anywhere;
+}
+
+.category-list-code {
+	color: var(--cobudget-text-muted, var(--color-text-light));
+	font-size: var(--cobudget-font-sm);
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+}
+
 :deep(.settings-list-item.is-hidden) .settings-list-info {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
@@ -2060,6 +2144,33 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 	margin-bottom: 16px;
 }
 
+.rename-fields {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.rename-fields.has-category-number {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.rename-fields .form-group {
+	min-width: 0;
+	margin-bottom: 0;
+}
+
+.category-parent-field .select-control {
+	margin: 0;
+}
+
+.category-parent-hint {
+	color: var(--cobudget-text-muted, var(--color-text-light));
+	font-size: var(--cobudget-font-sm);
+	line-height: 1.4;
+	margin: 6px 0 0;
+}
+
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
@@ -2107,6 +2218,10 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 	.settings-modal {
 		padding: 20px;
 		width: calc(100% - 32px);
+	}
+
+	.rename-fields.has-category-number {
+		grid-template-columns: minmax(0, 1fr);
 	}
 }
 

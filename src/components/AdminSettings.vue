@@ -3,6 +3,87 @@
 		<h2>{{ $texts.admin.title() }}</h2>
 		<p class="settings-hint">{{ $texts.admin.hint() }}</p>
 
+		<div class="settings-grid">
+			<!-- Kategorien -->
+			<div class="settings-column">
+				<h3>{{ $texts.admin.globalCategories() }}</h3>
+				<div class="tabs-container">
+					<button class="tab-button" :class="{ active: categoryTab === 'expense' }" @click.prevent="categoryTab = 'expense'">{{ $texts.common.expense() }}</button>
+					<button class="tab-button" :class="{ active: categoryTab === 'income' }" @click.prevent="categoryTab = 'income'">{{ $texts.common.income() }}</button>
+				</div>
+				<form @submit.prevent="addCategory" class="add-form">
+					<IconPicker v-model="newCategoryIcon" />
+					<input type="text" class="form-control" v-model="newCategory" :placeholder="$texts.admin.newCategory()" required>
+					<NcButton type="primary" native-type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()"
+						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
+				</form>
+				<SettingsList :items="filteredCategories" :empty-text="$texts.admin.noGlobalCategories()">
+					<template #item="{ item: cat }">
+						<div class="settings-list-info">
+							<IconPicker :value="cat.icon || 'Shape'" @input="updateCategoryIcon(cat, $event)" />
+							<div class="category-list-label">
+								<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>
+								<span>{{ cat.name }}</span>
+							</div>
+							<span class="badge-global">{{ $texts.common.global() }}</span>
+							<span v-if="cat.is_hidden" class="badge-hidden">{{ $texts.admin.hidden() }}</span>
+						</div>
+						<SettingsItemActions
+							class="settings-list-actions"
+							:can-edit="true"
+							:can-delete="!cat.has_children"
+							:can-hide="!cat.is_hidden"
+							:can-unhide="cat.is_hidden"
+							:edit-label="$texts.admin.editGlobalCategory()"
+							:delete-label="$texts.admin.deleteGlobalCategory()"
+							:hide-label="$texts.admin.hideGlobalCategory()"
+							:unhide-label="$texts.admin.unhideGlobalCategory()"
+							@edit="openRenameAdminItem('category', cat)"
+							@hide="hideCategory(cat.id)"
+							@delete="deleteCategory(cat.id)"
+							@unhide="unhideCategory(cat.id)" />
+					</template>
+				</SettingsList>
+			</div>
+
+			<!-- Zahlungspartner -->
+			<div class="settings-column">
+				<h3>{{ $texts.admin.globalPaymentPartners() }}</h3>
+				<div class="tabs-container">
+					<button class="tab-button" :class="{ active: paymentPartnerTab === 'expense' }" @click.prevent="paymentPartnerTab = 'expense'">{{ $texts.common.expense() }}</button>
+					<button class="tab-button" :class="{ active: paymentPartnerTab === 'income' }" @click.prevent="paymentPartnerTab = 'income'">{{ $texts.common.income() }}</button>
+				</div>
+				<form @submit.prevent="addPaymentPartner" class="add-form">
+					<input type="text" class="form-control" v-model="newPaymentPartner" :placeholder="paymentPartnerPlaceholder" required>
+					<NcButton type="primary" native-type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()"
+						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
+				</form>
+				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
+					<template #item="{ item: paymentPartner }">
+						<div class="settings-list-info">
+							<span>{{ paymentPartner.name }}</span>
+							<span class="badge-global">{{ $texts.common.global() }}</span>
+							<span v-if="paymentPartner.is_hidden" class="badge-hidden">{{ $texts.admin.hidden() }}</span>
+						</div>
+						<SettingsItemActions
+							class="settings-list-actions"
+							:can-edit="true"
+							:can-delete="true"
+							:can-hide="!paymentPartner.is_hidden"
+							:can-unhide="paymentPartner.is_hidden"
+							:edit-label="$texts.admin.editGlobalPaymentPartner()"
+							:delete-label="$texts.admin.deleteGlobalPaymentPartner()"
+							:hide-label="$texts.admin.hideGlobalPaymentPartner()"
+							:unhide-label="$texts.admin.unhideGlobalPaymentPartner()"
+							@edit="openRenameAdminItem('paymentPartner', paymentPartner)"
+							@hide="hidePaymentPartner(paymentPartner.id)"
+							@delete="deletePaymentPartner(paymentPartner.id)"
+							@unhide="unhidePaymentPartner(paymentPartner.id)" />
+					</template>
+				</SettingsList>
+			</div>
+		</div>
+
 		<div class="integrity-card">
 			<div class="integrity-card-header">
 				<div>
@@ -208,84 +289,6 @@
 				</ul>
 			</div>
 		</div>
-		
-		<div class="settings-grid">
-			<!-- Kategorien -->
-			<div class="settings-column">
-				<h3>{{ $texts.admin.globalCategories() }}</h3>
-				<div class="tabs-container">
-					<button class="tab-button" :class="{ active: categoryTab === 'expense' }" @click.prevent="categoryTab = 'expense'">{{ $texts.common.expense() }}</button>
-					<button class="tab-button" :class="{ active: categoryTab === 'income' }" @click.prevent="categoryTab = 'income'">{{ $texts.common.income() }}</button>
-				</div>
-				<form @submit.prevent="addCategory" class="add-form">
-					<IconPicker v-model="newCategoryIcon" />
-					<input type="text" class="form-control" v-model="newCategory" :placeholder="$texts.admin.newCategory()" required>
-					<NcButton type="primary" native-type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()"
-						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
-				</form>
-				<SettingsList :items="filteredCategories" :empty-text="$texts.admin.noGlobalCategories()">
-					<template #item="{ item: cat }">
-						<div class="settings-list-info">
-							<IconPicker :value="cat.icon || 'Shape'" @input="updateCategoryIcon(cat, $event)" />
-							<span>{{ cat.name }}</span>
-							<span class="badge-global">{{ $texts.common.global() }}</span>
-							<span v-if="cat.is_hidden" class="badge-hidden">{{ $texts.admin.hidden() }}</span>
-						</div>
-						<SettingsItemActions
-							class="settings-list-actions"
-							:can-edit="true"
-							:can-delete="true"
-							:can-hide="!cat.is_hidden"
-							:can-unhide="cat.is_hidden"
-							:edit-label="$texts.admin.editGlobalCategory()"
-							:delete-label="$texts.admin.deleteGlobalCategory()"
-							:hide-label="$texts.admin.hideGlobalCategory()"
-							:unhide-label="$texts.admin.unhideGlobalCategory()"
-							@edit="openRenameAdminItem('category', cat)"
-							@hide="hideCategory(cat.id)"
-							@delete="deleteCategory(cat.id)"
-							@unhide="unhideCategory(cat.id)" />
-					</template>
-				</SettingsList>
-			</div>
-
-			<!-- Zahlungspartner -->
-			<div class="settings-column">
-				<h3>{{ $texts.admin.globalPaymentPartners() }}</h3>
-				<div class="tabs-container">
-					<button class="tab-button" :class="{ active: paymentPartnerTab === 'expense' }" @click.prevent="paymentPartnerTab = 'expense'">{{ $texts.common.expense() }}</button>
-					<button class="tab-button" :class="{ active: paymentPartnerTab === 'income' }" @click.prevent="paymentPartnerTab = 'income'">{{ $texts.common.income() }}</button>
-				</div>
-				<form @submit.prevent="addPaymentPartner" class="add-form">
-					<input type="text" class="form-control" v-model="newPaymentPartner" :placeholder="paymentPartnerPlaceholder" required>
-					<NcButton type="primary" native-type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()"
-						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
-				</form>
-				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
-					<template #item="{ item: paymentPartner }">
-						<div class="settings-list-info">
-							<span>{{ paymentPartner.name }}</span>
-							<span class="badge-global">{{ $texts.common.global() }}</span>
-							<span v-if="paymentPartner.is_hidden" class="badge-hidden">{{ $texts.admin.hidden() }}</span>
-						</div>
-						<SettingsItemActions
-							class="settings-list-actions"
-							:can-edit="true"
-							:can-delete="true"
-							:can-hide="!paymentPartner.is_hidden"
-							:can-unhide="paymentPartner.is_hidden"
-							:edit-label="$texts.admin.editGlobalPaymentPartner()"
-							:delete-label="$texts.admin.deleteGlobalPaymentPartner()"
-							:hide-label="$texts.admin.hideGlobalPaymentPartner()"
-							:unhide-label="$texts.admin.unhideGlobalPaymentPartner()"
-							@edit="openRenameAdminItem('paymentPartner', paymentPartner)"
-							@hide="hidePaymentPartner(paymentPartner.id)"
-							@delete="deletePaymentPartner(paymentPartner.id)"
-							@unhide="unhidePaymentPartner(paymentPartner.id)" />
-					</template>
-				</SettingsList>
-			</div>
-		</div>
 		<Teleport to="body">
 			<div
 				v-if="renameAdminItem"
@@ -310,15 +313,49 @@
 					</p>
 
 					<form @submit.prevent="saveRenameAdminItem">
-						<div class="form-group">
-							<label for="admin-rename-name">{{ $texts.common.name() }}</label>
-							<input
-								id="admin-rename-name"
-								ref="renameAdminItemInput"
-								v-model="renameAdminItemName"
+						<div class="rename-fields" :class="{ 'has-category-number': renameAdminItemType === 'category' }">
+							<div v-if="renameAdminItemType === 'category'" class="form-group">
+								<label for="admin-category-code">{{ $texts.common.number() }}</label>
+								<input
+									id="admin-category-code"
+									ref="renameAdminItemCodeInput"
+									v-model="renameAdminItemCode"
+									class="form-control"
+									type="text"
+									maxlength="128"
+									autocomplete="off"
+									spellcheck="false">
+							</div>
+							<div class="form-group">
+								<label for="admin-rename-name">{{ $texts.common.name() }}</label>
+								<input
+									id="admin-rename-name"
+									ref="renameAdminItemInput"
+									v-model="renameAdminItemName"
+									class="form-control"
+									type="text"
+									maxlength="128"
+									required>
+							</div>
+						</div>
+						<div v-if="renameAdminItemType === 'category'" class="form-group category-parent-field">
+							<label for="admin-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
+							<select
+								id="admin-category-parent"
+								v-model="renameAdminItemParentId"
 								class="form-control"
-								type="text"
-								required>
+								:disabled="!!renameAdminItem.has_children">
+								<option value="">{{ $texts.common.noParentMainCategory() }}</option>
+								<option
+									v-for="category in renameAdminItemParentOptions"
+									:key="category.id"
+									:value="String(category.id)">
+									{{ category.name }}
+								</option>
+							</select>
+							<p v-if="renameAdminItem.has_children" class="category-parent-hint">
+								{{ $texts.common.mainCategoryHasChildrenHint() }}
+							</p>
 						</div>
 						<p v-if="renameAdminItemError" class="modal-error">{{ renameAdminItemError }}</p>
 						<ModalActions
@@ -402,6 +439,7 @@ import CloseIcon from 'vue-material-design-icons/Close.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import { extractError, showRequestError, showToast } from '../services/notifications'
+import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 
 const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-icon-picker" */ './IconPicker.vue'))
 
@@ -433,6 +471,8 @@ export default {
 			renameAdminItemType: '',
 			renameAdminItem: null,
 			renameAdminItemName: '',
+			renameAdminItemCode: '',
+			renameAdminItemParentId: '',
 			renameAdminItemError: '',
 			renameAdminItemSaving: false,
 			integrityReport: null,
@@ -456,7 +496,7 @@ export default {
 	},
 	computed: {
 		filteredCategories() {
-			return this.categories.filter(c => c.type === this.categoryTab);
+			return sortCategoriesHierarchically(this.categories.filter(c => c.type === this.categoryTab));
 		},
 		activePaymentPartnerTab() {
 			return this.paymentPartnerTab;
@@ -479,11 +519,23 @@ export default {
 				? this.$texts.admin.renameGlobalCategory()
 				: this.$texts.admin.renameGlobalPaymentPartner();
 		},
+		renameAdminItemParentOptions() {
+			if (this.renameAdminItemType !== 'category' || !this.renameAdminItem) {
+				return [];
+			}
+			return mainCategoryOptions(this.categories, this.renameAdminItem);
+		},
 		canRenameAdminItem() {
-			return this.renameAdminItem
-				&& this.renameAdminItemName.trim()
-				&& this.renameAdminItemName.trim() !== this.renameAdminItem.name
-				&& !this.renameAdminItemSaving;
+			if (!this.renameAdminItem || !this.renameAdminItemName.trim() || this.renameAdminItemSaving) {
+				return false;
+			}
+
+			const nameChanged = this.renameAdminItemName.trim() !== this.renameAdminItem.name;
+			const codeChanged = this.renameAdminItemType === 'category'
+				&& this.renameAdminItemCode.trim() !== String(this.renameAdminItem.code || '').trim();
+			const parentChanged = this.renameAdminItemType === 'category'
+				&& this.renameAdminItemParentId !== String(this.renameAdminItem.parent_category_id || '');
+			return nameChanged || codeChanged || parentChanged;
 		},
 		integrityOrphanReferences() {
 			return this.integrityReport?.orphanReferences || [];
@@ -793,11 +845,12 @@ export default {
 			].join(' ');
 		},
 		normalizeAdminItems(items) {
-			return (items || []).map(item => ({
+			return sortCategoriesHierarchically((items || []).map(item => ({
 				...item,
 				is_hidden: item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === '1' || item.is_hidden === 'true',
-				is_global: item.is_global === true || item.is_global === 1 || item.is_global === '1' || item.is_global === 'true'
-			})).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }));
+				is_global: item.is_global === true || item.is_global === 1 || item.is_global === '1' || item.is_global === 'true',
+				parent_category_id: Number(item.parent_category_id || 0) || null
+			})));
 		},
 		async addCategory() {
 			if (!this.newCategory.trim()) return;
@@ -827,11 +880,14 @@ export default {
 			this.renameAdminItemType = type;
 			this.renameAdminItem = item;
 			this.renameAdminItemName = item.name;
+			this.renameAdminItemCode = type === 'category' ? String(item.code || '') : '';
+			this.renameAdminItemParentId = type === 'category' ? String(item.parent_category_id || '') : '';
 			this.renameAdminItemError = '';
 			this.renameAdminItemSaving = false;
 			this.$nextTick(() => {
-				this.$refs.renameAdminItemInput?.focus();
-				this.$refs.renameAdminItemInput?.select();
+				const input = type === 'category' ? this.$refs.renameAdminItemCodeInput : this.$refs.renameAdminItemInput;
+				input?.focus();
+				input?.select();
 			});
 		},
 		closeRenameAdminItemModal() {
@@ -844,6 +900,8 @@ export default {
 			this.renameAdminItemType = '';
 			this.renameAdminItem = null;
 			this.renameAdminItemName = '';
+			this.renameAdminItemCode = '';
+			this.renameAdminItemParentId = '';
 			this.renameAdminItemError = '';
 			this.renameAdminItemSaving = false;
 		},
@@ -860,11 +918,18 @@ export default {
 			const localizedSuccessMessage = type === 'category'
 				? this.$texts.admin.globalCategorySaved()
 				: this.$texts.admin.globalPaymentPartnerSaved();
+			const payload = { name: this.renameAdminItemName.trim() };
+			if (type === 'category') {
+				payload.code = this.renameAdminItemCode.trim();
+				payload.parentCategoryId = this.renameAdminItemParentId
+					? Number(this.renameAdminItemParentId)
+					: 0;
+			}
 
 			this.renameAdminItemSaving = true;
 			this.renameAdminItemError = '';
 			try {
-				await axios.put(generateUrl(endpoint), { name: this.renameAdminItemName.trim() });
+				await axios.put(generateUrl(endpoint), payload);
 				this.renameAdminItemSaving = false;
 				this.resetRenameAdminItemModal();
 				await this.fetchData();
@@ -1003,6 +1068,7 @@ export default {
 .settings-grid {
 	display: flex;
 	gap: 30px;
+	margin-bottom: 28px;
 }
 
 .integrity-card,
@@ -1319,6 +1385,25 @@ export default {
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
+.category-list-label {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.25;
+}
+
+.category-list-label > span {
+	color: inherit;
+	overflow-wrap: anywhere;
+}
+
+.category-list-code {
+	color: var(--cobudget-text-muted, var(--color-text-light));
+	font-size: var(--cobudget-font-sm);
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+}
+
 :deep(.settings-list-item.is-hidden) .settings-list-info {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
@@ -1438,6 +1523,29 @@ export default {
 	margin-bottom: 16px;
 }
 
+.rename-fields {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.rename-fields.has-category-number {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.rename-fields .form-group {
+	min-width: 0;
+	margin-bottom: 0;
+}
+
+.category-parent-hint {
+	color: var(--cobudget-text-muted, var(--color-text-light));
+	font-size: var(--cobudget-font-sm);
+	line-height: 1.4;
+	margin: 6px 0 0;
+}
+
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
@@ -1535,6 +1643,10 @@ export default {
 
 	.admin-backup-item-actions {
 		justify-content: flex-start;
+	}
+
+	.rename-fields.has-category-number {
+		grid-template-columns: minmax(0, 1fr);
 	}
 }
 

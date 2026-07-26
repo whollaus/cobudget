@@ -180,11 +180,14 @@ class AnalyticsController extends Controller {
 			'e.needs_review',
 			'e.is_tax_relevant',
 			'c.name AS category_name',
+			'c.parent_category_id AS category_parent_id',
+			'parent_category.name AS category_parent_name',
 			'p.name AS payment_partner_name',
 			'pr.name AS project_name'
 		)
 			->from('cobudget_entries', 'e')
 			->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
+			->leftJoin('c', 'cobudget_categories', 'parent_category', $qb->expr()->eq('c.parent_category_id', 'parent_category.id'))
 			->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'))
 			->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'))
 			->where($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
@@ -393,11 +396,14 @@ class AnalyticsController extends Controller {
 			'e.reminder_notified',
 			'e.reminder_text',
 			'c.name AS category_name',
+			'c.parent_category_id AS category_parent_id',
+			'parent_category.name AS category_parent_name',
 			'p.name AS payment_partner_name',
 			'pr.name AS project_name'
 		)
 			->from('cobudget_entries', 'e')
 			->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
+			->leftJoin('c', 'cobudget_categories', 'parent_category', $qb->expr()->eq('c.parent_category_id', 'parent_category.id'))
 			->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'))
 			->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'))
 			->leftJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
@@ -482,6 +488,10 @@ class AnalyticsController extends Controller {
 
 		$categoryName = trim((string)($row['category_name'] ?? ''));
 		$categoryId = empty($row['category_id']) || $categoryName === '' ? null : (int)$row['category_id'];
+		$categoryParentName = trim((string)($row['category_parent_name'] ?? ''));
+		$categoryParentId = empty($row['category_parent_id']) || $categoryParentName === ''
+			? null
+			: (int)$row['category_parent_id'];
 		$paymentPartnerName = trim((string)($row['payment_partner_name'] ?? ''));
 		$paymentPartnerId = empty($row['payment_partner_id']) || $paymentPartnerName === '' ? null : (int)$row['payment_partner_id'];
 		$projectName = trim((string)($row['project_name'] ?? ''));
@@ -500,6 +510,8 @@ class AnalyticsController extends Controller {
 			'isSettled' => $this->dbBool($row['is_settled'] ?? false),
 			'categoryId' => $categoryId,
 			'categoryName' => $categoryName,
+			'categoryParentId' => $categoryParentId,
+			'categoryParentName' => $categoryParentName,
 			'paymentPartnerId' => $paymentPartnerId,
 			'paymentPartnerName' => $paymentPartnerName,
 			'projectId' => $projectId,
@@ -1133,6 +1145,8 @@ class AnalyticsController extends Controller {
 					'id' => $category['id'] ?? null,
 					'key' => $key,
 					'label' => (string)($category['name'] ?? 'Kategorie'),
+					'rowType' => (string)($category['rowType'] ?? ''),
+					'parentName' => (string)($category['parentName'] ?? ''),
 					'paymentPartners' => $this->buildBreakdown($categoryEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 					'tags' => $this->buildTagBreakdown($categoryEntries, $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 					'hashtags' => $this->buildHashtagBreakdown($categoryEntries, $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
@@ -1415,6 +1429,14 @@ class AnalyticsController extends Controller {
 	}
 
 	private function buildBreakdown(array $entries, string $idKey, string $nameKey, string $fallbackName, string $type, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
+		if ($idKey === 'categoryId') {
+			$rows = $this->buildCategoryBreakdownRows($entries, $fallbackName, $type);
+			$comparisonRows = $this->buildCategoryBreakdownRows($comparisonEntries, $fallbackName, $type);
+			$directionRecentRows = $this->buildCategoryBreakdownRows($directionRecentEntries, $fallbackName, $type);
+			$directionBaselineRows = $this->buildCategoryBreakdownRows($directionBaselineEntries, $fallbackName, $type);
+			return $this->withBreakdownTrends($rows, $comparisonRows, $directionRecentRows, $directionBaselineRows, $type);
+		}
+
 		$rows = $this->buildBreakdownRows($entries, $idKey, $nameKey, $fallbackName, $type);
 		$comparisonRows = $this->buildBreakdownRows($comparisonEntries, $idKey, $nameKey, $fallbackName, $type);
 		$directionRecentRows = $this->buildBreakdownRows($directionRecentEntries, $idKey, $nameKey, $fallbackName, $type);
@@ -1422,6 +1444,158 @@ class AnalyticsController extends Controller {
 		$rows = $this->withBreakdownTrends($rows, $comparisonRows, $directionRecentRows, $directionBaselineRows, $type);
 
 		return $this->withRestBucket($rows, 8);
+	}
+
+	private function buildCategoryBreakdownRows(array $entries, string $fallbackName, string $type): array {
+		$directRows = [];
+		$groups = [];
+
+		foreach ($entries as $entry) {
+			if (($entry['type'] ?? '') !== $type) {
+				continue;
+			}
+
+			$categoryName = trim((string)($entry['categoryName'] ?? ''));
+			if ($categoryName === '') {
+				$key = 'none';
+				if (!isset($directRows[$key])) {
+					$directRows[$key] = [
+						'id' => null,
+						'key' => $key,
+						'name' => $fallbackName,
+						'amountCents' => 0,
+						'count' => 0,
+						'rowType' => 'category-main',
+						'parentId' => null,
+						'parentName' => '',
+						'hasSubcategories' => false,
+					];
+				}
+				$directRows[$key]['amountCents'] += (int)($entry['personalCents'] ?? 0);
+				$directRows[$key]['count']++;
+				$groups[$key] = [
+					'key' => $key,
+					'name' => $fallbackName,
+					'mainKey' => $key,
+					'childKeys' => [],
+				];
+				continue;
+			}
+
+			$parentName = trim((string)($entry['categoryParentName'] ?? ''));
+			$parentId = empty($entry['categoryParentId']) ? null : (int)$entry['categoryParentId'];
+			$isChild = $parentId !== null && $parentName !== '';
+			$groupName = $isChild ? $parentName : $categoryName;
+			$groupKey = $this->categoryGroupKey($groupName);
+			$mainKey = $this->categoryMainKey($groupName);
+			$key = $isChild
+				? $this->categoryChildKey($parentName, $categoryName)
+				: $mainKey;
+
+			if (!isset($groups[$groupKey])) {
+				$groups[$groupKey] = [
+					'key' => $groupKey,
+					'name' => $groupName,
+					'mainKey' => $mainKey,
+					'childKeys' => [],
+				];
+			}
+			if ($isChild && !in_array($key, $groups[$groupKey]['childKeys'], true)) {
+				$groups[$groupKey]['childKeys'][] = $key;
+			}
+			if (!isset($directRows[$key])) {
+				$directRows[$key] = [
+					'id' => $entry['categoryId'] ?? null,
+					'key' => $key,
+					'name' => $categoryName,
+					'amountCents' => 0,
+					'count' => 0,
+					'rowType' => $isChild ? 'category-child' : 'category-main',
+					'parentId' => $isChild ? $parentId : null,
+					'parentName' => $isChild ? $parentName : '',
+					'hasSubcategories' => false,
+				];
+			}
+			$directRows[$key]['amountCents'] += (int)($entry['personalCents'] ?? 0);
+			$directRows[$key]['count']++;
+
+			if ($isChild && !isset($directRows[$mainKey])) {
+				$directRows[$mainKey] = [
+					'id' => $parentId,
+					'key' => $mainKey,
+					'name' => $parentName,
+					'amountCents' => 0,
+					'count' => 0,
+					'rowType' => 'category-main',
+					'parentId' => null,
+					'parentName' => '',
+					'hasSubcategories' => true,
+				];
+			}
+		}
+
+		foreach ($groups as &$group) {
+			$mainKey = (string)$group['mainKey'];
+			$childKeys = array_values(array_filter(
+				$group['childKeys'],
+				static fn(string $key): bool => isset($directRows[$key])
+			));
+			$group['childKeys'] = $childKeys;
+			if (isset($directRows[$mainKey]) && $childKeys !== []) {
+				$directRows[$mainKey]['hasSubcategories'] = true;
+			}
+			$group['amountCents'] = (int)($directRows[$mainKey]['amountCents'] ?? 0);
+			$group['count'] = (int)($directRows[$mainKey]['count'] ?? 0);
+			foreach ($childKeys as $childKey) {
+				$group['amountCents'] += (int)$directRows[$childKey]['amountCents'];
+				$group['count'] += (int)$directRows[$childKey]['count'];
+			}
+		}
+		unset($group);
+
+		usort($groups, static function(array $left, array $right): int {
+			$amountCompare = (int)($right['amountCents'] ?? 0) <=> (int)($left['amountCents'] ?? 0);
+			return $amountCompare !== 0
+				? $amountCompare
+				: strcasecmp((string)($left['name'] ?? ''), (string)($right['name'] ?? ''));
+		});
+
+		$rows = [];
+		foreach ($groups as $group) {
+			$mainKey = (string)$group['mainKey'];
+			if (isset($directRows[$mainKey])) {
+				$rows[] = $directRows[$mainKey];
+			}
+
+			$children = array_values(array_map(
+				static fn(string $key): array => $directRows[$key],
+				$group['childKeys']
+			));
+			usort($children, static function(array $left, array $right): int {
+				$amountCompare = (int)$right['amountCents'] <=> (int)$left['amountCents'];
+				return $amountCompare !== 0
+					? $amountCompare
+					: strcasecmp((string)$left['name'], (string)$right['name']);
+			});
+			array_push($rows, ...$children);
+
+			if ($children !== []) {
+				$mainRow = $directRows[$mainKey] ?? null;
+				$rows[] = [
+					'id' => is_array($mainRow) ? ($mainRow['id'] ?? null) : null,
+					'key' => $this->categoryTotalKey((string)$group['name']),
+					'name' => (string)$group['name'],
+					'amountCents' => (int)$group['amountCents'],
+					'count' => (int)$group['count'],
+					'rowType' => 'category-total',
+					'parentId' => null,
+					'parentName' => '',
+					'hasSubcategories' => true,
+				];
+			}
+		}
+
+		return $rows;
 	}
 
 	private function buildBreakdownRows(array $entries, string $idKey, string $nameKey, string $fallbackName, string $type): array {
@@ -1463,6 +1637,19 @@ class AnalyticsController extends Controller {
 	}
 
 	private function filterBreakdownEntries(array $entries, string $type, string $idKey, string $nameKey, string $fallbackName, string $key): array {
+		if ($idKey === 'categoryId') {
+			return array_values(array_filter($entries, function(array $entry) use ($type, $fallbackName, $key): bool {
+				if (($entry['type'] ?? '') !== $type) {
+					return false;
+				}
+				if (str_starts_with($key, 'category:total:')) {
+					return $this->categoryTotalKey($this->categoryEntryGroupName($entry, $fallbackName)) === $key;
+				}
+
+				return $this->categoryEntryKey($entry, $fallbackName) === $key;
+			}));
+		}
+
 		return array_values(array_filter($entries, function(array $entry) use ($type, $idKey, $nameKey, $fallbackName, $key): bool {
 			return ($entry['type'] ?? '') === $type
 				&& $this->breakdownEntryKey($entry, $idKey, $nameKey, $fallbackName) === $key;
@@ -1470,6 +1657,10 @@ class AnalyticsController extends Controller {
 	}
 
 	private function breakdownEntryKey(array $entry, string $idKey, string $nameKey, string $fallbackName): string {
+		if ($idKey === 'categoryId') {
+			return $this->categoryEntryKey($entry, $fallbackName);
+		}
+
 		$name = trim((string)($entry[$nameKey] ?? ''));
 		if ($name === '') {
 			return 'none';
@@ -1483,7 +1674,44 @@ class AnalyticsController extends Controller {
 	}
 
 	private function breakdownUsesNameKey(string $idKey): bool {
-		return in_array($idKey, ['categoryId', 'paymentPartnerId'], true);
+		return $idKey === 'paymentPartnerId';
+	}
+
+	private function categoryEntryKey(array $entry, string $fallbackName): string {
+		$name = trim((string)($entry['categoryName'] ?? ''));
+		if ($name === '') {
+			return 'none';
+		}
+		$parentName = trim((string)($entry['categoryParentName'] ?? ''));
+		$parentId = empty($entry['categoryParentId']) ? null : (int)$entry['categoryParentId'];
+		return $parentId !== null && $parentName !== ''
+			? $this->categoryChildKey($parentName, $name)
+			: $this->categoryMainKey($name);
+	}
+
+	private function categoryEntryGroupName(array $entry, string $fallbackName): string {
+		$name = trim((string)($entry['categoryName'] ?? ''));
+		if ($name === '') {
+			return $fallbackName;
+		}
+		$parentName = trim((string)($entry['categoryParentName'] ?? ''));
+		return !empty($entry['categoryParentId']) && $parentName !== '' ? $parentName : $name;
+	}
+
+	private function categoryGroupKey(string $name): string {
+		return 'category:group:' . $this->normalizeBreakdownName($name);
+	}
+
+	private function categoryMainKey(string $name): string {
+		return 'category:main:' . $this->normalizeBreakdownName($name);
+	}
+
+	private function categoryChildKey(string $parentName, string $name): string {
+		return 'category:child:' . $this->normalizeBreakdownName($parentName) . ':' . $this->normalizeBreakdownName($name);
+	}
+
+	private function categoryTotalKey(string $name): string {
+		return 'category:total:' . $this->normalizeBreakdownName($name);
 	}
 
 	private function normalizeBreakdownName(string $name): string {

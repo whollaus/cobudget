@@ -21,16 +21,27 @@
 				<SettingsList :items="filteredCategories" :empty-text="$texts.projectScoped.noCategories()">
 					<template #item="{ item: category }">
 						<div class="settings-list-info">
-							<IconPicker :value="category.icon || 'Shape'" @input="updateCategoryIcon(category, $event)" />
-							<span>{{ category.name }}</span>
+							<IconPicker
+								:value="category.icon || 'Shape'"
+								:disabled="category.is_global"
+								@input="updateCategoryIcon(category, $event)" />
+							<div class="category-list-label">
+								<small v-if="category.code" class="category-list-code">{{ category.code }}</small>
+								<span>{{ category.name }}</span>
+							</div>
+							<span v-if="category.is_global" class="badge-global">{{ $texts.common.global() }}</span>
 						</div>
 						<SettingsItemActions
 							class="settings-list-actions"
-							:can-edit="true"
-							:can-delete="!category.in_use"
+							:can-edit="!category.is_global"
+							:can-delete="!category.is_global && !category.in_use && !category.has_children"
+							:can-hide="category.is_global && !category.is_hidden"
+							:can-unhide="category.is_global && category.is_hidden"
 							:delete-label="category.in_use ? $texts.projectScoped.inUse() : $texts.common.delete()"
 							@edit="openRenameItem('category', category)"
-							@delete="deleteCategory(category)" />
+							@delete="deleteCategory(category)"
+							@hide="hideCategory(category)"
+							@unhide="unhideCategory(category)" />
 					</template>
 				</SettingsList>
 			</section>
@@ -91,9 +102,42 @@
 						{{ $texts.projectScoped.renameNote() }}
 					</p>
 					<form @submit.prevent="saveRenameItem">
-						<div class="form-group">
-							<label for="project-scoped-name">{{ $texts.common.name() }}</label>
-							<input id="project-scoped-name" ref="renameInput" v-model="renameName" class="form-control" type="text" required>
+						<div class="rename-fields" :class="{ 'has-category-number': renameType === 'category' }">
+							<div v-if="renameType === 'category'" class="form-group">
+								<label for="project-scoped-category-code">{{ $texts.common.number() }}</label>
+								<input
+									id="project-scoped-category-code"
+									ref="renameCodeInput"
+									v-model="renameCode"
+									class="form-control"
+									type="text"
+									maxlength="128"
+									autocomplete="off"
+									spellcheck="false">
+							</div>
+							<div class="form-group">
+								<label for="project-scoped-name">{{ $texts.common.name() }}</label>
+								<input id="project-scoped-name" ref="renameInput" v-model="renameName" class="form-control" type="text" maxlength="128" required>
+							</div>
+						</div>
+						<div v-if="renameType === 'category'" class="form-group category-parent-field">
+							<label for="project-scoped-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
+							<select
+								id="project-scoped-category-parent"
+								v-model="renameParentCategoryId"
+								class="form-control"
+								:disabled="!!renameItem.has_children">
+								<option value="">{{ $texts.common.noParentMainCategory() }}</option>
+								<option
+									v-for="category in renameParentCategoryOptions"
+									:key="category.id"
+									:value="String(category.id)">
+									{{ category.name }}
+								</option>
+							</select>
+							<p v-if="renameItem.has_children" class="category-parent-hint">
+								{{ $texts.common.mainCategoryHasChildrenHint() }}
+							</p>
 						</div>
 						<p v-if="renameError" class="modal-error">{{ renameError }}</p>
 						<ModalActions
@@ -130,6 +174,7 @@ import SettingsItemActions from './SettingsItemActions.vue'
 import SettingsList from './SettingsList.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import { extractError, showRequestError, showToast } from '../services/notifications'
+import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 
 const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-icon-picker" */ './IconPicker.vue'))
 
@@ -155,6 +200,7 @@ export default {
 		return {
 			loading: false,
 			categories: [],
+			parentCategories: [],
 			paymentPartners: [],
 			categoryTab: 'expense',
 			paymentPartnerTab: 'expense',
@@ -164,6 +210,8 @@ export default {
 			renameType: '',
 			renameItem: null,
 			renameName: '',
+			renameCode: '',
+			renameParentCategoryId: '',
 			renameError: '',
 			renameSaving: false,
 			confirmDialog: null
@@ -177,7 +225,7 @@ export default {
 			return this.$enableIncomes ? this.paymentPartnerTab : 'expense';
 		},
 		filteredCategories() {
-			return this.categories.filter(category => category.type === this.activeCategoryTab);
+			return sortCategoriesHierarchically(this.categories.filter(category => category.type === this.activeCategoryTab));
 		},
 		filteredPaymentPartners() {
 			return this.paymentPartners.filter(paymentPartner => paymentPartner.type === this.activePaymentPartnerTab);
@@ -197,11 +245,23 @@ export default {
 				? this.$texts.projectScoped.editCategory()
 				: this.$texts.projectScoped.editPaymentPartner();
 		},
+		renameParentCategoryOptions() {
+			if (this.renameType !== 'category' || !this.renameItem) {
+				return [];
+			}
+			return mainCategoryOptions(this.parentCategories, this.renameItem);
+		},
 		canRename() {
-			return this.renameItem
-				&& this.renameName.trim()
-				&& this.renameName.trim() !== this.renameItem.name
-				&& !this.renameSaving;
+			if (!this.renameItem || !this.renameName.trim() || this.renameSaving) {
+				return false;
+			}
+
+			const nameChanged = this.renameName.trim() !== this.renameItem.name;
+			const codeChanged = this.renameType === 'category'
+				&& this.renameCode.trim() !== String(this.renameItem.code || '').trim();
+			const parentChanged = this.renameType === 'category'
+				&& this.renameParentCategoryId !== String(this.renameItem.parent_category_id || '');
+			return nameChanged || codeChanged || parentChanged;
 		}
 	},
 	watch: {
@@ -231,6 +291,18 @@ export default {
 		sortByName(items) {
 			return (items || []).sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }));
 		},
+		boolValue(value) {
+			return value === true || value === 1 || value === '1' || value === 'true';
+		},
+		normalizeCategory(category) {
+			return {
+				...category,
+				is_global: this.boolValue(category?.is_global),
+				is_hidden: this.boolValue(category?.is_hidden),
+				in_use: this.boolValue(category?.in_use),
+				has_children: this.boolValue(category?.has_children)
+			};
+		},
 		async fetchData() {
 			if (!this.projectId) {
 				return;
@@ -243,7 +315,8 @@ export default {
 					axios.get(generateUrl('/apps/cobudget/api/categories/settings'), { params }),
 					axios.get(generateUrl('/apps/cobudget/api/payment-partners/settings'), { params })
 				]);
-				this.categories = this.sortByName(categoryRes.data || []);
+				this.categories = sortCategoriesHierarchically((categoryRes.data || []).map(this.normalizeCategory));
+				this.parentCategories = [...this.categories];
 				this.paymentPartners = this.sortByName(paymentPartnerRes.data || []);
 			} catch (e) {
 				showRequestError(e, this.$texts.projectScoped.loadError(), 'Failed to fetch project-scoped settings');
@@ -298,6 +371,9 @@ export default {
 			}
 		},
 		async updateCategoryIcon(category, icon) {
+			if (category.is_global) {
+				return;
+			}
 			try {
 				await axios.put(generateUrl(`/apps/cobudget/api/categories/${category.id}/icon`), { icon });
 				await this.fetchData();
@@ -308,14 +384,20 @@ export default {
 			}
 		},
 		openRenameItem(type, item) {
+			if (type === 'category' && item.is_global) {
+				return;
+			}
 			this.renameType = type;
 			this.renameItem = item;
 			this.renameName = item.name;
+			this.renameCode = type === 'category' ? String(item.code || '') : '';
+			this.renameParentCategoryId = type === 'category' ? String(item.parent_category_id || '') : '';
 			this.renameError = '';
 			this.renameSaving = false;
 			this.$nextTick(() => {
-				this.$refs.renameInput?.focus();
-				this.$refs.renameInput?.select();
+				const input = type === 'category' ? this.$refs.renameCodeInput : this.$refs.renameInput;
+				input?.focus();
+				input?.select();
 			});
 		},
 		closeRenameModal() {
@@ -328,6 +410,8 @@ export default {
 			this.renameType = '';
 			this.renameItem = null;
 			this.renameName = '';
+			this.renameCode = '';
+			this.renameParentCategoryId = '';
 			this.renameError = '';
 			this.renameSaving = false;
 		},
@@ -343,11 +427,18 @@ export default {
 			const successMessage = this.renameType === 'category'
 				? this.$texts.projectScoped.categorySaved()
 				: this.$texts.projectScoped.paymentPartnerSaved();
+			const payload = { name: this.renameName.trim() };
+			if (this.renameType === 'category') {
+				payload.code = this.renameCode.trim();
+				payload.parentCategoryId = this.renameParentCategoryId
+					? Number(this.renameParentCategoryId)
+					: 0;
+			}
 
 			this.renameSaving = true;
 			this.renameError = '';
 			try {
-				await axios.put(generateUrl(endpoint), { name: this.renameName.trim() });
+				await axios.put(generateUrl(endpoint), payload);
 				this.renameSaving = false;
 				this.resetRenameModal();
 				await this.fetchData();
@@ -360,6 +451,9 @@ export default {
 			}
 		},
 		async deleteCategory(category) {
+			if (category.is_global) {
+				return;
+			}
 			const confirmed = await this.openConfirm({
 				title: this.$texts.projectScoped.deleteCategoryTitle(),
 				message: this.$texts.projectScoped.deleteCategoryMessage(),
@@ -377,6 +471,32 @@ export default {
 				showToast(this.$texts.projectScoped.categoryDeleted());
 			} catch (e) {
 				showRequestError(e, this.$texts.projectScoped.categoryDeleteError(), 'Failed to delete project category');
+			}
+		},
+		async hideCategory(category) {
+			if (!category.is_global || category.is_hidden) {
+				return;
+			}
+			try {
+				await axios.post(generateUrl(`/apps/cobudget/api/categories/${category.id}/hide`), this.requestParams());
+				await this.fetchData();
+				this.$emit('changed');
+				showToast(this.$texts.projectScoped.categoryHidden());
+			} catch (e) {
+				showRequestError(e, this.$texts.projectScoped.categoryHideError(), 'Failed to hide global category for project');
+			}
+		},
+		async unhideCategory(category) {
+			if (!category.is_global || !category.is_hidden) {
+				return;
+			}
+			try {
+				await axios.post(generateUrl(`/apps/cobudget/api/categories/${category.id}/unhide`), this.requestParams());
+				await this.fetchData();
+				this.$emit('changed');
+				showToast(this.$texts.projectScoped.categoryShown());
+			} catch (e) {
+				showRequestError(e, this.$texts.projectScoped.categoryShowError(), 'Failed to show global category for project');
 			}
 		},
 		async deletePaymentPartner(paymentPartner) {
@@ -438,6 +558,36 @@ export default {
 
 .settings-list-info {
 	color: var(--cobudget-text, var(--color-main-text, #222));
+}
+
+.category-list-label {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.25;
+}
+
+.category-list-label > span {
+	color: inherit;
+	overflow-wrap: anywhere;
+}
+
+.category-list-code {
+	color: var(--cobudget-text-muted, var(--color-text-light));
+	font-size: var(--cobudget-font-sm);
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+}
+
+.badge-global {
+	background-color: #e0f0ff;
+	border-radius: 10px;
+	color: #006aa6;
+	font-size: var(--cobudget-font-xxs);
+	font-weight: bold;
+	margin-left: 8px;
+	padding: 2px 6px;
+	text-transform: uppercase;
 }
 
 :deep(.settings-list-item.is-hidden) .settings-list-info {
@@ -589,6 +739,28 @@ export default {
 	margin: 8px 0 0;
 }
 
+.rename-fields {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.rename-fields.has-category-number {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.rename-fields .form-group {
+	min-width: 0;
+}
+
+.category-parent-hint {
+	color: var(--cobudget-text-muted, var(--color-text-light));
+	font-size: var(--cobudget-font-sm);
+	line-height: 1.4;
+	margin: 6px 0 0;
+}
+
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
@@ -600,6 +772,12 @@ export default {
 @media (max-width: 900px) {
 	.project-settings-grid {
 		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 768px) {
+	.rename-fields.has-category-number {
+		grid-template-columns: minmax(0, 1fr);
 	}
 }
 </style>

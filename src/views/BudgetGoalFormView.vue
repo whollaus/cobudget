@@ -80,6 +80,9 @@
 						<p>
 							{{ $texts.budgetGoals.criteriaHint() }}{{ $texts.budgetGoals.multipleRowsHint() }}
 						</p>
+						<p>
+							{{ $texts.budgetGoals.categoryHierarchyHint() }}
+						</p>
 					</div>
 				</div>
 
@@ -174,6 +177,7 @@ import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import { showRequestError, showToast } from '../services/notifications'
+import { categoryChoiceLabel, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 
 let nextRuleKey = 0
 
@@ -308,7 +312,7 @@ export default {
 		},
 		uniqueCategories(categories) {
 			const seen = new Set()
-			return categories
+			const unique = categories
 				.filter(category => category?.type === 'expense')
 				.filter(category => {
 					const id = Number(category.id)
@@ -318,7 +322,7 @@ export default {
 					seen.add(id)
 					return true
 				})
-				.sort((a, b) => a.name.localeCompare(b.name))
+			return sortCategoriesHierarchically(unique)
 		},
 		applyGoal(goal) {
 			this.savedGoalDetails = this.goalDetailsFromGoal(goal)
@@ -368,11 +372,9 @@ export default {
 		},
 		categoryOptionLabel(category) {
 			const projectId = category.project_id ? Number(category.project_id) : null
-			if (!projectId) {
-				return category.name
-			}
 			const project = this.projects.find(item => Number(item.id) === projectId)
-			return project ? `${category.name} (${project.name})` : category.name
+			const hierarchyLabel = categoryChoiceLabel(category)
+			return project ? `${hierarchyLabel} (${project.name})` : hierarchyLabel
 		},
 		projectLabelForRule(rule) {
 			if (!rule.projectId) {
