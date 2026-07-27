@@ -442,6 +442,7 @@ try {
 
 	$user = $read('lib/Controller/UserController.php');
 	$assertContains($user, "'enable_budget_goals'", 'User settings expose budget goal feature toggle');
+	$assertContains($user, "'enable_advanced_master_data'", 'User settings expose the advanced personal master-data toggle');
 	$assertContains($user, "'enable_receipts'", 'User settings expose receipt feature toggle');
 	$assertContains($user, 'validateReceiptStorageFolder', 'User settings validate receipt storage folders');
 	$assertContains($user, 'validateReceiptFolderGrouping', 'User settings validate receipt folder grouping');

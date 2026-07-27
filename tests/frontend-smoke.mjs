@@ -495,6 +495,11 @@ assertContains(addEntryModal, 'class="lookup-option-label"', 'AddEntryModal grou
 assertBefore(addEntryModal, '<span v-if="cat.code" class="lookup-option-code">{{ cat.code }}</span>', '<span class="lookup-option-name">{{ cat.name }}</span>', 'AddEntryModal shows category numbers above names')
 assertContains(addEntryModal, "'has-category-code': selectedCategoryCode", 'AddEntryModal marks selected categories that have a number')
 assertContains(addEntryModal, 'selectedCategoryCode()', 'AddEntryModal resolves the selected category number')
+assertContains(addEntryModal, "['number']", 'AddEntryModal searches payment partner numbers')
+assertContains(addEntryModal, "String(item.number ?? '').trim().toLowerCase() === normalizedValue", 'AddEntryModal accepts an exact payment partner number as a lookup match')
+assertContains(addEntryModal, "'has-payment-partner-number': selectedPaymentPartnerNumber", 'AddEntryModal marks selected payment partners that have a number')
+assertContains(addEntryModal, '<span v-if="selectedPaymentPartnerNumber" class="lookup-trigger-code">{{ selectedPaymentPartnerNumber }}</span>', 'AddEntryModal shows the selected payment partner number')
+assertContains(addEntryModal, '<span v-if="paymentPartner.number" class="lookup-option-code">{{ paymentPartner.number }}</span>', 'AddEntryModal shows payment partner numbers in matching options')
 assertBefore(addEntryModal, '<span v-if="selectedCategoryCode" class="lookup-trigger-code">{{ selectedCategoryCode }}</span>', '<span class="lookup-trigger-name">{{ selectedCategoryDisplayName }}</span>', 'AddEntryModal shows the selected category number above its hierarchy-aware name')
 assertContains(addEntryModal, "'is-subcategory': !!categoryParentId(cat)", 'AddEntryModal visually distinguishes subcategory options')
 assertNotContains(addEntryModal, '$texts.common.subcategoryOf', 'AddEntryModal relies on indentation instead of a redundant subcategory caption')
@@ -992,6 +997,7 @@ assertContains(tableTooltip, '.table-tooltip-line:first-child .table-tooltip-lab
 const settings = read('src/views/SettingsView.vue')
 const adminSettings = read('src/components/AdminSettings.vue')
 const projectScopedSettings = read('src/components/ProjectScopedSettings.vue')
+const paymentPartnerEditFields = read('src/components/PaymentPartnerEditFields.vue')
 assertContains(read('src/l10n/texts.js'), 'settings: () => tx(\'Settings\')', 'Settings navigation title has a registered text helper')
 assertContains(settings, '@keydown.esc.stop.prevent="closeRenameSettingsItemModal"', 'Settings rename modal closes with Escape')
 assertContains(settings, 'webpackChunkName: "cobudget-icon-picker"', 'Settings icon picker lazy chunk')
@@ -1037,6 +1043,11 @@ assertContains(settings, 'enable_templates: this.enableTemplates', 'Settings sav
 assertContains(settings, '$texts.settings.budgetGoals()', 'Settings budget goals toggle label')
 assertContains(settings, 'enableBudgetGoals: true', 'Settings defaults budget goals on')
 assertContains(settings, 'enable_budget_goals: this.enableBudgetGoals', 'Settings saves budget goals toggle')
+assertContains(settings, '$texts.settings.advancedCategoryPaymentPartnerSettings()', 'Settings labels the advanced personal master-data toggle')
+assertContains(settings, '$texts.settings.advancedCategoryPaymentPartnerSettingsDescription()', 'Settings explains the advanced personal master-data toggle')
+assertContains(settings, 'enableAdvancedMasterData: false', 'Settings defaults advanced personal master-data editing off')
+assertContains(settings, 'this.enableAdvancedMasterData = settingsRes.data.enable_advanced_master_data ?? false', 'Settings loads the advanced master-data toggle with an off fallback')
+assertContains(settings, 'enable_advanced_master_data: this.enableAdvancedMasterData', 'Settings saves the advanced master-data toggle')
 assertContains(settings, '{{ $texts.settings.receipts() }}', 'Settings has a dedicated receipt subsection')
 assertContains(settings, '{{ $texts.settings.enableReceipts() }}', 'Settings receipt feature toggle label')
 assertContains(settings, 'enableReceipts: true', 'Settings defaults receipts on')
@@ -1072,6 +1083,64 @@ assertContains(settings, 'this.$texts.settings.newPaymentPartnerExpense()', 'Set
 assertContains(settings, 'this.$texts.settings.newPaymentPartnerIncome()', 'Settings income paymentPartner placeholder')
 assertContains(settings, 'this.$texts.settings.noExpensePaymentPartners()', 'Settings expense paymentPartner empty text')
 assertContains(settings, 'this.$texts.settings.renamePaymentPartner()', 'Settings paymentPartner rename title')
+for (const source of [settings, adminSettings, projectScopedSettings]) {
+	assertContains(source, '<PaymentPartnerEditFields', 'Payment partner editing uses the shared master-data fields')
+	assertContains(source, 'paymentPartnerDetailsPayload(', 'Payment partner editing submits the master-data payload')
+	assertContains(source, 'createPaymentPartnerDetails(item)', 'Payment partner editing initializes saved master data')
+}
+assertContains(settings, 'v-else-if="enableAdvancedMasterData"', 'Personal payment-partner master-data fields depend on the personal feature toggle')
+assertContains(settings, "} else if (this.enableAdvancedMasterData) {", 'Personal payment-partner edits omit hidden master data from name-only updates')
+assertContains(settings, "type === 'category' && this.enableAdvancedMasterData", 'Personal category number focus depends on the personal feature toggle')
+assertContains(settings, 'v-if="enableAdvancedMasterData" class="form-group"', 'Personal category numbers depend on the personal feature toggle')
+assertContains(settings, 'if (this.enableAdvancedMasterData) {', 'Personal category updates only submit a number while advanced editing is enabled')
+assertNotContains(adminSettings, 'enableAdvancedMasterData', 'Admin master-data editing remains independent of the personal feature toggle')
+assertNotContains(projectScopedSettings, 'enableAdvancedMasterData', 'Area master-data editing remains independent of the personal feature toggle')
+assertBefore(paymentPartnerEditFields, "$texts.common.number()", "$texts.paymentPartnerDetails.displayName()", 'Payment partner edit shows number before display name')
+for (const group of ['personAndCompany', 'address', 'contact', 'account', 'note']) {
+	assertContains(paymentPartnerEditFields, `key: '${group}'`, `Payment partner edit includes the ${group} group`)
+}
+for (const field of [
+	'salutation',
+	'title',
+	'companyName',
+	'additional',
+	'vatId',
+	'firstName',
+	'lastName',
+	'street',
+	'postalCode',
+	'city',
+	'country',
+	'addressNote',
+	'email',
+	'phone',
+	'mobile',
+	'fax',
+	'web',
+	'accountHolder',
+	'iban',
+	'bic',
+	'bank',
+	'bankCode',
+	'accountNumber',
+	'note',
+]) {
+	assertContains(paymentPartnerEditFields, `key: '${field}'`, `Payment partner edit includes ${field}`)
+}
+assertContains(paymentPartnerEditFields, "detailValue('number')", 'Payment partner edit includes the primary number field')
+assertContains(paymentPartnerEditFields, 'class="form-control"', 'Payment partner editing uses the established CoBudget form control style')
+assertNotContains(paymentPartnerEditFields, "from '@nextcloud/vue/components/NcTextField'", 'Payment partner editing no longer mixes floating-label Nextcloud text fields into CoBudget forms')
+assertNotContains(paymentPartnerEditFields, "from '@nextcloud/vue/components/NcTextArea'", 'Payment partner editing no longer mixes Nextcloud text areas into CoBudget forms')
+assertContains(paymentPartnerEditFields, ':open="initialOpenGroups[group.key]"', 'Payment partner groups with saved content open initially')
+assertNotContains(paymentPartnerEditFields, 'payment-partner-filled-badge', 'Payment partner groups do not show a redundant filled marker')
+assertContains(paymentPartnerEditFields, '.payment-partner-group summary::-webkit-details-marker', 'Payment partner groups hide the misaligned native WebKit marker')
+assertContains(paymentPartnerEditFields, ".payment-partner-group summary::before", 'Payment partner groups render an aligned custom disclosure arrow')
+assertContains(paymentPartnerEditFields, '.payment-partner-group[open] summary::before', 'Payment partner disclosure arrow reflects the open state')
+assertContains(paymentPartnerEditFields, "type: 'email'", 'Payment partner email uses an email input')
+assertContains(paymentPartnerEditFields, 'emailInvalid()', 'Payment partner editing evaluates email validity')
+assertContains(paymentPartnerEditFields, '$texts.paymentPartnerDetails.invalidEmail()', 'Payment partner editing explains invalid email addresses')
+assertContains(paymentPartnerEditFields, 'isValidPaymentPartnerEmail', 'Payment partner editing shares email validation with its save controls')
+assertContains(paymentPartnerEditFields, '@media (max-width: 768px)', 'Payment partner detail fields adapt to mobile')
 assertContains(adminSettings, '<SettingsList', 'Admin settings shared list component')
 assertContains(adminSettings, '<SettingsItemActions', 'Admin settings shared action component')
 assertContains(adminSettings, 'ModalActions', 'Admin settings shared modal action component')
@@ -1101,6 +1170,8 @@ assertContains(adminSettings, 'grid-template-columns: minmax(0, 1fr) minmax(0, 2
 assertBefore(adminSettings, 'id="admin-category-code"', 'id="admin-rename-name"', 'Admin category edit shows the number before the name')
 assertContains(adminSettings, '<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>', 'Admin settings show the category number without a prefix')
 assertBefore(adminSettings, '<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>', '<span>{{ cat.name }}</span>', 'Admin settings show category numbers above names')
+assertContains(adminSettings, '<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>', 'Admin settings show payment partner numbers above names')
+assertContains(adminSettings, '!isValidPaymentPartnerEmail(this.renamePaymentPartnerDetails.email)', 'Admin settings prevent saving invalid payment partner emails')
 assertNotContains(adminSettings, 'btn-delete', 'Admin settings old delete button')
 assertNotContains(adminSettings, 'item-list', 'Admin settings old custom list')
 assertContains(projectScopedSettings, 'resetRenameModal()', 'Project scoped settings has a reset-only close path')
@@ -1117,6 +1188,8 @@ assertContains(projectScopedSettings, 'grid-template-columns: minmax(0, 1fr) min
 assertBefore(projectScopedSettings, 'id="project-scoped-category-code"', 'id="project-scoped-name"', 'Area category edit shows the number before the name')
 assertContains(projectScopedSettings, '<small v-if="category.code" class="category-list-code">{{ category.code }}</small>', 'Area settings show the category number without a prefix')
 assertBefore(projectScopedSettings, '<small v-if="category.code" class="category-list-code">{{ category.code }}</small>', '<span>{{ category.name }}</span>', 'Area settings show category numbers above names')
+assertContains(projectScopedSettings, '<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>', 'Area settings show payment partner numbers above names')
+assertContains(projectScopedSettings, '!isValidPaymentPartnerEmail(this.renamePaymentPartnerDetails.email)', 'Area settings prevent saving invalid payment partner emails')
 assertContains(projectScopedSettings, ':disabled="category.is_global"', 'Area settings keep global category icons read-only')
 assertContains(projectScopedSettings, ':can-hide="category.is_global && !category.is_hidden"', 'Area settings can hide visible global categories')
 assertContains(projectScopedSettings, ':can-unhide="category.is_global && category.is_hidden"', 'Area settings can restore hidden global categories')
@@ -1194,6 +1267,8 @@ assertContains(settingsView, 'grid-template-columns: minmax(0, 1fr) minmax(0, 2f
 assertBefore(settingsView, 'id="settings-category-code"', 'id="settings-rename-name"', 'Personal category edit shows the number before the name')
 assertContains(settingsView, '<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>', 'Personal settings show the category number without a prefix')
 assertBefore(settingsView, '<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>', '<span>{{ cat.name }}</span>', 'Personal settings show category numbers above names')
+assertContains(settingsView, '<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>', 'Personal settings show payment partner numbers above names')
+assertContains(settingsView, '!isValidPaymentPartnerEmail(this.renamePaymentPartnerDetails.email)', 'Personal settings prevent saving invalid payment partner emails when advanced editing is active')
 assertContains(settingsView, "kind: 'restoreBackup'", 'Personal export settings expose guarded restore actions')
 assertContains(settingsView, "requiredText: 'RESTORE'", 'Personal export restore requires exact RESTORE confirmation')
 assertContains(settingsView, 'restoreBackupSharedDataImportMode()', 'Personal export restore explains shared data personal-share import mode')

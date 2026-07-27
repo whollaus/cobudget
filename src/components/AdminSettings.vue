@@ -61,7 +61,10 @@
 				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
 					<template #item="{ item: paymentPartner }">
 						<div class="settings-list-info">
-							<span>{{ paymentPartner.name }}</span>
+							<div class="category-list-label">
+								<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>
+								<span>{{ paymentPartner.name }}</span>
+							</div>
 							<span class="badge-global">{{ $texts.common.global() }}</span>
 							<span v-if="paymentPartner.is_hidden" class="badge-hidden">{{ $texts.admin.hidden() }}</span>
 						</div>
@@ -296,7 +299,12 @@
 				tabindex="-1"
 				@click.self="closeRenameAdminItemModal"
 				@keydown.esc.stop.prevent="closeRenameAdminItemModal">
-				<div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="admin-rename-title">
+				<div
+					class="settings-modal"
+					:class="{ 'settings-modal--payment-partner': renameAdminItemType === 'paymentPartner' }"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="admin-rename-title">
 					<div class="modal-header">
 						<h2 id="admin-rename-title">{{ renameAdminItemTitle }}</h2>
 						<button
@@ -309,54 +317,66 @@
 						</button>
 					</div>
 					<p class="modal-note">
-						{{ $texts.admin.renameNote() }}
+						{{ renameAdminItemType === 'paymentPartner'
+							? $texts.paymentPartnerDetails.internalNote()
+							: $texts.admin.renameNote() }}
 					</p>
 
 					<form @submit.prevent="saveRenameAdminItem">
-						<div class="rename-fields" :class="{ 'has-category-number': renameAdminItemType === 'category' }">
-							<div v-if="renameAdminItemType === 'category'" class="form-group">
-								<label for="admin-category-code">{{ $texts.common.number() }}</label>
-								<input
-									id="admin-category-code"
-									ref="renameAdminItemCodeInput"
-									v-model="renameAdminItemCode"
-									class="form-control"
-									type="text"
-									maxlength="128"
-									autocomplete="off"
-									spellcheck="false">
+						<template v-if="renameAdminItemType === 'category'">
+							<div class="rename-fields has-category-number">
+								<div class="form-group">
+									<label for="admin-category-code">{{ $texts.common.number() }}</label>
+									<input
+										id="admin-category-code"
+										ref="renameAdminItemCodeInput"
+										v-model="renameAdminItemCode"
+										class="form-control"
+										type="text"
+										maxlength="128"
+										autocomplete="off"
+										spellcheck="false">
+								</div>
+								<div class="form-group">
+									<label for="admin-rename-name">{{ $texts.common.name() }}</label>
+									<input
+										id="admin-rename-name"
+										ref="renameAdminItemInput"
+										v-model="renameAdminItemName"
+										class="form-control"
+										type="text"
+										maxlength="128"
+										required>
+								</div>
 							</div>
-							<div class="form-group">
-								<label for="admin-rename-name">{{ $texts.common.name() }}</label>
-								<input
-									id="admin-rename-name"
-									ref="renameAdminItemInput"
-									v-model="renameAdminItemName"
+							<div class="form-group category-parent-field">
+								<label for="admin-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
+								<select
+									id="admin-category-parent"
+									v-model="renameAdminItemParentId"
 									class="form-control"
-									type="text"
-									maxlength="128"
-									required>
+									:disabled="!!renameAdminItem.has_children">
+									<option value="">{{ $texts.common.noParentMainCategory() }}</option>
+									<option
+										v-for="category in renameAdminItemParentOptions"
+										:key="category.id"
+										:value="String(category.id)">
+										{{ category.name }}
+									</option>
+								</select>
+								<p v-if="renameAdminItem.has_children" class="category-parent-hint">
+									{{ $texts.common.mainCategoryHasChildrenHint() }}
+								</p>
 							</div>
-						</div>
-						<div v-if="renameAdminItemType === 'category'" class="form-group category-parent-field">
-							<label for="admin-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
-							<select
-								id="admin-category-parent"
-								v-model="renameAdminItemParentId"
-								class="form-control"
-								:disabled="!!renameAdminItem.has_children">
-								<option value="">{{ $texts.common.noParentMainCategory() }}</option>
-								<option
-									v-for="category in renameAdminItemParentOptions"
-									:key="category.id"
-									:value="String(category.id)">
-									{{ category.name }}
-								</option>
-							</select>
-							<p v-if="renameAdminItem.has_children" class="category-parent-hint">
-								{{ $texts.common.mainCategoryHasChildrenHint() }}
-							</p>
-						</div>
+						</template>
+						<PaymentPartnerEditFields
+							v-else
+							ref="renamePaymentPartnerFields"
+							id-prefix="admin-payment-partner"
+							:name="renameAdminItemName"
+							:details="renamePaymentPartnerDetails"
+							@update:name="renameAdminItemName = $event"
+							@update:details="renamePaymentPartnerDetails = $event" />
 						<p v-if="renameAdminItemError" class="modal-error">{{ renameAdminItemError }}</p>
 						<ModalActions
 							:cancel-disabled="renameAdminItemSaving"
@@ -433,6 +453,7 @@ import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import ConfirmModal from './ConfirmModal.vue'
 import ModalActions from './ModalActions.vue'
+import PaymentPartnerEditFields from './PaymentPartnerEditFields.vue'
 import SettingsItemActions from './SettingsItemActions.vue'
 import SettingsList from './SettingsList.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
@@ -440,6 +461,12 @@ import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import { extractError, showRequestError, showToast } from '../services/notifications'
 import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
+import {
+	createPaymentPartnerDetails,
+	isValidPaymentPartnerEmail,
+	paymentPartnerDetailsChanged,
+	paymentPartnerDetailsPayload
+} from '../utils/paymentPartnerDetails'
 
 const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-icon-picker" */ './IconPicker.vue'))
 
@@ -450,6 +477,7 @@ export default {
 		IconPicker,
 		ConfirmModal,
 		ModalActions,
+		PaymentPartnerEditFields,
 		SettingsItemActions,
 		SettingsList,
 		CloseIcon,
@@ -473,6 +501,7 @@ export default {
 			renameAdminItemName: '',
 			renameAdminItemCode: '',
 			renameAdminItemParentId: '',
+			renamePaymentPartnerDetails: createPaymentPartnerDetails(),
 			renameAdminItemError: '',
 			renameAdminItemSaving: false,
 			integrityReport: null,
@@ -529,13 +558,19 @@ export default {
 			if (!this.renameAdminItem || !this.renameAdminItemName.trim() || this.renameAdminItemSaving) {
 				return false;
 			}
+			if (this.renameAdminItemType === 'paymentPartner'
+				&& !isValidPaymentPartnerEmail(this.renamePaymentPartnerDetails.email)) {
+				return false;
+			}
 
 			const nameChanged = this.renameAdminItemName.trim() !== this.renameAdminItem.name;
 			const codeChanged = this.renameAdminItemType === 'category'
 				&& this.renameAdminItemCode.trim() !== String(this.renameAdminItem.code || '').trim();
 			const parentChanged = this.renameAdminItemType === 'category'
 				&& this.renameAdminItemParentId !== String(this.renameAdminItem.parent_category_id || '');
-			return nameChanged || codeChanged || parentChanged;
+			const detailsChanged = this.renameAdminItemType === 'paymentPartner'
+				&& paymentPartnerDetailsChanged(this.renameAdminItem, this.renamePaymentPartnerDetails);
+			return nameChanged || codeChanged || parentChanged || detailsChanged;
 		},
 		integrityOrphanReferences() {
 			return this.integrityReport?.orphanReferences || [];
@@ -882,12 +917,18 @@ export default {
 			this.renameAdminItemName = item.name;
 			this.renameAdminItemCode = type === 'category' ? String(item.code || '') : '';
 			this.renameAdminItemParentId = type === 'category' ? String(item.parent_category_id || '') : '';
+			this.renamePaymentPartnerDetails = type === 'paymentPartner'
+				? createPaymentPartnerDetails(item)
+				: createPaymentPartnerDetails();
 			this.renameAdminItemError = '';
 			this.renameAdminItemSaving = false;
 			this.$nextTick(() => {
-				const input = type === 'category' ? this.$refs.renameAdminItemCodeInput : this.$refs.renameAdminItemInput;
-				input?.focus();
-				input?.select();
+				if (type === 'paymentPartner') {
+					this.$refs.renamePaymentPartnerFields?.focusName();
+					return;
+				}
+				this.$refs.renameAdminItemCodeInput?.focus();
+				this.$refs.renameAdminItemCodeInput?.select();
 			});
 		},
 		closeRenameAdminItemModal() {
@@ -902,6 +943,7 @@ export default {
 			this.renameAdminItemName = '';
 			this.renameAdminItemCode = '';
 			this.renameAdminItemParentId = '';
+			this.renamePaymentPartnerDetails = createPaymentPartnerDetails();
 			this.renameAdminItemError = '';
 			this.renameAdminItemSaving = false;
 		},
@@ -924,6 +966,8 @@ export default {
 				payload.parentCategoryId = this.renameAdminItemParentId
 					? Number(this.renameAdminItemParentId)
 					: 0;
+			} else {
+				Object.assign(payload, paymentPartnerDetailsPayload(this.renamePaymentPartnerDetails));
 			}
 
 			this.renameAdminItemSaving = true;
@@ -1463,6 +1507,13 @@ export default {
 	max-width: 520px;
 	padding: 24px;
 	width: 90%;
+}
+
+.settings-modal.settings-modal--payment-partner {
+	box-sizing: border-box;
+	max-height: calc(100vh - 32px);
+	max-width: 760px;
+	overflow-y: auto;
 }
 
 .modal-header {

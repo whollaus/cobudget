@@ -5,6 +5,7 @@ use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
 use OCP\IDBConnection;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IUserSession;
 use OCP\IConfig;
 use OCP\IL10N;
@@ -23,6 +24,33 @@ class PaymentPartnerController extends Controller {
 		['type' => 'expense', 'name' => 'Online shops'],
 		['type' => 'expense', 'name' => 'Pharmacy and doctor'],
 	];
+	private const PAYMENT_PARTNER_DETAIL_FIELDS = [
+		'number' => ['column' => 'number', 'maxLength' => 128],
+		'salutation' => ['column' => 'salutation', 'maxLength' => 64],
+		'title' => ['column' => 'title', 'maxLength' => 128],
+		'companyName' => ['column' => 'company_name', 'maxLength' => 255],
+		'additional' => ['column' => 'additional', 'maxLength' => 255],
+		'vatId' => ['column' => 'vat_id', 'maxLength' => 64],
+		'firstName' => ['column' => 'first_name', 'maxLength' => 128],
+		'lastName' => ['column' => 'last_name', 'maxLength' => 128],
+		'street' => ['column' => 'street', 'maxLength' => 255],
+		'postalCode' => ['column' => 'postal_code', 'maxLength' => 32],
+		'city' => ['column' => 'city', 'maxLength' => 128],
+		'country' => ['column' => 'country', 'maxLength' => 128],
+		'addressNote' => ['column' => 'address_note', 'maxLength' => 10000],
+		'email' => ['column' => 'email', 'maxLength' => 254],
+		'phone' => ['column' => 'phone', 'maxLength' => 64],
+		'mobile' => ['column' => 'mobile', 'maxLength' => 64],
+		'fax' => ['column' => 'fax', 'maxLength' => 64],
+		'web' => ['column' => 'web', 'maxLength' => 512],
+		'accountHolder' => ['column' => 'account_holder', 'maxLength' => 255],
+		'iban' => ['column' => 'iban', 'maxLength' => 64],
+		'bic' => ['column' => 'bic', 'maxLength' => 32],
+		'bank' => ['column' => 'bank', 'maxLength' => 255],
+		'bankCode' => ['column' => 'bank_code', 'maxLength' => 64],
+		'accountNumber' => ['column' => 'account_number', 'maxLength' => 64],
+		'note' => ['column' => 'note', 'maxLength' => 10000],
+	];
 
 	private IDBConnection $db;
 	private ?string $userId;
@@ -39,6 +67,66 @@ class PaymentPartnerController extends Controller {
 		$this->l10n = $l10n;
 		$this->groupManager = $groupManager;
 		$this->initWorkspace();
+	}
+
+	private function paymentPartnerDetailsFromRequest(array $paymentPartner): array {
+		$params = $this->request->getParams();
+		$details = [];
+		foreach (self::PAYMENT_PARTNER_DETAIL_FIELDS as $requestField => $definition) {
+			$column = $definition['column'];
+			if (!array_key_exists($requestField, $params)) {
+				$currentValue = $paymentPartner[$column] ?? null;
+				$details[$column] = $currentValue === null || $currentValue === ''
+					? null
+					: (string)$currentValue;
+				continue;
+			}
+
+			$rawValue = $params[$requestField];
+			$value = $this->normalizeOptionalString(
+				is_scalar($rawValue) ? (string)$rawValue : '',
+				$definition['maxLength']
+			);
+			$details[$column] = $value === '' ? null : $value;
+		}
+
+		return $details;
+	}
+
+	private function applyPaymentPartnerDetails(IQueryBuilder $qb, array $details): void {
+		foreach ($details as $column => $value) {
+			$qb->set(
+				$column,
+				$qb->createNamedParameter(
+					$value,
+					$value === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR
+				)
+			);
+		}
+	}
+
+	private function validatePaymentPartnerEmail(array $details): ?DataResponse {
+		if (!array_key_exists('email', $this->request->getParams())) {
+			return null;
+		}
+
+		$email = $details['email'] ?? null;
+		if ($email !== null && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+			return $this->errorResponse(
+				$this->l10n->t('Please enter a valid email address.'),
+				Http::STATUS_BAD_REQUEST
+			);
+		}
+
+		return null;
+	}
+
+	private function paymentPartnerResponse(array $paymentPartner, array $details): array {
+		foreach ($details as $column => $value) {
+			$paymentPartner[$column] = $value;
+		}
+
+		return $paymentPartner;
 	}
 
 	private function requireProjectOwnerForScopedMutation(?int $projectId): ?DataResponse {
@@ -317,6 +405,10 @@ class PaymentPartnerController extends Controller {
 				return $this->errorResponse('Payment partner not found or not editable', Http::STATUS_NOT_FOUND);
 			}
 			$workspaceId = (int)$paymentPartner['workspace_id'];
+			$details = $this->paymentPartnerDetailsFromRequest($paymentPartner);
+			if ($emailError = $this->validatePaymentPartnerEmail($details)) {
+				return $emailError;
+			}
 
 				$projectId = $paymentPartner['project_id'] === null || $paymentPartner['project_id'] === '' ? null : (int)$paymentPartner['project_id'];
 				if ($ownerError = $this->requireProjectOwnerForScopedMutation($projectId)) {
@@ -333,6 +425,7 @@ class PaymentPartnerController extends Controller {
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
+			$this->applyPaymentPartnerDetails($qb, $details);
 			if ($projectId === null) {
 				$qb->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
 					->andWhere($qb->expr()->isNull('project_id'));
@@ -341,13 +434,13 @@ class PaymentPartnerController extends Controller {
 			}
 			$qb->executeStatement();
 
-			return new DataResponse([
+			return new DataResponse($this->paymentPartnerResponse([
 				'id' => $id,
 				'name' => $name,
 				'type' => $paymentPartner['type'] ?? 'expense',
 				'is_global' => false,
 				'project_id' => $projectId
-			]);
+			], $details));
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
 		}
@@ -570,6 +663,10 @@ class PaymentPartnerController extends Controller {
 			if (!$paymentPartner) {
 				return $this->errorResponse('Payment partner not found', Http::STATUS_NOT_FOUND);
 			}
+			$details = $this->paymentPartnerDetailsFromRequest($paymentPartner);
+			if ($emailError = $this->validatePaymentPartnerEmail($details)) {
+				return $emailError;
+			}
 
 			$matches = $this->findGlobalNameMatches('cobudget_payment_partners', $name, $paymentPartner['type'] ?? 'expense', $id);
 			if ($matches !== []) {
@@ -581,15 +678,16 @@ class PaymentPartnerController extends Controller {
 				->set('name', $qb->createNamedParameter($name))
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)));
+			$this->applyPaymentPartnerDetails($qb, $details);
 			$qb->executeStatement();
 
-			return new DataResponse([
+			return new DataResponse($this->paymentPartnerResponse([
 				'id' => $id,
 				'name' => $name,
 				'type' => $paymentPartner['type'] ?? 'expense',
 				'is_global' => true,
 				'is_hidden' => (bool)($paymentPartner['is_hidden'] ?? false),
-			]);
+			], $details));
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
 		}

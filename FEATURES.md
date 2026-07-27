@@ -30,6 +30,10 @@ CoBudget is a Nextcloud app for personal and shared household budgeting.
 - Assign an optional free-text number or code to a category and find it by that value when entering or searching payments.
 - Organize categories into one optional level of main categories and subcategories.
 - See the category hierarchy in personal, area and administrator settings as well as while choosing a category for a payment.
+- Store optional internal person, company, address, contact, bank and note details for personal, area-specific and global payment partners.
+- Keep payment-partner creation name-only and maintain the additional master data in grouped, collapsible edit sections without exposing the remaining internal master data in payment search or payment lists.
+- Enable advanced personal category and payment-partner editing when needed; the personal feature is disabled by default, while area and administrator master-data editing remains available.
+- Show payment-partner numbers in settings and payment selectors, support selecting by number, open filled master-data groups initially and validate email-address formats before saving.
 
 ## Shared Areas
 

@@ -2,6 +2,26 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.2.16] - 2026-07-27
+
+### Added
+
+- Added optional internal master data for personal, area-specific and global payment partners: free-text numbers, person and company data, addresses, contact details, bank details and notes.
+- Added a disabled-by-default personal setting for advanced category and payment-partner master-data editing.
+- Personal exports, full backups, account transfers and area-to-personal conversion workflows now preserve the additional payment-partner master data.
+
+### Changed
+
+- Creating a payment partner remains a lightweight name-only action; the optional master data appears only while editing an existing partner.
+- Payment-partner edit dialogs now use the established CoBudget form styling, place number and display name in the first row and group the remaining fields into collapsible sections.
+- In personal settings, the new feature switch controls advanced category-number and payment-partner-detail editing; area and administrator editing remains available independently of that personal preference.
+- Saved payment-partner numbers now appear above the display name in personal, area and administrator settings as well as in payment selectors, where they can also be searched directly.
+- Collapsible payment-partner sections containing saved data now open initially, while their disclosure arrows remain aligned with the section titles.
+
+### Fixed
+
+- Payment-partner email addresses are now checked for a valid format in both the edit form and the backend before they are saved.
+
 ## [0.2.15] - 2026-07-26
 
 ### Changed

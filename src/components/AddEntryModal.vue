@@ -167,7 +167,13 @@
 					<div class="entry-details-grid">
 						<div class="form-group detail-paymentPartner">
 							<label>{{ paymentPartnerLabel }}</label>
-							<div ref="paymentPartnerLookupField" class="lookup-field" :class="{ 'has-clear-button': entry.paymentPartnerName }">
+							<div
+								ref="paymentPartnerLookupField"
+								class="lookup-field"
+								:class="{
+									'has-clear-button': entry.paymentPartnerName,
+									'has-payment-partner-number': selectedPaymentPartnerNumber,
+								}">
 								<button
 									ref="paymentPartnerLookupTrigger"
 									type="button"
@@ -181,8 +187,12 @@
 									@keydown.up.prevent="openLookupAndMove('paymentPartner', -1)"
 									@keydown.enter.prevent="handleLookupTriggerEnter('paymentPartner')"
 									@keydown.esc.stop.prevent="closeLookup">
-									<span class="lookup-trigger-value" :class="{ 'is-placeholder': !entry.paymentPartnerName }">
-										{{ entry.paymentPartnerName || $texts.entry.selectPlaceholder() }}
+									<span v-if="entry.paymentPartnerName" class="lookup-trigger-value payment-partner-lookup-trigger-value">
+										<span v-if="selectedPaymentPartnerNumber" class="lookup-trigger-code">{{ selectedPaymentPartnerNumber }}</span>
+										<span class="lookup-trigger-name">{{ entry.paymentPartnerName }}</span>
+									</span>
+									<span v-else class="lookup-trigger-value is-placeholder">
+										{{ $texts.entry.selectPlaceholder() }}
 									</span>
 									<ChevronDownIcon :size="18" class="lookup-chevron" aria-hidden="true" />
 								</button>
@@ -209,7 +219,10 @@
 												role="option"
 												:aria-selected="highlightedPaymentPartnerIndex === lookupIndex('paymentPartner', paymentPartner) ? 'true' : 'false'"
 												@click="selectPaymentPartnerSuggestion(paymentPartner)">
-												<span>{{ paymentPartner.name }}</span>
+												<span class="lookup-option-label">
+													<span v-if="paymentPartner.number" class="lookup-option-code">{{ paymentPartner.number }}</span>
+													<span class="lookup-option-name">{{ paymentPartner.name }}</span>
+												</span>
 											</button>
 										</template>
 										<div v-if="paymentPartnerSuggestions.length === 0" class="lookup-empty">{{ $texts.entry.noMatchingEntries() }}</div>
@@ -764,6 +777,9 @@ export default {
 				? String(this.selectedCategory.name || '').trim()
 				: this.entry.categoryName;
 		},
+		selectedPaymentPartnerNumber() {
+			return String(this.selectedPaymentPartner()?.number ?? '').trim();
+		},
 		isValid() {
 			if (this.isTemplateMode) {
 				return this.templateName.trim() !== '';
@@ -796,7 +812,12 @@ export default {
 			return this.categorySuggestionSections.flatMap(section => section.items);
 		},
 		paymentPartnerSuggestionSections() {
-			return this.buildSuggestionSections(this.filteredPaymentPartners, this.paymentPartnerLookupQuery, this.$texts.entry.allPaymentPartners());
+			return this.buildSuggestionSections(
+				this.filteredPaymentPartners,
+				this.paymentPartnerLookupQuery,
+				this.$texts.entry.allPaymentPartners(),
+				['number']
+			);
 		},
 		paymentPartnerSuggestions() {
 			return this.paymentPartnerSuggestionSections.flatMap(section => section.items);
@@ -1601,9 +1622,10 @@ export default {
 
 			return this.lookupItems(field).find(item => {
 				const nameMatches = String(item.name || '').trim().toLowerCase() === normalizedValue;
-				const codeMatches = field === 'category'
-					&& String(item.code ?? '').trim().toLowerCase() === normalizedValue;
-				return nameMatches || codeMatches;
+				const numberMatches = field === 'category'
+					? String(item.code ?? '').trim().toLowerCase() === normalizedValue
+					: String(item.number ?? '').trim().toLowerCase() === normalizedValue;
+				return nameMatches || numberMatches;
 			}) || null;
 		},
 		lookupQueryForField(field) {
@@ -3150,7 +3172,8 @@ button.lookup-trigger:focus-visible {
 	font-weight: 400;
 }
 
-.category-lookup-trigger-value {
+.category-lookup-trigger-value,
+.payment-partner-lookup-trigger-value {
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
@@ -3176,7 +3199,8 @@ button.lookup-trigger:focus-visible {
 	line-height: 1.2;
 }
 
-.category-input-wrap.has-category-code > .lookup-trigger {
+.category-input-wrap.has-category-code > .lookup-trigger,
+.lookup-field.has-payment-partner-number > .lookup-trigger {
 	padding-block: var(--default-grid-baseline, 4px);
 }
 

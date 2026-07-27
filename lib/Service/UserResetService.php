@@ -18,6 +18,33 @@ class UserResetService {
 	private const SAFETY_BACKUP_RETENTION = 8;
 	private const RESET_LOCK_KEY = 'reset_running_since';
 	private const RESET_LOCK_TTL_SECONDS = 6 * 60 * 60;
+	private const PAYMENT_PARTNER_DETAIL_COLUMNS = [
+		'number',
+		'salutation',
+		'title',
+		'company_name',
+		'additional',
+		'vat_id',
+		'first_name',
+		'last_name',
+		'street',
+		'postal_code',
+		'city',
+		'country',
+		'address_note',
+		'email',
+		'phone',
+		'mobile',
+		'fax',
+		'web',
+		'account_holder',
+		'iban',
+		'bic',
+		'bank',
+		'bank_code',
+		'account_number',
+		'note',
+	];
 	private array $recipientUserExists = [];
 
 	private const SETTINGS_KEYS = [
@@ -31,6 +58,7 @@ class UserResetService {
 		'enable_future_payments',
 		'enable_templates',
 		'enable_budget_goals',
+		'enable_advanced_master_data',
 		'enable_incomes',
 		'enable_projects',
 		'enable_shared_projects',
@@ -608,6 +636,14 @@ class UserResetService {
 				$parentCategoryId,
 				$parentCategoryId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT
 			);
+		} else {
+			foreach (self::PAYMENT_PARTNER_DETAIL_COLUMNS as $column) {
+				$value = $source[$column] ?? null;
+				$values[$column] = $insert->createNamedParameter(
+					$value === null || $value === '' ? null : (string)$value,
+					$value === null || $value === '' ? \PDO::PARAM_NULL : \PDO::PARAM_STR
+				);
+			}
 		}
 		$insert->insert($table)->values($values);
 		$insert->executeStatement();

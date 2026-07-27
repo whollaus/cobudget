@@ -36,7 +36,7 @@ The screenshots below show the current alpha UI and may change during the test p
 
 - Track income and expenses
 - Review payment change history with changed fields, previous values and new values
-- Organize payments by categories and payment partners, with optional searchable category numbers or codes and one level of main categories and subcategories
+- Organize payments by categories and payment partners, with searchable category and payment-partner numbers, one level of main categories and subcategories, and opt-in advanced personal address, validated contact and bank master-data editing for payment partners
 - Combine area-specific categories with global categories that area owners can hide or show for the entire area
 - Add labels such as important, review, fixed costs, subscriptions, children and tax relevant
 - Add free-form `#tags` directly in the payment note

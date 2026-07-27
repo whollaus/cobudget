@@ -77,6 +77,69 @@ return [
 		$t->assertContains("\$values['code'] = \$insert->createNamedParameter(", $t->read('lib/Service/UserResetService.php'), 'Category transfers should preserve category numbers');
 	},
 
+	'Payment partners preserve optional internal master data without changing payment search' => function(TestRunner $t): void {
+		$migration = $t->read('lib/Migration/Version000005Date20260727000000.php');
+		$t->assertContains("hasTable('cobudget_payment_partners')", $migration, 'Payment partner details migration should guard the payment partner table');
+		$t->assertContains("'number' => 128", $migration, 'Payment partner numbers should use bounded free text');
+		$t->assertContains("'company_name' => 255", $migration, 'Payment partner company names should be optional text');
+		$t->assertContains("foreach (['address_note', 'note'] as \$column)", $migration, 'Long payment partner notes should use optional text columns');
+		$t->assertContains("if (!\$table->hasColumn(\$column))", $migration, 'Payment partner detail columns should be added idempotently');
+
+		$controller = $t->read('lib/Controller/PaymentPartnerController.php');
+		foreach ([
+			"'number' => ['column' => 'number'",
+			"'companyName' => ['column' => 'company_name'",
+			"'addressNote' => ['column' => 'address_note'",
+			"'accountNumber' => ['column' => 'account_number'",
+			"'note' => ['column' => 'note'",
+		] as $fieldMapping) {
+			$t->assertContains($fieldMapping, $controller, 'Payment partner API should map detail field ' . $fieldMapping);
+		}
+		foreach (['update', 'adminUpdate'] as $method) {
+			$body = $t->methodBody('lib/Controller/PaymentPartnerController.php', $method);
+			$t->assertContains('paymentPartnerDetailsFromRequest($paymentPartner)', $body, $method . ' should normalize optional payment partner details');
+			$t->assertContains('validatePaymentPartnerEmail($details)', $body, $method . ' should reject an explicitly submitted invalid email address');
+			$t->assertContains('applyPaymentPartnerDetails($qb, $details)', $body, $method . ' should persist optional payment partner details');
+			$t->assertContains('paymentPartnerResponse([', $body, $method . ' should return the saved detail values');
+		}
+		$emailValidation = $t->methodBody('lib/Controller/PaymentPartnerController.php', 'validatePaymentPartnerEmail');
+		$t->assertContains("array_key_exists('email', \$this->request->getParams())", $emailValidation, 'Email validation should leave omitted legacy values untouched');
+		$t->assertContains('filter_var($email, FILTER_VALIDATE_EMAIL)', $emailValidation, 'Payment partner emails should use PHP email-format validation');
+		$t->assertContains('Http::STATUS_BAD_REQUEST', $emailValidation, 'Invalid payment partner emails should return a client error');
+		$t->assertNotContains('paymentPartnerDetailsFromRequest', $t->methodBody('lib/Controller/PaymentPartnerController.php', 'create'), 'Payment partner creation should remain name-only');
+		$t->assertNotContains('paymentPartnerDetailsFromRequest', $t->methodBody('lib/Controller/PaymentPartnerController.php', 'adminCreate'), 'Global payment partner creation should remain name-only');
+
+		$backup = $t->read('lib/Service/BackupService.php');
+		foreach (['number', 'company_name', 'address_note', 'email', 'iban', 'account_number', 'note'] as $column) {
+			$t->assertContains("'" . $column . "',", $backup, 'Backups should preserve payment partner column ' . $column);
+		}
+		$projection = $t->read('lib/Service/EntryProjectionService.php');
+		$t->assertContains('PAYMENT_PARTNER_DETAIL_COLUMNS', $projection, 'Area payment partner conversion should define all copied master-data columns');
+		$t->assertContains('$values[$column] = $insert->createNamedParameter(', $projection, 'Area payment partner conversion should copy optional master data');
+		$reset = $t->read('lib/Service/UserResetService.php');
+		$t->assertContains('PAYMENT_PARTNER_DETAIL_COLUMNS', $reset, 'User reset transfers should define all copied payment partner master-data columns');
+		$t->assertContains('$value = $source[$column] ?? null;', $reset, 'User reset transfers should copy optional payment partner master data');
+
+		$entryFilters = $t->methodBody('lib/Controller/EntryController.php', 'applyFilters');
+		$t->assertNotContains("iLike('p.number'", $entryFilters, 'Payment partner numbers should not affect payment search yet');
+	},
+
+	'Advanced personal master-data editing is a disabled-by-default user preference' => function(TestRunner $t): void {
+		$userController = $t->read('lib/Controller/UserController.php');
+		$getSettings = $t->methodBody('lib/Controller/UserController.php', 'getSettings');
+		$t->assertContains("'enable_advanced_master_data'", $getSettings, 'User settings should expose the advanced master-data preference');
+		$t->assertContains("'enable_advanced_master_data', 'no'", $getSettings, 'Advanced personal master-data editing should default to disabled');
+
+		$saveSettings = $t->methodBody('lib/Controller/UserController.php', 'saveSettings');
+		$t->assertContains('?bool $enable_advanced_master_data = null', $userController, 'User settings should accept the advanced master-data preference');
+		$t->assertContains("'enable_advanced_master_data', \$enable_advanced_master_data ? 'yes' : 'no'", $saveSettings, 'User settings should persist the advanced master-data preference');
+
+		$backupService = $t->read('lib/Service/BackupService.php');
+		$t->assertContains("'enable_advanced_master_data',", $backupService, 'Personal exports should preserve the advanced master-data preference');
+		$t->assertContains("'enable_advanced_master_data' => 'no'", $backupService, 'Older personal exports should restore the preference as disabled');
+		$t->assertContains("'enable_advanced_master_data',", $t->read('lib/Service/UserResetService.php'), 'A personal reset should remove the advanced master-data preference');
+	},
+
 	'Categories support exactly one optional subcategory level across scopes, copies, backups, and analytics' => function(TestRunner $t): void {
 		$migration = $t->read('lib/Migration/Version000003Date20260726010000.php');
 		$t->assertContains("hasTable('cobudget_categories')", $migration, 'Category hierarchy migration should guard the category table');
@@ -1910,7 +1973,7 @@ return [
 			$t->assertContains("'US' => 'USD'", $userController, 'US locale should default to USD');
 
 			$getSettings = $t->methodBody('lib/Controller/UserController.php', 'getSettings');
-			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_templates', 'enable_budget_goals', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
+			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_templates', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
 				$t->assertContains("'" . $setting . "'", $getSettings, 'Settings should expose ' . $setting);
 			}
 			$t->assertContains('effectiveCurrency()', $getSettings, 'Settings should expose an effective currency even before the user saves settings');
@@ -1922,7 +1985,7 @@ return [
 			$t->assertContains('validateEntriesPerPage($entries_per_page)', $saveSettings, 'Settings should validate entry page size centrally');
 			$t->assertContains('validateReceiptStorageFolder($receipt_storage_folder)', $saveSettings, 'Settings should validate receipt storage folders');
 			$t->assertContains('validateReceiptFolderGrouping($receipt_folder_grouping)', $saveSettings, 'Settings should validate receipt folder grouping');
-			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_templates', 'enable_budget_goals', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
+			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_templates', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
 				$t->assertContains($setting, $saveSettings, 'Settings should persist ' . $setting);
 			}
 

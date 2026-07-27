@@ -16,6 +16,33 @@ use OCP\IDBConnection;
 final class EntryProjectionService {
 	private const SOURCE_KIND = 'shared';
 	private const PERSONAL_KIND = 'personal';
+	private const PAYMENT_PARTNER_DETAIL_COLUMNS = [
+		'number',
+		'salutation',
+		'title',
+		'company_name',
+		'additional',
+		'vat_id',
+		'first_name',
+		'last_name',
+		'street',
+		'postal_code',
+		'city',
+		'country',
+		'address_note',
+		'email',
+		'phone',
+		'mobile',
+		'fax',
+		'web',
+		'account_holder',
+		'iban',
+		'bic',
+		'bank',
+		'bank_code',
+		'account_number',
+		'note',
+	];
 
 	public function __construct(
 		private IDBConnection $db,
@@ -560,7 +587,7 @@ final class EntryProjectionService {
 		}
 
 		$insert = $this->db->getQueryBuilder();
-		$insert->insert('cobudget_payment_partners')->values([
+		$values = [
 			'name' => $insert->createNamedParameter((string)$row['name']),
 			'is_global' => $insert->createNamedParameter(false, \PDO::PARAM_BOOL),
 			'user_id' => $insert->createNamedParameter($userId),
@@ -568,7 +595,15 @@ final class EntryProjectionService {
 			'type' => $insert->createNamedParameter((string)$row['type']),
 			'project_id' => $insert->createNamedParameter(null, \PDO::PARAM_NULL),
 			'is_hidden' => $insert->createNamedParameter(false, \PDO::PARAM_BOOL),
-		]);
+		];
+		foreach (self::PAYMENT_PARTNER_DETAIL_COLUMNS as $column) {
+			$value = $row[$column] ?? null;
+			$values[$column] = $insert->createNamedParameter(
+				$value === null || $value === '' ? null : (string)$value,
+				$value === null || $value === '' ? \PDO::PARAM_NULL : \PDO::PARAM_STR
+			);
+		}
+		$insert->insert('cobudget_payment_partners')->values($values);
 		$insert->executeStatement();
 
 		return (int)$this->db->lastInsertId('*PREFIX*cobudget_payment_partners');

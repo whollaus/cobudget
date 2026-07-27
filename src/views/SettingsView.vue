@@ -264,6 +264,16 @@
 								<span class="toggle-slider"></span>
 							</label>
 						</div>
+						<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
+							<div>
+								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.advancedCategoryPaymentPartnerSettings() }}</label>
+								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.advancedCategoryPaymentPartnerSettingsDescription() }}</p>
+							</div>
+							<label class="toggle-switch">
+								<input type="checkbox" v-model="enableAdvancedMasterData" @change="saveGeneralSettings">
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
 					</div>
 					</div>
 			</div>
@@ -328,7 +338,10 @@
 				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
 					<template #item="{ item: paymentPartner }">
 						<div class="settings-list-info">
-							<span>{{ paymentPartner.name }}</span>
+							<div class="category-list-label">
+								<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>
+								<span>{{ paymentPartner.name }}</span>
+							</div>
 							<span v-if="paymentPartner.is_global" class="badge-global">{{ $texts.common.global() }}</span>
 						</div>
 						<SettingsItemActions
@@ -482,7 +495,12 @@
 				tabindex="-1"
 				@click.self="closeRenameSettingsItemModal"
 				@keydown.esc.stop.prevent="closeRenameSettingsItemModal">
-				<div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-rename-title">
+				<div
+					class="settings-modal"
+					:class="{ 'settings-modal--payment-partner': renameSettingsItemType === 'paymentPartner' && enableAdvancedMasterData }"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="settings-rename-title">
 					<div class="modal-header">
 						<h2 id="settings-rename-title">{{ renameSettingsItemTitle }}</h2>
 						<button
@@ -495,49 +513,72 @@
 						</button>
 					</div>
 					<p class="modal-note">
-						{{ $texts.settings.renameNote(renameSettingsItemLabelWithArticle) }}
+						{{ renameSettingsItemType === 'paymentPartner' && enableAdvancedMasterData
+							? $texts.paymentPartnerDetails.internalNote()
+							: $texts.settings.renameNote(renameSettingsItemLabelWithArticle) }}
 					</p>
 
 					<form @submit.prevent="saveRenameSettingsItem">
-						<div
-							class="rename-fields"
-							:class="{ 'has-category-number': renameSettingsItemType === 'category' }">
-							<div v-if="renameSettingsItemType === 'category'" class="form-group">
-								<label for="settings-category-code">{{ $texts.common.number() }}</label>
-								<input
-									id="settings-category-code"
-									ref="renameSettingsItemCodeInput"
-									v-model="renameSettingsItemCode"
-									class="form-control"
-									type="text"
-									maxlength="128"
-									autocomplete="off"
-									spellcheck="false" />
+						<template v-if="renameSettingsItemType === 'category'">
+							<div
+								class="rename-fields"
+								:class="{ 'has-category-number': enableAdvancedMasterData }">
+								<div v-if="enableAdvancedMasterData" class="form-group">
+									<label for="settings-category-code">{{ $texts.common.number() }}</label>
+									<input
+										id="settings-category-code"
+										ref="renameSettingsItemCodeInput"
+										v-model="renameSettingsItemCode"
+										class="form-control"
+										type="text"
+										maxlength="128"
+										autocomplete="off"
+										spellcheck="false" />
+								</div>
+								<div class="form-group">
+									<label for="settings-rename-name">{{ $texts.common.name() }}</label>
+									<input id="settings-rename-name" ref="renameSettingsItemInput"
+										v-model="renameSettingsItemName" class="form-control" type="text" maxlength="128" required />
+								</div>
 							</div>
-							<div class="form-group">
-								<label for="settings-rename-name">{{ $texts.common.name() }}</label>
-								<input id="settings-rename-name" ref="renameSettingsItemInput"
-									v-model="renameSettingsItemName" class="form-control" type="text" maxlength="128" required />
+							<div class="form-group category-parent-field">
+								<label for="settings-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
+								<select
+									id="settings-category-parent"
+									v-model="renameSettingsItemParentId"
+									class="form-control select-control"
+									:disabled="!!renameSettingsItem.has_children">
+									<option value="">{{ $texts.common.noParentMainCategory() }}</option>
+									<option
+										v-for="category in renameSettingsItemParentOptions"
+										:key="category.id"
+										:value="String(category.id)">
+										{{ category.name }}
+									</option>
+								</select>
+								<p v-if="renameSettingsItem.has_children" class="category-parent-hint">
+									{{ $texts.common.mainCategoryHasChildrenHint() }}
+								</p>
 							</div>
-						</div>
-						<div v-if="renameSettingsItemType === 'category'" class="form-group category-parent-field">
-							<label for="settings-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
-							<select
-								id="settings-category-parent"
-								v-model="renameSettingsItemParentId"
-								class="form-control select-control"
-								:disabled="!!renameSettingsItem.has_children">
-								<option value="">{{ $texts.common.noParentMainCategory() }}</option>
-								<option
-									v-for="category in renameSettingsItemParentOptions"
-									:key="category.id"
-									:value="String(category.id)">
-									{{ category.name }}
-								</option>
-							</select>
-							<p v-if="renameSettingsItem.has_children" class="category-parent-hint">
-								{{ $texts.common.mainCategoryHasChildrenHint() }}
-							</p>
+						</template>
+						<PaymentPartnerEditFields
+							v-else-if="enableAdvancedMasterData"
+							ref="renamePaymentPartnerFields"
+							id-prefix="settings-payment-partner"
+							:name="renameSettingsItemName"
+							:details="renamePaymentPartnerDetails"
+							@update:name="renameSettingsItemName = $event"
+							@update:details="renamePaymentPartnerDetails = $event" />
+						<div v-else class="form-group">
+							<label for="settings-rename-name">{{ $texts.common.name() }}</label>
+							<input
+								id="settings-rename-name"
+								ref="renameSettingsItemInput"
+								v-model="renameSettingsItemName"
+								class="form-control"
+								type="text"
+								maxlength="128"
+								required />
 						</div>
 						<p v-if="renameSettingsItemError" class="modal-error">{{ renameSettingsItemError }}</p>
 						<ModalActions
@@ -589,8 +630,15 @@ import { ENTRY_PAGE_SIZE_OPTIONS, normalizeEntryPageSize } from '../services/pag
 import { applyThemeMode, normalizeThemeMode } from '../services/themeMode'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
 import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
+import {
+	createPaymentPartnerDetails,
+	isValidPaymentPartnerEmail,
+	paymentPartnerDetailsChanged,
+	paymentPartnerDetailsPayload
+} from '../utils/paymentPartnerDetails'
 import ModalActions from '../components/ModalActions.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
+import PaymentPartnerEditFields from '../components/PaymentPartnerEditFields.vue'
 import SettingsItemActions from '../components/SettingsItemActions.vue'
 import SettingsList from '../components/SettingsList.vue'
 import WorkspaceSettings from '../components/WorkspaceSettings.vue'
@@ -612,6 +660,7 @@ export default {
 		IconPicker,
 		ModalActions,
 		ConfirmModal,
+		PaymentPartnerEditFields,
 		SettingsItemActions,
 		SettingsList,
 		WorkspaceSettings,
@@ -636,6 +685,7 @@ export default {
 			enableFuturePayments: true,
 			enableTemplates: true,
 			enableBudgetGoals: true,
+			enableAdvancedMasterData: false,
 			enableIncomes: true,
 			enableProjects: true,
 			enableSharedProjects: true,
@@ -675,6 +725,7 @@ export default {
 			renameSettingsItemName: '',
 			renameSettingsItemCode: '',
 			renameSettingsItemParentId: '',
+			renamePaymentPartnerDetails: createPaymentPartnerDetails(),
 			renameSettingsItemError: '',
 			renameSettingsItemSaving: false,
 			confirmDialog: null
@@ -735,13 +786,22 @@ export default {
 			if (!this.renameSettingsItem || !this.renameSettingsItemName.trim() || this.renameSettingsItemSaving) {
 				return false;
 			}
+			if (this.enableAdvancedMasterData
+				&& this.renameSettingsItemType === 'paymentPartner'
+				&& !isValidPaymentPartnerEmail(this.renamePaymentPartnerDetails.email)) {
+				return false;
+			}
 
 			const nameChanged = this.renameSettingsItemName.trim() !== this.renameSettingsItem.name;
-			const codeChanged = this.renameSettingsItemType === 'category'
+			const codeChanged = this.enableAdvancedMasterData
+				&& this.renameSettingsItemType === 'category'
 				&& this.renameSettingsItemCode.trim() !== String(this.renameSettingsItem.code || '').trim();
 			const parentChanged = this.renameSettingsItemType === 'category'
 				&& this.renameSettingsItemParentId !== String(this.renameSettingsItem.parent_category_id || '');
-			return nameChanged || codeChanged || parentChanged;
+			const detailsChanged = this.enableAdvancedMasterData
+				&& this.renameSettingsItemType === 'paymentPartner'
+				&& paymentPartnerDetailsChanged(this.renameSettingsItem, this.renamePaymentPartnerDetails);
+			return nameChanged || codeChanged || parentChanged || detailsChanged;
 		},
 		confirmDialogCanConfirm() {
 			if (!this.confirmDialog) {
@@ -1156,6 +1216,7 @@ export default {
 				this.enableFuturePayments = settingsRes.data.enable_future_payments ?? true;
 				this.enableTemplates = settingsRes.data.enable_templates ?? true;
 				this.enableBudgetGoals = settingsRes.data.enable_budget_goals ?? true;
+				this.enableAdvancedMasterData = settingsRes.data.enable_advanced_master_data ?? false;
 				this.enableIncomes = settingsRes.data.enable_incomes ?? true;
 				this.enableProjects = settingsRes.data.enable_projects ?? true;
 				this.enableSharedProjects = settingsRes.data.enable_shared_projects ?? true;
@@ -1234,14 +1295,23 @@ export default {
 			this.renameSettingsItemName = item.name;
 			this.renameSettingsItemCode = type === 'category' ? String(item.code || '') : '';
 			this.renameSettingsItemParentId = type === 'category' ? String(item.parent_category_id || '') : '';
+			this.renamePaymentPartnerDetails = type === 'paymentPartner'
+				? createPaymentPartnerDetails(item)
+				: createPaymentPartnerDetails();
 			this.renameSettingsItemError = '';
 			this.renameSettingsItemSaving = false;
 			this.$nextTick(() => {
-				const input = type === 'category'
-					? this.$refs.renameSettingsItemCodeInput
-					: this.$refs.renameSettingsItemInput;
-				input?.focus();
-				input?.select();
+				if (type === 'paymentPartner' && this.enableAdvancedMasterData) {
+					this.$refs.renamePaymentPartnerFields?.focusName();
+					return;
+				}
+				if (type === 'category' && this.enableAdvancedMasterData) {
+					this.$refs.renameSettingsItemCodeInput?.focus();
+					this.$refs.renameSettingsItemCodeInput?.select();
+					return;
+				}
+				this.$refs.renameSettingsItemInput?.focus();
+				this.$refs.renameSettingsItemInput?.select();
 			});
 		},
 		closeRenameSettingsItemModal() {
@@ -1256,6 +1326,7 @@ export default {
 			this.renameSettingsItemName = '';
 			this.renameSettingsItemCode = '';
 			this.renameSettingsItemParentId = '';
+			this.renamePaymentPartnerDetails = createPaymentPartnerDetails();
 			this.renameSettingsItemError = '';
 			this.renameSettingsItemSaving = false;
 		},
@@ -1273,10 +1344,14 @@ export default {
 				: `/apps/cobudget/api/payment-partners/${item.id}`;
 			const payload = { name: newName };
 			if (type === 'category') {
-				payload.code = this.renameSettingsItemCode.trim();
+				if (this.enableAdvancedMasterData) {
+					payload.code = this.renameSettingsItemCode.trim();
+				}
 				payload.parentCategoryId = this.renameSettingsItemParentId
 					? Number(this.renameSettingsItemParentId)
 					: 0;
+			} else if (this.enableAdvancedMasterData) {
+				Object.assign(payload, paymentPartnerDetailsPayload(this.renamePaymentPartnerDetails));
 			}
 
 			this.renameSettingsItemSaving = true;
@@ -1430,6 +1505,7 @@ export default {
 					enable_future_payments: this.enableFuturePayments,
 					enable_templates: this.enableTemplates,
 					enable_budget_goals: this.enableBudgetGoals,
+					enable_advanced_master_data: this.enableAdvancedMasterData,
 					enable_incomes: this.enableIncomes,
 					enable_projects: this.enableProjects,
 					enable_shared_projects: this.enableSharedProjects,
@@ -2084,6 +2160,13 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 	max-width: 520px;
 	padding: 24px;
 	width: 90%;
+}
+
+.settings-modal.settings-modal--payment-partner {
+	box-sizing: border-box;
+	max-height: calc(100vh - 32px);
+	max-width: 760px;
+	overflow-y: auto;
 }
 
 .modal-header {

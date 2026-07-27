@@ -65,7 +65,10 @@
 				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
 					<template #item="{ item: paymentPartner }">
 						<div class="settings-list-info">
-							<span>{{ paymentPartner.name }}</span>
+							<div class="category-list-label">
+								<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>
+								<span>{{ paymentPartner.name }}</span>
+							</div>
 						</div>
 						<SettingsItemActions
 							class="settings-list-actions"
@@ -86,7 +89,12 @@
 				tabindex="-1"
 				@click.self="closeRenameModal"
 				@keydown.esc.stop.prevent="closeRenameModal">
-				<div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="project-scoped-rename-title">
+				<div
+					class="settings-modal"
+					:class="{ 'settings-modal--payment-partner': renameType === 'paymentPartner' }"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="project-scoped-rename-title">
 					<div class="modal-header">
 						<h2 id="project-scoped-rename-title">{{ renameTitle }}</h2>
 						<button
@@ -99,46 +107,58 @@
 						</button>
 					</div>
 					<p class="modal-note">
-						{{ $texts.projectScoped.renameNote() }}
+						{{ renameType === 'paymentPartner'
+							? $texts.paymentPartnerDetails.internalNote()
+							: $texts.projectScoped.renameNote() }}
 					</p>
 					<form @submit.prevent="saveRenameItem">
-						<div class="rename-fields" :class="{ 'has-category-number': renameType === 'category' }">
-							<div v-if="renameType === 'category'" class="form-group">
-								<label for="project-scoped-category-code">{{ $texts.common.number() }}</label>
-								<input
-									id="project-scoped-category-code"
-									ref="renameCodeInput"
-									v-model="renameCode"
+						<template v-if="renameType === 'category'">
+							<div class="rename-fields has-category-number">
+								<div class="form-group">
+									<label for="project-scoped-category-code">{{ $texts.common.number() }}</label>
+									<input
+										id="project-scoped-category-code"
+										ref="renameCodeInput"
+										v-model="renameCode"
+										class="form-control"
+										type="text"
+										maxlength="128"
+										autocomplete="off"
+										spellcheck="false">
+								</div>
+								<div class="form-group">
+									<label for="project-scoped-name">{{ $texts.common.name() }}</label>
+									<input id="project-scoped-name" ref="renameInput" v-model="renameName" class="form-control" type="text" maxlength="128" required>
+								</div>
+							</div>
+							<div class="form-group category-parent-field">
+								<label for="project-scoped-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
+								<select
+									id="project-scoped-category-parent"
+									v-model="renameParentCategoryId"
 									class="form-control"
-									type="text"
-									maxlength="128"
-									autocomplete="off"
-									spellcheck="false">
+									:disabled="!!renameItem.has_children">
+									<option value="">{{ $texts.common.noParentMainCategory() }}</option>
+									<option
+										v-for="category in renameParentCategoryOptions"
+										:key="category.id"
+										:value="String(category.id)">
+										{{ category.name }}
+									</option>
+								</select>
+								<p v-if="renameItem.has_children" class="category-parent-hint">
+									{{ $texts.common.mainCategoryHasChildrenHint() }}
+								</p>
 							</div>
-							<div class="form-group">
-								<label for="project-scoped-name">{{ $texts.common.name() }}</label>
-								<input id="project-scoped-name" ref="renameInput" v-model="renameName" class="form-control" type="text" maxlength="128" required>
-							</div>
-						</div>
-						<div v-if="renameType === 'category'" class="form-group category-parent-field">
-							<label for="project-scoped-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
-							<select
-								id="project-scoped-category-parent"
-								v-model="renameParentCategoryId"
-								class="form-control"
-								:disabled="!!renameItem.has_children">
-								<option value="">{{ $texts.common.noParentMainCategory() }}</option>
-								<option
-									v-for="category in renameParentCategoryOptions"
-									:key="category.id"
-									:value="String(category.id)">
-									{{ category.name }}
-								</option>
-							</select>
-							<p v-if="renameItem.has_children" class="category-parent-hint">
-								{{ $texts.common.mainCategoryHasChildrenHint() }}
-							</p>
-						</div>
+						</template>
+						<PaymentPartnerEditFields
+							v-else
+							ref="renamePaymentPartnerFields"
+							id-prefix="project-payment-partner"
+							:name="renameName"
+							:details="renamePaymentPartnerDetails"
+							@update:name="renameName = $event"
+							@update:details="renamePaymentPartnerDetails = $event" />
 						<p v-if="renameError" class="modal-error">{{ renameError }}</p>
 						<ModalActions
 							:cancel-disabled="renameSaving"
@@ -170,11 +190,18 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import axios from '../services/http'
 import ConfirmModal from './ConfirmModal.vue'
 import ModalActions from './ModalActions.vue'
+import PaymentPartnerEditFields from './PaymentPartnerEditFields.vue'
 import SettingsItemActions from './SettingsItemActions.vue'
 import SettingsList from './SettingsList.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import { extractError, showRequestError, showToast } from '../services/notifications'
 import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
+import {
+	createPaymentPartnerDetails,
+	isValidPaymentPartnerEmail,
+	paymentPartnerDetailsChanged,
+	paymentPartnerDetailsPayload
+} from '../utils/paymentPartnerDetails'
 
 const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-icon-picker" */ './IconPicker.vue'))
 
@@ -185,6 +212,7 @@ export default {
 		IconPicker,
 		ConfirmModal,
 		ModalActions,
+		PaymentPartnerEditFields,
 		SettingsItemActions,
 		SettingsList,
 		CloseIcon
@@ -212,6 +240,7 @@ export default {
 			renameName: '',
 			renameCode: '',
 			renameParentCategoryId: '',
+			renamePaymentPartnerDetails: createPaymentPartnerDetails(),
 			renameError: '',
 			renameSaving: false,
 			confirmDialog: null
@@ -255,13 +284,19 @@ export default {
 			if (!this.renameItem || !this.renameName.trim() || this.renameSaving) {
 				return false;
 			}
+			if (this.renameType === 'paymentPartner'
+				&& !isValidPaymentPartnerEmail(this.renamePaymentPartnerDetails.email)) {
+				return false;
+			}
 
 			const nameChanged = this.renameName.trim() !== this.renameItem.name;
 			const codeChanged = this.renameType === 'category'
 				&& this.renameCode.trim() !== String(this.renameItem.code || '').trim();
 			const parentChanged = this.renameType === 'category'
 				&& this.renameParentCategoryId !== String(this.renameItem.parent_category_id || '');
-			return nameChanged || codeChanged || parentChanged;
+			const detailsChanged = this.renameType === 'paymentPartner'
+				&& paymentPartnerDetailsChanged(this.renameItem, this.renamePaymentPartnerDetails);
+			return nameChanged || codeChanged || parentChanged || detailsChanged;
 		}
 	},
 	watch: {
@@ -392,12 +427,18 @@ export default {
 			this.renameName = item.name;
 			this.renameCode = type === 'category' ? String(item.code || '') : '';
 			this.renameParentCategoryId = type === 'category' ? String(item.parent_category_id || '') : '';
+			this.renamePaymentPartnerDetails = type === 'paymentPartner'
+				? createPaymentPartnerDetails(item)
+				: createPaymentPartnerDetails();
 			this.renameError = '';
 			this.renameSaving = false;
 			this.$nextTick(() => {
-				const input = type === 'category' ? this.$refs.renameCodeInput : this.$refs.renameInput;
-				input?.focus();
-				input?.select();
+				if (type === 'paymentPartner') {
+					this.$refs.renamePaymentPartnerFields?.focusName();
+					return;
+				}
+				this.$refs.renameCodeInput?.focus();
+				this.$refs.renameCodeInput?.select();
 			});
 		},
 		closeRenameModal() {
@@ -412,6 +453,7 @@ export default {
 			this.renameName = '';
 			this.renameCode = '';
 			this.renameParentCategoryId = '';
+			this.renamePaymentPartnerDetails = createPaymentPartnerDetails();
 			this.renameError = '';
 			this.renameSaving = false;
 		},
@@ -433,6 +475,8 @@ export default {
 				payload.parentCategoryId = this.renameParentCategoryId
 					? Number(this.renameParentCategoryId)
 					: 0;
+			} else {
+				Object.assign(payload, paymentPartnerDetailsPayload(this.renamePaymentPartnerDetails));
 			}
 
 			this.renameSaving = true;
@@ -681,6 +725,13 @@ export default {
 	border-radius: var(--border-radius-large, 8px);
 	padding: 28px;
 	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.settings-modal.settings-modal--payment-partner {
+	box-sizing: border-box;
+	max-height: calc(100vh - 40px);
+	overflow-y: auto;
+	width: min(760px, 100%);
 }
 
 .modal-header {

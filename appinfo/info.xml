@@ -11,6 +11,7 @@
 ### Personal finances
 
 - Record income and expenses with categories, payment partners, labels and free-form tags
+- Maintain optional internal address, contact and bank details for payment partners
 - Add receipts, recurring payments and reminders
 - Set budget goals and explore trends, forecasts and detailed financial reports
 - Separate financial contexts with workspaces and move your data using personal exports
@@ -34,6 +35,7 @@
 ### Persönliche Finanzen
 
 - Erfasse Einnahmen und Ausgaben mit Kategorien, Zahlungspartnern, Labels und freien Tags
+- Hinterlege bei Zahlungspartnern optional interne Adress-, Kontakt- und Kontodaten
 - Füge Belege, wiederkehrende Zahlungen und Erinnerungen hinzu
 - Lege Budgetziele fest und analysiere Entwicklungen, Prognosen und ausführliche Auswertungen
 - Trenne finanzielle Kontexte mit Workspaces und nimm deine Daten per persönlichem Export mit
@@ -50,7 +52,7 @@
 - Deine Finanzdaten bleiben in deiner eigenen Nextcloud
 - Erhalte Benachrichtigungen über Aktivitäten in gemeinsamen Bereichen
 - Erstelle vollständige Admin-Backups für den Wiederherstellungsfall]]></description>
-	<version>0.2.15</version>
+	<version>0.2.16</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
