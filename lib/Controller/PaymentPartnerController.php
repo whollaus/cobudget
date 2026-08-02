@@ -304,20 +304,7 @@ class PaymentPartnerController extends Controller {
 			}
 			$usedEntries = $qbUsed->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
 
-			$qbUsedTpl = $this->db->getQueryBuilder();
-			$qbUsedTpl->select('payment_partner_id')
-				->from('cobudget_templates')
-				->where($qbUsedTpl->expr()->isNotNull('payment_partner_id'))
-				->andWhere($qbUsedTpl->expr()->eq('workspace_id', $qbUsedTpl->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-				->groupBy('payment_partner_id');
-			if ($projectId !== null) {
-				$qbUsedTpl->andWhere($qbUsedTpl->expr()->eq('project_id', $qbUsedTpl->createNamedParameter($projectId, \PDO::PARAM_INT)));
-			} else {
-				$qbUsedTpl->andWhere($qbUsedTpl->expr()->eq('user_id', $qbUsedTpl->createNamedParameter($this->userId)));
-			}
-			$usedTemplates = $qbUsedTpl->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
-			
-			$usedPaymentPartnerIds = array_unique(array_merge($usedEntries, $usedTemplates));
+			$usedPaymentPartnerIds = array_unique($usedEntries);
 
 			foreach ($paymentPartners as &$paymentPartner) {
 				$paymentPartner['is_hidden'] = in_array((int)$paymentPartner['id'], $hiddenIds);
@@ -533,21 +520,7 @@ class PaymentPartnerController extends Controller {
 				->setMaxResults(1);
 			$inUseEntries = $qb->executeQuery()->fetch();
 
-			$qb2 = $this->db->getQueryBuilder();
-			$qb2->select('id')
-				->from('cobudget_templates')
-				->where($qb2->expr()->eq('payment_partner_id', $qb2->createNamedParameter($id)))
-				->andWhere($qb2->expr()->eq('workspace_id', $qb2->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-				->setMaxResults(1);
-			if ($projectId === null) {
-				$qb2->andWhere($qb2->expr()->eq('user_id', $qb2->createNamedParameter($this->userId)))
-					->andWhere($qb2->expr()->isNull('project_id'));
-			} else {
-				$qb2->andWhere($qb2->expr()->eq('project_id', $qb2->createNamedParameter($projectId, \PDO::PARAM_INT)));
-			}
-			$inUseTemplates = $qb2->executeQuery()->fetch();
-
-			if ($inUseEntries !== false || $inUseTemplates !== false) {
+			if ($inUseEntries !== false) {
 				return $this->errorResponse('Payment partner is still in use and cannot be deleted. Please use the hide function instead.', Http::STATUS_CONFLICT);
 			}
 
@@ -770,14 +743,7 @@ class PaymentPartnerController extends Controller {
 				->setMaxResults(1);
 			$inUseEntries = $qb->executeQuery()->fetch();
 
-			$qb2 = $this->db->getQueryBuilder();
-			$qb2->select('id')
-				->from('cobudget_templates')
-				->where($qb2->expr()->eq('payment_partner_id', $qb2->createNamedParameter($id)))
-				->setMaxResults(1);
-			$inUseTemplates = $qb2->executeQuery()->fetch();
-
-			if ($inUseEntries !== false || $inUseTemplates !== false) {
+			if ($inUseEntries !== false) {
 				return $this->errorResponse('Payment partner is still in use and cannot be deleted.', Http::STATUS_CONFLICT);
 			}
 

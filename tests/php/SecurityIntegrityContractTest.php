@@ -97,7 +97,6 @@ return [
 			'cobudget_members',
 			'cobudget_categories',
 			'cobudget_payment_partners',
-			'cobudget_templates',
 			'cobudget_entries',
 			'cobudget_entry_attachments',
 			'cobudget_settlements',
@@ -270,13 +269,11 @@ return [
 		$t->assertContains('is_hidden', $paymentPartner, 'Global payment partners should ignore hidden rows');
 	},
 
-	'Area lists, templates, and direct IDs share the active member-workspace boundary' => function(TestRunner $t): void {
+	'Area lists use the active member-workspace boundary' => function(TestRunner $t): void {
 		$projectIndex = $t->methodBody('lib/Controller/ProjectController.php', 'index');
-		$templateIndex = $t->methodBody('lib/Controller/TemplateController.php', 'index');
 
 		$t->assertContains('$workspaceId = $this->getWorkspaceId()', $projectIndex, 'Area listing should resolve the active workspace');
 		$t->assertContains('m.personal_workspace_id', $projectIndex, 'Area listing should filter the current members active personal workspace');
-		$t->assertContains('m.personal_workspace_id', $templateIndex, 'Area templates should filter the current members active personal workspace');
 	},
 
 	'Area creation does not bypass Nextcloud user enumeration policy' => function(TestRunner $t): void {
@@ -467,15 +464,13 @@ return [
 		$t->assertContains('entryAggregateAmountCents($entry, $projectShareBasisPoints)', $aggregate, 'Streaming summaries should distinguish personal shares from shared area totals');
 	},
 
-	'Payment and template text values respect their database column lengths' => function(TestRunner $t): void {
+	'Payment text values respect their database column lengths' => function(TestRunner $t): void {
 		$textValidation = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'validateEntryTextPayload');
-		$templateValidation = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'validateTemplatePayload');
 		$currencyValidation = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'validateCurrencySetting');
 
 		$t->assertContains('mb_strlen($description) > 512', $textValidation, 'Payment descriptions should fit the 512-character database column');
 		$t->assertContains('mb_strlen($currency) > 10', $textValidation, 'Payment currencies should fit the 10-character database column');
 		$t->assertContains('mb_strlen($reminderText) > 255', $textValidation, 'Reminder text should fit the 255-character database column');
-		$t->assertContains('mb_strlen($description) > 512', $templateValidation, 'Template descriptions should fit the 512-character database column');
 		$t->assertContains('mb_strlen($currency) > 10', $currencyValidation, 'Stored currency settings should fit payment rows');
 	},
 

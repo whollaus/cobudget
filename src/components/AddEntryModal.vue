@@ -1,57 +1,54 @@
 <template>
-	<Teleport to="body">
-		<div
-			class="modal-backdrop"
-			v-if="isOpen"
-			tabindex="-1"
-			@click.self="closeModal"
-			@keydown.esc.stop.prevent="handleEscape">
-		<div
+	<NcAppSidebar
+		class="entry-sidebar"
+		:class="{ 'entry-sidebar--mobile-save-visible': showMobileHeaderSave }"
+		:name="modalTitle"
+		:open="isOpen"
+		:no-toggle="true"
+		@opened="handleSidebarOpened"
+		@update:open="handleSidebarOpenUpdate">
+		<template #tertiary-actions>
+			<NcButton
+				v-if="isWideViewport"
+				type="button"
+				variant="tertiary"
+				class="entry-sidebar-desktop-close"
+				:aria-label="$texts.common.close()"
+				:title="$texts.common.close()"
+				@click="requestCloseSidebar()">
+				<template #icon>
+					<CloseIcon :size="20" aria-hidden="true" />
+				</template>
+			</NcButton>
+			<NcButton
+				v-if="showMobileHeaderSave"
+				type="button"
+				variant="primary"
+				class="entry-sidebar-header-save"
+				:aria-label="saveActionLabel"
+				:title="saveActionLabel"
+				:disabled="isSaveDisabled"
+				@pointerdown.prevent
+				@click="saveEntry">
+				<template #icon>
+					<ContentSaveIcon :size="22" aria-hidden="true" />
+				</template>
+			</NcButton>
+		</template>
+		<form
 			ref="modalContent"
-			class="modal-content"
-			role="dialog"
-			aria-modal="true"
-			:aria-labelledby="modalTitleId"
+			class="modal-form"
+			@submit.prevent="saveEntry"
+			@keydown.esc.stop.prevent="handleEscape"
 			@focusin="handleModalFocusIn"
 			@focusout="handleModalFocusOut">
-			<form @submit.prevent="saveEntry" class="modal-form">
-				<div class="modal-header">
-					<h2 :id="modalTitleId" class="modal-title">{{ modalTitle }}</h2>
-					<div class="modal-header-actions">
-						<button
-							v-if="showMobileHeaderSave"
-							type="button"
-							class="modal-header-save-button"
-							:aria-label="saveActionLabel"
-							:title="saveActionLabel"
-							:disabled="!isValid || loading"
-							@pointerdown.prevent
-							@click="saveEntry">
-							<ContentSaveIcon :size="22" aria-hidden="true" />
-						</button>
-						<button
-							type="button"
-							class="modal-close-button"
-							:aria-label="$texts.common.close()"
-							:title="$texts.common.close()"
-							@click="closeModal">
-							<CloseIcon :size="22" aria-hidden="true" />
-						</button>
-					</div>
-				</div>
-
 				<div class="modal-body">
 					<div v-if="isEditing && isFutureContext" class="info-banner">
 						<strong>{{ $texts.entry.futureOriginalNoticeTitle() }}</strong> {{ $texts.entry.futureOriginalNotice() }}
 					</div>
 
 					<div class="entry-required-panel">
-						<div class="form-group core-template-name" v-if="isTemplateMode">
-							<label>{{ $texts.entry.templateName() }} <span class="required-marker">*</span></label>
-							<input ref="templateNameInput" type="text" v-model="templateName" class="form-control" :placeholder="$texts.entry.templateNamePlaceholder()" required>
-						</div>
-
-						<div class="form-group date-col core-date" v-else>
+						<div class="form-group date-col core-date">
 							<input
 								type="date"
 								v-model="dateString"
@@ -61,8 +58,7 @@
 								required>
 						</div>
 
-						<div class="form-group amount-col" :class="isTemplateMode ? 'core-template-amount' : 'core-amount'">
-							<label v-if="isTemplateMode">{{ amountLabel }}</label>
+						<div class="form-group amount-col core-amount">
 							<div
 								class="amount-input-wrap"
 								:class="{
@@ -155,9 +151,10 @@
 										pattern="[0-9.,+*\/\-]*"
 										@input="sanitizeAmountInput"
 										@blur="evaluateAmount"
+										@keydown.enter.prevent="focusPaymentPartnerLookup"
 										class="form-control amount-input"
 										:class="{'bg-income': entry.type === 'income', 'bg-expense': entry.type === 'expense'}"
-										:required="!isTemplateMode"
+									required
 										placeholder="0.00">
 								</div>
 							</div>
@@ -355,34 +352,36 @@
 							<div class="tags-toggles">
 								<label class="tag-toggle" v-if="$enableImportantPayments">
 									<input type="checkbox" v-model="entry.isImportant">
-									<span class="tag-btn" :class="{active: entry.isImportant}">{{ $texts.labels.important() }}</span>
+									<span class="tag-btn">{{ $texts.labels.important() }}</span>
 								</label>
 								<label class="tag-toggle" v-if="$enableReviewPayments">
 									<input type="checkbox" v-model="entry.needsReview">
-									<span class="tag-btn" :class="{active: entry.needsReview}">{{ $texts.labels.review() }}</span>
+									<span class="tag-btn">{{ $texts.labels.review() }}</span>
 								</label>
 								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableFixedCosts">
 									<input type="checkbox" v-model="entry.isFixedCost">
-									<span class="tag-btn" :class="{active: entry.isFixedCost}">{{ $texts.labels.fixedCosts() }}</span>
+									<span class="tag-btn">{{ $texts.labels.fixedCosts() }}</span>
 								</label>
 								<label class="tag-toggle" v-if="$enableChildRelated">
 									<input type="checkbox" v-model="entry.isChildRelated">
-									<span class="tag-btn" :class="{active: entry.isChildRelated}">{{ $texts.labels.children() }}</span>
+									<span class="tag-btn">{{ $texts.labels.children() }}</span>
 								</label>
 								<label class="tag-toggle" v-if="entry.type === 'expense' && $enableSubscriptions">
 									<input type="checkbox" v-model="entry.isSubscription">
-									<span class="tag-btn" :class="{active: entry.isSubscription}">{{ $texts.labels.subscription() }}</span>
+									<span class="tag-btn">{{ $texts.labels.subscription() }}</span>
 								</label>
 								<label class="tag-toggle" v-if="$enableTaxRelevant">
 									<input type="checkbox" v-model="entry.isTaxRelevant">
-									<span class="tag-btn" :class="{active: entry.isTaxRelevant}">{{ $texts.labels.taxRelevant() }}</span>
+									<span class="tag-btn">{{ $texts.labels.taxRelevant() }}</span>
 								</label>
 							</div>
 						</div>
 
-						<div class="assignment-fields" v-if="!isTemplateMode && $enableProjects">
+					<div
+						v-if="$enableProjects && (!projectSelectionLocked || showProjectPayerSelect || showProjectSplitMode)"
+							class="assignment-fields">
 							<div class="project-assignment-row" :class="{ 'has-project-payer': showProjectPayerSelect, 'has-split-mode': showProjectSplitMode }">
-								<div class="form-group detail-project">
+								<div v-if="!projectSelectionLocked" class="form-group detail-project">
 									<label>{{ $texts.entry.area() }}</label>
 									<div
 										v-if="useDirectAreaSelection"
@@ -396,7 +395,6 @@
 											type="button"
 											class="area-choice"
 											:class="{
-												'area-choice--selected': isAreaSelected(option.id),
 												'area-choice--project': option.id !== null,
 											}"
 											:style="areaChoiceStyle(option)"
@@ -449,7 +447,7 @@
 
 					</div>
 
-					<details class="planning-section" v-if="!isTemplateMode" :open="showPlanningOptions" @toggle="showPlanningOptions = $event.target.open">
+					<details class="planning-section" :open="showPlanningOptions" @toggle="showPlanningOptions = $event.target.open">
 						<summary>
 							<span>{{ showAttachmentSection ? $texts.entry.planningWithReceipts() : $texts.entry.planning() }}</span>
 							<span
@@ -488,11 +486,11 @@
 									<div class="recurrence-inputs" :class="{ 'is-recurring': entry.recurrenceInterval !== 'none' }">
 										<div class="form-group recurrence-multiplier-field" v-if="entry.recurrenceInterval !== 'none'">
 											<label>{{ $texts.entry.repeatEvery() }}</label>
-											<input type="number" v-model.number="entry.recurrenceMultiplier" class="form-control recurrence-multiplier-input" min="1" required :aria-label="$texts.entry.recurrenceInterval()">
+											<input type="number" v-model.number="entry.recurrenceMultiplier" class="form-control recurrence-multiplier-input" min="1" required :aria-label="$texts.entry.repeatEvery()">
 										</div>
 										<div class="form-group recurrence-interval-field">
 											<label v-if="entry.recurrenceInterval === 'none'">{{ $texts.entry.repeatEvery() }}</label>
-											<select v-model="entry.recurrenceInterval" class="form-control select-control">
+											<select v-model="entry.recurrenceInterval" class="form-control select-control" :aria-label="$texts.entry.recurrenceInterval()">
 												<option value="none">{{ $texts.entry.neverOnce() }}</option>
 												<option value="day">{{ $texts.entry.days() }}</option>
 												<option value="week">{{ $texts.entry.weeks() }}</option>
@@ -544,16 +542,14 @@
 						danger-row
 						inline-mobile
 						:primary-label="saveActionLabel"
-						:primary-menu-items="saveMenuItems"
-						:primary-disabled="!isValid || loading"
+						:primary-disabled="isSaveDisabled"
 						:primary-busy="loading"
 						primary-type="button"
-						:show-cancel="false"
-						:primary-busy-label="$texts.common.saveBusy()"
+						:show-cancel="showCancelAction"
+						:primary-busy-label="saveActionBusyLabel"
 						@primary="saveEntry"
-						@primary-menu="handleSaveMenuAction"
-						@cancel="closeModal">
-						<template v-if="isEditing && !isTemplateMode && entry.can_delete !== false" #left>
+						@cancel="requestCloseSidebar">
+						<template v-if="isEditing && entry.can_delete !== false" #left>
 							<CbIconButton
 								class="entry-delete-icon-button"
 								variant="ghost"
@@ -567,9 +563,7 @@
 					</ModalActions>
 				</div>
 			</form>
-		</div>
-	</div>
-	</Teleport>
+	</NcAppSidebar>
 	<ConfirmModal
 		:show="!!confirmDialog"
 		:title="confirmDialog ? confirmDialog.title : ''"
@@ -590,6 +584,7 @@ import { showRequestError, showToast } from '../services/notifications'
 import { readWorkspaceId } from '../services/workspaceStorage'
 import { getAreaColorPalette } from '../utils/areaColor'
 import { categoryParentId, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
+import { hasEntryFormChanges, snapshotEntryForm } from '../utils/entryFormState'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
@@ -598,6 +593,7 @@ import CheckIcon from 'vue-material-design-icons/Check.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import WalletIcon from 'vue-material-design-icons/Wallet.vue'
 import FolderIcon from 'vue-material-design-icons/Folder.vue'
+import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
 import CbIconButton from './CbIconButton.vue'
@@ -608,8 +604,9 @@ const normalizedPositiveId = value => {
 }
 
 export default {
-	name: 'AddEntryModal',
-	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, ChevronDownIcon, CheckIcon, PlusIcon, WalletIcon, FolderIcon, NcButton, NcPopover, CbIconButton },
+	name: 'EntrySidebar',
+	components: { CategoryIcon, ModalActions, ConfirmModal, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, ChevronDownIcon, CheckIcon, PlusIcon, WalletIcon, FolderIcon, NcAppSidebar, NcButton, NcPopover, CbIconButton },
+	emits: ['closed', 'mode-changed', 'saved'],
 	props: {
 		projectId: {
 			type: Number,
@@ -623,6 +620,7 @@ export default {
 	data() {
 		return {
 			isOpen: false,
+			pendingInitialFocus: false,
 			isFutureContext: false,
 			loading: false,
 			entry: {
@@ -654,13 +652,11 @@ export default {
 			categories: [],
 			paymentPartners: [],
 			internalEditingEntry: null,
-			isTemplateMode: false,
 			isDuplicateMode: false,
+			projectSelectionLocked: false,
+			newEntryDefaultType: 'expense',
 			isInitializingEntry: false,
 			originalProjectId: null,
-			saveAsTemplate: false,
-			templateName: '',
-			templateDescription: '',
 			showPlanningOptions: false,
 			confirmDialog: null,
 			typeMenuOpen: false,
@@ -676,35 +672,40 @@ export default {
 			attachments: [],
 			pendingAttachments: [],
 			attachmentsLoading: false,
-			templates: [],
-			templatesLoading: false,
-			sourceTemplateId: null,
-			modalTitleId: 'entry-modal-title',
 			modalHistoryToken: null,
 			closedByHistory: false,
 			ignoreNextPopState: false,
 			ignorePopStateTimer: null,
+			wideViewportMedia: null,
+			isWideViewport: false,
 			mobileFormFieldFocused: false,
 			mobileFocusTimer: null,
 			categorySelectionSource: null,
-			categorySuggestionRequestId: 0
+			categorySuggestionRequestId: 0,
+			entryFormBaseline: ''
 		}
 	},
 	computed: {
 		modalTitle() {
-			if (this.isTemplateMode) {
-				return this.$texts.entry.newTemplate();
-			}
+			const isIncome = this.entry.type === 'income';
 			if (this.isEditing) {
-				return this.$texts.entry.editPayment();
+				return isIncome
+					? this.$texts.entry.editIncome()
+					: this.$texts.entry.editExpense();
 			}
 			if (this.isDuplicateMode) {
-				return this.$texts.entry.copyPayment();
+				return isIncome
+					? this.$texts.entry.copyIncome()
+					: this.$texts.entry.copyExpense();
 			}
 			if (this.isFutureContext) {
-				return this.$texts.entry.planPayment();
+				return isIncome
+					? this.$texts.entry.planIncome()
+					: this.$texts.entry.planExpense();
 			}
-			return this.$texts.areaDetail.newPayment();
+			return isIncome
+				? this.$texts.entry.createNewIncome()
+				: this.$texts.entry.createNewExpense();
 		},
 		dateLabel() {
 			if (this.isFutureContext && !this.isEditing) {
@@ -713,8 +714,8 @@ export default {
 			return this.entry.type === 'income' ? this.$texts.entry.receivedOn() : this.$texts.entry.paidOn();
 		},
 		amountLabel() {
-			const base = this.isTemplateMode ? this.$texts.entry.amountOptional() : this.$texts.entry.amount();
-			return this.$currency ? `${base} (${this.$currency})` : base;
+			const label = this.$texts.entry.amount();
+			return this.$currency ? `${label} (${this.$currency})` : label;
 		},
 		entryTypeOptions() {
 			return [
@@ -781,9 +782,6 @@ export default {
 			return String(this.selectedPaymentPartner()?.number ?? '').trim();
 		},
 		isValid() {
-			if (this.isTemplateMode) {
-				return this.templateName.trim() !== '';
-			}
 			const amt = this.$parseAmount(this.entry.amountDisplay)
 			return !isNaN(amt) && amt > 0;
 		},
@@ -831,8 +829,22 @@ export default {
 		isEditing() {
 			return !!this.internalEditingEntry;
 		},
+		isCreatingNewEntry() {
+			return this.isOpen && !this.isEditing && !this.isDuplicateMode;
+		},
+		hasUnsavedChanges() {
+			if (!this.isOpen || this.isInitializingEntry) {
+				return false;
+			}
+
+			return this.isDuplicateMode || hasEntryFormChanges(
+				this.entryFormBaseline,
+				this.entry,
+				this.pendingAttachments.length
+			);
+		},
 		showAttachmentSection() {
-			return !this.isTemplateMode && this.$enableReceipts;
+			return this.$enableReceipts;
 		},
 		hasAttachments() {
 			return this.attachments.length > 0 || this.pendingAttachments.length > 0;
@@ -847,64 +859,29 @@ export default {
 			if (this.$enableFuturePayments && this.entry.recurrenceInterval !== 'none') {
 				items.push(this.$texts.entry.recurrenceActive());
 			}
-			if (this.entry.hasReminder) {
+			if (this.entry.hasReminder && this.reminderDateString) {
 				items.push(this.$texts.entry.reminderActive());
 			}
 
 			return items;
 		},
 		saveActionLabel() {
-			if (this.isTemplateMode) {
-				return this.$texts.entry.saveTemplate();
-			}
-			return this.isFutureContext && !this.isEditing ? this.$texts.entry.planPayment() : this.$texts.common.save();
+			return this.$texts.common.save();
 		},
-		showSaveSplitMenu() {
-			return !this.isTemplateMode && !this.isEditing && !this.loading;
+		saveActionBusyLabel() {
+			return this.$texts.common.saveBusy();
+		},
+		isSaveDisabled() {
+			return !this.isValid
+				|| this.loading
+				|| this.isInitializingEntry
+				|| (this.isEditing && !this.hasUnsavedChanges);
+		},
+		showCancelAction() {
+			return !this.isWideViewport;
 		},
 		showMobileHeaderSave() {
-			return this.isOpen && this.mobileFormFieldFocused && !this.confirmDialog;
-		},
-		saveMenuItems() {
-			if (!this.showSaveSplitMenu) {
-				return [];
-			}
-
-			const newEntryAction = { key: 'new', label: this.$texts.entry.saveNew() };
-
-			if (!this.$enableTemplates) {
-				return [newEntryAction];
-			}
-
-			if (this.templatesLoading) {
-				return [
-					{ key: 'templates-loading', label: this.$texts.entry.templatesLoading(), disabled: true },
-					{ key: 'template-separator', separator: true },
-					newEntryAction
-				];
-			}
-
-			if (!this.templates.length) {
-				return [
-					{ key: 'no-templates', label: this.$texts.entry.noTemplates(), disabled: true },
-					{ key: 'template-separator', separator: true },
-					newEntryAction
-				];
-			}
-
-			const templateActions = this.templates.map(template => ({
-					key: `template-${template.id}`,
-					label: this.$texts.entry.saveTemplateNamed(template.name),
-					title: this.$texts.entry.openTemplateAfterSave(template.name),
-					template
-				}));
-
-			return [
-				// The menu opens upwards, so the visual template order must be inverted.
-				...templateActions.reverse(),
-				{ key: 'template-separator', separator: true },
-				newEntryAction
-			];
+			return this.isOpen && this.isMobileViewport() && this.mobileFormFieldFocused && !this.confirmDialog;
 		},
 		activeProjects() {
 			if (!this.$enableProjects) {
@@ -968,11 +945,10 @@ export default {
 			);
 		},
 		showProjectPayerSelect() {
-			return this.$enableSharedProjects && !this.isTemplateMode && !!this.entry.projectId && this.projectPayerOptions.length > 1;
+			return this.$enableSharedProjects && !!this.entry.projectId && this.projectPayerOptions.length > 1;
 		},
 		showProjectSplitMode() {
 			return this.$enableSharedProjects
-				&& !this.isTemplateMode
 				&& !!this.entry.projectId
 				&& this.normalizedProjectMembers.length > 1
 				&& this.projectSplitOptions.length > 0;
@@ -1078,10 +1054,16 @@ export default {
 		// Data lists are now fetched when modal opens
 		window.addEventListener('popstate', this.handleModalPopState);
 		document.addEventListener('mousedown', this.handleLookupOutside);
+		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+			this.wideViewportMedia = window.matchMedia('(min-width: 1025px)');
+			this.updateWideViewport(this.wideViewportMedia);
+			this.wideViewportMedia.addEventListener?.('change', this.updateWideViewport);
+		}
 	},
 	beforeUnmount() {
 		window.removeEventListener('popstate', this.handleModalPopState);
 		document.removeEventListener('mousedown', this.handleLookupOutside);
+		this.wideViewportMedia?.removeEventListener?.('change', this.updateWideViewport);
 		if (this.ignorePopStateTimer) {
 			window.clearTimeout(this.ignorePopStateTimer);
 			this.ignorePopStateTimer = null;
@@ -1123,6 +1105,9 @@ export default {
 		}
 	},
 	methods: {
+		updateWideViewport(event) {
+			this.isWideViewport = !!event?.matches;
+		},
 		areaChoiceStyle(option) {
 			if (option.id === null || !this.isAreaSelected(option.id)) {
 				return {};
@@ -1149,6 +1134,18 @@ export default {
 
 			this.entry.projectId = projectId;
 		},
+		markEntryClean() {
+			this.entryFormBaseline = snapshotEntryForm(this.entry);
+		},
+		emitSidebarMode() {
+			this.$emit('mode-changed', {
+				isOpen: this.isOpen,
+				isCreatingNewEntry: this.isCreatingNewEntry,
+				isEditing: this.isEditing,
+				isDuplicateMode: this.isDuplicateMode,
+				isFutureContext: this.isFutureContext
+			});
+		},
 		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary' }) {
 			return new Promise(resolve => {
 				this.confirmDialog = {
@@ -1166,6 +1163,29 @@ export default {
 			if (resolver) {
 				resolver(confirmed);
 			}
+		},
+		async confirmDiscardChanges() {
+			if (this.confirmDialog || this.loading) {
+				return false;
+			}
+			if (!this.hasUnsavedChanges) {
+				return true;
+			}
+
+			return this.openConfirm({
+				title: this.$texts.entry.discardChangesTitle(),
+				message: this.$texts.entry.discardChangesMessage(),
+				confirmLabel: this.$texts.entry.discardChangesConfirm(),
+				confirmVariant: 'danger'
+			});
+		},
+		async requestCloseSidebar(options = {}) {
+			if (!(await this.confirmDiscardChanges())) {
+				return false;
+			}
+
+			this.closeSidebar(options);
+			return true;
 		},
 		clearMobileFocusTimer() {
 			if (this.mobileFocusTimer) {
@@ -1238,10 +1258,36 @@ export default {
 				this.closeLookup();
 				return;
 			}
-			this.closeModal();
+			this.requestCloseSidebar();
+		},
+		async handleSidebarOpenUpdate(isOpen) {
+			if (isOpen) {
+				this.isOpen = true;
+				return;
+			}
+
+			if (this.confirmDialog || this.loading) {
+				this.isOpen = true;
+				return;
+			}
+
+			await this.requestCloseSidebar();
+		},
+		handleSidebarOpened() {
+			if (!this.pendingInitialFocus) {
+				return;
+			}
+
+			this.pendingInitialFocus = false;
+			this.focusInitialField();
+		},
+		usesSidebarHistory() {
+			return typeof window !== 'undefined'
+				&& typeof window.matchMedia === 'function'
+				&& window.matchMedia('(max-width: 1024px)').matches;
 		},
 		pushModalHistory() {
-			if (this.modalHistoryToken || typeof window === 'undefined' || !window.history?.pushState) {
+			if (!this.usesSidebarHistory() || this.modalHistoryToken || typeof window === 'undefined' || !window.history?.pushState) {
 				return;
 			}
 
@@ -1308,7 +1354,7 @@ export default {
 			}
 
 			if (shouldCloseModal) {
-				this.closeModal({ skipHistory: true });
+				this.closeSidebar({ skipHistory: true });
 			}
 		},
 		currentUserId() {
@@ -1345,7 +1391,20 @@ export default {
 			return this.$refs.amountTypeTrigger?.$el || this.$refs.amountTypeTrigger || null;
 		},
 		focusAmountInput() {
-			this.$refs.amountInput?.focus();
+			this.$refs.amountInput?.focus({ preventScroll: true });
+		},
+		focusLookup(field) {
+			this.openLookup(field);
+			this.$nextTick(() => this.lookupTrigger(field)?.focus());
+		},
+		focusPaymentPartnerLookup() {
+			this.evaluateAmount();
+			this.focusLookup('paymentPartner');
+		},
+		advanceToCategoryLookup() {
+			void this.maybeSuggestCategory();
+			this.closeLookup();
+			this.$nextTick(() => this.lookupTrigger('category')?.focus({ preventScroll: true }));
 		},
 		toggleTypeMenu() {
 			if (this.typeMenuOpen) {
@@ -1388,7 +1447,8 @@ export default {
 		},
 		selectEntryType(type) {
 			this.setEntryType(type);
-			this.closeTypeMenu(true);
+			this.closeTypeMenu(false);
+			this.$nextTick(() => this.focusAmountInput());
 		},
 		closeTypeMenu(restoreFocus = false) {
 			const wasOpen = this.typeMenuOpen;
@@ -1556,16 +1616,6 @@ export default {
 				return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
 			});
 		},
-		sortTemplates(templates) {
-			return [...templates].sort((a, b) => {
-				const usageDiff = (parseInt(b.usage_count, 10) || 0) - (parseInt(a.usage_count, 10) || 0);
-				if (usageDiff !== 0) {
-					return usageDiff;
-				}
-
-				return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
-			});
-		},
 		buildSuggestionSections(items, query, allLabel, additionalSearchFields = [], hierarchical = false) {
 			const normalizedQuery = String(query || '').trim().toLowerCase();
 			const searchFields = ['name', ...additionalSearchFields];
@@ -1721,12 +1771,15 @@ export default {
 				this.entry.categoryId = null;
 				this.entry.categoryName = name;
 				this.categorySelectionSource = 'manual';
-			} else {
-				this.invalidateCategorySuggestion(true);
-				this.entry.paymentPartnerName = name;
+				this.closeLookup();
+				this.blurLookupTrigger(field);
+				return;
 			}
+
+			this.invalidateCategorySuggestion(true);
+			this.entry.paymentPartnerName = name;
 			this.closeLookup();
-			this.blurLookupTrigger(field);
+			this.advanceToCategoryLookup();
 		},
 		handleLookupDraftEnter(field) {
 			const suggestions = this.lookupSuggestions(field);
@@ -1887,8 +1940,7 @@ export default {
 			this.invalidateCategorySuggestion(true);
 			this.entry.paymentPartnerName = paymentPartner.name;
 			this.closeLookup();
-			this.blurLookupTrigger('paymentPartner');
-			void this.maybeSuggestCategory();
+			this.advanceToCategoryLookup();
 		},
 		invalidateCategorySuggestion(clearSuggested = false) {
 			this.categorySuggestionRequestId += 1;
@@ -1959,36 +2011,24 @@ export default {
 				this.syncMobileHeaderSaveVisibility();
 			});
 		},
-		async openModal(entryToEdit = null, defaultProjectId = null, isFutureContext = false, templateToLoad = null, isTemplateMode = false, entryToDuplicate = null, defaultType = 'expense') {
+		async openSidebar(entryToEdit = null, defaultProjectId = null, isFutureContext = false, entryToDuplicate = null, defaultType = 'expense', projectSelectionLocked = false, reuseLoadedData = false) {
+			const canFocusImmediately = this.isOpen && !this.pendingInitialFocus;
 			this.invalidateCategorySuggestion(true);
 			this.categorySelectionSource = null;
 			this.closeTypeMenu(false);
-			if (!this.$enableTemplates) {
-				templateToLoad = null;
-				isTemplateMode = false;
-			}
 			this.isOpen = true;
+			this.pendingInitialFocus = !canFocusImmediately;
 			this.closedByHistory = false;
 			this.pushModalHistory();
 			this.isFutureContext = isFutureContext;
-			this.isTemplateMode = isTemplateMode;
-			this.isDuplicateMode = !!entryToDuplicate && !entryToEdit && !isTemplateMode;
-			this.saveAsTemplate = false;
-			this.templateName = '';
-			this.templateDescription = '';
-			this.sourceTemplateId = null;
+			this.isDuplicateMode = !!entryToDuplicate && !entryToEdit;
+			this.projectSelectionLocked = !!projectSelectionLocked;
 			this.originalProjectId = entryToEdit?.project_id || null;
 			this.resetAttachments();
 			const resolvedDefaultType = defaultType === 'income' ? 'income' : 'expense';
-			
-			// Projects are needed before the project-scoped category/contact list can be resolved.
-			await this.fetchProjects();
-			if (!entryToEdit && !isTemplateMode) {
-				await this.fetchTemplates();
-			} else {
-				this.templates = [];
-				this.templatesLoading = false;
-			}
+			this.newEntryDefaultType = resolvedDefaultType;
+			this.entryFormBaseline = '';
+
 			this.isInitializingEntry = true;
 			
 			if (entryToEdit) {
@@ -2023,38 +2063,6 @@ export default {
 					reminderDate: entryToEdit.reminder_date ? new Date(entryToEdit.reminder_date * 1000) : null,
 					reminderText: entryToEdit.reminder_text || ''
 				};
-			} else if (templateToLoad) {
-				this.internalEditingEntry = null;
-				this.sourceTemplateId = templateToLoad.id || null;
-				this.entry = {
-					type: templateToLoad.type || 'expense',
-					amountDisplay: templateToLoad.amount ? this.$formatInputAmount(templateToLoad.amount) : '',
-					description: templateToLoad.description || '',
-					categoryId: this.sourceCategoryId(templateToLoad),
-					categoryName: templateToLoad.category_name || '',
-					paymentPartnerName: templateToLoad.paymentPartner || (() => {
-						if (!templateToLoad.payment_partner_id) return '';
-						const pay = this.paymentPartners.find(p => p.id === templateToLoad.payment_partner_id);
-						return pay ? pay.name : '';
-					})(),
-					projectId: templateToLoad.project_id || defaultProjectId || this.projectId,
-					userId: this.currentUserId(),
-					splitMode: templateToLoad.split_mode || 'project_shares',
-					splitUserId: templateToLoad.split_user_id || null,
-					date: new Date(),
-					recurrenceInterval: 'none',
-					recurrenceMultiplier: 1,
-					recurrenceEndDate: null,
-					isSubscription: !!templateToLoad.is_subscription,
-					isFixedCost: !!templateToLoad.is_fixed_cost,
-					isChildRelated: !!templateToLoad.is_child_related,
-					isImportant: !!templateToLoad.is_important,
-					needsReview: !!templateToLoad.needs_review,
-					isTaxRelevant: !!templateToLoad.is_tax_relevant,
-					hasReminder: false,
-					reminderDate: null,
-					reminderText: ''
-				};
 			} else if (entryToDuplicate) {
 				this.internalEditingEntry = null;
 				this.entry = {
@@ -2072,7 +2080,7 @@ export default {
 					userId: entryToDuplicate.user_id || this.currentUserId(),
 					splitMode: entryToDuplicate.split_mode || 'project_shares',
 					splitUserId: entryToDuplicate.split_user_id || null,
-					date: this.entryDateFromSource(entryToDuplicate),
+					date: new Date(),
 					recurrenceInterval: 'none',
 					recurrenceMultiplier: 1,
 					recurrenceEndDate: null,
@@ -2136,23 +2144,42 @@ export default {
 					reminderText: ''
 				};
 			}
+			this.emitSidebarMode();
+
+			// Reset the visible form immediately. This keeps consecutive desktop entries
+			// ready while fresh lookup data is only loaded for a normal reopen.
+			if (canFocusImmediately) {
+				this.focusInitialField();
+			}
+			const sourceEntry = entryToEdit || entryToDuplicate || null;
+			if (reuseLoadedData) {
+				this.syncLookupNamesFromIds(sourceEntry);
+				this.syncEntryUserWithProject(this.entry.userId);
+				this.isInitializingEntry = false;
+				this.showPlanningOptions = this.shouldExpandPlanningOptions();
+				this.markEntryClean();
+				return;
+			}
+
+			// Projects are needed before the project-scoped category/contact list can be resolved.
+			await this.fetchProjects();
 			await this.fetchDataLists(this.entry.projectId);
-			this.syncLookupNamesFromIds(entryToEdit || templateToLoad || entryToDuplicate || null);
+			this.syncLookupNamesFromIds(sourceEntry);
 			this.categorySelectionSource = null;
-			if ((entryToEdit || templateToLoad || entryToDuplicate) && this.entry.categoryName) {
+			if ((entryToEdit || entryToDuplicate) && this.entry.categoryName) {
 				this.categorySelectionSource = 'preset';
 			}
 			await this.ensureProjectMembers(this.entry.projectId);
 			this.syncEntryUserWithProject(this.entry.userId);
-			this.isInitializingEntry = false;
-			if (entryToEdit && !this.isTemplateMode) {
+			if (entryToEdit) {
 				await this.fetchAttachments(entryToEdit.id);
 			}
+			this.isInitializingEntry = false;
 			this.showPlanningOptions = this.shouldExpandPlanningOptions();
-			this.focusInitialField();
+			this.markEntryClean();
 		},
 		focusInitialField() {
-			if (this.isEditing && !this.isTemplateMode) {
+			if (this.isEditing) {
 				return;
 			}
 			if (this.isMobileViewport()) {
@@ -2160,11 +2187,11 @@ export default {
 			}
 
 			this.$nextTick(() => {
-				const target = this.isTemplateMode ? this.$refs.templateNameInput : this.$refs.amountInput;
+				const target = this.$refs.amountInput;
 				if (!target) {
 					return;
 				}
-				target.focus();
+				target.focus({ preventScroll: true });
 				if (typeof target.select === 'function') {
 					target.select();
 				}
@@ -2175,20 +2202,26 @@ export default {
 				&& typeof window.matchMedia === 'function'
 				&& window.matchMedia('(max-width: 768px)').matches;
 		},
-		closeModal({ preserveHistory = false, skipHistory = false } = {}) {
+		closeSidebar({ preserveHistory = false, skipHistory = false, userInitiated = true } = {}) {
+			const wasOpen = this.isOpen;
 			if (!preserveHistory && !skipHistory) {
 				this.releaseModalHistory();
 			}
 			this.isOpen = false;
+			this.pendingInitialFocus = false;
 			this.internalEditingEntry = null;
 			this.isDuplicateMode = false;
-			this.sourceTemplateId = null;
 			this.showPlanningOptions = false;
 			this.resetAttachments();
 			this.closeTypeMenu(false);
 			this.closeLookup();
 			this.clearMobileFocusTimer();
 			this.mobileFormFieldFocused = false;
+			this.entryFormBaseline = '';
+			this.emitSidebarMode();
+			if (wasOpen) {
+				this.$emit('closed', { userInitiated });
+			}
 		},
 		resetAttachments() {
 			this.attachments = [];
@@ -2199,7 +2232,7 @@ export default {
 			}
 		},
 		async fetchAttachments(entryId) {
-			if (!entryId || this.isTemplateMode || !this.$enableReceipts) {
+			if (!entryId || !this.$enableReceipts) {
 				this.attachments = [];
 				return;
 			}
@@ -2308,34 +2341,6 @@ export default {
 				this.projects = []
 			}
 		},
-		async fetchTemplates() {
-			if (!this.$enableTemplates || this.isTemplateMode || this.isEditing) {
-				this.templates = [];
-				return;
-			}
-
-			this.templatesLoading = true;
-			try {
-				const res = await axios.get(generateUrl('/apps/cobudget/api/templates'));
-				this.templates = this.sortTemplates(res.data || []);
-			} catch (e) {
-				showRequestError(e, this.$texts.entry.templatesLoadError(), 'Failed to fetch templates');
-				this.templates = [];
-			} finally {
-				this.templatesLoading = false;
-			}
-		},
-		async markTemplateUsed(templateId) {
-			if (!templateId || !this.$enableTemplates) {
-				return;
-			}
-
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/templates/${templateId}/use`));
-			} catch (e) {
-				// The entry save already succeeded; a stale usage counter should not block the user flow.
-			}
-		},
 		async fetchDataLists(projectId = this.entry.projectId) {
 			try {
 				const params = this.$enableProjects && projectId ? { projectId } : {};
@@ -2392,7 +2397,7 @@ export default {
 			return p ? p.name : ''
 		},
 		shouldExpandPlanningOptions() {
-			return !this.isTemplateMode && (
+			return (
 				this.entry.recurrenceInterval !== 'none'
 				|| !!this.entry.recurrenceEndDate
 				|| !!this.entry.hasReminder
@@ -2409,60 +2414,6 @@ export default {
 				return this.isEditing ? (this.entry.userId || currentUserId) : currentUserId;
 			}
 			return this.entry.userId || currentUserId;
-		},
-		normalizeSaveAction(action) {
-			if (!action || (typeof Event !== 'undefined' && action instanceof Event)) {
-				return { type: 'default' };
-			}
-			return action.type ? action : { type: 'default' };
-		},
-		handleSaveMenuAction(item) {
-			if (item?.key === 'new') {
-				this.saveEntry({ type: 'new' });
-				return;
-			}
-			if (item?.template) {
-				this.saveEntry({ type: 'template', template: item.template });
-			}
-		},
-		entryDateFromSource(source) {
-			if (!source?.date) {
-				return new Date();
-			}
-
-			if (source.date instanceof Date) {
-				return new Date(source.date);
-			}
-
-			const timestamp = Number(source.date);
-			if (Number.isFinite(timestamp)) {
-				return new Date(timestamp * 1000);
-			}
-
-			const parsed = new Date(source.date);
-			return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-		},
-		buildNewEntrySeed() {
-			return {
-				type: this.entry.type,
-				amount: '',
-				description: '',
-				category_name: '',
-				paymentPartner: this.entry.paymentPartnerName || '',
-				project_id: this.entry.projectId || null,
-				user_id: this.entryUserIdForSave(),
-				split_mode: this.entrySplitModeForSave(),
-				split_user_id: this.entrySplitUserIdForSave(),
-				date: Math.floor(this.entry.date.getTime() / 1000),
-				is_subscription: false,
-				is_fixed_cost: false,
-				is_child_related: false,
-				is_important: false,
-				needs_review: false,
-				is_tax_relevant: false,
-				reminder_date: null,
-				reminder_text: ''
-			};
 		},
 		toDateInputValue(value) {
 			if (!value) return '';
@@ -2481,13 +2432,16 @@ export default {
 			d.setHours(hours, minutes, seconds, 0);
 			return Number.isNaN(d.getTime()) ? null : d;
 		},
-		async saveEntry(action = null) {
-			const saveAction = this.normalizeSaveAction(action);
-			if (!this.isTemplateMode) {
-				this.evaluateAmount();
+		async saveEntry() {
+			if (this.isInitializingEntry) {
+				return;
 			}
+			if (this.isEditing && !this.hasUnsavedChanges) {
+				return;
+			}
+			this.evaluateAmount();
 			if (!this.isValid) {
-				showToast(this.isTemplateMode ? this.$texts.entry.validTemplateNameRequired() : this.$texts.entry.validAmountRequired(), 'error');
+				showToast(this.$texts.entry.validAmountRequired(), 'error');
 				return;
 			}
 			
@@ -2499,16 +2453,12 @@ export default {
 				entryDate.setHours(0,0,0,0);
 				
 				if (entryDate > now) {
-					this.isOpen = false;
 					const confirmed = await this.openConfirm({
 						title: this.$texts.entry.futurePaymentTitle(),
 						message: this.$texts.entry.futurePaymentMessage(),
 						confirmLabel: this.$texts.entry.planPayment()
 					});
 					if (!confirmed) {
-						if (!this.consumeHistoryClose()) {
-							this.isOpen = true;
-						}
 						return;
 					}
 				}
@@ -2525,15 +2475,16 @@ export default {
 			
 			this.loading = true;
 			let entryPersisted = false;
+			const wasEditing = this.isEditing;
+			const closeAfterSave = this.usesSidebarHistory();
+			const prepareNextEntry = !closeAfterSave && !wasEditing;
+			const retainedProjectId = this.entry.projectId || null;
+			const retainedFutureContext = this.isFutureContext;
+			const retainedProjectLock = this.projectSelectionLocked;
+			const retainedDefaultType = this.newEntryDefaultType;
 			try {
 				await this.ensureProjectMembers(this.entry.projectId);
 				this.syncEntryUserWithProject(this.entry.userId);
-				const followUpSeed = !this.isEditing && saveAction.type === 'new'
-					? this.buildNewEntrySeed()
-					: null;
-				const followUpTemplate = !this.isEditing && saveAction.type === 'template'
-					? saveAction.template
-					: null;
 
 				let categoryId = normalizedPositiveId(this.entry.categoryId);
 				const rawCatName = this.entry.categoryName || '';
@@ -2550,6 +2501,16 @@ export default {
 								projectId: this.entry.projectId || null
 							});
 							categoryId = res.data.id;
+							this.categories = sortCategoriesHierarchically([
+								...this.categories,
+								{
+									...res.data,
+									id: categoryId,
+									name: cName,
+									type: this.entry.type,
+									project_id: this.entry.projectId || null
+								}
+							]);
 						}
 					} else {
 						categoryId = cat.id;
@@ -2564,12 +2525,22 @@ export default {
 					const pName = rawPaymentPartnerName.trim();
 					let pay = (this.paymentPartners || []).find(p => p && p.name && String(p.name).toLowerCase() === String(pName).toLowerCase());
 					if (!pay) {
-						const res = await axios.post(generateUrl('/apps/cobudget/api/payment-partners'), {
-							name: pName,
-							type: this.entry.type,
-							projectId: this.entry.projectId || null
-						});
-						paymentPartnerId = res.data.id;
+							const res = await axios.post(generateUrl('/apps/cobudget/api/payment-partners'), {
+								name: pName,
+								type: this.entry.type,
+								projectId: this.entry.projectId || null
+							});
+							paymentPartnerId = res.data.id;
+							this.paymentPartners = [
+								...this.paymentPartners,
+								{
+									...res.data,
+									id: paymentPartnerId,
+									name: pName,
+									type: this.entry.type,
+									project_id: this.entry.projectId || null
+								}
+							].sort((a, b) => a.name.localeCompare(b.name));
 					} else {
 						paymentPartnerId = pay.id;
 					}
@@ -2620,41 +2591,11 @@ export default {
 					reminderText: this.entry.hasReminder ? this.entry.reminderText : ''
 				};
 
-				let templateSaved = false;
-				if (this.isTemplateMode || this.saveAsTemplate) {
-					const templatePayload = {
-						name: this.templateName,
-						description: this.entry.description,
-						type: this.entry.type,
-						amount: this.entry.amountDisplay ? this.$parseAmount(this.entry.amountDisplay) : null,
-						categoryId: categoryId,
-						projectId: this.entry.projectId || null,
-						paymentPartnerId: paymentPartnerId,
-						splitMode: this.entrySplitModeForSave(),
-						splitUserId: this.entrySplitUserIdForSave(),
-						isSubscription: isExpense && this.entry.isSubscription,
-						isFixedCost: isExpense && this.entry.isFixedCost,
-						isChildRelated: this.entry.isChildRelated,
-						isImportant: this.entry.isImportant,
-						needsReview: this.entry.needsReview,
-						isTaxRelevant: this.entry.isTaxRelevant
-					};
-					await axios.post(generateUrl('/apps/cobudget/api/templates'), templatePayload);
-					templateSaved = true;
-				}
-
-				if (this.isTemplateMode) {
-					showToast(this.$texts.entry.templateSaved());
-					this.$emit('saved');
-					this.closeModal();
-					this.loading = false;
-					return;
-				}
-
 				if (this.isEditing) {
 					await axios.put(generateUrl(`/apps/cobudget/api/entries/${this.entry.id}`), payload);
 					entryPersisted = true;
 					await this.uploadPendingAttachments(this.entry.id);
+					this.markEntryClean();
 					showToast(this.$texts.entry.entrySaved());
 				} else {
 					const response = await axios.post(generateUrl('/apps/cobudget/api/entries'), payload);
@@ -2662,43 +2603,34 @@ export default {
 						this.entry.id = response.data.id;
 					}
 					entryPersisted = true;
-					await this.markTemplateUsed(this.sourceTemplateId);
 					await this.uploadPendingAttachments(this.entry.id);
-					if (templateSaved) {
-						showToast(this.$texts.entry.entryAndTemplateCreated());
-					} else if (!followUpSeed && !followUpTemplate) {
-						showToast(this.$texts.entry.entryCreated());
-					}
+					showToast(prepareNextEntry
+						? this.$texts.entry.entryCreatedNewPrepared()
+						: this.$texts.entry.entryCreated());
 				}
 
-				this.$emit('saved');
+				this.$emit('saved', {
+					action: wasEditing ? 'updated' : 'created',
+					entryId: this.entry.id || null
+				});
 
-				if (followUpSeed) {
-					showToast(this.$texts.entry.entryCreatedNewPrepared());
-					this.closeModal({ preserveHistory: true });
-					await this.$nextTick();
-					await this.openModal(null, followUpSeed.project_id || null, this.isFutureContext, null, false, followUpSeed, followUpSeed.type);
-					this.loading = false;
-					return;
+				if (closeAfterSave) {
+					this.closeSidebar();
+				} else if (!wasEditing) {
+					await this.openSidebar(
+						null,
+						retainedProjectId,
+						retainedFutureContext,
+						null,
+							retainedDefaultType,
+							retainedProjectLock,
+							true
+						);
 				}
-
-				if (followUpTemplate) {
-					showToast(this.$texts.entry.entryCreatedTemplateOpened(followUpTemplate.name));
-					const fallbackProjectId = this.entry.projectId || null;
-					this.closeModal({ preserveHistory: true });
-					await this.$nextTick();
-					await this.openModal(null, fallbackProjectId, this.isFutureContext, followUpTemplate, false, null, followUpTemplate.type || this.entry.type);
-					this.loading = false;
-					return;
-				}
-
-				this.closeModal();
 			} catch (e) {
-				const fallback = this.isTemplateMode
-					? this.$texts.entry.templateSaveError()
-					: entryPersisted
+				const fallback = entryPersisted
 						? this.$texts.entry.entrySavedReceiptUploadError()
-						: this.isEditing
+						: wasEditing
 						? this.$texts.entry.entrySaveError()
 						: this.$texts.entry.entryCreateError();
 				showRequestError(e, fallback, 'Failed to save entry')
@@ -2706,7 +2638,11 @@ export default {
 			this.loading = false;
 		},
 		async deleteEntry() {
-			this.isOpen = false;
+			const deletedEntryId = this.entry.id || null;
+			const retainedProjectId = this.entry.projectId || null;
+			const retainedFutureContext = this.isFutureContext;
+			const retainedProjectLock = this.projectSelectionLocked;
+			const retainedDefaultType = this.newEntryDefaultType;
 			const msg = (this.isEditing && this.isFutureContext)
 				? this.$texts.entry.disableFuturePaymentMessage()
 				: this.$texts.entry.deleteEntryMessage();
@@ -2719,9 +2655,6 @@ export default {
 				confirmVariant: 'danger'
 			});
 			if (!confirmed) {
-				if (!this.consumeHistoryClose()) {
-					this.isOpen = true;
-				}
 				return;
 			}
 			
@@ -2735,8 +2668,20 @@ export default {
 					await axios.delete(generateUrl(`/apps/cobudget/api/entries/${deleteId}`));
 					showToast(this.$texts.entry.entryDeleted());
 				}
-				this.$emit('saved');
-				this.releaseModalHistory();
+				this.$emit('saved', { action: 'deleted', entryId: deletedEntryId });
+				if (this.usesSidebarHistory()) {
+					this.closeSidebar();
+				} else {
+					await this.openSidebar(
+						null,
+						retainedProjectId,
+						retainedFutureContext,
+						null,
+							retainedDefaultType,
+							retainedProjectLock,
+							true
+						);
+				}
 			} catch (e) {
 				const fallback = this.isEditing && this.isFutureContext
 					? this.$texts.entry.futurePaymentDisableError()
@@ -2805,119 +2750,88 @@ export default {
 </script>
 
 <style scoped>
-.modal-backdrop {
-	--color-main-text: var(--cobudget-text);
-	--color-text-maxcontrast: var(--cobudget-text-muted);
-	--color-main-background: var(--cobudget-surface);
-	--color-background-hover: var(--cobudget-surface-muted);
-	--color-background-dark: var(--cobudget-surface-muted);
-	--color-background-darker: var(--cobudget-surface-strong);
-	--color-border: var(--cobudget-border);
-	--color-border-dark: var(--cobudget-border-strong);
-	position: fixed;
-	top: 0; left: 0; width: 100%; height: 100%;
-	background: rgba(0,0,0,0.6);
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	z-index: 10000;
-	backdrop-filter: blur(2px);
+.entry-sidebar {
+	--entry-sidebar-content-padding: 4px;
+	--entry-sidebar-header-action-gap: var(--default-grid-baseline, 4px);
+	--entry-sidebar-header-save-width: calc(var(--default-grid-baseline, 4px) * 15);
+	overflow: hidden;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
 }
 
-.modal-content {
-	position: relative;
-	background: var(--cobudget-surface, #fff);
-	color: var(--cobudget-text, #222);
-	padding: 0;
-	border-radius: var(--border-radius-large, 10px);
-	width: min(640px, calc(100vw - 48px));
-	max-width: 95vw;
-	box-shadow: 0 10px 40px rgba(0,0,0,0.25);
-	overflow: visible; /* Prevent cutting off DatePicker popover */
+@media only screen and (min-width: 513px) {
+	.entry-sidebar {
+		--entry-sidebar-width: clamp(225px, 20.25vw, 375px);
+		--app-sidebar-width: var(--entry-sidebar-width) !important;
+		width: var(--entry-sidebar-width) !important;
+		max-width: 375px;
+	}
 }
 
-.modal-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 16px;
-	padding: 10px 20px;
-	background: var(--cobudget-surface-muted, #f9f9f9);
-	border-bottom: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 10px) var(--border-radius-large, 10px) 0 0;
+.entry-sidebar :deep(.app-sidebar-tabs),
+.entry-sidebar :deep(.app-sidebar-tabs__content) {
+	min-height: 0;
+	overflow: hidden;
 }
 
-.modal-title {
-	margin: 0;
-	font-size: var(--cobudget-font-lg);
-	font-weight: 700;
-	color: var(--cobudget-text, var(--color-main-text, #222));
+.entry-sidebar :deep(.app-sidebar-header) {
+	border-bottom: 1px solid var(--cobudget-border, var(--color-border));
+	background: var(--cobudget-surface-muted, var(--color-background-dark));
 }
 
-.modal-header-actions {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	flex: 0 0 auto;
+.entry-sidebar :deep(.app-sidebar-header__desc) {
+	padding-inline-start: var(--entry-sidebar-content-padding);
 }
 
-.modal-header-save-button,
-.modal-close-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: var(--cobudget-icon-button-size);
-	height: var(--cobudget-icon-button-size);
-	min-width: var(--cobudget-icon-button-size);
-	border: 0;
-	border-radius: var(--cobudget-radius-sm);
-	background: transparent;
-	color: var(--cobudget-text);
-	cursor: pointer;
-	padding: 0;
+.entry-sidebar--mobile-save-visible :deep(.app-sidebar-header__desc) {
+	padding-inline-start: var(--entry-sidebar-content-padding) !important;
+	padding-inline-end: calc(
+		var(--app-sidebar-padding)
+		+ var(--default-clickable-area)
+		+ var(--entry-sidebar-header-save-width)
+		+ var(--entry-sidebar-header-action-gap)
+		+ var(--entry-sidebar-header-action-gap)
+	) !important;
 }
 
-.modal-header-save-button {
-	display: none;
-	color: var(--cobudget-primary, var(--color-primary, #0082c9));
+.entry-sidebar--mobile-save-visible :deep(.app-sidebar-header__tertiary-actions) {
+	position: absolute;
+	z-index: 101;
+	top: var(--app-sidebar-padding);
+	inset-inline-start: auto;
+	inset-inline-end: calc(
+		var(--app-sidebar-padding)
+		+ var(--default-clickable-area)
+		+ var(--entry-sidebar-header-action-gap)
+	);
+	width: var(--entry-sidebar-header-save-width) !important;
+	height: var(--default-clickable-area) !important;
 }
 
-.modal-header-save-button:disabled {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	cursor: not-allowed;
-	opacity: 0.55;
+.entry-sidebar--mobile-save-visible :deep(.entry-sidebar-header-save.entry-sidebar-header-save.button-vue) {
+	width: var(--entry-sidebar-header-save-width) !important;
+	min-width: var(--entry-sidebar-header-save-width) !important;
+	height: var(--default-clickable-area);
+	min-height: var(--default-clickable-area);
 }
 
-.modal-header-save-button:hover:not(:disabled),
-.modal-header-save-button:focus-visible:not(:disabled),
-.modal-close-button:hover,
-.modal-close-button:focus-visible {
-	background: var(--cobudget-surface-strong);
-	outline: none;
-}
-
-.modal-header-save-button:focus-visible,
-.modal-close-button:focus-visible {
-	box-shadow: var(--cobudget-focus-ring);
-}
-
-.modal-header-save-button :deep(.material-design-icon),
-.modal-header-save-button :deep(.material-design-icon__svg),
-.modal-close-button :deep(.material-design-icon),
-.modal-close-button :deep(.material-design-icon__svg) {
+.entry-sidebar-header-save :deep(.material-design-icon),
+.entry-sidebar-header-save :deep(.material-design-icon__svg) {
 	display: block;
 }
 
-form {
-	display: flex;
-	flex-direction: column;
-	max-height: 90vh;
-	margin: 0;
-}
-
 .modal-form {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	min-width: 0;
+	margin: 0;
 	padding: 0;
+	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .info-banner {
@@ -2936,13 +2850,19 @@ form {
 }
 
 .modal-body {
-  padding: 20px 20px;
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+	overflow-x: hidden;
 	overflow-y: auto;
-	flex-grow: 1;
+	overscroll-behavior: contain;
+	flex: 1 1 auto;
+	min-height: 0;
 }
 
 .form-row {
 	display: flex;
+	flex-direction: column;
 	gap: 16px;
 	margin-bottom: 16px;
 }
@@ -2965,13 +2885,14 @@ form {
 .entry-required-panel,
 .entry-details-grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: minmax(0, 1fr);
 	gap: 16px;
 }
 
 .entry-required-panel {
 	margin-bottom: 18px;
 	align-items: stretch;
+  padding-top: 5px;
 }
 
 .planning-grid {
@@ -3038,50 +2959,49 @@ form {
 }
 
 .area-choice {
+	--area-choice-state-background: var(--color-main-background, #fff);
+	--area-choice-state-border: var(--cobudget-border-strong, var(--color-border-dark, #ccc));
+	--area-choice-state-text: var(--cobudget-text, var(--color-main-text, #222));
+
 	display: grid;
-	grid-template-columns: 28px minmax(0, 1fr);
+	grid-template-columns: 24px minmax(0, 1fr);
 	align-items: center;
 	gap: 10px;
+	box-sizing: border-box;
 	min-width: 0;
 	min-height: 40px;
 	margin: 0;
-	padding: 8px 10px;
-	border: 1px solid var(--color-border, #d8d8d8);
+	padding: 8px 5px;
+	border: 2px solid var(--area-choice-state-border) !important;
   border-radius: var(--border-radius, 6px);
-	background: var(--color-main-background, #fff);
-	box-shadow: none;
+	background: var(--area-choice-state-background) !important;
+	box-shadow: none !important;
   font-weight: normal;
-	color: var(--cobudget-text, var(--color-main-text, #222));
+	color: var(--area-choice-state-text) !important;
 	text-align: left;
-	transform: none;
-	transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+	transform: none !important;
+	transition: none;
 }
 
-.area-choice:hover:not(:disabled) {
-	border-color: var(--color-border-dark, var(--color-border, #aaa));
-	background: var(--color-background-hover, #f2f2f2);
-	box-shadow: none;
-	transform: none;
+.area-choice:focus {
+	outline: none !important;
+	box-shadow: none !important;
 }
 
 .area-choice:focus-visible {
-	outline: 1px solid var(--color-primary-element, #00679e);
-	outline-offset: 1px;
+	outline: 2px solid var(--cobudget-text, var(--color-main-text, #222)) !important;
+	outline-offset: 2px;
 }
 
-.area-choice--selected,
-.area-choice--selected:hover:not(:disabled) {
-	border-color: var(--color-primary-element, #00679e);
-	background: var(--color-primary-element-light, #e5f1f8);
-	box-shadow: none;
+.area-choice[aria-checked='true'] {
+	--area-choice-state-border: var(--color-primary-element, #00679e);
+	--area-choice-state-background: var(--color-primary-element-light, #e5f1f8);
 }
 
-.area-choice--project.area-choice--selected,
-.area-choice--project.area-choice--selected:hover:not(:disabled) {
-	border-color: var(--area-choice-selected-border);
-	background: var(--area-choice-selected-background);
-	box-shadow: none;
-	color: var(--area-choice-selected-text);
+.area-choice--project[aria-checked='true'] {
+	--area-choice-state-border: var(--area-choice-selected-border);
+	--area-choice-state-background: var(--area-choice-selected-background);
+	--area-choice-state-text: var(--area-choice-selected-text);
 }
 
 .area-choice__icon {
@@ -3096,22 +3016,18 @@ form {
 .area-choice__label {
 	min-width: 0;
 	overflow-wrap: anywhere;
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
+  color: var(--cobudget-text-muted, #888);
 }
 
 .project-assignment-row.has-project-payer,
 .project-assignment-row.has-split-mode {
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.project-assignment-row.has-project-payer .detail-project,
-.project-assignment-row.has-split-mode .detail-project {
-	grid-column: 1 / -1;
+	grid-template-columns: minmax(0, 1fr);
 }
 
 .core-date,
 .core-amount,
-.core-template-name,
-.core-template-amount,
 .detail-category,
 .detail-paymentPartner {
 	grid-column: span 1;
@@ -3470,14 +3386,16 @@ button.lookup-trigger:focus-visible {
 }
 
 .reminder-choice-field {
-	flex: 1 1 66%;
+	flex: 1 1 auto;
+	width: 100%;
 	min-width: 0;
 }
 
 .reminder-date-field {
-	flex: 0 1 34%;
-	min-width: 170px;
-	max-width: 260px;
+	flex: 1 1 auto;
+	width: 100%;
+	min-width: 0;
+	max-width: none;
 }
 
 .recurrence-multiplier-input {
@@ -3529,9 +3447,18 @@ button.lookup-trigger:focus-visible {
 	line-height: 40px;
 }
 
-.form-control:focus {
-	border-color: var(--color-primary, #0082c9);
-	outline: none;
+.form-control:not(.amount-input):hover:not(:disabled) {
+	border-color: var(--cobudget-text, var(--color-main-text, #222)) !important;
+	background: var(--cobudget-surface, var(--color-main-background, #fff)) !important;
+	box-shadow: none !important;
+}
+
+.form-control:not(.amount-input):focus:not(:disabled),
+.form-control:not(.amount-input):focus-visible:not(:disabled) {
+	border: 2px solid var(--color-primary, #0082c9) !important;
+	background: var(--cobudget-surface, var(--color-main-background, #fff)) !important;
+	outline: none !important;
+	box-shadow: none !important;
 }
 
 .amount-input {
@@ -3572,7 +3499,7 @@ button.lookup-trigger:focus-visible {
 	width: 100%;
 	height: 44px;
 	margin-block: 3px;
-	border: 2px solid var(--amount-accent);
+	border: 2px solid var(--cobudget-border-strong, #ccc);
 	border-radius: var(--border-radius, 6px);
 	box-sizing: border-box;
 	overflow: visible;
@@ -3593,7 +3520,12 @@ button.lookup-trigger:focus-visible {
 	background: var(--cobudget-success-light);
 }
 
+.amount-input-wrap:hover {
+	border-color: var(--color-border-dark, var(--cobudget-border-strong, #ccc));
+}
+
 .amount-input-wrap:focus-within {
+	border-color: var(--color-primary-element, var(--color-primary, #0082c9));
 	outline: none;
 	box-shadow: none;
 }
@@ -3762,7 +3694,7 @@ button.lookup-trigger:focus-visible {
 	height: 44px !important;
 	line-height: 40px !important;
 	font-size: var(--cobudget-font-ui) !important;
-	border-radius: 6px !important;
+  border-radius: var(--entry-sidebar-control-radius);
 	box-sizing: border-box;
 	border: 2px solid var(--cobudget-border-strong, #ccc) !important;
 	background: var(--cobudget-surface, #fff) !important;
@@ -3778,6 +3710,8 @@ button.lookup-trigger:focus-visible {
 .tags-group {
 	margin-bottom: 0;
 	align-self: end;
+	box-sizing: border-box;
+	padding-inline: var(--default-grid-baseline, 4px);
 }
 
 .tags-toggles {
@@ -3804,29 +3738,23 @@ button.lookup-trigger:focus-visible {
 .tag-btn {
 	display: inline-block;
 	padding: 5px 10px;
-	background: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
+	background: var(--cobudget-surface-muted, var(--color-background-hover, #eee));
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	border-radius: 4px;
 	font-size: var(--cobudget-font-xs);
 	font-weight: 600;
-	transition: all 0.2s;
-	border: 1px solid transparent;
+	border: 2px solid var(--cobudget-border-strong, var(--color-border-dark, #ccc));
 	cursor: pointer;
 }
 
-.tag-toggle:hover .tag-btn {
-	background: var(--cobudget-surface-strong, var(--color-background-darker, #ddd));
-}
-
 .tag-toggle input:focus-visible + .tag-btn {
-	outline: 2px solid var(--color-primary, #0082c9);
+	outline: 2px solid var(--cobudget-text, var(--color-main-text, #222));
 	outline-offset: 2px;
-	box-shadow: 0 0 0 3px var(--color-primary-light, #e0f2fe);
 }
 
-.tag-btn.active {
-	background: var(--cobudget-primary-light, var(--color-primary-light, #e0f2fe));
-	color: var(--cobudget-primary, var(--color-primary, #0082c9));
+.tag-toggle input:checked + .tag-btn {
+	background: var(--cobudget-primary, var(--color-primary-element, #0082c9));
+	color: var(--color-primary-element-text, var(--cobudget-primary-text, #fff));
 	border-color: var(--cobudget-primary, var(--color-primary, #0082c9));
 }
 
@@ -3954,12 +3882,40 @@ button.lookup-trigger:focus-visible {
 .form-actions {
 	display: flex;
 	align-items: center;
-  padding: 10px 20px;
+	padding: 10px var(--entry-sidebar-content-padding);
 	margin-top: 0;
-	border-top: 1px solid var(--cobudget-border, #eee);
-	background: var(--cobudget-surface, #fff);
+	border-top: 1px solid var(--cobudget-border, var(--color-border));
+	background: var(--cobudget-surface-muted, var(--color-background-dark));
 	flex-shrink: 0;
 	border-radius: 0 0 10px 10px;
+}
+
+.form-actions :deep(.cobudget-button--secondary) {
+	background: transparent !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
+}
+
+.form-actions :deep(.cobudget-button--secondary:hover:not(:disabled)),
+.form-actions :deep(.cobudget-button--secondary:focus-visible:not(:disabled)) {
+	background: var(--cobudget-surface-muted) !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
+}
+
+.form-actions :deep(.cobudget-button--secondary:focus-visible:not(:disabled)) {
+	outline: 2px solid var(--color-primary-element, var(--color-primary, #0082c9));
+	outline-offset: 2px;
+}
+
+.form-actions :deep(.cobudget-button--secondary:disabled) {
+	background: transparent !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666)) !important;
+	opacity: 0.55 !important;
 }
 
 .entry-delete-icon-button {
@@ -4005,7 +3961,7 @@ button.lookup-trigger:focus-visible {
 }
 
 .align-items-end {
-	align-items: flex-end;
+	align-items: stretch;
 }
 
 .recurrence-preview {
@@ -4024,7 +3980,8 @@ button.lookup-trigger:focus-visible {
 }
 
 .recurrence-inputs.is-recurring {
-	grid-template-columns: minmax(128px, 150px) minmax(0, 1fr) minmax(0, 1fr);
+	grid-template-columns: minmax(calc(var(--default-grid-baseline, 4px) * 18), 0.42fr) minmax(0, 1fr);
+	column-gap: calc(var(--default-grid-baseline, 4px) * 2);
 }
 
 .recurrence-multiplier-field label {
@@ -4032,7 +3989,7 @@ button.lookup-trigger:focus-visible {
 }
 
 .recurrence-end-field {
-	grid-column: auto;
+	grid-column: 1 / -1;
 }
 
 .recurrence-inputs .recurrence-multiplier-input {
@@ -4045,7 +4002,18 @@ button.lookup-trigger:focus-visible {
 	min-width: 0;
 }
 
+.recurrence-inputs.is-recurring .recurrence-multiplier-input,
+.recurrence-inputs.is-recurring .recurrence-interval-field .select-control {
+	height: var(--default-clickable-area, 44px) !important;
+	min-height: var(--default-clickable-area, 44px);
+	margin: 0 !important;
+}
+
 @media (max-width: 780px) {
+	.entry-sidebar {
+		--entry-sidebar-content-padding: 16px;
+	}
+
 	.planning-summary-status {
 		display: block;
 		margin-block-start: 4px;
@@ -4056,16 +4024,8 @@ button.lookup-trigger:focus-visible {
 		display: none;
 	}
 
-	.modal-content {
-		width: min(560px, calc(100vw - 24px));
-	}
-
-	.modal-header-save-button {
-		display: inline-flex;
-	}
-
 	.modal-body {
-		padding: 24px;
+		padding: 16px;
 	}
 
 	.entry-details-grid,
@@ -4078,8 +4038,6 @@ button.lookup-trigger:focus-visible {
 	}
 
 	.core-description,
-	.core-template-name,
-	.core-template-amount,
 	.project-assignment-row,
 	.detail-tags,
 	.planning-card,
@@ -4113,11 +4071,7 @@ button.lookup-trigger:focus-visible {
 	}
 
 	.recurrence-inputs.is-recurring {
-		grid-template-columns: minmax(112px, 0.42fr) minmax(0, 1fr);
-	}
-
-	.recurrence-inputs.is-recurring .recurrence-end-field {
-		grid-column: 1 / -1;
+		grid-template-columns: minmax(calc(var(--default-grid-baseline, 4px) * 18), 0.42fr) minmax(0, 1fr);
 	}
 
 	.recurrence-multiplier-field label {
@@ -4125,18 +4079,7 @@ button.lookup-trigger:focus-visible {
 	}
 
 	.reminder-group .form-row.align-items-end {
-		flex-direction: row;
-		align-items: flex-end;
-	}
-
-	.reminder-choice-field {
-		flex: 1 1 auto;
-	}
-
-	.reminder-date-field {
-		flex: 0 0 132px;
-		min-width: 132px;
-		max-width: 150px;
+		align-items: stretch;
 	}
 
 	.reminder-text-row {
@@ -4145,41 +4088,22 @@ button.lookup-trigger:focus-visible {
 }
 
 @media (max-width: 600px) {
+	.entry-sidebar {
+		--entry-sidebar-content-padding: 20px;
+	}
+
 	.entry-required-panel {
 		grid-template-columns: 1fr;
 	}
 
-	.core-template-name,
-	.core-template-amount,
 	.core-date,
 	.core-amount {
 		grid-column: 1;
 	}
 
-	.modal-content {
-		width: 100%;
-		height: 100%;
-		max-width: 100%;
-		border-radius: 0;
-		display: flex;
-		flex-direction: column;
-	}
-	form {
-		height: 100%;
-		max-height: 100%;
-		flex-grow: 1;
-	}
 	.form-actions {
 		border-radius: 0;
 		padding: 10px 20px;
-	}
-
-	.modal-header-save-button,
-	.modal-close-button {
-		width: var(--cobudget-mobile-touch-size);
-		min-width: var(--cobudget-mobile-touch-size);
-		height: var(--cobudget-mobile-touch-size);
-		min-height: var(--cobudget-mobile-touch-size);
 	}
 
 	.entry-delete-icon-button {
@@ -4191,6 +4115,122 @@ button.lookup-trigger:focus-visible {
 
 	.modal-body {
 		padding: 20px;
+	}
+}
+
+@media (min-width: 1025px) {
+	.entry-sidebar {
+		--entry-sidebar-control-radius: var(--cobudget-radius-md, var(--border-radius-element, 8px));
+		--entry-sidebar-header-edge-inset: var(--app-sidebar-padding, calc(var(--default-grid-baseline, 4px) * 2));
+		--entry-sidebar-scrollbar-size: calc(var(--default-grid-baseline, 4px) * 2);
+
+		border-inline-start: 0 !important;
+		background: transparent !important;
+	}
+
+	.entry-sidebar :deep(.app-sidebar-header) {
+		position: relative;
+		flex: 0 0 auto;
+		width: auto;
+		height: auto;
+		min-height: var(--default-clickable-area, 44px);
+		margin: 0;
+		margin-block-start: var(--entry-sidebar-header-edge-inset);
+		margin-inline-end: calc(
+			var(--entry-sidebar-header-edge-inset)
+			+ var(--entry-sidebar-content-padding)
+		);
+		padding: 0;
+		border-bottom-color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+		overflow: visible;
+		clip: auto;
+		clip-path: none;
+		white-space: normal;
+		background: transparent !important;
+	}
+
+	.entry-sidebar :deep(.app-sidebar-header__desc) {
+		min-height: var(--default-clickable-area, 44px);
+		padding-block: 0;
+		padding-inline-start: var(--entry-sidebar-content-padding) !important;
+		padding-inline-end: calc(
+			var(--entry-sidebar-content-padding)
+			+ var(--default-clickable-area, 44px)
+			+ var(--entry-sidebar-header-action-gap)
+		) !important;
+	}
+
+	.entry-sidebar :deep(.app-sidebar-header__mainname) {
+		min-height: auto !important;
+		font-size: var(--cobudget-font-md, 16px) !important;
+		font-weight: var(--font-weight-heading, 600);
+		line-height: 1.25 !important;
+	}
+
+	.entry-sidebar :deep(.app-sidebar-header__tertiary-actions) {
+		position: absolute;
+		z-index: 101;
+		inset-block-start: 0;
+		inset-inline-start: auto;
+		inset-inline-end: 0;
+		width: var(--default-clickable-area, 44px);
+		height: var(--default-clickable-area, 44px);
+	}
+
+	.entry-sidebar :deep(.entry-sidebar-desktop-close.button-vue) {
+		width: var(--default-clickable-area, 44px);
+		min-width: var(--default-clickable-area, 44px);
+		height: var(--default-clickable-area, 44px);
+		min-height: var(--default-clickable-area, 44px);
+	}
+
+	.entry-sidebar :deep(.app-sidebar-header > .app-sidebar__close) {
+		display: none;
+	}
+
+	.modal-body {
+		padding-block-start: var(--entry-sidebar-content-padding);
+		scrollbar-color: transparent transparent;
+		scrollbar-gutter: stable;
+		scrollbar-width: thin;
+	}
+
+	.modal-body:hover,
+	.modal-body:focus-within {
+		scrollbar-color: var(--color-border-dark, var(--color-border)) transparent;
+	}
+
+	.modal-body::-webkit-scrollbar {
+		width: var(--entry-sidebar-scrollbar-size);
+		height: var(--entry-sidebar-scrollbar-size);
+	}
+
+	.modal-body::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.modal-body::-webkit-scrollbar-thumb {
+		border-radius: var(--border-radius-pill, 999px);
+		background: transparent;
+	}
+
+	.modal-body:hover::-webkit-scrollbar-thumb,
+	.modal-body:focus-within::-webkit-scrollbar-thumb {
+		background: var(--color-border-dark, var(--color-border));
+	}
+
+	.form-control,
+	.amount-input-wrap,
+	.area-choice {
+		border-radius: var(--entry-sidebar-control-radius);
+	}
+
+	.form-actions {
+		padding: calc(var(--default-grid-baseline, 4px) * 2) var(--entry-sidebar-content-padding)
+			calc(var(--default-grid-baseline, 4px) * 3);
+		border-top: 0;
+		border-radius: 0;
+		background: transparent;
 	}
 }
 

@@ -17,7 +17,7 @@ npm test
 - Routen zeigen auf existierende Controller-Methoden und haben eindeutige Verb-/URL-Paare.
 - User-Daten-API-Methoden liefern JSON-Fehler und pruefen Auth-/Workspace-Header-Fehler.
 - `WorkspaceAwareTrait` validiert Workspace-Header, Pflichtnamen, Typen, Betraege und Integer-Cents.
-- Entry-, Projekt-, Kategorie-, Empfaenger-, Template-, Workspace- und Cron-Vertraege bleiben workspace-scoped.
+- Entry-, Projekt-, Kategorie-, Empfaenger-, Workspace- und Cron-Vertraege bleiben workspace-scoped.
 - Kritische Operationen bleiben transaktional.
 
 `tests/static-security.php` prueft weiterhin grob, ob die zentralen Workspace-Guards, strikte `X-Workspace-Id`-Fehler, User-/Workspace-Scope bei kritischen Controllern, Transaktionen und `amount_cents`-Migrationen im Code vorhanden sind.
@@ -26,8 +26,8 @@ Der Frontend-Smoke-Test prueft ohne Browser-Setup, ob die Vue-Routen lazy gelade
 
 ## Prioritaet 1: Workspace-Isolation
 
-- User A kann keine Eintraege, Projekte, Kategorien, Empfaenger oder Vorlagen von User B lesen, aendern oder loeschen.
-- Ein aktiver Workspace A darf keine IDs aus Workspace B fuer Eintraege, Vorlagen oder Projektoperationen verwenden.
+- User A kann keine Eintraege, Projekte, Kategorien oder Empfaenger von User B lesen, aendern oder loeschen.
+- Ein aktiver Workspace A darf keine IDs aus Workspace B fuer Eintraege oder Projektoperationen verwenden.
 - Projektoperationen schlagen fehl, wenn das Projekt nicht im aktiven Workspace liegt.
 - Workspace-Loeschung loescht nur Daten des authentifizierten Users im betroffenen Workspace.
 
@@ -35,7 +35,6 @@ Der Frontend-Smoke-Test prueft ohne Browser-Setup, ob die Vue-Routen lazy gelade
 
 - Kategorie-/Empfaenger-Loeschung ist blockiert, wenn die ID im aktuellen Workspace verwendet wird.
 - Globale Kategorien und Empfaenger sind nutzbar, aber nicht als persoenliche Eintraege loeschbar.
-- Templates akzeptieren nur Projekt-, Kategorie- und Empfaenger-IDs, die im aktiven Workspace erreichbar sind.
 
 ## Prioritaet 3: Kritische Operationen
 
@@ -48,7 +47,7 @@ Der Frontend-Smoke-Test prueft ohne Browser-Setup, ob die Vue-Routen lazy gelade
 ## Manuelle Verifikation
 
 - Zwei Workspaces erstellen.
-- In Workspace A Eintrag, Kategorie, Empfaenger, Vorlage und Projekt anlegen.
+- In Workspace A Eintrag, Kategorie, Empfaenger und Projekt anlegen.
 - Zu Workspace B wechseln und pruefen, dass A-Daten nicht sichtbar oder nutzbar sind.
 - Projektmitgliedschaft und Abrechnung testen.
 - Einen nicht-default Workspace loeschen und pruefen, dass der andere Workspace unveraendert bleibt.

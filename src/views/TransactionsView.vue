@@ -1,6 +1,6 @@
 <template>
 	<div class="personal-dashboard">
-		<AppPageHeader :title="pageTitle">
+		<AppPageHeader class="payments-page-header" :title="pageTitle">
 			<template #actions>
 				<NcActions class="mobile-header-actions-menu">
 					<NcActionButton :close-after-click="true" icon="icon-search" @click="showFilterPanel = true">
@@ -36,38 +36,19 @@
 						/>
 					</div>
 				</NcPopover>
-				<div class="add-button-group" style="display: flex; border-radius: var(--border-radius, 3px); overflow: hidden;">
-					<NcButton variant="primary" class="new-payment-main-button" @click="$emit('open-add-modal', { isFuture: filters.tags === 'future', defaultType: defaultEntryType })" :aria-label="filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment()"
-						:title="filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment()" style="border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 1px solid rgba(255, 255, 255, 0.72); margin-right: 0;">
-						<template #icon>
-							<PlusIcon :size="20" />
-						</template>
-						<span class="btn-text">{{ filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment() }}</span>
-					</NcButton>
-					<NcPopover v-if="$enableTemplates" placement="bottom-end" :key="templatePopoverKey">
-						<template #trigger>
-							<NcButton variant="primary" class="new-payment-toggle-button" style="border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 8px;">
-								<template #icon>
-									<ChevronDownIcon :size="20" />
-								</template>
-							</NcButton>
-						</template>
-						<div class="template-list-popover" style="padding: 8px; min-width: 200px;">
-							<div v-for="t in templates" :key="t.id" class="template-item action-item" @click="$emit('open-add-modal', { templateToLoad: t }); closeTemplatePopover()" style="display: flex; justify-content: space-between; align-items: center;">
-								<div class="template-title">{{ t.name }}</div>
-								<NcButton variant="tertiary" @click.stop="deleteTemplate(t, $event)" :aria-label="$texts.entry.deleteTemplateTitle()" :title="$texts.entry.deleteTemplateTitle()" style="margin-left: 10px; padding: 4px;">
-									<template #icon>
-										<DeleteIcon :size="16" />
-									</template>
-								</NcButton>
-							</div>
-							<hr v-if="templates.length > 0" style="margin: 8px 0; border: none; border-top: 1px solid var(--cobudget-border);">
-							<div class="template-item action-item" @click="$emit('open-add-modal', { isTemplateMode: true, defaultType: defaultEntryType }); closeTemplatePopover()">
-								<strong>+ {{ $texts.entry.newTemplate() }}</strong>
-							</div>
-						</div>
-					</NcPopover>
-				</div>
+				<NcButton
+					v-if="!hideNewPaymentAction"
+					variant="primary"
+					class="new-payment-main-button"
+					:aria-label="filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment()"
+					:title="filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment()"
+					@click="$emit('open-entry-sidebar', { isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
+					<template #icon>
+						<PlusIcon :size="20" />
+					</template>
+					<span class="btn-text">{{ filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment() }}</span>
+					<span class="mobile-payment-label">{{ $texts.common.payment() }}</span>
+				</NcButton>
 			</template>
 		</AppPageHeader>
 
@@ -379,6 +360,7 @@
 
 			<EntryTable
 				v-if="entries.length > 0"
+				ref="entryTable"
 				mode="personal"
 				:entries="entries"
 				:date-groups="dateGroups"
@@ -392,6 +374,7 @@
 				:enable-important-payments="$enableImportantPayments"
 				:enable-review-payments="$enableReviewPayments"
 				:enable-tax-relevant="$enableTaxRelevant"
+				:selected-entry-id="selectedEntryId"
 				:amount-resolver="getEntryPersonalAmount"
 				:project-name-resolver="getProjectName"
 				:project-style-resolver="getProjectTagStyle"
@@ -402,21 +385,19 @@
 				@duplicate="duplicateEntry"
 				@history="openEntryHistory"
 				@delete="deleteEntry">
-				<template #pagination>
-					<div class="pagination-footer" :class="{ 'pagination-footer--single': pagination.total <= pagination.limit }">
-						<NcButton v-if="pagination.total > pagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: pagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevPage">
-							<template #icon>
-								<ArrowLeftIcon :size="20" />
-							</template>
-							<span class="pagination-label">{{ $texts.common.previous() }}</span>
-						</NcButton>
-						<span class="page-info">{{ $texts.common.pageInfo(pagination.offset + 1, Math.min(pagination.offset + pagination.limit, pagination.total), pagination.total) }}</span>
-						<NcButton v-if="pagination.total > pagination.limit" variant="secondary" class="btn-page btn-page-next cobudget-toolbar-text-button" :style="{ visibility: pagination.offset + pagination.limit < pagination.total ? 'visible' : 'hidden' }" @click="nextPage">
-							<span class="pagination-label">{{ $texts.common.next() }}</span>
-							<ArrowRightIcon class="pagination-icon-right" :size="20" />
-						</NcButton>
-					</div>
-				</template>
+					<template #pagination>
+						<div class="pagination-footer" :class="{ 'pagination-footer--single': pagination.total <= pagination.limit }">
+							<NcButton v-if="pagination.total > pagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: pagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevPage">
+								<ArrowLeftIcon class="pagination-icon" :size="16" aria-hidden="true" />
+								<span class="pagination-label">{{ $texts.common.previous() }}</span>
+							</NcButton>
+							<span class="page-info">{{ $texts.common.pageInfo(pagination.offset + 1, Math.min(pagination.offset + pagination.limit, pagination.total), pagination.total) }}</span>
+							<NcButton v-if="pagination.total > pagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: pagination.offset + pagination.limit < pagination.total ? 'visible' : 'hidden' }" @click="nextPage">
+								<span class="pagination-label">{{ $texts.common.next() }}</span>
+								<ArrowRightIcon class="pagination-icon" :size="16" aria-hidden="true" />
+							</NcButton>
+						</div>
+					</template>
 			</EntryTable>
 			<NcEmptyContent
 				v-else
@@ -430,7 +411,7 @@
 					<NcButton v-if="hasActiveFilters" variant="secondary" @click="resetFilters">
 						{{ $texts.common.resetFilters() }}
 					</NcButton>
-					<NcButton v-else variant="primary" @click="$emit('open-add-modal', { isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
+					<NcButton v-else-if="!hideNewPaymentAction" variant="primary" class="new-payment-main-button" @click="$emit('open-entry-sidebar', { isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
 						<template #icon>
 							<PlusIcon :size="20" />
 						</template>
@@ -470,9 +451,7 @@ import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
 import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
-import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
-import DeleteIcon from 'vue-material-design-icons/Delete.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import ArrowRightIcon from 'vue-material-design-icons/ArrowRight.vue'
@@ -552,6 +531,17 @@ const normalizeTagCounts = counts => {
 
 export default {
 	name: 'TransactionsView',
+	props: {
+		selectedEntryId: {
+			type: [Number, String],
+			default: null
+		},
+		hideNewPaymentAction: {
+			type: Boolean,
+			default: false
+		}
+	},
+	emits: ['open-entry-sidebar', 'selected-entry-missing'],
 	components: {
 		NcButton,
 		NcActions,
@@ -570,9 +560,7 @@ export default {
 		AccountChildIcon,
 		ReceiptTextCheckOutlineIcon,
 		CalendarSyncIcon,
-		ChevronDownIcon,
 		CloseIcon,
-		DeleteIcon,
 		DownloadIcon,
 		ArrowLeftIcon,
 		ArrowRightIcon,
@@ -593,7 +581,6 @@ export default {
 			dashboardMetrics: emptyDashboardMetrics(),
 			dashboardTagCounts: emptyTagCounts(),
 			budgetGoals: [],
-			templates: [],
 			projects: [],
 			categories: [],
 			paymentPartners: [],
@@ -623,7 +610,6 @@ export default {
 				offset: 0,
 				total: 0
 			},
-			templatePopoverKey: 0,
 			isInternalFilterChange: false,
 			confirmDialog: null
 		}
@@ -859,9 +845,6 @@ export default {
 			this.applyEntryPageSize()
 			this.applyQueryFilters()
 			this.fetchData()
-			if (this.$enableTemplates) {
-				this.fetchTemplates()
-			}
 		window.addEventListener('entry-saved', this.onEntrySaved)
 		window.addEventListener('settings-closed', this.onSettingsClosed);
 		window.addEventListener('keydown', this.onPaginationKeydown)
@@ -873,7 +856,9 @@ export default {
 	},
 	watch: {
 		'$route.query.filter': 'handleRouteQueryChange',
-		'$route.query.hasAttachment': 'handleRouteQueryChange'
+		'$route.query.hasAttachment': 'handleRouteQueryChange',
+		selectedEntryId: 'notifySelectedEntryVisibility',
+		entries: 'notifySelectedEntryVisibility'
 	},
 	methods: {
 		async openEntryHistory(entry) {
@@ -1158,56 +1143,13 @@ export default {
 				showRequestError(e, this.$texts.dashboard.budgetGoalsLoadError(), 'Failed to fetch budget goals')
 			}
 		},
-		async fetchTemplates() {
-			if (!this.$enableTemplates) {
-				this.templates = []
-				return
-			}
-			try {
-				const res = await axios.get(generateUrl('/apps/cobudget/api/templates'))
-				this.templates = this.sortTemplates(res.data || [])
-			} catch (e) {
-				showRequestError(e, this.$texts.entry.templatesLoadError(), 'Failed to fetch templates')
-				this.templates = []
-			}
-		},
-		sortTemplates(templates) {
-			return [...templates].sort((a, b) => {
-				const usageDiff = (parseInt(b.usage_count, 10) || 0) - (parseInt(a.usage_count, 10) || 0)
-				if (usageDiff !== 0) {
-					return usageDiff
-				}
-				return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
-			})
-		},
-		async deleteTemplate(t, event) {
-			event.stopPropagation();
-			const confirmed = await this.openConfirm({
-				title: this.$texts.entry.deleteTemplateTitle(),
-				message: this.$texts.entry.deleteTemplateMessage(),
-				confirmLabel: this.$texts.entry.deleteTemplateConfirm(),
-				confirmVariant: 'danger'
-			});
-			if (!confirmed) return;
-			try {
-				await axios.delete(generateUrl(`/apps/cobudget/api/templates/${t.id}`));
-				showToast(this.$texts.entry.templateDeleted());
-				this.fetchTemplates();
-			} catch (e) {
-				showRequestError(e, this.$texts.entry.templateDeleteError(), 'Failed to delete template');
-			}
-		},
-		closeTemplatePopover() {
-			this.templatePopoverKey++;
-			document.body.click();
-		},
 		onEntrySaved() {
 			this.fetchData();
-			this.fetchTemplates();
 		},
 		onFiltersUpdate(newFilters) {
 			this.filters = { ...newFilters };
 			this.pagination.offset = 0; // Reset pagination on filter change
+			this.scrollEntriesToTop();
 			
 			// Sync tags filter to URL query so the sidebar matches
 			let newQuery = { ...this.$route.query };
@@ -1266,6 +1208,7 @@ export default {
 					hasAttachment: 'all'
 				};
 				this.pagination.offset = 0;
+				this.scrollEntriesToTop();
 				
 				let newQuery = { ...this.$route.query };
 				delete newQuery.filter;
@@ -1285,19 +1228,25 @@ export default {
 				this.sortDir = 'desc'; // Default direction when switching columns
 			}
 			this.pagination.offset = 0;
+			this.scrollEntriesToTop();
 			this.fetchData();
 		},
 		prevPage() {
 			if (this.pagination.offset > 0) {
 				this.pagination.offset = Math.max(0, this.pagination.offset - this.pagination.limit);
+				this.scrollEntriesToTop();
 				this.fetchData();
 			}
 		},
 		nextPage() {
 			if (this.pagination.offset + this.pagination.limit < this.pagination.total) {
 				this.pagination.offset += this.pagination.limit;
+				this.scrollEntriesToTop();
 				this.fetchData();
 			}
+		},
+		scrollEntriesToTop() {
+			this.$refs.entryTable?.scrollToTop?.();
 		},
 		getProjectName(id) {
 			const p = this.projects.find(p => String(p.id) === String(id));
@@ -1366,22 +1315,44 @@ export default {
 				this.editEntry(entry);
 			}
 		},
-		async editEntry(entry) {
-			let editableEntry = entry
-			if (entry.is_locked && (entry.editable_entry_id || entry.source_entry_id)) {
-				try {
-					const sourceId = Number(entry.editable_entry_id || entry.source_entry_id)
-					const response = await axios.get(generateUrl(`/apps/cobudget/api/entries/${sourceId}`))
-					editableEntry = response.data?.entry || response.data
-				} catch (error) {
-					showRequestError(error, this.$texts.dashboard.paymentsLoadError(), 'Failed to fetch shared payment source')
-					return
-				}
+		notifySelectedEntryVisibility() {
+			if (this.selectedEntryId === null) {
+				return;
 			}
-			this.$emit('open-add-modal', { entry: editableEntry, projectId: editableEntry.project_id || null, isFuture: this.filters.tags === 'future' })
+
+			const isVisible = this.entries.some(entry => String(entry.id) === String(this.selectedEntryId));
+			if (!isVisible) {
+				this.$emit('selected-entry-missing', this.selectedEntryId);
+			}
 		},
-		duplicateEntry(entry) {
-			this.$emit('open-add-modal', { entryToDuplicate: entry, projectId: null, isFuture: this.filters.tags === 'future' })
+		async resolveEntrySource(entry) {
+			if (!entry.is_locked || !(entry.editable_entry_id || entry.source_entry_id)) {
+				return entry
+			}
+
+			try {
+				const sourceId = Number(entry.editable_entry_id || entry.source_entry_id)
+				const response = await axios.get(generateUrl(`/apps/cobudget/api/entries/${sourceId}`))
+				return response.data?.entry || response.data
+			} catch (error) {
+				showRequestError(error, this.$texts.dashboard.paymentsLoadError(), 'Failed to fetch shared payment source')
+				return null
+			}
+		},
+		async editEntry(entry) {
+			const editableEntry = await this.resolveEntrySource(entry)
+			if (!editableEntry) return
+			this.$emit('open-entry-sidebar', {
+				entry: editableEntry,
+				selectedEntryId: entry.id,
+				projectId: editableEntry.project_id || null,
+				isFuture: this.filters.tags === 'future'
+			})
+		},
+		async duplicateEntry(entry) {
+			const entryToDuplicate = await this.resolveEntrySource(entry)
+			if (!entryToDuplicate) return
+			this.$emit('open-entry-sidebar', { entryToDuplicate, projectId: entryToDuplicate.project_id || null, isFuture: this.filters.tags === 'future' })
 		},
 		async deleteEntry(entry) {
 			const isFuture = this.filters.tags === 'future';
@@ -1422,7 +1393,109 @@ export default {
 
 <style scoped>
 .personal-dashboard {
+	min-width: 0;
 	width: 100%;
+}
+
+@media (min-width: 769px) {
+	.personal-dashboard {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.payments-page-header,
+	.stats-row {
+		flex: 0 0 auto;
+	}
+
+	.recent-activities {
+		--payment-table-scrollbar-size: calc(var(--default-grid-baseline, 4px) * 2);
+
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.recent-activities :deep(.entry-table-container) {
+		flex: 1 1 auto;
+		width: 100%;
+		max-width: 100%;
+		box-sizing: border-box;
+		min-width: 0;
+		min-height: 0;
+		border-start-start-radius: var(--border-radius-large, 8px);
+		border-start-end-radius: var(--border-radius-large, 8px);
+		overflow: auto;
+		overscroll-behavior: contain;
+		scrollbar-color: transparent transparent;
+		scrollbar-gutter: stable;
+		scrollbar-width: thin;
+	}
+
+	.recent-activities :deep(.entry-table-container:hover),
+	.recent-activities :deep(.entry-table-container:focus-within) {
+		scrollbar-color: var(--color-border-dark, var(--color-border)) transparent;
+	}
+
+	.recent-activities :deep(.entry-table-container::-webkit-scrollbar) {
+		width: var(--payment-table-scrollbar-size);
+		height: var(--payment-table-scrollbar-size);
+	}
+
+	.recent-activities :deep(.entry-table-container::-webkit-scrollbar-track) {
+		background: transparent;
+	}
+
+	.recent-activities :deep(.entry-table-container::-webkit-scrollbar-thumb) {
+		border-radius: var(--border-radius-pill, 999px);
+		background: transparent;
+	}
+
+	.recent-activities :deep(.entry-table-container:hover::-webkit-scrollbar-thumb),
+	.recent-activities :deep(.entry-table-container:focus-within::-webkit-scrollbar-thumb) {
+		background: var(--color-border-dark, var(--color-border));
+	}
+
+	.recent-activities :deep(.data-table thead th) {
+		position: sticky;
+		top: 0;
+		z-index: 2;
+	}
+
+	.recent-activities :deep(.pagination-footer) {
+		flex: 0 0 auto;
+	}
+
+	.empty-content-state {
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+}
+
+@media (min-width: 1025px) {
+	.personal-dashboard {
+		box-sizing: border-box;
+		width: calc(100% + var(--cobudget-content-inline-padding) + var(--cobudget-content-inline-padding));
+		margin-inline: calc(0px - var(--cobudget-content-inline-padding));
+		padding-inline: var(--cobudget-content-inline-padding);
+	}
+
+	.recent-activities {
+		width: calc(100% + var(--payment-table-scrollbar-size));
+		max-width: none;
+		margin-inline-end: calc(0px - var(--payment-table-scrollbar-size));
+	}
+
+	.recent-activities :deep(.pagination-footer) {
+		box-sizing: border-box;
+		padding-inline-end: var(--payment-table-scrollbar-size);
+	}
 }
 
 .filter-toggle-btn {
@@ -1452,7 +1525,7 @@ export default {
 .stats-row {
 	display: flex;
 	gap: 10px;
-	margin-bottom: 30px;
+	margin-bottom: 20px;
 	flex-wrap: nowrap;
 	padding: 2px 2px 12px;
 }
@@ -1737,6 +1810,8 @@ th.col-desc {
   background: var(--cobudget-surface-muted) !important;
 	box-shadow: none !important;
 	color: var(--cobudget-text) !important;
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
 }
 
 .btn-page:disabled {
@@ -1744,16 +1819,11 @@ th.col-desc {
 	cursor: not-allowed;
 }
 
-.btn-page:hover:not(:disabled),
-.btn-page:focus {
+.btn-page:hover:not(:disabled) {
 	background: var(--cobudget-surface-strong) !important;
 	border-color: transparent !important;
 	box-shadow: none !important;
 	outline: none !important;
-}
-
-.btn-page-next {
-	gap: 6px;
 }
 
 .btn-page :deep(.button-vue__wrapper),
@@ -1771,19 +1841,18 @@ th.col-desc {
 	white-space: nowrap;
 }
 
-.pagination-icon-right {
+.pagination-icon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: 20px;
-	height: 20px;
+	width: 16px;
+	height: 16px;
 	line-height: 0;
-	margin-left: 4px;
 }
 
-.pagination-icon-right :deep(.material-design-icon),
-.pagination-icon-right :deep(.material-design-icon__svg) {
+.pagination-icon :deep(.material-design-icon),
+.pagination-icon :deep(.material-design-icon__svg) {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -2042,9 +2111,6 @@ th.col-desc {
 		justify-content: center;
 	}
 
-	.pagination-icon-right {
-		margin-left: 0;
-	}
 }
 
 .desc-text .main-title {
@@ -2080,17 +2146,4 @@ th.col-desc {
 	font-weight: 600;
 }
 
-.template-item {
-	cursor: pointer;
-	padding: 8px;
-	border-radius: var(--border-radius);
-	transition: background-color 0.1s ease-in-out;
-}
-.template-item:hover {
-	background-color: var(--cobudget-surface-muted);
-}
-.template-title {
-	font-weight: bold;
-	cursor: pointer;
-}
 </style>

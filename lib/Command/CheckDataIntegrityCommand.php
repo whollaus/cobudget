@@ -92,13 +92,12 @@ class CheckDataIntegrityCommand extends Command {
 
 		foreach ($mergeResults as $merge) {
 			$output->writeln(sprintf(
-				'<info>%s "%s" zusammengefuehrt: %s -> %s; Eintraege: %d, Vorlagen: %d, Budgetziele: %d.</info>',
+				'<info>%s "%s" zusammengefuehrt: %s -> %s; Eintraege: %d, Budgetziele: %d.</info>',
 				(string)($merge['label'] ?? 'Dubletten'),
 				(string)($merge['name'] ?? ''),
 				implode(', ', array_map('strval', $merge['mergedIds'] ?? [])),
 				(string)($merge['keepId'] ?? ''),
 				(int)($merge['entriesUpdated'] ?? 0),
-				(int)($merge['templatesUpdated'] ?? 0),
 				(int)($merge['budgetGoalsUpdated'] ?? 0)
 			));
 		}

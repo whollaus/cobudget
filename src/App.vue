@@ -1,5 +1,9 @@
 <template>
-	<NcContent app-name="cobudget">
+	<NcContent
+		app-name="cobudget"
+		:class="{
+			'entry-sidebar-is-open': entrySidebarOpen,
+		}">
 		<NcAppNavigation>
 			<template #list>
 				<NcAppNavigationItem :name="$texts.settings.myFinances()" :active="$route.name === 'personal' && !$route.query.filter"
@@ -131,14 +135,33 @@
 			</template>
 		</NcAppNavigation>
 
-		<NcAppContent>
-			<div class="content-wrapper">
-				<router-view @open-project="openProject" @refresh-projects="fetchProjects"
-					@open-add-modal="openAddModal" />
+		<NcAppContent
+			class="cobudget-main-content"
+			:class="{
+				'payment-table-viewport-content': $route.name === 'personal',
+				'project-detail-viewport-content': $route.name === 'project-detail',
+			}">
+			<div
+				class="content-wrapper"
+				:class="{
+					'content-wrapper--payment-table-viewport': $route.name === 'personal',
+					'content-wrapper--project-detail-viewport': $route.name === 'project-detail',
+				}">
+				<router-view
+					v-bind="entryViewProps"
+					@open-project="openProject"
+					@refresh-projects="fetchProjects"
+					@open-entry-sidebar="openEntrySidebar"
+					@selected-entry-missing="onSelectedEntryMissing" />
 			</div>
 		</NcAppContent>
 
-		<AddEntryModal v-if="addModalReady" ref="globalAddModal" :projects="projects" @saved="onEntrySaved" />
+		<EntrySidebar
+			v-if="entrySidebarReady"
+			ref="globalEntrySidebar"
+			@mode-changed="onEntrySidebarModeChanged"
+			@saved="onEntrySaved"
+			@closed="onEntrySidebarClosed" />
 		<TableFilters ref="globalTableFilters" style="display: none;" />
 	</NcContent>
 </template>
@@ -147,6 +170,7 @@
 import { defineAsyncComponent } from 'vue'
 import axios from './services/http'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
+import { shouldCloseEntrySidebarForRequest } from './utils/entrySidebarToggle'
 import { generateUrl } from '@nextcloud/router'
 import { emit as emitNextcloudEvent } from '@nextcloud/event-bus'
 import NcContent from '@nextcloud/vue/components/NcContent'
@@ -170,12 +194,12 @@ import SwapHorizontalIcon from 'vue-material-design-icons/SwapHorizontal.vue'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import ChartLineIcon from 'vue-material-design-icons/ChartLine.vue'
 
-const AddEntryModal = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-add-entry-modal" */ './components/AddEntryModal.vue'))
+const EntrySidebar = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-entry-sidebar" */ './components/AddEntryModal.vue'))
 
 export default {
 	name: 'App',
 	components: {
-		AddEntryModal,
+		EntrySidebar,
 		NcContent,
 		NcAppContent,
 		NcAppNavigation,
@@ -213,10 +237,23 @@ export default {
 			},
 			activeWorkspaceId: readWorkspaceId(),
 			showWorkspaceMenu: false,
-			addModalReady: false
+			entrySidebarReady: false,
+			entrySidebarWideMedia: null,
+			entrySidebarOpen: false,
+			entrySidebarCreatingNew: false,
+			entrySidebarManuallyHidden: false,
+			selectedEntryId: null
 		}
 	},
 	computed: {
+		entryViewProps() {
+			return ['personal', 'project-detail'].includes(this.$route?.name)
+				? {
+					selectedEntryId: this.selectedEntryId,
+					hideNewPaymentAction: this.entrySidebarCreatingNew
+				}
+				: {};
+		},
 		activeProjects() {
 			return this.projects.filter(p => !p.is_archived);
 		},
@@ -260,30 +297,39 @@ export default {
 		}
 	},
 	watch: {
-		$route() {
+		async $route() {
 			this.showWorkspaceMenu = false;
+			await this.syncEntrySidebarForRoute();
 		}
 	},
 	created() {
 	},
-	mounted() {
+	async mounted() {
 		if (this.$enableProjects) {
-			this.fetchProjects()
+			await this.fetchProjects()
 		}
 		this.fetchNavigationSummary()
 		if (this.$enableWorkspaces) {
 			this.fetchWorkspaces()
 		}
-		window.addEventListener('open-add-modal', this.openAddModal)
+		window.addEventListener('open-add-modal', this.openEntrySidebar)
+		window.addEventListener('open-entry-sidebar', this.openEntrySidebar)
 		window.addEventListener('workspaces-updated', this.onWorkspacesUpdated)
 		window.addEventListener('cobudget-data-changed', this.refreshNavigationData)
 		window.addEventListener('click', this.closeWorkspaceMenu)
+		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+			this.entrySidebarWideMedia = window.matchMedia('(min-width: 1025px)')
+			this.entrySidebarWideMedia.addEventListener?.('change', this.onEntrySidebarViewportChange)
+		}
+		await this.syncEntrySidebarForRoute()
 	},
 	beforeUnmount() {
-		window.removeEventListener('open-add-modal', this.openAddModal)
+		window.removeEventListener('open-add-modal', this.openEntrySidebar)
+		window.removeEventListener('open-entry-sidebar', this.openEntrySidebar)
 		window.removeEventListener('workspaces-updated', this.onWorkspacesUpdated)
 		window.removeEventListener('cobudget-data-changed', this.refreshNavigationData)
 		window.removeEventListener('click', this.closeWorkspaceMenu)
+		this.entrySidebarWideMedia?.removeEventListener?.('change', this.onEntrySidebarViewportChange)
 	},
 	methods: {
 		normalizeTagCounts(payload) {
@@ -404,53 +450,172 @@ export default {
 				this.showWorkspaceMenu = false;
 			}
 		},
-		async waitForAddModalRef() {
+		async waitForEntrySidebarRef() {
 			for (let i = 0; i < 30; i++) {
 				await this.$nextTick();
-				if (this.$refs.globalAddModal && typeof this.$refs.globalAddModal.openModal === 'function') {
-					return this.$refs.globalAddModal;
+				if (this.$refs.globalEntrySidebar && typeof this.$refs.globalEntrySidebar.openSidebar === 'function') {
+					return this.$refs.globalEntrySidebar;
 				}
 				await new Promise(resolve => window.setTimeout(resolve, 20));
 			}
 
 			return null;
 		},
-		async openAddModal(eventOrPayload) {
-			let projectId = null;
-			let entryToEdit = null;
-			let editingFuture = false;
-			let templateToLoad = null;
-			let isTemplateMode = false;
-			let entryToDuplicate = null;
-			let defaultType = this.routeDefaultEntryType();
+		async openEntrySidebar(eventOrPayload = {}) {
+			const eventDetail = eventOrPayload?.detail;
+			const payload = eventDetail && typeof eventDetail === 'object'
+				? eventDetail
+				: eventOrPayload && typeof eventOrPayload === 'object' && !('target' in eventOrPayload)
+					? eventOrPayload
+					: {};
+			const routeProjectId = this.routeProjectId();
+			const projectId = payload.projectId ?? routeProjectId;
+			const entryToEdit = payload.entry || null;
+			const entryToDuplicate = payload.entryToDuplicate || null;
+			const editingFuture = payload.isEditingFuture || payload.isFuture || false;
+			const defaultType = this.sanitizeEntryType(payload.defaultType || this.routeDefaultEntryType());
+			const projectSelectionLocked = this.$route?.name === 'project-detail' && projectId !== null;
+			const requestedSelectedEntryId = entryToEdit
+				? (payload.selectedEntryId ?? entryToEdit.id ?? null)
+				: null;
 
-			if (eventOrPayload && eventOrPayload.detail) {
-				projectId = eventOrPayload.detail.projectId;
-				entryToEdit = eventOrPayload.detail.entry;
-				editingFuture = eventOrPayload.detail.isEditingFuture || false;
-				templateToLoad = eventOrPayload.detail.templateToLoad || null;
-				isTemplateMode = eventOrPayload.detail.isTemplateMode || false;
-				entryToDuplicate = eventOrPayload.detail.entryToDuplicate || null;
-				defaultType = this.sanitizeEntryType(eventOrPayload.detail.defaultType || defaultType);
-			} else if (eventOrPayload) {
-				projectId = eventOrPayload.projectId;
-				entryToEdit = eventOrPayload.entry;
-				editingFuture = eventOrPayload.isFuture || false;
-				templateToLoad = eventOrPayload.templateToLoad || null;
-				isTemplateMode = eventOrPayload.isTemplateMode || false;
-				entryToDuplicate = eventOrPayload.entryToDuplicate || null;
-				defaultType = this.sanitizeEntryType(eventOrPayload.defaultType || defaultType);
+			this.entrySidebarReady = true;
+			const sidebar = await this.waitForEntrySidebarRef();
+			if (!sidebar) {
+				this.selectedEntryId = null;
+				return;
 			}
 
-			if (!this.$enableTemplates) {
-				templateToLoad = null;
-				isTemplateMode = false;
+			const shouldCloseSidebar = this.shouldCloseEntrySidebar(sidebar, {
+				entryToEdit,
+				entryToDuplicate,
+				requestedSelectedEntryId,
+				editingFuture,
+				defaultType
+			});
+			if (sidebar.isOpen && !(await sidebar.confirmDiscardChanges())) {
+				return;
 			}
 
-			this.addModalReady = true;
-			const modal = await this.waitForAddModalRef();
-			if (modal) {
-				modal.openModal(entryToEdit, projectId, editingFuture, templateToLoad, isTemplateMode, entryToDuplicate, defaultType);
+			if (shouldCloseSidebar) {
+				sidebar.closeSidebar();
+				return;
+			}
+
+			this.entrySidebarManuallyHidden = false;
+			this.entrySidebarOpen = true;
+			this.entrySidebarCreatingNew = !entryToEdit && !entryToDuplicate;
+			this.selectedEntryId = requestedSelectedEntryId;
+			await sidebar.openSidebar(
+				entryToEdit,
+				projectId,
+				editingFuture,
+				entryToDuplicate,
+				defaultType,
+				projectSelectionLocked
+			);
+		},
+		shouldCloseEntrySidebar(sidebar, {
+			entryToEdit,
+			entryToDuplicate,
+			requestedSelectedEntryId,
+			editingFuture,
+			defaultType
+		}) {
+			return shouldCloseEntrySidebarForRequest({
+				sidebar,
+				entryToEdit,
+				entryToDuplicate,
+				requestedSelectedEntryId,
+				selectedEntryId: this.selectedEntryId,
+				editingFuture,
+				defaultType
+			});
+		},
+		routeProjectId() {
+			if (this.$route?.name !== 'project-detail') {
+				return null;
+			}
+
+			const id = Number(this.$route.params?.id || 0);
+			return Number.isInteger(id) && id > 0 ? id : null;
+		},
+		isWideEntrySidebarViewport() {
+			if (this.entrySidebarWideMedia) {
+				return this.entrySidebarWideMedia.matches;
+			}
+			return typeof window !== 'undefined'
+				&& typeof window.matchMedia === 'function'
+				&& window.matchMedia('(min-width: 1025px)').matches;
+		},
+		routeSupportsOpenEntrySidebar() {
+			if (this.$route?.name === 'personal') {
+				return !this.$route.query?.filter && !this.$route.query?.hasAttachment;
+			}
+
+			const projectId = this.routeProjectId();
+			if (!projectId) {
+				return false;
+			}
+
+			const project = this.projects.find(item => Number(item.id) === projectId);
+			const isArchived = [true, 1, '1', 'true'].includes(project?.is_archived) || project?.status === 'archived';
+			return !!project && !isArchived;
+		},
+		async syncEntrySidebarForRoute() {
+			const sidebar = this.$refs.globalEntrySidebar;
+			if (sidebar?.isOpen) {
+				sidebar.closeSidebar({ userInitiated: false });
+			}
+			this.entrySidebarOpen = false;
+			this.entrySidebarCreatingNew = false;
+			this.selectedEntryId = null;
+
+			if (this.entrySidebarManuallyHidden || !this.isWideEntrySidebarViewport() || !this.routeSupportsOpenEntrySidebar()) {
+				return;
+			}
+
+			await this.openEntrySidebar({
+				projectId: this.routeProjectId(),
+				isFuture: false,
+				defaultType: this.routeDefaultEntryType()
+			});
+		},
+		async onEntrySidebarViewportChange(event) {
+			if (!event.matches) {
+				this.$refs.globalEntrySidebar?.closeSidebar({ userInitiated: false });
+				this.entrySidebarOpen = false;
+				this.entrySidebarCreatingNew = false;
+				this.selectedEntryId = null;
+				return;
+			}
+
+			await this.syncEntrySidebarForRoute();
+		},
+		onEntrySidebarClosed({ userInitiated = false } = {}) {
+			this.entrySidebarOpen = false;
+			this.entrySidebarCreatingNew = false;
+			this.selectedEntryId = null;
+			if (userInitiated && this.isWideEntrySidebarViewport()) {
+				this.entrySidebarManuallyHidden = true;
+			}
+		},
+		onEntrySidebarModeChanged({ isOpen = false, isCreatingNewEntry = false } = {}) {
+			this.entrySidebarCreatingNew = Boolean(isOpen && isCreatingNewEntry);
+		},
+		async onSelectedEntryMissing(entryId) {
+			if (String(entryId ?? '') !== String(this.selectedEntryId ?? '')) {
+				return;
+			}
+
+			this.selectedEntryId = null;
+			const sidebar = this.$refs.globalEntrySidebar;
+			if (sidebar?.isOpen && sidebar.isEditing) {
+				await this.openEntrySidebar({
+					projectId: this.routeProjectId(),
+					isFuture: this.$route?.query?.filter === 'future',
+					defaultType: this.routeDefaultEntryType()
+				});
 			}
 		},
 		routeDefaultEntryType() {
@@ -476,10 +641,13 @@ export default {
 			return ['project-detail', 'project-settings', 'project-settlements'].includes(this.$route.name)
 				&& String(this.$route.params.id) === String(project.id);
 		},
-		onEntrySaved() {
+		onEntrySaved(payload = {}) {
 			// Broadcast a global event so the current view knows to refresh
+			if (payload.action === 'created' || payload.action === 'deleted') {
+				this.selectedEntryId = null;
+			}
 			this.refreshNavigationData();
-			window.dispatchEvent(new CustomEvent('entry-saved'));
+			window.dispatchEvent(new CustomEvent('entry-saved', { detail: payload }));
 		},
 		openProject(id) {
 			if (!this.$enableProjects) {
@@ -517,6 +685,56 @@ export default {
 	border-radius: 0;
 	box-shadow: none;
 	min-height: 80vh;
+}
+
+@media (min-width: 1025px) {
+	:global(#content.app-cobudget) {
+		--cobudget-shell-gap: calc(var(--default-grid-baseline, 4px) * 3);
+		--cobudget-shell-radius: calc(var(--default-grid-baseline, 4px) * 4);
+		--cobudget-content-inline-padding: calc(var(--default-grid-baseline, 4px) * 4);
+	}
+
+	:global(#content.app-cobudget .app-content.cobudget-main-content) {
+		box-sizing: border-box;
+		padding: var(--cobudget-shell-gap);
+		background: transparent;
+	}
+
+	:global(#content.app-cobudget .app-navigation__content > ul) {
+		padding-block-start: var(--cobudget-shell-gap);
+		padding-inline-end: 0;
+	}
+
+	.content-wrapper {
+		box-sizing: border-box;
+		min-height: 100%;
+		padding-inline: var(--cobudget-content-inline-padding);
+		background: var(--cobudget-page-background, var(--color-main-background));
+		border-radius: var(--cobudget-shell-radius);
+	}
+}
+
+@media (min-width: 1024px) {
+	:global(#content.app-cobudget .content:not(.content--legacy) .app-navigation:not(.app-navigation--closed):not(.app-navigation--close) ~ .app-content.cobudget-main-content) {
+		border-inline-start: 0 !important;
+		border-start-start-radius: 0 !important;
+		border-end-start-radius: 0 !important;
+	}
+}
+
+@media (min-width: 769px) {
+	:global(#content.app-cobudget .app-content.payment-table-viewport-content),
+	:global(#content.app-cobudget .app-content.project-detail-viewport-content) {
+		overflow: hidden;
+	}
+
+	.content-wrapper--payment-table-viewport,
+	.content-wrapper--project-detail-viewport {
+		box-sizing: border-box;
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
+	}
 }
 
 .mobile-sidebar-overlay {
@@ -709,6 +927,13 @@ export default {
 	left: -35px !important;
 	z-index: 100 !important;
 	margin: 0 !important;
+}
+
+@media (min-width: 1025px) {
+	.app-navigation-toggle {
+		top: calc(var(--default-grid-baseline, 4px) * 3) !important;
+		left: -25px !important;
+	}
 }
 
 @media (max-width: 768px) {

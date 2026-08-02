@@ -72,38 +72,20 @@
               <CheckAllIcon :size="20" fillColor="#000" />
             </template>
             <span class="btn-text">{{ $texts.areaDetail.settleArea() }}</span>
-          </NcButton>
-					<div class="add-button-group" style="display: flex; border-radius: var(--border-radius, 3px); overflow: hidden;">
-						<NcButton variant="primary" class="new-payment-main-button" @click="openAddModal" :aria-label="$texts.areaDetail.newPayment()" :title="$texts.areaDetail.newPayment()" style="border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 1px solid rgba(255, 255, 255, 0.72); margin-right: 0;">
-							<template #icon>
-								<PlusIcon :size="20" />
-							</template>
-							<span class="btn-text">{{ $texts.areaDetail.newPayment() }}</span>
-						</NcButton>
-						<NcPopover v-if="$enableTemplates" placement="bottom-end" :key="templatePopoverKey">
-							<template #trigger>
-								<NcButton variant="primary" class="new-payment-toggle-button" style="border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 8px;">
-									<template #icon>
-										<ChevronDownIcon :size="20" />
-									</template>
-								</NcButton>
-							</template>
-							<div class="template-list-popover" style="padding: 8px; min-width: 200px;">
-								<div v-for="t in templates" :key="t.id" class="template-item action-item" @click="openAddModal({ templateToLoad: t }); closeTemplatePopover()" style="display: flex; justify-content: space-between; align-items: center;">
-									<div class="template-title">{{ t.name }}</div>
-									<NcButton variant="tertiary" @click.stop="deleteTemplate(t, $event)" :aria-label="$texts.entry.deleteTemplateTitle()" :title="$texts.entry.deleteTemplateTitle()" style="margin-left: 10px; padding: 4px;">
-										<template #icon>
-											<DeleteIcon :size="16" />
-										</template>
-									</NcButton>
-								</div>
-								<hr v-if="templates.length > 0" style="margin: 8px 0; border: none; border-top: 1px solid var(--cobudget-border);">
-								<div class="template-item action-item" @click="openAddModal({ isTemplateMode: true }); closeTemplatePopover()">
-									<strong>+ {{ $texts.entry.newTemplate() }}</strong>
-								</div>
-							</div>
-						</NcPopover>
-					</div>
+					</NcButton>
+					<NcButton
+						v-if="!hideNewPaymentAction"
+						variant="primary"
+						class="new-payment-main-button"
+						:aria-label="$texts.areaDetail.newPayment()"
+						:title="$texts.areaDetail.newPayment()"
+						@click="openEntrySidebar">
+						<template #icon>
+							<PlusIcon :size="20" />
+						</template>
+						<span class="btn-text">{{ $texts.areaDetail.newPayment() }}</span>
+						<span class="mobile-payment-label">{{ $texts.common.payment() }}</span>
+					</NcButton>
 			</template>
 		</AppPageHeader>
 
@@ -135,6 +117,7 @@
 			</div>
 		</Teleport>
 
+		<div class="project-detail-scroll">
 		<DraggableScroller v-if="projectDashboardCards.length > 0" class="stats-row project-stats-row">
 			<div v-for="card in projectDashboardCards" :key="card.key" class="stat-card" :class="card.cardClass">
 				<div class="stat-header">
@@ -224,6 +207,7 @@
 				:enable-important-payments="$enableImportantPayments"
 				:enable-review-payments="$enableReviewPayments"
 				:enable-tax-relevant="$enableTaxRelevant"
+				:selected-entry-id="selectedEntryId"
 				:actions-enabled="project.status !== 'archived'"
 				:archived="project.status === 'archived'"
 				:project-name-resolver="getProjectName"
@@ -239,15 +223,13 @@
 				<template #pagination>
 					<div class="pagination-footer" :class="{ 'pagination-footer--single': activePagination.total <= activePagination.limit }">
 						<NcButton v-if="activePagination.total > activePagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: activePagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevActivePage">
-							<template #icon>
-								<ArrowLeftIcon :size="20" />
-							</template>
+							<ArrowLeftIcon class="pagination-icon" :size="16" aria-hidden="true" />
 							<span class="pagination-label">{{ $texts.common.previous() }}</span>
 						</NcButton>
 						<span class="page-info">{{ $texts.common.pageInfo(activePagination.offset + 1, Math.min(activePagination.offset + activePagination.limit, activePagination.total), activePagination.total) }}</span>
-						<NcButton v-if="activePagination.total > activePagination.limit" variant="secondary" class="btn-page btn-page-next cobudget-toolbar-text-button" :style="{ visibility: activePagination.offset + activePagination.limit < activePagination.total ? 'visible' : 'hidden' }" @click="nextActivePage">
+						<NcButton v-if="activePagination.total > activePagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: activePagination.offset + activePagination.limit < activePagination.total ? 'visible' : 'hidden' }" @click="nextActivePage">
 							<span class="pagination-label">{{ $texts.common.next() }}</span>
-							<ArrowRightIcon class="pagination-icon-right" :size="20" />
+							<ArrowRightIcon class="pagination-icon" :size="16" aria-hidden="true" />
 						</NcButton>
 					</div>
 				</template>
@@ -264,7 +246,7 @@
 					<NcButton v-if="hasActiveFilters" variant="secondary" @click="resetFilters">
 						{{ $texts.common.resetFilters() }}
 					</NcButton>
-					<NcButton v-else-if="project.status !== 'archived'" variant="primary" @click="openAddModal">
+					<NcButton v-else-if="project.status !== 'archived' && !hideNewPaymentAction" variant="primary" class="new-payment-main-button" @click="openEntrySidebar">
 						<template #icon>
 							<PlusIcon :size="20" />
 						</template>
@@ -272,6 +254,7 @@
 					</NcButton>
 				</template>
 			</NcEmptyContent>
+		</div>
 		</div>
 
 		<EntryHistoryModal
@@ -344,10 +327,8 @@ import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
 import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
-import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import ChevronUpIcon from 'vue-material-design-icons/ChevronUp.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
-import DeleteIcon from 'vue-material-design-icons/Delete.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import PencilIcon from 'vue-material-design-icons/Pencil.vue'
 import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'
@@ -362,15 +343,28 @@ import { getAreaColorStyle } from '../utils/areaColor'
 
 export default {
 	name: 'ProjectDetail',
-	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, EntryHistoryModal, TableTooltip, AreaAdminIndicator, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, DeleteIcon, DownloadIcon, TableFilters, DraggableScroller },
-	props: ['id'],
+	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, EntryHistoryModal, TableTooltip, AreaAdminIndicator, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronUpIcon, CloseIcon, DownloadIcon, TableFilters, DraggableScroller },
+	props: {
+		id: {
+			type: [Number, String],
+			required: true
+		},
+		selectedEntryId: {
+			type: [Number, String],
+			default: null
+		},
+		hideNewPaymentAction: {
+			type: Boolean,
+			default: false
+		}
+	},
+	emits: ['open-entry-sidebar', 'open-project', 'refresh-projects', 'selected-entry-missing'],
 	data() {
 		return {
 			showFilterPanel: false,
 			project: null,
 			activeEntries: [],
 			activeDateGroups: null,
-			templates: [],
 			categories: [],
 			paymentPartners: [],
 			hashtags: [],
@@ -401,7 +395,6 @@ export default {
 			entryHistoryOpen: false,
 			entryHistoryLoading: false,
 			entryHistoryRows: [],
-			templatePopoverKey: 0,
 			confirmDialog: null
 		}
 	},
@@ -490,9 +483,6 @@ export default {
 	mounted() {
 			this.applyEntryPageSize()
 			this.fetchProjectData()
-			if (this.$enableTemplates) {
-				this.fetchTemplates()
-			}
 		window.addEventListener('entry-saved', this.onEntrySaved)
 		window.addEventListener('settings-closed', this.onSettingsClosed)
 		window.addEventListener('keydown', this.onPaginationKeydown)
@@ -506,7 +496,9 @@ export default {
 		projectId() {
 			this.resetProjectTableState()
 			this.fetchProjectData()
-		}
+		},
+		selectedEntryId: 'notifySelectedEntryVisibility',
+		activeEntries: 'notifySelectedEntryVisibility'
 	},
 	methods: {
 		async openEntryHistory(entry) {
@@ -654,52 +646,8 @@ export default {
 				showRequestError(e, this.$texts.areaDetail.loadError(), 'Failed to fetch project details')
 			}
 		},
-		async fetchTemplates() {
-			if (!this.$enableTemplates) {
-				this.templates = []
-				return
-			}
-			try {
-				const res = await axios.get(generateUrl('/apps/cobudget/api/templates'))
-				this.templates = this.sortTemplates(res.data || [])
-			} catch (e) {
-				showRequestError(e, this.$texts.entry.templatesLoadError(), 'Failed to fetch templates')
-				this.templates = []
-			}
-		},
-		sortTemplates(templates) {
-			return [...templates].sort((a, b) => {
-				const usageDiff = (parseInt(b.usage_count, 10) || 0) - (parseInt(a.usage_count, 10) || 0)
-				if (usageDiff !== 0) {
-					return usageDiff
-				}
-				return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
-			})
-		},
-		async deleteTemplate(t, event) {
-			event.stopPropagation();
-			const confirmed = await this.openConfirm({
-				title: this.$texts.entry.deleteTemplateTitle(),
-				message: this.$texts.entry.deleteTemplateMessage(),
-				confirmLabel: this.$texts.entry.deleteTemplateConfirm(),
-				confirmVariant: 'danger'
-			});
-			if (!confirmed) return;
-			try {
-				await axios.delete(generateUrl(`/apps/cobudget/api/templates/${t.id}`));
-				showToast(this.$texts.entry.templateDeleted());
-				this.fetchTemplates();
-			} catch (e) {
-				showRequestError(e, this.$texts.entry.templateDeleteError(), 'Failed to delete template');
-			}
-		},
-		closeTemplatePopover() {
-			this.templatePopoverKey++;
-			document.body.click();
-		},
 		onEntrySaved() {
 			this.fetchProjectData();
-			this.fetchTemplates();
 		},
 		updateDateRangeFilters() {
 			const now = new Date();
@@ -978,16 +926,26 @@ export default {
 				this.editEntry(entry);
 			}
 		},
-		openAddModal(options = {}) {
+		notifySelectedEntryVisibility() {
+			if (this.selectedEntryId === null) {
+				return;
+			}
+
+			const isVisible = this.activeEntries.some(entry => String(entry.id) === String(this.selectedEntryId));
+			if (!isVisible) {
+				this.$emit('selected-entry-missing', this.selectedEntryId);
+			}
+		},
+		openEntrySidebar(options = {}) {
 			const safeOptions = (options instanceof Event) ? {} : options;
 			const defaultType = safeOptions.defaultType || (this.filters.type === 'income' ? 'income' : 'expense');
-			this.$emit('open-add-modal', { projectId: this.projectId, defaultType, ...safeOptions });
+			this.$emit('open-entry-sidebar', { projectId: this.projectId, defaultType, ...safeOptions });
 		},
 		editEntry(entry) {
-			this.$emit('open-add-modal', { entry, projectId: this.projectId, isFuture: false })
+			this.$emit('open-entry-sidebar', { entry, selectedEntryId: entry.id, projectId: this.projectId, isFuture: false })
 		},
 		duplicateEntry(entry) {
-			this.$emit('open-add-modal', { entryToDuplicate: entry, projectId: this.projectId, isFuture: false })
+			this.$emit('open-entry-sidebar', { entryToDuplicate: entry, projectId: this.projectId, isFuture: false })
 		},
 		async deleteEntry(entry) {
 			const confirmed = await this.openConfirm({
@@ -1056,7 +1014,68 @@ export default {
 }
 
 .detail-header {
+	container-name: area-detail-header;
+	container-type: inline-size;
 	margin-bottom: 0px;
+}
+
+@media (min-width: 769px) {
+	@container area-detail-header (max-width: 1050px) {
+		.project-settings-header-btn {
+			display: none !important;
+		}
+	}
+
+	.project-detail {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+	}
+
+	.detail-header {
+		flex: 0 0 auto;
+	}
+
+	.project-detail-scroll {
+		--project-detail-scrollbar-size: calc(var(--default-grid-baseline, 4px) * 2);
+
+		box-sizing: border-box;
+		flex: 1 1 auto;
+		width: calc(100% + var(--project-detail-scrollbar-size));
+		min-height: 0;
+		margin-inline-end: calc(0px - var(--project-detail-scrollbar-size));
+		overflow-x: hidden;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-color: transparent transparent;
+		scrollbar-gutter: stable;
+		scrollbar-width: thin;
+	}
+
+	.project-detail-scroll:hover,
+	.project-detail-scroll:focus-within {
+		scrollbar-color: var(--color-border-dark, var(--color-border)) transparent;
+	}
+
+	.project-detail-scroll::-webkit-scrollbar {
+		width: var(--project-detail-scrollbar-size);
+		height: var(--project-detail-scrollbar-size);
+	}
+
+	.project-detail-scroll::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.project-detail-scroll::-webkit-scrollbar-thumb {
+		border-radius: var(--border-radius-pill, 999px);
+		background: transparent;
+	}
+
+	.project-detail-scroll:hover::-webkit-scrollbar-thumb,
+	.project-detail-scroll:focus-within::-webkit-scrollbar-thumb {
+		background: var(--color-border-dark, var(--color-border));
+	}
 }
 
 .filter-toggle-btn {
@@ -1555,6 +1574,8 @@ th.col-desc {
   background: var(--cobudget-surface-muted) !important;
 	box-shadow: none !important;
 	color: var(--cobudget-text) !important;
+  font-size: var(--cobudget-font-sm);
+  letter-spacing: 0.5px;
 }
 
 .btn-page:disabled {
@@ -1562,16 +1583,11 @@ th.col-desc {
 	cursor: not-allowed;
 }
 
-.btn-page:hover:not(:disabled),
-.btn-page:focus {
+.btn-page:hover:not(:disabled) {
 	background: var(--cobudget-surface-strong) !important;
 	border-color: transparent !important;
 	box-shadow: none !important;
 	outline: none !important;
-}
-
-.btn-page-next {
-	gap: 6px;
 }
 
 .btn-page :deep(.button-vue__wrapper),
@@ -1589,19 +1605,18 @@ th.col-desc {
 	white-space: nowrap;
 }
 
-.pagination-icon-right {
+.pagination-icon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: 20px;
-	height: 20px;
+	width: 16px;
+	height: 16px;
 	line-height: 0;
-	margin-left: 4px;
 }
 
-.pagination-icon-right :deep(.material-design-icon),
-.pagination-icon-right :deep(.material-design-icon__svg) {
+.pagination-icon :deep(.material-design-icon),
+.pagination-icon :deep(.material-design-icon__svg) {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -1901,10 +1916,6 @@ th.col-desc {
 		justify-content: center;
 	}
 
-	.pagination-icon-right {
-		margin-left: 0;
-	}
-
 	.repayment-row {
 		grid-template-columns: minmax(0, 1fr) auto;
 		gap: 4px 10px;
@@ -2020,17 +2031,4 @@ th.col-desc {
 	outline: none;
 }
 
-.template-item {
-	cursor: pointer;
-	padding: 8px;
-	border-radius: var(--border-radius);
-	transition: background-color 0.1s ease-in-out;
-}
-.template-item:hover {
-	background-color: var(--cobudget-surface-muted);
-}
-.template-title {
-	font-weight: bold;
-	cursor: pointer;
-}
 </style>

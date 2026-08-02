@@ -13,7 +13,7 @@ It helps you track income, expenses, budgets, receipts and shared areas directly
 
 CoBudget is available in the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and remains under active early-alpha development.
 
-- The supported release line is `0.2.x`; see the [changelog](CHANGELOG.md) for the latest changes.
+- The supported release line is `0.3.x`; see the [changelog](CHANGELOG.md) for the latest changes.
 - Nextcloud 33 and 34 are supported.
 - App Store releases are signed and mirrored as installable assets on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
 - Features, data structures and upgrade behavior may still change before `1.0.0`.
@@ -35,11 +35,13 @@ The screenshots below show the current alpha UI and may change during the test p
 ## Features
 
 - Track income and expenses
+- Create and edit income and expenses in a responsive sidebar with mode-specific titles, guarded unsaved changes, support for consecutive desktop entries, and a new-payment action that remains available while reviewing existing payments
 - Review payment change history with changed fields, previous values and new values
 - Organize payments by categories and payment partners, with searchable category and payment-partner numbers, one level of main categories and subcategories, and opt-in advanced personal address, validated contact and bank master-data editing for payment partners
 - Combine area-specific categories with global categories that area owners can hide or show for the entire area
 - Add labels such as important, review, fixed costs, subscriptions, children and tax relevant
 - Add free-form `#tags` directly in the payment note
+- Copy an existing personal or area payment while retaining its area and starting the new payment with today's date
 - Create shared areas for household costs, trips or other shared budgets
 - Use one-member areas as simple personal groupings without balances or settlements
 - Add the first additional member only while an area has no personal payments, avoiding ambiguous retroactive splits
@@ -53,7 +55,6 @@ The screenshots below show the current alpha UI and may change during the test p
 - Transfer area ownership manually or automatically to another active member
 - Settle shared areas and keep settlement history
 - Attach receipts and invoices stored in Nextcloud Files
-- Create reusable payment templates
 - Define flexible budget goals with hierarchy-aware category choices
 - View analytics for spending, income, trends, labels, areas and budget signals, including direct main-category values, subcategory details and category-group totals
 - Use workspaces to separate independent data pools

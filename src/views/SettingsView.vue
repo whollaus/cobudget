@@ -246,16 +246,6 @@
 						</div>
 						<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
 							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.templates() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.templatesDescription() }}</p>
-							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableTemplates" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-							<div>
 								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.budgetGoals() }}</label>
 								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.budgetGoalsDescription() }}</p>
 							</div>
@@ -683,7 +673,6 @@ export default {
 			enableReviewPayments: true,
 			enableTaxRelevant: true,
 			enableFuturePayments: true,
-			enableTemplates: true,
 			enableBudgetGoals: true,
 			enableAdvancedMasterData: false,
 			enableIncomes: true,
@@ -1107,7 +1096,6 @@ export default {
 					soloProjects: this.$texts.settings.countPersonalAreas(Number(counts.solo_projects || 0)),
 					categories: this.$texts.settings.countCategories(Number(counts.categories || 0)),
 					paymentPartners: this.$texts.settings.countPaymentPartners(Number(counts.payment_partners || 0)),
-					templates: this.$texts.settings.countTemplates(Number(counts.templates || 0)),
 					budgetGoals: this.$texts.settings.countBudgetGoals(Number(counts.budget_goals || 0)),
 				})
 			];
@@ -1214,7 +1202,6 @@ export default {
 				this.enableReviewPayments = settingsRes.data.enable_review_payments ?? true;
 				this.enableTaxRelevant = settingsRes.data.enable_tax_relevant ?? true;
 				this.enableFuturePayments = settingsRes.data.enable_future_payments ?? true;
-				this.enableTemplates = settingsRes.data.enable_templates ?? true;
 				this.enableBudgetGoals = settingsRes.data.enable_budget_goals ?? true;
 				this.enableAdvancedMasterData = settingsRes.data.enable_advanced_master_data ?? false;
 				this.enableIncomes = settingsRes.data.enable_incomes ?? true;
@@ -1503,7 +1490,6 @@ export default {
 					enable_review_payments: this.enableReviewPayments,
 					enable_tax_relevant: this.enableTaxRelevant,
 					enable_future_payments: this.enableFuturePayments,
-					enable_templates: this.enableTemplates,
 					enable_budget_goals: this.enableBudgetGoals,
 					enable_advanced_master_data: this.enableAdvancedMasterData,
 					enable_incomes: this.enableIncomes,

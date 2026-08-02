@@ -168,7 +168,6 @@ async function init() {
 		app.config.globalProperties.$enableReviewPayments = res.data.enable_review_payments ?? true
 		app.config.globalProperties.$enableTaxRelevant = res.data.enable_tax_relevant ?? true
 		app.config.globalProperties.$enableFuturePayments = res.data.enable_future_payments ?? true
-		app.config.globalProperties.$enableTemplates = res.data.enable_templates ?? true
 		app.config.globalProperties.$enableBudgetGoals = res.data.enable_budget_goals ?? true
 		app.config.globalProperties.$enableIncomes = res.data.enable_incomes ?? true
 		app.config.globalProperties.$enableProjects = res.data.enable_projects ?? true
@@ -206,7 +205,6 @@ async function init() {
 		app.config.globalProperties.$enableReviewPayments = true
 		app.config.globalProperties.$enableTaxRelevant = true
 		app.config.globalProperties.$enableFuturePayments = true
-		app.config.globalProperties.$enableTemplates = true
 		app.config.globalProperties.$enableBudgetGoals = true
 		app.config.globalProperties.$enableIncomes = true
 		app.config.globalProperties.$enableProjects = true

@@ -496,20 +496,7 @@ class CategoryController extends Controller {
 			}
 			$usedEntries = $qbUsed->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
 
-			$qbUsedTpl = $this->db->getQueryBuilder();
-			$qbUsedTpl->select('category_id')
-				->from('cobudget_templates')
-				->where($qbUsedTpl->expr()->isNotNull('category_id'))
-				->andWhere($qbUsedTpl->expr()->eq('workspace_id', $qbUsedTpl->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-				->groupBy('category_id');
-			if ($projectId !== null) {
-				$qbUsedTpl->andWhere($qbUsedTpl->expr()->eq('project_id', $qbUsedTpl->createNamedParameter($projectId, \PDO::PARAM_INT)));
-			} else {
-				$qbUsedTpl->andWhere($qbUsedTpl->expr()->eq('user_id', $qbUsedTpl->createNamedParameter($this->userId)));
-			}
-			$usedTemplates = $qbUsedTpl->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
-			
-			$usedCategoryIds = array_values(array_unique(array_map('intval', array_merge($usedEntries, $usedTemplates))));
+			$usedCategoryIds = array_values(array_unique(array_map('intval', $usedEntries)));
 
 			foreach ($categories as &$cat) {
 				$cat['is_hidden'] = in_array((int)$cat['id'], $hiddenIds, true);
@@ -842,21 +829,7 @@ class CategoryController extends Controller {
 				->setMaxResults(1);
 			$inUseEntries = $qb->executeQuery()->fetch();
 
-			$qb2 = $this->db->getQueryBuilder();
-			$qb2->select('id')
-				->from('cobudget_templates')
-				->where($qb2->expr()->eq('category_id', $qb2->createNamedParameter($id)))
-				->andWhere($qb2->expr()->eq('workspace_id', $qb2->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-				->setMaxResults(1);
-			if ($projectId === null) {
-				$qb2->andWhere($qb2->expr()->eq('user_id', $qb2->createNamedParameter($this->userId)))
-					->andWhere($qb2->expr()->isNull('project_id'));
-			} else {
-				$qb2->andWhere($qb2->expr()->eq('project_id', $qb2->createNamedParameter($projectId, \PDO::PARAM_INT)));
-			}
-			$inUseTemplates = $qb2->executeQuery()->fetch();
-
-			if ($inUseEntries !== false || $inUseTemplates !== false) {
+			if ($inUseEntries !== false) {
 				return $this->errorResponse('Category is still in use and cannot be deleted. Please use the hide function instead.', Http::STATUS_CONFLICT);
 			}
 
@@ -1137,14 +1110,7 @@ class CategoryController extends Controller {
 				->setMaxResults(1);
 			$inUseEntries = $qb->executeQuery()->fetch();
 
-			$qb2 = $this->db->getQueryBuilder();
-			$qb2->select('id')
-				->from('cobudget_templates')
-				->where($qb2->expr()->eq('category_id', $qb2->createNamedParameter($id)))
-				->setMaxResults(1);
-			$inUseTemplates = $qb2->executeQuery()->fetch();
-
-			if ($inUseEntries !== false || $inUseTemplates !== false) {
+			if ($inUseEntries !== false) {
 				return $this->errorResponse('Category is still in use and cannot be deleted.', Http::STATUS_CONFLICT);
 			}
 

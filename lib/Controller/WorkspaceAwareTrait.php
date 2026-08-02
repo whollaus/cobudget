@@ -469,31 +469,6 @@ trait WorkspaceAwareTrait {
 		return $this->validateRecurrencePayload($recurrenceInterval, $recurrenceMultiplier, $recurrenceNextDate, $recurrenceEndDate, $reminderDate);
 	}
 
-	protected function validateTemplatePayload(
-		string &$name,
-		?string &$description,
-		string $type,
-		?float $amount,
-		?int &$amountCents,
-		?int $categoryId,
-		?int $paymentPartnerId,
-		?int $projectId
-	): ?DataResponse {
-		if ($error = $this->validateTypedNamePayload($name, $type)) {
-			return $error;
-		}
-
-		if ($description !== null && mb_strlen($description) > 512) {
-			return $this->errorResponse('Invalid description', Http::STATUS_BAD_REQUEST);
-		}
-
-		if ($error = $this->validateAmountCents($amount, $amountCents, true)) {
-			return $error;
-		}
-
-		return $this->validateEntryReferences($projectId, $categoryId, $paymentPartnerId);
-	}
-
 	protected function validateCurrencySetting(string &$currency): ?DataResponse {
 		$currency = trim($currency);
 		if (mb_strlen($currency) > 10) {
@@ -1247,32 +1222,6 @@ trait WorkspaceAwareTrait {
 		return $projectWorkspaceId !== null && (int)$row['workspace_id'] === $projectWorkspaceId ? $row : null;
 	}
 
-	protected function templateOwnedInActiveWorkspace(int $templateId): bool {
-		if (empty($this->userId) || $templateId <= 0) {
-			return false;
-		}
-
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'user_id', 'workspace_id', 'project_id')
-		   ->from('cobudget_templates')
-		   ->where($qb->expr()->eq('id', $qb->createNamedParameter($templateId, \PDO::PARAM_INT)))
-		   ->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)))
-		   ->setMaxResults(1);
-
-		$row = $qb->executeQuery()->fetch();
-		if (!$row) {
-			return false;
-		}
-
-		if ($row['project_id'] === null || $row['project_id'] === '') {
-			$workspaceId = $this->getWorkspaceId();
-			return $workspaceId !== null && (int)$row['workspace_id'] === (int)$workspaceId;
-		}
-
-		$projectWorkspaceId = $this->projectWorkspaceIdForCurrentUser((int)$row['project_id']);
-		return $projectWorkspaceId !== null && (int)$row['workspace_id'] === $projectWorkspaceId;
-	}
-
 	protected function workspaceBelongsToUser(int $workspaceId): bool {
 		if (empty($this->userId) || $workspaceId <= 0) {
 			return false;
@@ -1324,7 +1273,6 @@ trait WorkspaceAwareTrait {
 			['table' => 'cobudget_entries', 'column' => 'user_id'],
 			['table' => 'cobudget_categories', 'column' => 'user_id'],
 			['table' => 'cobudget_payment_partners', 'column' => 'user_id'],
-			['table' => 'cobudget_templates', 'column' => 'user_id'],
 		];
 
 		foreach ($tablesWithUsers as $twu) {

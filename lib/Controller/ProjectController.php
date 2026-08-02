@@ -549,7 +549,6 @@ class ProjectController extends Controller {
 
 			$this->db->beginTransaction();
 			try {
-				$this->deleteRowsByColumnValues('cobudget_templates', 'project_id', [$id]);
 				$this->deleteRowsByColumnValues('cobudget_categories', 'project_id', [$id]);
 				$this->deleteRowsByColumnValues('cobudget_payment_partners', 'project_id', [$id]);
 				$this->deleteRowsByColumnValues('cobudget_members', 'project_id', [$id]);

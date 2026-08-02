@@ -81,6 +81,10 @@ export default {
 	min-width: 0;
 }
 
+.app-page-header__actions :deep(.mobile-payment-label) {
+	display: none;
+}
+
 @media (max-width: 768px) {
 	.app-page-header {
 		align-items: flex-start;
@@ -172,11 +176,7 @@ export default {
 	.app-page-header__actions :deep(.cobudget-primary-icon-button.button-vue),
 	.app-page-header__actions :deep(.cobudget-primary-icon-button .button-vue),
 	.app-page-header__actions :deep(.budget-new-button.button-vue),
-	.app-page-header__actions :deep(.budget-new-button .button-vue),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue),
-	.app-page-header__actions :deep(.new-payment-main-button .button-vue),
-	.app-page-header__actions :deep(.new-payment-toggle-button.button-vue),
-	.app-page-header__actions :deep(.new-payment-toggle-button .button-vue) {
+	.app-page-header__actions :deep(.budget-new-button .button-vue) {
 		min-width: var(--cobudget-icon-button-size, 44px) !important;
 		width: var(--cobudget-icon-button-size, 44px) !important;
 		min-height: var(--cobudget-icon-button-size, 44px) !important;
@@ -186,26 +186,66 @@ export default {
 		justify-content: center !important;
 	}
 
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue),
+	.app-page-header__actions :deep(.new-payment-main-button .button-vue) {
+		min-width: calc(var(--cobudget-icon-button-size, 44px) * 2) !important;
+		width: auto !important;
+		min-height: var(--cobudget-mobile-touch-size, 44px) !important;
+		height: var(--cobudget-mobile-touch-size, 44px) !important;
+		padding-inline-start: calc(var(--default-grid-baseline, 4px) * 2) !important;
+		padding-inline-end: calc(var(--default-grid-baseline, 4px) * 3) !important;
+		align-items: center !important;
+		justify-content: center !important;
+	}
+
+	.app-page-header__actions :deep(.new-payment-main-button .button-vue__wrapper),
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__wrapper) {
+		gap: var(--default-grid-baseline, 4px);
+	}
+
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__icon),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__icon),
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__icon) {
+		width: calc(var(--default-grid-baseline, 4px) * 5) !important;
+		min-width: calc(var(--default-grid-baseline, 4px) * 5) !important;
+		height: calc(var(--default-grid-baseline, 4px) * 5) !important;
+		min-height: calc(var(--default-grid-baseline, 4px) * 5) !important;
+		margin: 0 !important;
+	}
+
+	.app-page-header__actions :deep(.mobile-payment-label) {
+		display: inline !important;
+	}
+
 	.app-page-header__actions :deep(.budget-new-button .button-vue__icon),
-	.app-page-header__actions :deep(.budget-new-button.button-vue .button-vue__icon),
-	.app-page-header__actions :deep(.new-payment-toggle-button .button-vue__icon),
-	.app-page-header__actions :deep(.new-payment-toggle-button.button-vue .button-vue__icon) {
+	.app-page-header__actions :deep(.budget-new-button.button-vue .button-vue__icon) {
 		margin: 0 !important;
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__text),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__text),
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__text) {
+		display: inline-flex !important;
+		align-items: center;
+		overflow: visible;
+	}
+
 	.app-page-header__actions :deep(.budget-new-button .button-vue__text),
 	.app-page-header__actions :deep(.budget-new-button.button-vue .button-vue__text) {
 		display: none !important;
 	}
 
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue),
-	.app-page-header__actions :deep(.new-payment-main-button .button-vue) {
-		min-width: calc(var(--cobudget-icon-button-size, 44px) * 2) !important;
-		width: calc(var(--cobudget-icon-button-size, 44px) * 2) !important;
+}
+
+/*
+ * NcAppSidebar returns focus to its trigger after closing. On touch devices,
+ * that programmatic focus can inherit :focus-visible from a form field and
+ * leave NcButton's white keyboard ring behind. Touch users already receive
+ * pressed-state feedback; keep the ring for keyboard-capable layouts only.
+ */
+@media (max-width: 768px) and (pointer: coarse) {
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue:focus-visible),
+	.app-page-header__actions :deep(.new-payment-main-button .button-vue:focus-visible) {
+		outline: none !important;
+		box-shadow: none !important;
 	}
 }
 </style>

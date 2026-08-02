@@ -8,7 +8,7 @@ https://github.com/whollaus/cobudget/issues
 
 ## Supported Versions
 
-During the alpha phase, only the latest published `0.2.x` release and the current `main` branch are considered supported. Older alpha releases should be updated before reporting a vulnerability.
+During the alpha phase, only the latest published `0.3.x` release and the current `main` branch are considered supported. Older alpha releases should be updated before reporting a vulnerability.
 
 ## Reporting A Vulnerability
 

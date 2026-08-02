@@ -104,12 +104,6 @@ return [
 		['name' => 'user#resetPreview', 'url' => '/api/settings/reset-preview', 'verb' => 'GET'],
 		['name' => 'user#resetAll', 'url' => '/api/settings/reset', 'verb' => 'POST'],
 
-		// API routes for Templates
-		['name' => 'template#index', 'url' => '/api/templates', 'verb' => 'GET'],
-		['name' => 'template#create', 'url' => '/api/templates', 'verb' => 'POST'],
-		['name' => 'template#markUsed', 'url' => '/api/templates/{id}/use', 'verb' => 'POST'],
-		['name' => 'template#destroy', 'url' => '/api/templates/{id}', 'verb' => 'DELETE'],
-
 		// API routes for Workspaces
 		['name' => 'workspace#index', 'url' => '/api/workspaces', 'verb' => 'GET'],
 		['name' => 'workspace#create', 'url' => '/api/workspaces', 'verb' => 'POST'],

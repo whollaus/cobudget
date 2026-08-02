@@ -46,7 +46,6 @@ class BackupService {
 		'cobudget_members',
 		'cobudget_categories',
 		'cobudget_payment_partners',
-		'cobudget_templates',
 		'cobudget_entries',
 		'cobudget_entry_shares',
 		'cobudget_entry_history',
@@ -140,28 +139,6 @@ class BackupService {
 			'type',
 			'project_id',
 			'is_hidden',
-		],
-		'cobudget_templates' => [
-			'id',
-			'user_id',
-			'name',
-			'description',
-			'type',
-			'amount',
-			'amount_cents',
-			'category_id',
-			'payment_partner_id',
-			'project_id',
-			'split_mode',
-			'split_user_id',
-			'is_subscription',
-			'is_fixed_cost',
-			'is_child_related',
-			'is_important',
-			'needs_review',
-			'is_tax_relevant',
-			'workspace_id',
-			'usage_count',
 		],
 		'cobudget_entries' => [
 			'id',
@@ -325,7 +302,6 @@ class BackupService {
 		'cobudget_members' => ['user_id'],
 		'cobudget_categories' => ['user_id'],
 		'cobudget_payment_partners' => ['user_id'],
-		'cobudget_templates' => ['user_id'],
 		'cobudget_entries' => ['user_id', 'created_by', 'split_user_id'],
 		'cobudget_entry_shares' => ['user_id'],
 		'cobudget_entry_history' => ['changed_by'],
@@ -346,10 +322,6 @@ class BackupService {
 		['sourceTable' => 'cobudget_categories', 'column' => 'parent_category_id', 'targetTable' => 'cobudget_categories'],
 		['sourceTable' => 'cobudget_payment_partners', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_payment_partners', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
-		['sourceTable' => 'cobudget_templates', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
-		['sourceTable' => 'cobudget_templates', 'column' => 'category_id', 'targetTable' => 'cobudget_categories'],
-		['sourceTable' => 'cobudget_templates', 'column' => 'payment_partner_id', 'targetTable' => 'cobudget_payment_partners'],
-		['sourceTable' => 'cobudget_templates', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'category_id', 'targetTable' => 'cobudget_categories'],
 		['sourceTable' => 'cobudget_entries', 'column' => 'payment_partner_id', 'targetTable' => 'cobudget_payment_partners'],
@@ -388,7 +360,6 @@ class BackupService {
 		'enable_review_payments',
 		'enable_tax_relevant',
 		'enable_future_payments',
-		'enable_templates',
 		'enable_budget_goals',
 		'enable_advanced_master_data',
 		'enable_incomes',
@@ -422,7 +393,6 @@ class BackupService {
 		'enable_review_payments' => 'yes',
 		'enable_tax_relevant' => 'yes',
 		'enable_future_payments' => 'yes',
-		'enable_templates' => 'yes',
 		'enable_budget_goals' => 'yes',
 		'enable_advanced_master_data' => 'no',
 		'enable_incomes' => 'yes',
@@ -1696,37 +1666,6 @@ class BackupService {
 			'cobudget_payment_partners' => $paymentPartnerPreparation['aliases'],
 		];
 
-		$templates = [];
-		foreach ($prepared['cobudget_templates'] as $row) {
-			if (trim((string)($row['user_id'] ?? '')) !== $sourceUserId) {
-				continue;
-			}
-			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
-			$projectId = $this->nullableId($row['project_id'] ?? null);
-			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
-				$workspaceId = $projectId !== null
-					? ($memberWorkspaceByProject[$projectId] ?? $primaryWorkspaceId)
-					: $primaryWorkspaceId;
-			}
-			if ($workspaceId === null) {
-				continue;
-			}
-			$categoryId = $this->nullableId($row['category_id'] ?? null);
-			$paymentPartnerId = $this->nullableId($row['payment_partner_id'] ?? null);
-			$row['user_id'] = $userId;
-			$row['workspace_id'] = $workspaceId;
-			$row['project_id'] = $projectId !== null && isset($projectIds[$projectId]) ? $projectId : null;
-			if ($projectId !== null && isset($sharedProjectIds[$projectId])) {
-				$row['project_id'] = null;
-			}
-			$row['category_id'] = $this->personalLookupIdForWorkspace($categoryId, $workspaceId, $categoryIdByWorkspace);
-			$row['payment_partner_id'] = $this->personalLookupIdForWorkspace($paymentPartnerId, $workspaceId, $paymentPartnerIdByWorkspace);
-			$row['split_mode'] = 'personal';
-			$row['split_user_id'] = null;
-			$templates[] = $row;
-		}
-		$prepared['cobudget_templates'] = $templates;
-
 		$entries = [];
 		$convertedSharedEntryIds = [];
 		foreach ($prepared['cobudget_entries'] as $row) {
@@ -2008,21 +1947,6 @@ class BackupService {
 				continue;
 			}
 
-			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
-			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
-				$workspaceId = $projectId !== null
-					? ($memberWorkspaceByProject[$projectId] ?? $primaryWorkspaceId)
-					: $primaryWorkspaceId;
-			}
-			$record($usage['cobudget_categories'], $this->nullableId($row['category_id'] ?? null), $workspaceId);
-			$record($usage['cobudget_payment_partners'], $this->nullableId($row['payment_partner_id'] ?? null), $workspaceId);
-		}
-
-		foreach ($tables['cobudget_templates'] ?? [] as $row) {
-			if (trim((string)($row['user_id'] ?? '')) !== $sourceUserId) {
-				continue;
-			}
-			$projectId = $this->nullableId($row['project_id'] ?? null);
 			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
 			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
 				$workspaceId = $projectId !== null
@@ -2643,12 +2567,6 @@ class BackupService {
 				$mapColumn('workspace_id', 'cobudget_workspaces');
 				$mapColumn('project_id', 'cobudget_projects');
 			})(),
-			'cobudget_templates' => (function () use ($mapColumn): void {
-				$mapColumn('workspace_id', 'cobudget_workspaces');
-				$mapColumn('category_id', 'cobudget_categories');
-				$mapColumn('payment_partner_id', 'cobudget_payment_partners');
-				$mapColumn('project_id', 'cobudget_projects');
-			})(),
 			'cobudget_entries' => (function () use ($mapColumn): void {
 				$mapColumn('workspace_id', 'cobudget_workspaces');
 				$mapColumn('category_id', 'cobudget_categories');
@@ -2953,7 +2871,6 @@ class BackupService {
 			'cobudget_members' => 'Bereichsmitglieder',
 			'cobudget_categories' => 'Kategorien',
 			'cobudget_payment_partners' => 'Zahlungspartner',
-			'cobudget_templates' => 'Vorlagen',
 			'cobudget_entries' => 'Zahlungen',
 			'cobudget_entry_shares' => 'Gespeicherte Zahlungsanteile',
 			'cobudget_entry_history' => 'Zahlungshistorie',
@@ -3105,7 +3022,7 @@ class BackupService {
 			}
 		}
 
-		foreach (['cobudget_categories', 'cobudget_payment_partners', 'cobudget_templates'] as $table) {
+		foreach (['cobudget_categories', 'cobudget_payment_partners'] as $table) {
 			foreach ($tables[$table] ?? [] as $row) {
 				$this->assertProjectWorkspaceMatches($row, $projectWorkspaces, $table);
 			}
@@ -3357,7 +3274,6 @@ class BackupService {
 			'cobudget_members' => $this->fetchRowsByIds('cobudget_members', 'project_id', $projectIds),
 			'cobudget_categories' => $this->fetchCategories($userId, $workspaceIds, $projectIds),
 			'cobudget_payment_partners' => $this->fetchPaymentPartners($userId, $workspaceIds, $projectIds),
-			'cobudget_templates' => $this->fetchTemplates($userId, $workspaceIds, $projectIds),
 			'cobudget_entries' => $entries,
 			'cobudget_entry_shares' => $this->fetchRowsByIds('cobudget_entry_shares', 'entry_id', $entryIds),
 			'cobudget_entry_history' => $this->fetchRowsByIds('cobudget_entry_history', 'entry_id', $entryIds),
@@ -3541,21 +3457,6 @@ class BackupService {
 			),
 			$qb->expr()->eq('is_global', $qb->createNamedParameter(1, \PDO::PARAM_INT))
 		);
-		if ($projectIds !== []) {
-			$or->add($qb->expr()->in('project_id', $qb->createNamedParameter($projectIds, IQueryBuilder::PARAM_INT_ARRAY)));
-		}
-		$qb->where($or)->orderBy('id', 'ASC');
-
-		return $qb->executeQuery()->fetchAll();
-	}
-
-	private function fetchTemplates(string $userId, array $workspaceIds, array $projectIds): array {
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')->from('cobudget_templates');
-		$or = $qb->expr()->orX($qb->expr()->andX(
-			$qb->expr()->eq('user_id', $qb->createNamedParameter($userId)),
-			$qb->expr()->isNull('project_id')
-		));
 		if ($projectIds !== []) {
 			$or->add($qb->expr()->in('project_id', $qb->createNamedParameter($projectIds, IQueryBuilder::PARAM_INT_ARRAY)));
 		}

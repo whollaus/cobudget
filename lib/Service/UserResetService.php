@@ -56,7 +56,6 @@ class UserResetService {
 		'enable_review_payments',
 		'enable_tax_relevant',
 		'enable_future_payments',
-		'enable_templates',
 		'enable_budget_goals',
 		'enable_advanced_master_data',
 		'enable_incomes',
@@ -162,7 +161,6 @@ class UserResetService {
 				'attachments' => $this->countAttachmentsForEntries($deletedEntryIds),
 				'categories' => $this->countUserScopedRows('cobudget_categories', $userId, $workspaceIds, $deletedProjectIds),
 				'payment_partners' => $this->countUserScopedRows('cobudget_payment_partners', $userId, $workspaceIds, $deletedProjectIds),
-				'templates' => $this->countRowsByColumn('cobudget_templates', 'user_id', $userId),
 				'budget_goals' => $this->countRowsByColumn('cobudget_budget_goals', 'user_id', $userId),
 			],
 		];
@@ -204,7 +202,6 @@ class UserResetService {
 					'attachment_files' => 0,
 					'categories' => 0,
 					'payment_partners' => 0,
-					'templates' => 0,
 					'budget_goals' => 0,
 					'budget_snapshots' => 0,
 				],
@@ -279,7 +276,6 @@ class UserResetService {
 
 				$report['deleted']['categories'] += $this->deleteUserScopedRows('cobudget_categories', $userId, $workspaceIds, $soloProjectIds);
 				$report['deleted']['payment_partners'] += $this->deleteUserScopedRows('cobudget_payment_partners', $userId, $workspaceIds, $soloProjectIds);
-				$report['deleted']['templates'] += $this->deleteRowsByStringColumn('cobudget_templates', 'user_id', $userId);
 				$report['deleted']['budget_snapshots'] += $this->deleteRowsByStringColumn('cobudget_budget_snapshots', 'user_id', $userId);
 				$report['deleted']['budget_goals'] += $this->deleteRowsByStringColumn('cobudget_budget_goals', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_members', 'user_id', $userId);
@@ -742,7 +738,6 @@ class UserResetService {
 			'attachment_files' => $attachmentReport['files'],
 			'categories' => $this->deleteRowsByIntColumn('cobudget_categories', 'project_id', $projectId),
 			'payment_partners' => $this->deleteRowsByIntColumn('cobudget_payment_partners', 'project_id', $projectId),
-			'templates' => $this->deleteRowsByIntColumn('cobudget_templates', 'project_id', $projectId),
 		];
 
 		$this->deleteRowsByIds('cobudget_settlement_balances', $this->idsByColumnValues('cobudget_settlement_balances', 'settlement_id', $settlementIds));

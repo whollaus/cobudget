@@ -1,6 +1,6 @@
 # CoBudget Features
 
-CoBudget's current `0.2.x` release line is available through the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and as signed packages on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
+CoBudget's current `0.3.x` release line is available through the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and as signed packages on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
 
 > [!WARNING]
 > CoBudget is an early alpha version. Features, data structures and workflows may still change at any time.
@@ -12,10 +12,12 @@ CoBudget is a Nextcloud app for personal and shared household budgeting.
 
 - Create income and expense entries.
 - Add date, amount, payment reference or note, category and payment partner.
+- Create and edit income and expenses in a responsive right sidebar with mode-specific titles, guarded unsaved changes, and support for consecutive desktop entries. The main new-payment action remains available while reviewing existing payments and is hidden only while creating a new payment.
 - Suggest a category from safe, repeated payment-partner habits without overwriting a manual selection.
 - Review change history for edited payments, including changed fields and previous values.
 - Mark entries with labels for important payments, payments to review, fixed costs, subscriptions, children and tax relevant payments.
 - Add free-form `#tags` directly in the payment note field.
+- Copy an existing personal or area payment while retaining its area and defaulting the new payment to today's date.
 - Attach receipts and invoices.
 - Use recurring payments and reminders.
 - Filter, search, paginate and export payment lists, including tags when available.
@@ -107,12 +109,6 @@ Analytics show where money is going and how financial trends develop.
 - Configure the receipt folder.
 - Optionally group receipts by year or month.
 - Optionally delete receipt files when deleting a payment.
-
-## Templates
-
-- Create reusable payment templates.
-- Use templates from the payment form.
-- Sort templates by usage.
 
 ## Backup And Restore
 

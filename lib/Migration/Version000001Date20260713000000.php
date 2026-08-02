@@ -23,7 +23,6 @@ class Version000001Date20260713000000 extends SimpleMigrationStep {
 		$this->createPaymentPartners($schema);
 		$this->createEntries($schema);
 		$this->createEntryShares($schema);
-		$this->createTemplates($schema);
 		$this->createEntryAttachments($schema);
 		$this->createSettlements($schema);
 		$this->createBudgetGoals($schema);
@@ -216,39 +215,6 @@ class Version000001Date20260713000000 extends SimpleMigrationStep {
 		$table->addUniqueIndex(['entry_id', 'user_id'], 'cb_esh_entry_user');
 		$table->addIndex(['user_id', 'entry_id'], 'cb_esh_user_entry');
 		$table->addUniqueIndex(['personal_entry_id'], 'cb_esh_personal_entry');
-	}
-
-	private function createTemplates(ISchemaWrapper $schema): void {
-		if ($schema->hasTable('cobudget_templates')) {
-			return;
-		}
-
-		$table = $schema->createTable('cobudget_templates');
-		$table->addColumn('id', 'integer', ['autoincrement' => true, 'notnull' => true]);
-		$table->addColumn('user_id', 'string', ['notnull' => true, 'length' => 64]);
-		$table->addColumn('name', 'string', ['notnull' => true, 'length' => 128]);
-		$table->addColumn('description', 'string', ['notnull' => false, 'length' => 512]);
-		$table->addColumn('type', 'string', ['notnull' => true, 'length' => 32, 'default' => 'expense']);
-		$table->addColumn('amount', 'decimal', ['notnull' => false, 'precision' => 10, 'scale' => 2]);
-		$table->addColumn('amount_cents', 'bigint', ['notnull' => false]);
-		$table->addColumn('category_id', 'integer', ['notnull' => false]);
-		$table->addColumn('payment_partner_id', 'integer', ['notnull' => false]);
-		$table->addColumn('project_id', 'integer', ['notnull' => false]);
-		$table->addColumn('split_mode', 'string', ['notnull' => true, 'length' => 32, 'default' => 'project_shares']);
-		$table->addColumn('split_user_id', 'string', ['notnull' => false, 'length' => 64]);
-		$table->addColumn('is_subscription', 'boolean', ['notnull' => true, 'default' => false]);
-		$table->addColumn('is_fixed_cost', 'boolean', ['notnull' => true, 'default' => false]);
-		$table->addColumn('is_child_related', 'boolean', ['notnull' => true, 'default' => false]);
-		$table->addColumn('is_important', 'boolean', ['notnull' => true, 'default' => false]);
-		$table->addColumn('needs_review', 'boolean', ['notnull' => true, 'default' => false]);
-		$table->addColumn('is_tax_relevant', 'boolean', ['notnull' => true, 'default' => false]);
-		$table->addColumn('workspace_id', 'integer', ['notnull' => true]);
-		$table->addColumn('usage_count', 'integer', ['notnull' => true, 'default' => 0]);
-		$table->setPrimaryKey(['id']);
-		$table->addIndex(['user_id'], 'cb_tpl_user');
-		$table->addIndex(['workspace_id'], 'cb_tpl_ws');
-		$table->addIndex(['project_id'], 'cb_tpl_project');
-		$table->addIndex(['payment_partner_id'], 'cb_tpl_partner');
 	}
 
 	private function createEntryAttachments(ISchemaWrapper $schema): void {
@@ -530,7 +496,6 @@ class Version000001Date20260713000000 extends SimpleMigrationStep {
 		$this->addIndexIfMissing($schema, 'cobudget_categories', ['workspace_id', 'project_id', 'type'], 'cb_cat_ws_proj_type');
 		$this->addIndexIfMissing($schema, 'cobudget_payment_partners', ['workspace_id', 'type', 'user_id', 'is_hidden'], 'cb_pp_ws_type_user');
 		$this->addIndexIfMissing($schema, 'cobudget_payment_partners', ['workspace_id', 'project_id', 'type'], 'cb_pp_ws_proj_type');
-		$this->addIndexIfMissing($schema, 'cobudget_templates', ['workspace_id', 'user_id', 'usage_count'], 'cb_tpl_ws_user_use');
 	}
 
 	private function addAttachmentAndSettlementIndexes(ISchemaWrapper $schema): void {

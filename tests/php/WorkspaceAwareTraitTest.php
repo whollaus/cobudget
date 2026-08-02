@@ -334,7 +334,7 @@ namespace CoBudget\Tests {
 			$t->assertSame(0, $probe->toCents(0), 'Zero should convert to zero cents');
 			$t->assertSame(12.35, $probe->toAmount(1235), 'Cents should convert to rounded amount');
 			$t->assertSame('12.35', $probe->toAmountString(1235), 'Cents should convert to canonical decimal string');
-			$t->assertNull($probe->toAmountString(null), 'Null cents should stay null for optional template amounts');
+			$t->assertNull($probe->toAmountString(null), 'Null cents should stay null for optional amounts');
 
 			$t->assertSame(999, $probe->centsFromRow(['amount_cents' => '999', 'amount' => '1.23']), 'amount_cents should be canonical when present');
 			$t->assertSame(124, $probe->centsFromRow(['amount' => '1.235']), 'Legacy amount should still be converted as fallback');

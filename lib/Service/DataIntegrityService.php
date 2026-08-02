@@ -57,30 +57,6 @@ class DataIntegrityService {
 			'repairAction' => 'clear',
 		],
 		[
-			'sourceTable' => 'cobudget_templates',
-			'sourceLabel' => 'Vorlagen',
-			'column' => 'category_id',
-			'targetTable' => 'cobudget_categories',
-			'targetLabel' => 'Kategorie',
-			'repairAction' => 'clear',
-		],
-		[
-			'sourceTable' => 'cobudget_templates',
-			'sourceLabel' => 'Vorlagen',
-			'column' => 'payment_partner_id',
-			'targetTable' => 'cobudget_payment_partners',
-			'targetLabel' => 'Zahlungspartner',
-			'repairAction' => 'clear',
-		],
-		[
-			'sourceTable' => 'cobudget_templates',
-			'sourceLabel' => 'Vorlagen',
-			'column' => 'project_id',
-			'targetTable' => 'cobudget_projects',
-			'targetLabel' => 'Bereich',
-			'repairAction' => 'clear',
-		],
-		[
 			'sourceTable' => 'cobudget_entry_shares',
 			'sourceLabel' => 'Gespeicherte Zahlungsanteile',
 			'column' => 'entry_id',
@@ -380,7 +356,6 @@ class DataIntegrityService {
 			'keepId' => $keepId,
 			'mergedIds' => $mergeIds,
 			'entriesUpdated' => 0,
-			'templatesUpdated' => 0,
 			'budgetGoalsUpdated' => 0,
 			'subcategoriesUpdated' => 0,
 			'areaVisibilityUpdated' => 0,
@@ -390,7 +365,6 @@ class DataIntegrityService {
 		$this->db->beginTransaction();
 		try {
 			$result['entriesUpdated'] = $this->replaceReferences('cobudget_entries', $referenceColumn, $keepId, $mergeIds);
-			$result['templatesUpdated'] = $this->replaceReferences('cobudget_templates', $referenceColumn, $keepId, $mergeIds);
 			if ($target['criteriaField'] !== null) {
 				$result['budgetGoalsUpdated'] = $this->replaceBudgetCriteriaReferences((string)$target['criteriaField'], $keepId, $mergeIds);
 			}

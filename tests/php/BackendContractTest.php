@@ -850,10 +850,10 @@ return [
 		$t->assertContains('return $months', $completedMonths, 'Analytics should count completed months for average calculations');
 	},
 
-	'Initial migration includes tax relevant labels for entries and templates' => function(TestRunner $t): void {
+	'Initial migration includes tax relevant labels for entries' => function(TestRunner $t): void {
 		$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 		$t->assertContains("'cobudget_entries'", $migration, 'Initial migration should create entries');
-		$t->assertContains("'cobudget_templates'", $migration, 'Initial migration should create templates');
+		$t->assertNotContains("'cobudget_templates'", $migration, 'Fresh installs should not create the removed templates table');
 		$t->assertContains("'is_tax_relevant'", $migration, 'Initial migration should add is_tax_relevant');
 	},
 
@@ -894,7 +894,6 @@ return [
 			'cb_proj_ws_arch',
 			'cb_cat_ws_type_user',
 			'cb_pp_ws_type_user',
-			'cb_tpl_ws_user_use',
 			'cb_att_ws_entry',
 			'cb_set_ws_proj_time',
 			'cb_budget_ws_user_upd',
@@ -1161,11 +1160,11 @@ return [
 			$t->assertContains('STATUS_CONFLICT', $update, $expectation['entity'] . ' update should reject duplicates');
 
 			$destroy = $t->methodBody('lib/Controller/' . $file, 'destroy');
-			$t->assertContains($expectation['editableGuard'], $destroy, $expectation['entity'] . ' delete should only allow personal or project-member active-workspace rows');
-			$t->assertContains('requireProjectOwnerForScopedMutation($projectId)', $destroy, $expectation['entity'] . ' delete should require the area creator for project-scoped rows');
-			$t->assertContains("from('cobudget_entries')", $destroy, $expectation['entity'] . ' delete should detect entry usage');
-			$t->assertContains("from('cobudget_templates')", $destroy, $expectation['entity'] . ' delete should detect template usage');
-			$t->assertContains('STATUS_CONFLICT', $destroy, $expectation['entity'] . ' delete should block rows still in use');
+				$t->assertContains($expectation['editableGuard'], $destroy, $expectation['entity'] . ' delete should only allow personal or project-member active-workspace rows');
+				$t->assertContains('requireProjectOwnerForScopedMutation($projectId)', $destroy, $expectation['entity'] . ' delete should require the area creator for project-scoped rows');
+				$t->assertContains("from('cobudget_entries')", $destroy, $expectation['entity'] . ' delete should detect entry usage');
+				$t->assertNotContains('cobudget_templates', $destroy, $expectation['entity'] . ' delete should not query the removed templates table');
+				$t->assertContains('STATUS_CONFLICT', $destroy, $expectation['entity'] . ' delete should block rows still in use');
 			$t->assertContains("delete('" . $expectation['table'] . "')", $destroy, $expectation['entity'] . ' delete should delete own table');
 			$t->assertContains("eq('user_id'", $destroy, $expectation['entity'] . ' delete should scope by user_id');
 			$t->assertContains("eq('workspace_id'", $destroy, $expectation['entity'] . ' delete should scope by workspace_id');
@@ -1194,7 +1193,7 @@ return [
 		}
 	},
 
-	'Templates validate reachable references and persist amount_cents in active workspace' => function(TestRunner $t): void {
+	'Payment templates are fully removed and existing data is dropped on upgrade' => function(TestRunner $t): void {
 		$routes = require $t->path('appinfo/routes.php');
 		$templateRoutes = [];
 		foreach ($routes['routes'] as $route) {
@@ -1202,81 +1201,16 @@ return [
 				$templateRoutes[] = $route['verb'] . ' ' . $route['url'] . ' ' . $route['name'];
 			}
 		}
-		sort($templateRoutes);
-		$t->assertSame([
-			'DELETE /api/templates/{id} template#destroy',
-			'GET /api/templates template#index',
-			'POST /api/templates template#create',
-			'POST /api/templates/{id}/use template#markUsed',
-		], $templateRoutes, 'Template API should expose list, create, usage marker and delete');
-
-		$source = $t->read('lib/Controller/TemplateController.php');
-		$t->assertNotContains('function update(', $source, 'TemplateController should not expose an untested update endpoint');
-		$t->assertNotContains('recurrenceInterval', $source, 'Templates should not persist recurrence settings');
-		$t->assertNotContains('reminderDate', $source, 'Templates should not persist reminder settings');
+		$t->assertSame([], $templateRoutes, 'The removed template API should expose no routes');
+		$t->assertFalse(is_file($t->path('lib/Controller/TemplateController.php')), 'The template controller should be deleted');
 
 		$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
-		$t->assertContains('usage_count', $migration, 'Template usage migration should add usage_count');
-
-		$index = $t->methodBody('lib/Controller/TemplateController.php', 'index');
-		$t->assertContains('templatesEnabled()', $index, 'Template index should respect the user setting');
-		$t->assertContains("eq('t.user_id'", $index, 'Template index should scope by user_id');
-		$t->assertContains("eq('t.workspace_id'", $index, 'Template index should scope by workspace_id');
-		$t->assertContains("orderBy('t.usage_count', 'DESC')", $index, 'Template index should sort most-used templates first');
-		$t->assertContains("addOrderBy('t.name', 'ASC')", $index, 'Template index should use name as the tie-breaker');
-		$t->assertContains('usage_count', $index, 'Template index should expose usage_count');
-		$t->assertContains('normalizeAmountRow($t)', $index, 'Template index should normalize amount rows');
-
-		$validation = $t->methodBody('lib/Controller/WorkspaceAwareTrait.php', 'validateTemplatePayload');
-		foreach ([
-			'validateTypedNamePayload($name, $type)',
-			'validateAmountCents($amount, $amountCents, true)',
-			'validateEntryReferences($projectId, $categoryId, $paymentPartnerId)',
-		] as $needle) {
-			$t->assertContains($needle, $validation, 'Template validation should contain ' . $needle);
-		}
-
-		$create = $t->methodBody('lib/Controller/TemplateController.php', 'create');
-		$t->assertContains('templatesEnabled()', $create, 'Template create should respect the user setting');
-		$t->assertContains("if (\$type !== 'expense')", $create, 'Template create should keep subscription/fixed-cost expense-only');
-		foreach ([
-			'validateTemplatePayload($name, $description, $type, $amount, $amountCents, $categoryId, $paymentPartnerId, $projectId)',
-			"'amount_cents'",
-			"'workspace_id'",
-			"'is_subscription'",
-			"'is_fixed_cost'",
-			"'is_child_related'",
-			"'is_important'",
-			"'needs_review'",
-			"'is_tax_relevant'",
-		] as $needle) {
-			$t->assertContains($needle, $create, 'Template create should contain ' . $needle);
-		}
-		$t->assertNotContains("'date'", $create, 'Template create should not write a payment date');
-		$t->assertNotContains('recurrence', $create, 'Template create should not write recurrence fields');
-		$t->assertNotContains('reminder', $create, 'Template create should not write reminder fields');
-
-		$destroy = $t->methodBody('lib/Controller/TemplateController.php', 'destroy');
-		$t->assertContains('templatesEnabled()', $destroy, 'Template delete should respect the user setting');
-		$t->assertContains('templateOwnedInActiveWorkspace($id)', $destroy, 'Template delete should only delete owned active-workspace templates');
-		$t->assertContains("delete('cobudget_templates')", $destroy, 'Template delete should delete templates table');
-		$t->assertContains("eq('user_id'", $destroy, 'Template delete should scope by user_id');
-		$t->assertNotContains("eq('workspace_id'", $destroy, 'Template delete relies on the active-workspace ownership guard instead of duplicating the workspace predicate');
-
-		$markUsed = $t->methodBody('lib/Controller/TemplateController.php', 'markUsed');
-		$t->assertContains('templatesEnabled()', $markUsed, 'Template usage marker should respect the user setting');
-		$t->assertContains('templateOwnedInActiveWorkspace($id)', $markUsed, 'Template usage marker should only update owned active-workspace templates');
-		$t->assertContains("update('cobudget_templates')", $markUsed, 'Template usage marker should update templates table');
-		$t->assertContains('usage_count', $markUsed, 'Template usage marker should increment usage_count');
-		$t->assertContains("eq('user_id'", $markUsed, 'Template usage marker should scope by user_id');
-		$t->assertNotContains("eq('workspace_id'", $markUsed, 'Template usage marker relies on the active-workspace ownership guard instead of duplicating the workspace predicate');
-
-		$infoXml = $t->read('appinfo/info.xml');
-		$packageJson = json_decode($t->read('package.json'), true);
-		$packageVersion = is_array($packageJson) ? ($packageJson['version'] ?? null) : null;
-		if (!$packageVersion || preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== $packageVersion) {
-			throw new \RuntimeException('appinfo/info.xml version should match package.json');
-		}
+		$t->assertNotContains('cobudget_templates', $migration, 'Fresh installs should omit the templates table');
+		$removalMigration = $t->read('lib/Migration/Version000006Date20260801000000.php');
+		$t->assertContains("hasTable('cobudget_templates')", $removalMigration, 'The removal migration should safely detect old installations');
+		$t->assertContains("dropTable('cobudget_templates')", $removalMigration, 'The removal migration should delete existing template data');
+		$t->assertContains("delete('preferences')", $removalMigration, 'The removal migration should clear the obsolete user preference');
+		$t->assertContains("'enable_templates'", $removalMigration, 'The removal migration should target only the obsolete template preference');
 	},
 
 	'Workspace delete removes personal workspace data and blocks shared areas' => function(TestRunner $t): void {
@@ -1296,7 +1230,7 @@ return [
 			$t->assertContains('STATUS_CONFLICT', $body, 'Workspace ' . $method . ' should report duplicate names as conflict');
 		}
 
-		foreach (['cobudget_entries', 'cobudget_categories', 'cobudget_payment_partners', 'cobudget_templates', 'cobudget_budget_goals', 'cobudget_budget_snapshots', 'cobudget_projects', 'cobudget_workspaces'] as $table) {
+		foreach (['cobudget_entries', 'cobudget_categories', 'cobudget_payment_partners', 'cobudget_budget_goals', 'cobudget_budget_snapshots', 'cobudget_projects', 'cobudget_workspaces'] as $table) {
 			$t->assertContains($table, $source, 'Workspace delete should handle ' . $table);
 		}
 		foreach (['cobudget_entry_attachments', 'cobudget_settlements', 'cobudget_settlement_balances', 'cobudget_settlement_transfers', 'cobudget_members'] as $table) {
@@ -1542,7 +1476,7 @@ return [
 					$t->assertContains('$tables = $this->preparePersonalExportTables($tables, $userId, $settingIdAliases)', $collectPersonalExport, 'Personal exports must reduce shared-area raw rows before the archive is written');
 					$preparePersonalExport = $t->methodBody('lib/Service/BackupService.php', 'preparePersonalExportTables');
 					$t->assertContains('preparePersonalImportTables($tables, $userId, $userId, $settingIdAliases)', $preparePersonalExport, 'Personal exports should use the same personal-share sanitizer as restore, with the exporting user as source');
-					foreach (['fetchCategories', 'fetchPaymentPartners', 'fetchTemplates', 'fetchBudgetGoals', 'fetchBudgetSnapshots'] as $method) {
+					foreach (['fetchCategories', 'fetchPaymentPartners', 'fetchBudgetGoals', 'fetchBudgetSnapshots'] as $method) {
 						$methodScope = $t->methodBody('lib/Service/BackupService.php', $method);
 						$t->assertNotContains("in('workspace_id'", $methodScope, 'Personal exports must not include ' . $method . ' rows through workspace scope');
 					}
@@ -1556,7 +1490,6 @@ return [
 				'cobudget_members',
 				'cobudget_categories',
 				'cobudget_payment_partners',
-				'cobudget_templates',
 				'cobudget_entries',
 				'cobudget_entry_attachments',
 				'cobudget_settlements',
@@ -1730,12 +1663,10 @@ return [
 			$t->assertContains('public function mergeDuplicate', $service, 'Data integrity service should support explicit duplicate merges');
 			$t->assertContains('assertRowsCanBeMerged', $service, 'Data integrity service should validate duplicate rows before merging');
 			$t->assertContains('replaceReferences(\'cobudget_entries\'', $service, 'Data integrity service should update entry references while merging');
-			$t->assertContains('replaceReferences(\'cobudget_templates\'', $service, 'Data integrity service should update template references while merging');
 			$t->assertContains('replaceBudgetCriteriaReferences', $service, 'Data integrity service should update budget criteria for category merges');
 			$t->assertContains('deleteRows($table, $mergeIds)', $service, 'Data integrity service should remove merged duplicate rows');
 			foreach ([
 				'cobudget_entries',
-				'cobudget_templates',
 				'cobudget_categories',
 				'cobudget_payment_partners',
 				'cobudget_projects',
@@ -1973,7 +1904,7 @@ return [
 			$t->assertContains("'US' => 'USD'", $userController, 'US locale should default to USD');
 
 			$getSettings = $t->methodBody('lib/Controller/UserController.php', 'getSettings');
-			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_templates', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
+			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
 				$t->assertContains("'" . $setting . "'", $getSettings, 'Settings should expose ' . $setting);
 			}
 			$t->assertContains('effectiveCurrency()', $getSettings, 'Settings should expose an effective currency even before the user saves settings');
@@ -1985,7 +1916,7 @@ return [
 			$t->assertContains('validateEntriesPerPage($entries_per_page)', $saveSettings, 'Settings should validate entry page size centrally');
 			$t->assertContains('validateReceiptStorageFolder($receipt_storage_folder)', $saveSettings, 'Settings should validate receipt storage folders');
 			$t->assertContains('validateReceiptFolderGrouping($receipt_folder_grouping)', $saveSettings, 'Settings should validate receipt folder grouping');
-			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_templates', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
+			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
 				$t->assertContains($setting, $saveSettings, 'Settings should persist ' . $setting);
 			}
 
@@ -2033,8 +1964,8 @@ return [
 
 			$migration = $t->read('lib/Migration/Version000001Date20260713000000.php');
 			$t->assertContains("'share_basis_points'", $migration, 'Flexible shares migration should add member share_basis_points');
-			$t->assertContains("'split_mode'", $migration, 'Flexible shares migration should add entry/template split_mode');
-			$t->assertContains("'split_user_id'", $migration, 'Flexible shares migration should add entry/template split target users');
+				$t->assertContains("'split_mode'", $migration, 'Flexible shares migration should add payment split_mode');
+				$t->assertContains("'split_user_id'", $migration, 'Flexible shares migration should add payment split target users');
 
 			$trait = $t->read('lib/Controller/WorkspaceAwareTrait.php');
 			$t->assertContains('normalizeSplitMode', $trait, 'Workspace trait should normalize split mode');
@@ -2077,13 +2008,7 @@ return [
 			$t->assertContains("'personal_amount_cents'", $entryRows, 'Entry table rows should include personal amount cents for the frontend');
 			$t->assertContains("'personal_amount'", $entryRows, 'Entry table rows should include personal amount for the frontend');
 
-			$templateCreate = $t->methodBody('lib/Controller/TemplateController.php', 'create');
-			$t->assertContains('validateSplitMode($splitMode)', $templateCreate, 'Template create should accept and validate splitMode');
-			$t->assertContains('validateProjectSplitUser($projectId, $splitMode, $splitUserId, (string)$this->userId)', $templateCreate, 'Template create should validate single-user split targets');
-			$t->assertContains("'split_mode' => \$qb->createNamedParameter(\$splitMode)", $templateCreate, 'Template create should persist split mode');
-			$t->assertContains("'split_user_id' => \$qb->createNamedParameter(\$splitUserId", $templateCreate, 'Template create should persist split target');
-
-			$infoXml = $t->read('appinfo/info.xml');
+				$infoXml = $t->read('appinfo/info.xml');
 			$packageJson = json_decode($t->read('package.json'), true);
 			$packageVersion = is_array($packageJson) ? ($packageJson['version'] ?? null) : null;
 			if (!$packageVersion || preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== $packageVersion) {

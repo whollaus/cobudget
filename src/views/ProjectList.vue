@@ -307,7 +307,7 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
 
-/* Create area modal follows the payment/template modal shell. */
+/* Create area modal follows the payment modal shell. */
 .project-create-modal-backdrop {
 	--cobudget-text: #222;
 	--cobudget-text-muted: #666;

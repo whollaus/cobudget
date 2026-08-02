@@ -22,7 +22,6 @@ class ResetAllCommand extends Command {
 		'cobudget_members',
 		'cobudget_categories',
 		'cobudget_payment_partners',
-		'cobudget_templates',
 		'cobudget_entries',
 		'cobudget_entry_shares',
 		'cobudget_entry_history',

@@ -1,13 +1,15 @@
 <template>
-	<div class="entry-table-container">
+	<div ref="scrollContainer" class="entry-table-container">
 		<table class="data-table" :class="{ archived }">
 			<thead>
 				<tr>
+					<th v-if="showProjectPayer" class="col-user">
+						<span class="visually-hidden">{{ $texts.entry.tablePaidBy() }}</span>
+					</th>
 					<th class="col-date sortable" @click="emitSort('date')">
 						{{ dateLabel }}
 						<span v-if="sortBy === 'date'" class="sort-icon">{{ sortIcon }}</span>
 					</th>
-					<th v-if="showProjectPayer" class="col-user">{{ $texts.entry.tablePaidBy() }}</th>
 					<th class="col-desc sortable" @click="emitSort('description')">
 						{{ $texts.entry.tableDescription() }}
 						<span v-if="sortBy === 'description'" class="sort-icon">{{ sortIcon }}</span>
@@ -49,16 +51,24 @@
 						v-else
 						class="clickable-row"
 						:class="entryRowClasses(row.entry)"
-						@click="$emit('row-click', row.entry)">
-						<td :data-label="dateLabel" class="date-cell">{{ formatDate(row.entry.date) }}</td>
-						<td v-if="showProjectPayer" :data-label="$texts.entry.tablePaidBy()" class="user-cell">
+						:aria-selected="isEntrySelected(row.entry) ? 'true' : 'false'"
+						tabindex="0"
+						@click="$emit('row-click', row.entry)"
+						@keydown.enter.prevent="$emit('row-click', row.entry)"
+						@keydown.space.prevent="$emit('row-click', row.entry)">
+						<td
+							v-if="showProjectPayer"
+							:data-label="$texts.entry.tablePaidBy()"
+							:aria-label="$texts.entry.paidByPerson(projectPayerName(row.entry))"
+							:title="projectPayerName(row.entry)"
+							class="user-cell">
 							<div class="paid-by">
 								<span v-if="row.entry.user_is_former" class="former-avatar" aria-hidden="true">{{ initials(row.entry.user_display_name) }}</span>
-								<NcAvatar v-else :user="row.entry.user_id" :display-name="memberName(row.entry.user_id)" :size="24" />
-								{{ row.entry.user_display_name || memberName(row.entry.user_id) }}
+								<NcAvatar v-else :user="row.entry.user_id" :display-name="projectPayerName(row.entry)" :size="24" />
 							</div>
 						</td>
-						<td :data-label="$texts.entry.tableDescription()" class="desc-cell">
+						<td :data-label="dateLabel" class="date-cell">{{ formatDate(row.entry.date) }}</td>
+						<td :data-label="$texts.entry.tableDescription()" :title="descriptionTooltip(row.entry)" class="desc-cell">
 						<EntryDescriptionCell
 							:entry="row.entry"
 							:date-text="formatDate(row.entry.date)"
@@ -73,13 +83,13 @@
 							:project-style="projectStyle(row.entry.project_id)"
 							:paid-by-name="showProjectPayer ? memberName(row.entry.user_id) : ''" />
 					</td>
-					<td :data-label="$texts.entry.tableCategory()" class="category-cell">
+					<td :data-label="$texts.entry.tableCategory()" :title="row.entry.category_name || null" class="category-cell">
 						<div v-if="row.entry.category_name" class="category-content">
 							<CategoryIcon v-if="row.entry.category_icon" :icon="row.entry.category_icon" :size="16" />
-							{{ row.entry.category_name }}
+							<span class="cell-text">{{ row.entry.category_name }}</span>
 						</div>
 					</td>
-					<td :data-label="$texts.entry.tablePaymentPartner()" class="paymentPartner-cell">{{ row.entry.paymentPartner }}</td>
+					<td :data-label="$texts.entry.tablePaymentPartner()" :title="row.entry.paymentPartner || null" class="paymentPartner-cell">{{ row.entry.paymentPartner }}</td>
 					<td
 						:data-label="$texts.entry.tableAmount(currency)"
 						class="amount-cell"
@@ -95,13 +105,13 @@
 					</td>
 					<td class="actions-cell" @click.stop>
 						<NcActions v-if="canActOnEntry(row.entry)" :key="`${actionsResetKey}-${row.entry.id}`" class="entry-actions">
-							<NcActionButton :close-after-click="true" icon="icon-rename" @click="emitAction('edit', row.entry)">
+							<NcActionButton v-if="canEditEntry(row.entry)" :close-after-click="true" icon="icon-rename" @click="emitAction('edit', row.entry)">
 								{{ $texts.entry.editPayment() }}
 							</NcActionButton>
-							<NcActionButton v-if="!row.entry.is_locked" :close-after-click="true" icon="icon-add" @click="emitAction('duplicate', row.entry)">
+							<NcActionButton v-if="canDuplicateEntry(row.entry)" :close-after-click="true" icon="icon-add" @click="emitAction('duplicate', row.entry)">
 								{{ $texts.entry.copyPayment() }}
 							</NcActionButton>
-							<NcActionButton v-if="row.entry.can_delete !== false" :close-after-click="true" icon="icon-delete" @click="emitAction('delete', row.entry)">
+							<NcActionButton v-if="canDeleteEntry(row.entry)" :close-after-click="true" icon="icon-delete" @click="emitAction('delete', row.entry)">
 								{{ $texts.entry.deletePaymentAction() }}
 							</NcActionButton>
 						</NcActions>
@@ -231,6 +241,10 @@ export default {
 		showPaidBy: {
 			type: Boolean,
 			default: true
+		},
+		selectedEntryId: {
+			type: [Number, String],
+			default: null
 		}
 	},
 	emits: ['delete', 'duplicate', 'edit', 'history', 'row-click', 'sort'],
@@ -401,7 +415,13 @@ export default {
 			this.actionsResetKey += 1
 		},
 		emitSort(column) {
+			this.scrollToTop()
 			this.$emit('sort', column)
+		},
+		scrollToTop() {
+			if (this.$refs.scrollContainer) {
+				this.$refs.scrollContainer.scrollTop = 0
+			}
 		},
 		formatDate(timestamp) {
 			if (!timestamp) {
@@ -483,10 +503,15 @@ export default {
 		},
 		entryRowClasses(entry) {
 			return {
+				'is-selected': this.isEntrySelected(entry),
 				'is-highlight-review': this.enableReviewPayments && !!entry.needs_review,
 				'is-highlight-important': !(this.enableReviewPayments && !!entry.needs_review) && this.enableImportantPayments && !!entry.is_important,
 				'is-highlight-tax': !(this.enableReviewPayments && !!entry.needs_review) && !(this.enableImportantPayments && !!entry.is_important) && this.enableTaxRelevant && !!entry.is_tax_relevant
 			}
+		},
+		isEntrySelected(entry) {
+			return this.selectedEntryId !== null
+				&& String(entry?.id ?? '') === String(this.selectedEntryId);
 		},
 		amountTooltip(entry) {
 			if (this.isProjectMode) {
@@ -495,7 +520,20 @@ export default {
 			return this.$texts.entry.totalAmount(this.formatAmount(entry.amount))
 		},
 		showProjectChip(entry) {
-			return !!(entry.project_id && this.projectName(entry.project_id))
+			return !this.isProjectMode && !!(entry.project_id && this.projectName(entry.project_id))
+		},
+		projectPayerName(entry) {
+			return entry.user_display_name || this.memberName(entry.user_id)
+		},
+		descriptionTooltip(entry) {
+			const values = []
+			if (this.showProjectChip(entry)) {
+				values.push(this.projectName(entry.project_id))
+			}
+			if (entry.description) {
+				values.push(entry.description)
+			}
+			return values.join(' · ') || null
 		},
 		sharedProjectTooltip(entry) {
 			if (this.isProjectMode || !entry.project_id || !this.isSharedProjectResolver(entry.project_id)) {
@@ -540,10 +578,19 @@ export default {
 				.map(part => part.charAt(0).toUpperCase())
 				.join('') || '?'
 		},
+		canEditEntry(entry) {
+			return !entry.is_locked || entry.can_delete !== false
+		},
+		canDuplicateEntry(entry) {
+			return !entry.is_locked || !!(entry.editable_entry_id || entry.source_entry_id)
+		},
+		canDeleteEntry(entry) {
+			return entry.can_delete !== false
+		},
 		canActOnEntry(entry) {
 			return this.actionsEnabled
 				&& !entry.is_settled
-				&& (!entry.is_locked || entry.can_delete !== false)
+				&& (this.canEditEntry(entry) || this.canDuplicateEntry(entry) || this.canDeleteEntry(entry))
 		}
 	}
 }
@@ -551,13 +598,14 @@ export default {
 
 <style scoped>
 .entry-table-container {
+	min-width: 0;
 	overflow-x: auto;
 	background: var(--cobudget-surface, #fff);
 }
 
 .data-table {
 	width: 100%;
-	min-width: 800px;
+	min-width: 720px;
 	border-collapse: separate;
 	border-spacing: 0;
   border: 1px solid var(--cobudget-border, #ddd);
@@ -570,12 +618,17 @@ export default {
 }
 
 .data-table th {
+	box-sizing: border-box;
+	min-width: 0;
 	padding: 4px 10px;
+	overflow: hidden;
 	border-bottom: 1px solid var(--cobudget-border, #ddd);
 	color: var(--cobudget-text-muted, #888);
 	font-size: var(--cobudget-font-sm);
 	letter-spacing: 0.5px;
 	text-align: left;
+	text-overflow: ellipsis;
+	white-space: nowrap;
   background-color: var(--cobudget-surface-muted, #f9f9f9);
 }
 
@@ -596,35 +649,34 @@ export default {
 }
 
 th.col-date {
-	width: 140px;
+	width: 108px;
 	white-space: normal;
 	word-wrap: break-word;
 	line-height: 1.3;
 }
 
 th.col-actions {
-	width: 50px;
+	width: 44px;
 	text-align: center;
 }
 
 th.col-user {
-	width: 200px;
+	width: 44px;
+	padding-inline: 6px;
+	text-align: center;
 }
 
+th.col-desc,
 th.col-category {
-	width: 200px;
-}
-
-th.col-paymentPartner {
-	width: 200px;
+	width: auto;
 }
 
 th.col-amount {
-	width: 180px;
+	width: 156px;
 	text-align: right;
 }
 
-th.col-desc {
+th.col-paymentPartner {
 	width: auto;
 }
 
@@ -759,6 +811,24 @@ th.col-desc {
 	background: var(--cobudget-tax-light);
 }
 
+.clickable-row.is-selected,
+.clickable-row.is-selected:hover {
+	background: var(--color-primary-element-light, var(--color-background-dark)) !important;
+}
+
+@media (min-width: 769px) {
+	.clickable-row.is-selected td {
+		box-shadow:
+			inset 0 2px 0 var(--color-primary, #0082c9),
+			inset 0 -2px 0 var(--color-primary, #0082c9);
+	}
+}
+
+.clickable-row:focus-visible {
+	outline: 2px solid var(--color-main-text);
+	outline-offset: -2px;
+}
+
 .sortable {
 	cursor: pointer;
 	user-select: none;
@@ -775,11 +845,15 @@ th.col-desc {
 }
 
 .date-cell {
+	overflow: hidden;
 	color: var(--cobudget-text-muted, #888);
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 .desc-cell {
+	min-width: 0;
+	overflow: hidden;
 	font-weight: 500;
 }
 
@@ -788,6 +862,66 @@ th.col-desc {
 	display: flex;
 	align-items: center;
 	min-width: 0;
+}
+
+.category-content {
+	gap: 4px;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.category-content :deep(.material-design-icon) {
+	flex: 0 0 auto;
+}
+
+.cell-text,
+.paymentPartner-cell {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.user-cell {
+	padding-inline: 6px !important;
+	overflow: hidden;
+}
+
+.paid-by {
+	justify-content: center;
+}
+
+.visually-hidden {
+	position: absolute !important;
+	width: 1px !important;
+	height: 1px !important;
+	padding: 0 !important;
+	margin: -1px !important;
+	overflow: hidden !important;
+	clip: rect(0, 0, 0, 0) !important;
+	white-space: nowrap !important;
+	border: 0 !important;
+}
+
+@media (min-width: 769px) {
+	.desc-cell :deep(.entry-description-cell),
+	.desc-cell :deep(.desc-text) {
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.desc-cell :deep(.desc-text) {
+		flex-wrap: nowrap;
+		overflow: hidden;
+	}
+
+	.desc-cell :deep(.entry-badge),
+	.desc-cell :deep(.main-title) {
+		min-width: 0;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 }
 
 .former-avatar {
@@ -806,9 +940,20 @@ th.col-desc {
 
 .amount-cell {
 	padding-right: 0 !important;
+	overflow: hidden;
 	text-align: right;
 	font-weight: 600;
 	white-space: nowrap;
+}
+
+.amount-cell :deep(.amount-wrapper) {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.amount-cell :deep(.amount-text),
+.amount-cell :deep(.shared-icon) {
+	flex: 0 0 auto;
 }
 
 .actions-cell {

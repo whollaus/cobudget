@@ -47,7 +47,6 @@ try {
 		'ProjectController.php',
 		'CategoryController.php',
 		'PaymentPartnerController.php',
-		'TemplateController.php',
 		'WorkspaceController.php',
 		'UserController.php',
 	] as $controller) {
@@ -137,16 +136,6 @@ try {
 	$assertContains($paymentPartner, 'IGroupManager', 'PaymentPartnerController injects the Nextcloud admin group manager');
 	$assertContains($paymentPartner, 'requireAdmin()', 'PaymentPartnerController admin routes use an explicit admin guard');
 	$assertContains($paymentPartner, '$this->groupManager->isAdmin', 'PaymentPartnerController checks Nextcloud admin status');
-
-	$template = $read('lib/Controller/TemplateController.php');
-	$assertContains($template, 'templateOwnedInActiveWorkspace($id)', 'TemplateController delete guard');
-	$assertContains($template, 'catch (\\Throwable $e)', 'TemplateController JSON error catch');
-	$assertContains($template, "'amount_cents'", 'TemplateController writes amount_cents');
-	$assertContains($template, "'split_mode'", 'TemplateController writes split_mode');
-	$assertContains($template, "'split_user_id'", 'TemplateController writes split_user_id');
-	$assertContains($template, 'validateProjectSplitUser($projectId, $splitMode, $splitUserId, (string)$this->userId)', 'TemplateController validates split target membership');
-	$assertContains($template, 'markUsed', 'TemplateController exposes template usage marker');
-	$assertContains($template, 'usage_count', 'TemplateController tracks template usage');
 
 	$workspace = $read('lib/Controller/WorkspaceController.php');
 	$assertContains($workspace, 'beginTransaction()', 'WorkspaceController transactional delete');
@@ -525,7 +514,6 @@ try {
 	$assertContains($initialMigration, 'cobudget_settlements', 'Initial migration creates settlement table');
 	$assertContains($initialMigration, 'cobudget_settlement_balances', 'Initial migration creates balance snapshot table');
 	$assertContains($initialMigration, 'cobudget_settlement_transfers', 'Initial migration creates transfer snapshot table');
-	$assertContains($initialMigration, 'usage_count', 'Initial migration adds template usage_count');
 	$assertContains($initialMigration, "addUniqueIndex(['project_id', 'user_id'], 'cb_mem_proj_user')", 'Initial migration prevents duplicate area memberships');
 
 	$performanceMigration = $initialMigration;

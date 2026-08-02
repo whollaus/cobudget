@@ -148,7 +148,6 @@ class UserController extends Controller {
 				'enable_review_payments' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_review_payments', 'yes') === 'yes',
 				'enable_tax_relevant' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_tax_relevant', 'yes') === 'yes',
 				'enable_future_payments' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_future_payments', 'yes') === 'yes',
-				'enable_templates' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_templates', 'yes') === 'yes',
 				'enable_budget_goals' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_budget_goals', 'yes') === 'yes',
 				'enable_advanced_master_data' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_advanced_master_data', 'no') === 'yes',
 				'enable_incomes' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_incomes', 'yes') === 'yes',
@@ -177,7 +176,7 @@ class UserController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
-	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_templates = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null): DataResponse {
+	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
@@ -235,9 +234,6 @@ class UserController extends Controller {
 			}
 			if ($enable_future_payments !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_future_payments', $enable_future_payments ? 'yes' : 'no');
-			}
-			if ($enable_templates !== null) {
-				$this->config->setUserValue($this->userId, 'cobudget', 'enable_templates', $enable_templates ? 'yes' : 'no');
 			}
 			if ($enable_budget_goals !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_budget_goals', $enable_budget_goals ? 'yes' : 'no');

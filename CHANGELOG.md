@@ -2,6 +2,25 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.0] - 2026-08-02
+
+### Changed
+
+- Replaced the payment modal with a responsive native Nextcloud sidebar. It uses mode-specific titles for creating, editing, copying and planning income or expenses, guards unsaved changes and stays ready for consecutive entry on unfiltered desktop payment pages.
+- Reworked desktop payment views into an inset work surface with bounded row scrolling, sticky table headings, fixed pagination and compact responsive columns.
+- Payment rows now open the shared sidebar, support keyboard activation and visibly mark the selected payment with the same strong focus treatment used by form controls.
+- Simplified payment creation to one New payment action and one Save action. The main action remains available while reviewing an existing payment and is hidden only while creating a new one.
+- Removed payment templates completely, including their user interface, API, setting, backup and restore handling, integrity checks and database schema.
+
+### Fixed
+
+- Copied payments now default to today's date instead of reusing the source payment date.
+- Open area payments can now be copied from personal payment views; the canonical shared payment data and area are retained in the new payment form.
+
+### Upgrade Note
+
+- Upgrading to `0.3.0` permanently removes all stored payment templates and the related personal preference. Record any template details you still need before updating.
+
 ## [0.2.16] - 2026-07-27
 
 ### Added

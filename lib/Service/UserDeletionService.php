@@ -76,8 +76,6 @@ class UserDeletionService {
 			$this->deleteRowsByColumnValues('cobudget_budget_snapshots', 'budget_goal_id', $goalIds);
 			$this->deleteRowsByStringColumn('cobudget_budget_snapshots', 'user_id', $userId);
 			$this->deleteRowsByStringColumn('cobudget_budget_goals', 'user_id', $userId);
-			$this->deleteRowsByStringColumn('cobudget_templates', 'user_id', $userId);
-			$this->resetTemplateTargets($userId);
 			$this->detachSurvivingAttachmentCopies($userId);
 			$this->deleteRowsByStringColumn('cobudget_entry_attachments', 'owner_user_id', $userId);
 
@@ -135,8 +133,6 @@ class UserDeletionService {
 			['cobudget_entries', 'user_id'],
 			['cobudget_entries', 'created_by'],
 			['cobudget_entries', 'split_user_id'],
-			['cobudget_templates', 'user_id'],
-			['cobudget_templates', 'split_user_id'],
 			['cobudget_entry_attachments', 'owner_user_id'],
 			['cobudget_entry_shares', 'user_id'],
 			['cobudget_entry_history', 'changed_by'],
@@ -341,7 +337,7 @@ class UserDeletionService {
 		$this->deleteRowsByColumnValues('cobudget_settlement_balances', 'settlement_id', $settlementIds);
 		$this->deleteRowsByColumnValues('cobudget_settlement_transfers', 'settlement_id', $settlementIds);
 		$this->deleteRowsByIntColumn('cobudget_settlements', 'project_id', $projectId);
-		foreach (['cobudget_categories', 'cobudget_payment_partners', 'cobudget_templates', 'cobudget_members'] as $table) {
+		foreach (['cobudget_categories', 'cobudget_payment_partners', 'cobudget_members'] as $table) {
 			$this->deleteRowsByIntColumn($table, 'project_id', $projectId);
 		}
 		$this->deleteRowsByIntColumn('cobudget_projects', 'id', $projectId);
@@ -364,7 +360,7 @@ class UserDeletionService {
 		$this->deleteRowsByIntColumn('cobudget_settlements', 'workspace_id', $workspaceId);
 		$goalIds = $this->idsByIntColumn('cobudget_budget_goals', 'workspace_id', $workspaceId);
 		$this->deleteRowsByColumnValues('cobudget_budget_snapshots', 'budget_goal_id', $goalIds);
-		foreach (['cobudget_budget_snapshots', 'cobudget_budget_goals', 'cobudget_templates', 'cobudget_categories', 'cobudget_payment_partners', 'cobudget_hashtags'] as $table) {
+		foreach (['cobudget_budget_snapshots', 'cobudget_budget_goals', 'cobudget_categories', 'cobudget_payment_partners', 'cobudget_hashtags'] as $table) {
 			$this->deleteRowsByIntColumn($table, 'workspace_id', $workspaceId);
 		}
 		$this->deleteRowsByIntColumn('cobudget_workspaces', 'id', $workspaceId);
@@ -406,15 +402,6 @@ class UserDeletionService {
 			'categories' => array_values(array_unique($categories)),
 			'payment_partners' => array_values(array_unique($partners)),
 		];
-	}
-
-	private function resetTemplateTargets(string $userId): void {
-		$qb = $this->db->getQueryBuilder();
-		$qb->update('cobudget_templates')
-			->set('split_mode', $qb->createNamedParameter('project_shares'))
-			->set('split_user_id', $qb->createNamedParameter(null, \PDO::PARAM_NULL))
-			->where($qb->expr()->eq('split_user_id', $qb->createNamedParameter($userId)));
-		$qb->executeStatement();
 	}
 
 	private function remapRemainingSharedReferences(string $oldUserId, string $formerId): void {
