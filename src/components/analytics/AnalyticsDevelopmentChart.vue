@@ -1,13 +1,19 @@
 <template>
-	<section ref="chartSurface" class="analytics-card development-card">
+	<section
+		ref="chartSurface"
+		class="analytics-card development-card"
+		:class="{
+			'development-card--embedded': embedded,
+			'development-card--single-series': seriesType !== 'all'
+		}">
 		<div class="card-header">
 			<div>
-				<h3>{{ $texts.analytics.development() }}</h3>
+				<h3>{{ displayTitle }}</h3>
 				<p>{{ developmentLabel }}</p>
 			</div>
 			<div class="chart-legend">
-				<span v-if="incomeEnabled"><i class="legend-income"></i>{{ $texts.analytics.income() }}</span>
-				<span><i class="legend-expense"></i>{{ $texts.analytics.expenses() }}</span>
+				<span v-if="showIncomeSeries"><i class="legend-income"></i>{{ $texts.analytics.income() }}</span>
+				<span v-if="showExpenseSeries"><i class="legend-expense"></i>{{ $texts.analytics.expenses() }}</span>
 				<span v-if="hasBalanceChart"><i class="legend-balance"></i>{{ $texts.analytics.balance() }}</span>
 			</div>
 		</div>
@@ -24,11 +30,11 @@
 			</svg>
 		</div>
 
-		<div class="series-bars" :aria-label="$texts.analytics.incomeAndExpensesPerPeriod()">
+		<div class="series-bars" :aria-label="barsAriaLabel">
 			<div v-for="(item, index) in series" :key="item.key" class="series-item">
 				<div class="series-bar-pair">
 					<span
-						v-if="incomeEnabled"
+						v-if="showIncomeSeries"
 						class="series-bar income"
 						:aria-label="barTooltip($texts.analytics.income(), item.incomeCents)"
 						:style="{ height: barHeight(item.incomeCents) }"
@@ -38,6 +44,7 @@
 						@mouseenter="showBarTooltip($event, item.label, $texts.analytics.income(), item.incomeCents)"
 						@mouseleave="hideTooltip"></span>
 					<span
+						v-if="showExpenseSeries"
 						class="series-bar expense"
 						:aria-label="barTooltip($texts.analytics.expenses(), item.expenseCents)"
 						:style="{ height: barHeight(item.expenseCents) }"
@@ -81,6 +88,10 @@ export default {
 		}
 	},
 	props: {
+		title: {
+			type: String,
+			default: ''
+		},
 		developmentLabel: {
 			type: String,
 			required: true
@@ -113,14 +124,39 @@ export default {
 			type: Boolean,
 			default: true
 		},
+		seriesType: {
+			type: String,
+			default: 'all',
+			validator: value => ['all', 'income', 'expense'].includes(value)
+		},
+		seriesAriaLabel: {
+			type: String,
+			default: ''
+		},
+		embedded: {
+			type: Boolean,
+			default: false
+		},
 		showSeriesLabel: {
 			type: Function,
 			required: true
 		}
 	},
 	computed: {
+		displayTitle() {
+			return this.title || this.$texts.analytics.development()
+		},
+		showIncomeSeries() {
+			return this.incomeEnabled && this.seriesType !== 'expense'
+		},
+		showExpenseSeries() {
+			return this.seriesType !== 'income'
+		},
+		barsAriaLabel() {
+			return this.seriesAriaLabel || this.$texts.analytics.incomeAndExpensesPerPeriod()
+		},
 		hasBalanceChart() {
-			if (!this.incomeEnabled || !this.cumulativeChartPoints || !this.lastChartPoint) {
+			if (this.seriesType !== 'all' || !this.incomeEnabled || !this.cumulativeChartPoints || !this.lastChartPoint) {
 				return false
 			}
 
@@ -185,6 +221,13 @@ export default {
 	border-radius: 8px;
 	background: var(--cobudget-surface, #fff);
 	color: var(--cobudget-text, var(--color-main-text, #222));
+}
+
+.development-card--embedded {
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
 }
 
 .card-header {
@@ -305,6 +348,10 @@ export default {
 	border-radius: 999px 999px 0 0;
 	cursor: help;
 	transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.development-card--single-series .series-bar {
+	width: min(18px, 62%);
 }
 
 .series-bar:hover,

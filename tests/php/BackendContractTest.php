@@ -658,8 +658,11 @@ return [
 		$t->assertContains('$projection = $this->buildProjection($periodEntries, $selectedPeriod, $summary)', $summary, 'Analytics should calculate projections once');
 		$t->assertContains("'availableForecast' => \$this->buildAvailableForecast(\$selectedPeriod, \$summary, \$projection)", $summary, 'Analytics should include an available-money forecast');
 		$t->assertContains('buildBreakdowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include grouped breakdowns with trend comparisons and recent direction');
-		$t->assertContains('buildTagDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include Kennzeichen drilldowns with trend comparisons and recent direction');
-		$t->assertContains('buildHashtagDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include free #tag drilldowns with trend comparisons and recent direction');
+		$t->assertContains('buildCategoryDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include category drilldowns with a selected-period series');
+		$t->assertContains('buildPaymentPartnerDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include payment-partner drilldowns with a selected-period series');
+		$t->assertContains('buildTagDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include Kennzeichen drilldowns with trend comparisons, recent direction, and a selected-period series');
+		$t->assertContains('buildHashtagDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include free #tag drilldowns with trend comparisons, recent direction, and a selected-period series');
+		$t->assertContains('buildProjectDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries)', $summary, 'Analytics should include area drilldowns with a selected-period series');
 		$t->assertContains('buildOutliers($periodEntries)', $summary, 'Analytics should include high amount detection');
 		$t->assertContains('loadSharedProjectEntries($workspaceId, $sharesByProject', $summary, 'Analytics should load shared Bereich entries independently from personal totals');
 		$t->assertContains('buildSharedProjects($sharedProjectEntries, $sharesByProject)', $summary, 'Analytics should include compact shared Bereich summaries');
@@ -746,9 +749,13 @@ return [
 		$t->assertContains('formatBreakdownTrend', $trend, 'Analytics trend comparisons should expose compact trend metadata');
 
 		$directionWindows = $t->methodBody('lib/Controller/AnalyticsController.php', 'directionWindowsFor');
-		$t->assertContains("if (\$key === 'current-month')", $directionWindows, 'Analytics direction should use a short recent window for the current month');
+		$t->assertContains("if (\$key === 'current-month' || \$kind === 'month')", $directionWindows, 'Analytics direction should use a short recent window for month periods');
 		$t->assertContains("if (\$key === 'current-year' || \$kind === 'last-12-months')", $directionWindows, 'Analytics direction should use recent months for year-like periods');
 		$t->assertContains("strtotime('+6 months', \$start)", $directionWindows, 'Analytics direction should compare half-years for completed year periods');
+
+		$comparisonPeriod = $t->methodBody('lib/Controller/AnalyticsController.php', 'comparisonPeriodFor');
+		$t->assertContains("if (\$kind === 'month')", $comparisonPeriod, 'Analytics should compare the previous month with the month before it');
+		$t->assertContains("'end' => \$start", $comparisonPeriod, 'Completed-month comparisons should end exactly where the selected month begins');
 
 		$availableForecast = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildAvailableForecast');
 		$t->assertContains("\$key !== 'current-year' && \$kind !== 'current-month'", $availableForecast, 'Analytics available forecast should only show for active current periods');
@@ -762,18 +769,29 @@ return [
 		$t->assertContains('$row[\'trend\'] = $trend', $withTrends, 'Analytics visible trend should represent the recent direction');
 		$t->assertContains('$row[\'comparison\'] = $comparison', $withTrends, 'Analytics tooltip should retain the previous-period comparison');
 
+		$categoryDrilldowns = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildCategoryDrilldowns');
+		$t->assertContains("'series' => \$this->buildSeries(\$categoryEntries, \$period)", $categoryDrilldowns, 'Analytics category drilldowns should expose daily or monthly period values');
+
+		$paymentPartnerDrilldowns = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildPaymentPartnerDrilldowns');
+		$t->assertContains("'series' => \$this->buildSeries(\$paymentPartnerEntries, \$period)", $paymentPartnerDrilldowns, 'Analytics payment-partner drilldowns should expose daily or monthly period values');
+
 		$tagDrilldowns = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildTagDrilldowns');
+		$t->assertContains("'series' => \$this->buildSeries(\$tagEntries, \$period)", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should expose daily or monthly period values');
 		$t->assertContains("'categories' => \$this->buildBreakdown", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should include category details');
 		$t->assertContains("'paymentPartners' => \$this->buildBreakdown", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should include contact details');
 		$t->assertContains("'hashtags' => \$this->buildHashtagBreakdown", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should include free #tag details');
 		$t->assertContains("'projects' => \$this->buildBreakdown", $tagDrilldowns, 'Analytics Kennzeichen drilldowns should include Bereich details');
 
 		$hashtagDrilldowns = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildHashtagDrilldowns');
+		$t->assertContains("'series' => \$this->buildSeries(\$hashtagEntries, \$period)", $hashtagDrilldowns, 'Analytics #tag drilldowns should expose daily or monthly period values');
 		$t->assertContains('filterHashtagEntries', $hashtagDrilldowns, 'Analytics #tag drilldowns should filter entries by the selected #tag');
 		$t->assertContains("'categories' => \$this->buildBreakdown", $hashtagDrilldowns, 'Analytics #tag drilldowns should include category details');
 		$t->assertContains("'paymentPartners' => \$this->buildBreakdown", $hashtagDrilldowns, 'Analytics #tag drilldowns should include payment partner details');
 		$t->assertContains("'tags' => \$this->buildTagBreakdown", $hashtagDrilldowns, 'Analytics #tag drilldowns should include label details');
 		$t->assertContains("'projects' => \$this->buildBreakdown", $hashtagDrilldowns, 'Analytics #tag drilldowns should include Bereich details');
+
+		$projectDrilldowns = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildProjectDrilldowns');
+		$t->assertContains("'series' => \$this->buildSeries(\$projectEntries, \$period)", $projectDrilldowns, 'Analytics area drilldowns should expose daily or monthly period values');
 
 		$loadEntries = $t->methodBody('lib/Controller/AnalyticsController.php', 'loadAnalyticsEntries');
 		$t->assertContains('attachHashtagsToEntries($entries)', $loadEntries, 'Analytics entries should be enriched with free #tags before summary aggregation');
@@ -827,13 +845,19 @@ return [
 		$periods = $t->methodBody('lib/Controller/AnalyticsController.php', 'buildPeriodOptions');
 		$t->assertContains("'current-year'", $periods, 'Analytics should include current year period first');
 		$t->assertContains("'current-month'", $periods, 'Analytics should include current month period');
+		$t->assertContains("'last-month'", $periods, 'Analytics should include the previous month period');
 		$t->assertContains("'last-12-months'", $periods, 'Analytics should include last 12 months period');
-		$t->assertContains('if ((int)$year === $currentYear)', $periods, 'Analytics should not duplicate the current year in year options');
+		$t->assertContains("'last-year'", $periods, 'Analytics should include the previous year period');
+		$t->assertContains('in_array((int)$year, [$currentYear, $lastYear], true)', $periods, 'Analytics should not duplicate current or previous year in numeric year options');
 		$t->assertContains("'year:' . \$year", $periods, 'Analytics should include years with bookings');
 
 		$resolvePeriod = $t->methodBody('lib/Controller/AnalyticsController.php', 'resolvePeriod');
 		$t->assertContains("\$period = 'current-year'", $resolvePeriod, 'Analytics should fall back to current year');
 		$t->assertContains("'label' => 'Aktuelles Jahr'", $resolvePeriod, 'Analytics current year period should use a clear label');
+		$t->assertContains("if (\$period === 'last-month')", $resolvePeriod, 'Analytics should resolve the previous calendar month');
+		$t->assertContains("'label' => 'Letzter Monat'", $resolvePeriod, 'Analytics previous month should use a clear label');
+		$t->assertContains("if (\$period === 'last-year')", $resolvePeriod, 'Analytics should resolve the previous calendar year');
+		$t->assertContains("'label' => 'Letztes Jahr'", $resolvePeriod, 'Analytics previous year should use a clear label');
 
 		$summarize = $t->methodBody('lib/Controller/AnalyticsController.php', 'summarizeEntries');
 		$t->assertContains('completedMonthsForAverage($period)', $summarize, 'Analytics monthly averages should use completed months only');

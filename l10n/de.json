@@ -809,6 +809,7 @@
 		"Current balance: {amount}": "Aktueller Stand: {amount}",
 		"Current month:": "Aktueller Monat:",
 		"Daily development in the current month.": "Tägliche Entwicklung im aktuellen Monat.",
+		"Daily development in the selected month.": "Tägliche Entwicklung im ausgewählten Monat.",
 		"Data quality": "Datenqualität",
 		"Data quality could not be checked.": "Datenqualität konnte nicht geprüft werden.",
 		"Data quality repaired": "Datenqualität repariert",
@@ -1227,6 +1228,12 @@
 		"Remove the former member before adding members or changing the split.": "Entferne das ehemalige Mitglied, bevor du Mitglieder hinzufügst oder die Aufteilung änderst.",
 		"Payments involving a former member cannot be moved to another area.": "Zahlungen mit einem ehemaligen Mitglied können nicht in einen anderen Bereich verschoben werden.",
 		"A released personal payment cannot be moved to another area.": "Eine nach der Abrechnung freigegebene persönliche Zahlung kann nicht in einen anderen Bereich verschoben werden.",
+		"Development – {name}": "Entwicklung – {name}",
+		"{type} over “{period}”.": "{type} im Zeitraum „{period}“.",
+		"Show values": "Werte anzeigen",
+		"Hide values": "Werte ausblenden",
+		"Bookings": "Buchungen",
+		"Period values for {name}": "Zeitraumwerte für {name}",
 		"Former members cannot be removed from an area.": "Ehemalige Mitglieder können nicht aus einem Bereich entfernt werden."
 	},
 	"pluralForm": "nplurals=2; plural=(n != 1);"

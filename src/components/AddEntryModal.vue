@@ -2775,7 +2775,7 @@ export default {
 }
 
 .entry-sidebar :deep(.app-sidebar-header) {
-	border-bottom: 1px solid var(--cobudget-border, var(--color-border));
+	border-bottom: none !important;
 	background: var(--cobudget-surface-muted, var(--color-background-dark));
 }
 
@@ -4141,7 +4141,6 @@ button.lookup-trigger:focus-visible {
 			+ var(--entry-sidebar-content-padding)
 		);
 		padding: 0;
-		border-bottom-color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
 		overflow: visible;
 		clip: auto;
 		clip-path: none;

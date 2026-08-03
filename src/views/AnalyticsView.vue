@@ -177,6 +177,16 @@
 						</button>
 					</div>
 
+					<AnalyticsDrilldownDevelopment
+						v-if="activeDrilldownData && activeDrilldownSeries.length"
+						:key="`${breakdownType}-${selectedPeriod}-${activeDrilldownLabel}`"
+						class="no-print"
+						:title="activeDrilldownLabel"
+						:type="breakdownType"
+						:series="activeDrilldownSeries"
+						:period-label="periodLabel"
+						:format-cents="formatCents" />
+
 					<div v-if="!activeBreakdownSection" class="mini-empty no-print">
 						{{ $texts.analytics.noFocusData() }}
 					</div>
@@ -476,6 +486,7 @@ import PrinterIcon from 'vue-material-design-icons/Printer.vue'
 import TableTooltip from '../components/TableTooltip.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import AnalyticsDevelopmentChart from '../components/analytics/AnalyticsDevelopmentChart.vue'
+import AnalyticsDrilldownDevelopment from '../components/analytics/AnalyticsDrilldownDevelopment.vue'
 import AnalyticsForecastCard from '../components/analytics/AnalyticsForecastCard.vue'
 import AnalyticsInsightsSection from '../components/analytics/AnalyticsInsightsSection.vue'
 import AnalyticsPeriodSwitch from '../components/analytics/AnalyticsPeriodSwitch.vue'
@@ -543,6 +554,7 @@ export default {
 	name: 'AnalyticsView',
 	components: {
 		AnalyticsDevelopmentChart,
+		AnalyticsDrilldownDevelopment,
 		AnalyticsForecastCard,
 		AnalyticsInsightsSection,
 		AnalyticsPeriodSwitch,
@@ -571,7 +583,9 @@ export default {
 			return this.analytics.periods?.length ? this.analytics.periods : [
 				{ key: 'current-year', label: this.$texts.analytics.currentYear() },
 				{ key: 'current-month', label: this.$texts.analytics.currentMonth() },
-				{ key: 'last-12-months', label: this.$texts.analytics.last12Months() }
+				{ key: 'last-month', label: this.$texts.analytics.lastMonth() },
+				{ key: 'last-12-months', label: this.$texts.analytics.last12Months() },
+				{ key: 'last-year', label: this.$texts.analytics.lastYear() }
 			]
 		},
 		periodLabel() {
@@ -644,9 +658,13 @@ export default {
 			return this.summaryAverageUnit === 'day' ? this.$texts.analytics.perDay() : this.$texts.analytics.perMonth()
 		},
 		developmentLabel() {
-			return this.analytics.period?.granularity === 'day'
+			if (this.analytics.period?.granularity !== 'day') {
+				return this.$texts.analytics.monthlyDevelopmentSelectedPeriod()
+			}
+
+			return this.analytics.period?.kind === 'current-month'
 				? this.$texts.analytics.dailyDevelopmentCurrentMonth()
-				: this.$texts.analytics.monthlyDevelopmentSelectedPeriod()
+				: this.$texts.analytics.dailyDevelopmentSelectedMonth()
 		},
 		series() {
 			return Array.isArray(this.analytics.series) ? this.analytics.series : []
@@ -820,6 +838,27 @@ export default {
 		},
 		activeProjectDrilldownLabel() {
 			return this.decodeHtmlEntities(this.activeProjectDrilldownData?.label || '')
+		},
+		activeDrilldownData() {
+			return this.activeCategoryDrilldownData
+				|| this.activePaymentPartnerDrilldownData
+				|| this.activeTagDrilldownData
+				|| this.activeHashtagDrilldownData
+				|| this.activeProjectDrilldownData
+				|| null
+		},
+		activeDrilldownLabel() {
+			return this.activeCategoryDrilldownLabel
+				|| this.activePaymentPartnerDrilldownLabel
+				|| this.activeTagDrilldownLabel
+				|| this.activeHashtagDrilldownLabel
+				|| this.activeProjectDrilldownLabel
+				|| ''
+		},
+		activeDrilldownSeries() {
+			return Array.isArray(this.activeDrilldownData?.series)
+				? this.activeDrilldownData.series
+				: []
 		},
 		breakdownSections() {
 			if (this.activeCategoryDrilldownData) {

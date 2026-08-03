@@ -2,6 +2,17 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.1] - 2026-08-03
+
+### Added
+
+- Added dedicated analytics periods for the previous calendar month and previous calendar year.
+- Category, payment-partner, label, `#tag` and area focus rows now open a daily or monthly development chart with an expandable table of exact period amounts and booking counts.
+
+### Fixed
+
+- Analytics headings now render special characters in dynamic names correctly and visually distinguish the selected period with quotation marks.
+
 ## [0.3.0] - 2026-08-02
 
 ### Changed

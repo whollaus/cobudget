@@ -89,13 +89,14 @@ Workspaces separate data into isolated pools, for example private and business d
 
 Analytics show where money is going and how financial trends develop.
 
-- Current year, current month, last 12 months and year-based views.
+- Current year, current month, previous month, last 12 months, previous year and year-based views.
 - Income, expense and balance summaries.
 - Personal metrics use the user's exact materialized share, regardless of whether a payment originated personally or in a shared area.
 - Development charts.
 - Forecasts for the selected period.
 - Planned shared recurrences derive the user's stored allocation from the shared source without double-counting personal projections.
 - Focus tables by category, payment partner, label and area.
+- Open a daily or monthly development chart from any category, payment partner, label, `#tag` or area focus row, with an expandable table of exact period values and booking counts.
 - Category focus tables show direct main-category bookings, each subcategory and a group total without double-counting the overall total.
 - Shared-area summaries.
 - Budget signals.

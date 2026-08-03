@@ -120,11 +120,11 @@ class AnalyticsController extends Controller {
 				'series' => $series,
 				'budgetHistory' => $this->budgetSnapshotService->history((string)$this->userId, $workspaceId, (int)$selectedPeriod['start'], (int)$selectedPeriod['end']),
 				'breakdowns' => $this->buildBreakdowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
-				'categoryDrilldowns' => $this->buildCategoryDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
-				'paymentPartnerDrilldowns' => $this->buildPaymentPartnerDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
-				'tagDrilldowns' => $this->buildTagDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
-				'hashtagDrilldowns' => $this->buildHashtagDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
-				'projectDrilldowns' => $this->buildProjectDrilldowns($periodEntries, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'categoryDrilldowns' => $this->buildCategoryDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'paymentPartnerDrilldowns' => $this->buildPaymentPartnerDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'tagDrilldowns' => $this->buildTagDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'hashtagDrilldowns' => $this->buildHashtagDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'projectDrilldowns' => $this->buildProjectDrilldowns($periodEntries, $selectedPeriod, $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 				'outliers' => $this->buildOutliers($periodEntries),
 				'sharedProjects' => $this->buildSharedProjects($sharedProjectEntries, $sharesByProject),
 				'upcoming' => $this->buildUpcoming($upcomingEntries),
@@ -584,10 +584,13 @@ class AnalyticsController extends Controller {
 
 	private function buildPeriodOptions(array $entries): array {
 		$currentYear = (int)date('Y');
+		$lastYear = $currentYear - 1;
 		$options = [
 			['key' => 'current-year', 'label' => 'Aktuelles Jahr'],
 			['key' => 'current-month', 'label' => 'Aktueller Monat'],
+			['key' => 'last-month', 'label' => 'Letzter Monat'],
 			['key' => 'last-12-months', 'label' => 'Letzte 12 Monate'],
+			['key' => 'last-year', 'label' => 'Letztes Jahr'],
 		];
 
 		$years = [];
@@ -600,7 +603,7 @@ class AnalyticsController extends Controller {
 		krsort($years);
 
 		foreach (array_keys($years) as $year) {
-			if ((int)$year === $currentYear) {
+			if (in_array((int)$year, [$currentYear, $lastYear], true)) {
 				continue;
 			}
 			$options[] = ['key' => 'year:' . $year, 'label' => (string)$year];
@@ -623,6 +626,23 @@ class AnalyticsController extends Controller {
 				'key' => 'current-year',
 				'kind' => 'year',
 				'label' => 'Aktuelles Jahr',
+				'start' => $start,
+				'end' => $end,
+				'startDate' => date('Y-m-d', $start),
+				'endDate' => date('Y-m-d', $end - 1),
+				'granularity' => 'month',
+				'monthCount' => 12,
+			];
+		}
+
+		if ($period === 'last-year') {
+			$year = (int)date('Y') - 1;
+			$start = mktime(0, 0, 0, 1, 1, $year);
+			$end = mktime(0, 0, 0, 1, 1, $year + 1);
+			return [
+				'key' => 'last-year',
+				'kind' => 'year',
+				'label' => 'Letztes Jahr',
 				'start' => $start,
 				'end' => $end,
 				'startDate' => date('Y-m-d', $start),
@@ -665,6 +685,23 @@ class AnalyticsController extends Controller {
 				'endDate' => date('Y-m-d', $end - 1),
 				'granularity' => 'month',
 				'monthCount' => 12,
+			];
+		}
+
+		if ($period === 'last-month') {
+			$end = mktime(0, 0, 0, (int)date('n'), 1, (int)date('Y'));
+			$start = strtotime('-1 month', $end);
+			$start = $start === false ? $end - 31 * 86400 : $start;
+			return [
+				'key' => 'last-month',
+				'kind' => 'month',
+				'label' => 'Letzter Monat',
+				'start' => $start,
+				'end' => $end,
+				'startDate' => date('Y-m-d', $start),
+				'endDate' => date('Y-m-d', $end - 1),
+				'granularity' => 'day',
+				'monthCount' => 1,
 			];
 		}
 
@@ -722,6 +759,17 @@ class AnalyticsController extends Controller {
 			];
 		}
 
+		if ($kind === 'month') {
+			$previousStart = strtotime('-1 month', $start);
+			if ($previousStart === false) {
+				return null;
+			}
+			return [
+				'start' => $previousStart,
+				'end' => $start,
+			];
+		}
+
 		if ($kind === 'year') {
 			$previousStart = strtotime('-1 year', $start);
 			$previousEnd = strtotime('-1 year', $end);
@@ -759,7 +807,7 @@ class AnalyticsController extends Controller {
 		$kind = (string)($period['kind'] ?? '');
 		$effectiveEnd = min($end, max($start + 1, time() + 1));
 
-		if ($key === 'current-month') {
+		if ($key === 'current-month' || $kind === 'month') {
 			return $this->fixedDirectionWindow($effectiveEnd, 7 * 86400);
 		}
 
@@ -1118,7 +1166,7 @@ class AnalyticsController extends Controller {
 		];
 	}
 
-	private function buildCategoryDrilldowns(array $entries, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
+	private function buildCategoryDrilldowns(array $entries, array $period, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
 		$result = [
 			'expense' => [],
 			'income' => [],
@@ -1147,6 +1195,7 @@ class AnalyticsController extends Controller {
 					'label' => (string)($category['name'] ?? 'Kategorie'),
 					'rowType' => (string)($category['rowType'] ?? ''),
 					'parentName' => (string)($category['parentName'] ?? ''),
+					'series' => $this->buildSeries($categoryEntries, $period),
 					'paymentPartners' => $this->buildBreakdown($categoryEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 					'tags' => $this->buildTagBreakdown($categoryEntries, $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 					'hashtags' => $this->buildHashtagBreakdown($categoryEntries, $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
@@ -1158,7 +1207,7 @@ class AnalyticsController extends Controller {
 		return $result;
 	}
 
-	private function buildPaymentPartnerDrilldowns(array $entries, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
+	private function buildPaymentPartnerDrilldowns(array $entries, array $period, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
 		$result = [
 			'expense' => [],
 			'income' => [],
@@ -1185,6 +1234,7 @@ class AnalyticsController extends Controller {
 					'id' => $paymentPartner['id'] ?? null,
 					'key' => $key,
 					'label' => (string)($paymentPartner['name'] ?? 'Zahlungspartner'),
+					'series' => $this->buildSeries($paymentPartnerEntries, $period),
 					'categories' => $this->buildBreakdown($paymentPartnerEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
 					'tags' => $this->buildTagBreakdown($paymentPartnerEntries, $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
 					'hashtags' => $this->buildHashtagBreakdown($paymentPartnerEntries, $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
@@ -1196,7 +1246,7 @@ class AnalyticsController extends Controller {
 		return $result;
 	}
 
-	private function buildTagDrilldowns(array $entries, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
+	private function buildTagDrilldowns(array $entries, array $period, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
 		$result = [
 			'expense' => [],
 			'income' => [],
@@ -1224,6 +1274,7 @@ class AnalyticsController extends Controller {
 				$result[$type][$tag] = [
 					'id' => $tag,
 					'label' => $this->l10n->t($label),
+					'series' => $this->buildSeries($tagEntries, $period),
 					'categories' => $this->buildBreakdown($tagEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
 					'paymentPartners' => $this->buildBreakdown($tagEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
 					'hashtags' => $this->buildHashtagBreakdown($tagEntries, $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
@@ -1235,7 +1286,7 @@ class AnalyticsController extends Controller {
 		return $result;
 	}
 
-	private function buildHashtagDrilldowns(array $entries, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
+	private function buildHashtagDrilldowns(array $entries, array $period, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
 		$result = [
 			'expense' => [],
 			'income' => [],
@@ -1262,6 +1313,7 @@ class AnalyticsController extends Controller {
 					'id' => $hashtag['id'] ?? null,
 					'key' => $key,
 					'label' => (string)($hashtag['name'] ?? '#Tag'),
+					'series' => $this->buildSeries($hashtagEntries, $period),
 					'categories' => $this->buildBreakdown($hashtagEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
 					'paymentPartners' => $this->buildBreakdown($hashtagEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
 					'tags' => $this->buildTagBreakdown($hashtagEntries, $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
@@ -1273,7 +1325,7 @@ class AnalyticsController extends Controller {
 		return $result;
 	}
 
-	private function buildProjectDrilldowns(array $entries, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
+	private function buildProjectDrilldowns(array $entries, array $period, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
 		$result = [
 			'expense' => [],
 			'income' => [],
@@ -1300,6 +1352,7 @@ class AnalyticsController extends Controller {
 					'id' => $project['id'] ?? null,
 					'key' => $key,
 					'label' => (string)($project['name'] ?? 'Bereich'),
+					'series' => $this->buildSeries($projectEntries, $period),
 					'categories' => $this->buildBreakdown($projectEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
 					'paymentPartners' => $this->buildBreakdown($projectEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
 					'tags' => $this->buildTagBreakdown($projectEntries, $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),

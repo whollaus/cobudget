@@ -288,6 +288,7 @@ const analyticsComponents = [
 	'src/components/analytics/AnalyticsSummaryGrid.vue',
 	'src/components/analytics/AnalyticsInsightsSection.vue',
 	'src/components/analytics/AnalyticsDevelopmentChart.vue',
+	'src/components/analytics/AnalyticsDrilldownDevelopment.vue',
 	'src/components/analytics/AnalyticsForecastCard.vue'
 ].map(read).join('\n')
 const analyticsSource = `${analyticsView}\n${analyticsComponents}`
@@ -296,9 +297,26 @@ assertContains(analyticsView, '<AnalyticsPeriodSwitch', 'Analytics delegates per
 assertContains(analyticsView, '<AnalyticsSummaryGrid', 'Analytics delegates key figures to a focused component')
 assertContains(analyticsView, '<AnalyticsInsightsSection', 'Analytics delegates insights to a focused component')
 assertContains(analyticsView, '<AnalyticsDevelopmentChart', 'Analytics delegates the development chart to a focused component')
+assertContains(analyticsView, '<AnalyticsDrilldownDevelopment', 'Analytics renders a focused development chart after selecting a breakdown row')
 assertContains(analyticsView, '<AnalyticsForecastCard', 'Analytics delegates the forecast card to a focused component')
 assertContains(analyticsView, "selectedPeriod: 'current-year'", 'Analytics defaults to current year')
+assertContains(sharedTexts, "focusDevelopmentHint: (type, period) => tx('{type} over “{period}”.'", 'Analytics visually separates the selected period with quotation marks')
+for (const helperName of [
+	'developmentFor:',
+	'periodValuesFor:',
+	'breakdownInCategory:',
+	'breakdownWithPaymentPartner:',
+	'breakdownWithLabel:',
+	'breakdownWithHashtag:',
+	'breakdownInArea:'
+]) {
+	const helperLine = sharedTexts.split('\n').find(line => line.includes(helperName)) || ''
+	assertContains(helperLine, '{ escape: false }', `Analytics ${helperName} leaves dynamic text decoding to safe Vue interpolation`)
+}
 assertContains(analyticsView, "{ key: 'current-year', label: this.$texts.analytics.currentYear() }", 'Analytics fallback periods include current year first')
+assertContains(analyticsView, "{ key: 'last-month', label: this.$texts.analytics.lastMonth() }", 'Analytics fallback periods include the previous month')
+assertContains(analyticsView, "{ key: 'last-year', label: this.$texts.analytics.lastYear() }", 'Analytics fallback periods include the previous year')
+assertContains(analyticsView, 'this.$texts.analytics.dailyDevelopmentSelectedMonth()', 'Analytics labels previous-month daily development without calling it the current month')
 assertContains(analyticsView, 'availableForecast: null', 'Analytics empty state includes the available-money forecast')
 assertContains(analyticsView, 'availableForecast()', 'Analytics exposes the available-money forecast')
 assertContains(analyticsView, 'availableForecastTitle()', 'Analytics reuses the projection period title for the available-money forecast')
@@ -368,6 +386,13 @@ assertContains(analyticsView, 'activeCategoryDrilldown', 'Analytics can filter S
 assertContains(analyticsView, 'activePaymentPartnerDrilldown', 'Analytics can filter Schwerpunkte by Zahlungspartner')
 assertContains(analyticsView, 'activeTagDrilldown', 'Analytics can filter Schwerpunkte by labels')
 assertContains(analyticsView, 'activeProjectDrilldown', 'Analytics can filter Schwerpunkte by Bereiche')
+assertContains(analyticsView, 'activeDrilldownSeries()', 'Analytics exposes the selected focus row period series')
+assertContains(analyticsView, ':series="activeDrilldownSeries"', 'Analytics passes the selected focus row period series to its chart')
+assertContains(analyticsSource, ':series-type="type"', 'Analytics focus development renders only the selected income or expense series')
+assertContains(analyticsSource, '$texts.analytics.showValues()', 'Analytics focus development offers exact period values on demand')
+assertContains(analyticsSource, '$texts.analytics.hideValues()', 'Analytics focus development can collapse exact period values')
+assertContains(analyticsSource, 'item.count', 'Analytics focus period values include booking counts')
+assertContains(analyticsSource, 'seriesType !== \'all\'', 'Analytics development hides the balance chart for a focused single series')
 assertContains(analyticsView, 'getCategoryDrilldownSections(this.breakdownType, this.activeCategoryDrilldownData)', 'Analytics renders Kategorie drilldown details')
 assertContains(analyticsView, 'getPaymentPartnerDrilldownSections(this.breakdownType, this.activePaymentPartnerDrilldownData)', 'Analytics renders Zahlungspartner drilldown details')
 assertContains(analyticsView, 'getTagDrilldownSections(this.breakdownType, this.activeTagDrilldownData)', 'Analytics renders label drilldown details')
@@ -507,8 +532,9 @@ assertContains(addEntryModal, 'font-size: var(--cobudget-font-md, 16px) !importa
 assertContains(addEntryModal, '--entry-sidebar-header-edge-inset: var(--app-sidebar-padding', 'Desktop entry sidebar reuses the native Nextcloud edge inset')
 assertContains(addEntryModal, 'margin-block-start: var(--entry-sidebar-header-edge-inset);', 'Desktop entry sidebar keeps its header clear of the top edge')
 assertContains(addEntryModal, 'margin-inline-end: calc(', 'Desktop entry sidebar calculates a dedicated right header inset')
-assertContains(addEntryModal, '+ var(--entry-sidebar-content-padding)', 'Desktop entry sidebar aligns its divider with the right edge of the form fields')
-assertContains(addEntryModal, 'border-bottom-color: var(--cobudget-text-muted', 'Desktop entry sidebar uses a clearly visible theme-aware divider')
+assertContains(addEntryModal, '+ var(--entry-sidebar-content-padding)', 'Desktop entry sidebar aligns its right header inset with the form fields')
+assertContains(addEntryModal, '.entry-sidebar :deep(.app-sidebar-header) {\n\tborder-bottom: none !important;', 'Entry sidebar removes the native header divider entirely')
+assertNotContains(addEntryModal, 'border-bottom-color: var(--cobudget-text-muted', 'Desktop entry sidebar does not restore the removed divider with a color override')
 assertContains(addEntryModal, '.app-sidebar-header > .app-sidebar__close) {\n\t\tdisplay: none;', 'Desktop entry sidebar replaces the modal-style close control')
 assertContains(addEntryModal, 'padding-block-start: var(--entry-sidebar-content-padding);', 'Desktop entry sidebar aligns its first field with the work surface')
 assertContains(addEntryModal, 'scrollbar-color: transparent transparent;', 'Desktop entry sidebar keeps its scrollbar subtle until interaction')
