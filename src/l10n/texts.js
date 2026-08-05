@@ -201,7 +201,6 @@ export const texts = {
 		futureDateRequired: () => tx('Please select a future date to plan a payment.'),
 		entrySaved: () => tx('Payment saved'),
 		entryCreated: () => tx('Payment created'),
-		entryCreatedNewPrepared: () => tx('Payment created. New payment prepared'),
 		entrySavedReceiptUploadError: () => tx('Payment saved, but receipts could not be uploaded.'),
 		entrySaveError: () => tx('Payment could not be saved.'),
 		entryCreateError: () => tx('Payment could not be created.'),

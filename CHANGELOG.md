@@ -2,6 +2,16 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.2] - 2026-08-05
+
+### Changed
+
+- Consecutive desktop payment entry now confirms the saved payment without additionally announcing that another empty form was prepared.
+
+### Fixed
+
+- Main app views now load correctly from custom app directories and Nextcloud webroots, including Docker and reverse-proxy installations, instead of remaining blank when lazy frontend files were requested from a hard-coded `/apps` path.
+
 ## [0.3.1] - 2026-08-03
 
 ### Added

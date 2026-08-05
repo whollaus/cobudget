@@ -53,6 +53,11 @@ if ! tar -xzf "$ARCHIVE" -C "$EXTRACT_DIR"; then
 fi
 
 if [ -d "$EXTRACT_DIR/cobudget/js" ]; then
+	if grep -R -Fq '/apps/cobudget/js/' "$EXTRACT_DIR/cobudget/js"; then
+		echo "Release archive contains a hard-coded CoBudget asset path that breaks custom_apps or webroot installations." >&2
+		exit 65
+	fi
+
 	find "$EXTRACT_DIR/cobudget/js" -type f -name '*.js' -exec grep -ohE 'cobudget-[A-Za-z0-9_./-]+\.js' {} + \
 		| sort -u > "$REFERENCES_FILE" || true
 

@@ -526,7 +526,6 @@ OC.L10N.register(
     "Please select a future date to plan a payment.": "Bitte wähle ein zukünftiges Datum, um eine Zahlung zu planen.",
     "Payment saved": "Zahlung gespeichert",
     "Payment created": "Zahlung erstellt",
-    "Payment created. New payment prepared": "Zahlung erstellt. Neue Zahlung vorbereitet",
     "Payment saved, but receipts could not be uploaded.": "Zahlung gespeichert, aber Belege konnten nicht hochgeladen werden.",
     "Payment could not be saved.": "Zahlung konnte nicht gespeichert werden.",
     "Payment could not be created.": "Zahlung konnte nicht erstellt werden.",

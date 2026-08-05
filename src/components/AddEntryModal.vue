@@ -2605,7 +2605,7 @@ export default {
 					entryPersisted = true;
 					await this.uploadPendingAttachments(this.entry.id);
 					showToast(prepareNextEntry
-						? this.$texts.entry.entryCreatedNewPrepared()
+						? this.$texts.entry.entrySaved()
 						: this.$texts.entry.entryCreated());
 				}
 
