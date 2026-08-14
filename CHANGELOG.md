@@ -2,6 +2,21 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.3] - 2026-08-14
+
+### Added
+
+- Added leading current-month and current-year summary cards with localized month names, balances, income, and expenses.
+
+### Changed
+
+- Removed all planned 30-day detail lines from the summary cards, including the dedicated planned card.
+- Updated the current-month and current-year icons to inherit the active Nextcloud primary color.
+
+### Fixed
+
+- Untouched new-payment forms now refresh their automatically selected date after midnight and when returning to a long-open browser tab.
+
 ## [0.3.2] - 2026-08-05
 
 ### Changed

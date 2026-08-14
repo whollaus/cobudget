@@ -178,6 +178,37 @@ const shouldCloseEntrySidebarForRequest = entrySidebarToggleModule.shouldCloseEn
 const entryFormStateSource = read('src/utils/entryFormState.js')
 const entryFormStateModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(entryFormStateSource)}`)
 const { hasEntryFormChanges, snapshotEntryForm } = entryFormStateModule
+const entryDefaultDateSource = read('src/utils/entryDefaultDate.js')
+const entryDefaultDateModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(entryDefaultDateSource)}`)
+const { localDateKey, millisecondsUntilNextLocalDay, shouldRefreshDefaultEntryDate } = entryDefaultDateModule
+const previousLocalDay = new Date(2026, 7, 12, 12, 0, 0)
+const currentLocalDay = new Date(2026, 7, 13, 9, 30, 0)
+assertEqual(localDateKey(currentLocalDay), '2026-08-13', 'Entry default dates use the browser local calendar day')
+assertEqual(millisecondsUntilNextLocalDay(new Date(2026, 7, 13, 23, 59, 30)), 30000, 'Entry default date refresh schedules the next local midnight')
+assertEqual(shouldRefreshDefaultEntryDate({
+	isCreatingNewEntry: true,
+	hasUnsavedChanges: false,
+	entryDate: previousLocalDay,
+	now: currentLocalDay,
+}), true, 'Untouched new payment forms refresh a stale automatic date')
+assertEqual(shouldRefreshDefaultEntryDate({
+	isCreatingNewEntry: true,
+	hasUnsavedChanges: true,
+	entryDate: previousLocalDay,
+	now: currentLocalDay,
+}), false, 'Started payment forms preserve their existing date')
+assertEqual(shouldRefreshDefaultEntryDate({
+	isCreatingNewEntry: false,
+	hasUnsavedChanges: false,
+	entryDate: previousLocalDay,
+	now: currentLocalDay,
+}), false, 'Editing and copying payments never receive an automatic date refresh')
+assertEqual(shouldRefreshDefaultEntryDate({
+	isCreatingNewEntry: true,
+	hasUnsavedChanges: false,
+	entryDate: new Date(2026, 7, 13, 1, 0, 0),
+	now: currentLocalDay,
+}), false, 'Current automatic payment dates remain unchanged')
 const entryFormBaseline = snapshotEntryForm({
 	type: 'expense',
 	amountDisplay: '6,00',
@@ -591,6 +622,11 @@ assertContains(addEntryModal, '$texts.entry.paidOn()', 'AddEntryModal expense da
 assertContains(addEntryModal, '$texts.entry.receivedOn()', 'AddEntryModal income date label')
 assertContains(addEntryModal, ':aria-label="dateLabel"', 'AddEntryModal keeps the compact date field accessible without a visible label')
 assertContains(addEntryModal, ':aria-label="amountLabel"', 'AddEntryModal keeps the compact amount field accessible without a visible label')
+assertContains(addEntryModal, "window.addEventListener('focus', this.handleEntryDateResume);", 'AddEntryModal refreshes automatic dates when returning to the browser window')
+assertContains(addEntryModal, "document.addEventListener('visibilitychange', this.handleEntryDateVisibilityChange);", 'AddEntryModal refreshes automatic dates when returning to the browser tab')
+assertContains(addEntryModal, 'millisecondsUntilNextLocalDay(now) + 100', 'AddEntryModal refreshes automatic dates after local midnight')
+assertContains(addEntryModal, 'hasUnsavedChanges: this.hasUnsavedChanges,', 'AddEntryModal protects started payment forms from automatic date changes')
+assertContains(addEntryModal, 'return this.currentDateKey;', 'AddEntryModal keeps the planned-payment minimum date current')
 assertContains(addEntryModal, 'pattern="[0-9.,+*\\/\\-]*"', 'AddEntryModal uses a browser-compatible calculator input pattern')
 assertContains(addEntryModal, ".replace(/^-+/, '')", 'AddEntryModal removes only leading minus signs from amount input')
 assertContains(addEntryModal, 'class="amount-currency-prefix"', 'AddEntryModal displays the configured currency inside the amount field')
@@ -712,7 +748,8 @@ assertContains(addEntryModal, 'categoryId: this.sourceCategoryId(entryToEdit)', 
 assertContains(addEntryModal, 'categoryId: this.sourceCategoryId(entryToDuplicate)', 'AddEntryModal retains the exact category id when copying a payment')
 assertContains(addEntryModal, 'projectId: entryToDuplicate.project_id || defaultProjectId || this.projectId', 'AddEntryModal retains the area when copying a payment')
 const duplicateEntryBranch = addEntryModal.match(/\} else if \(entryToDuplicate\) \{([\s\S]*?)\n\t\t\t\} else \{/)?.[1] || ''
-assertContains(duplicateEntryBranch, 'date: new Date(),', 'AddEntryModal uses the current date when copying a payment')
+assertContains(addEntryModal, 'const openedAt = new Date();', 'AddEntryModal captures the current date whenever the payment form opens')
+assertContains(duplicateEntryBranch, 'date: openedAt,', 'AddEntryModal uses the current opening date when copying a payment')
 assertNotContains(duplicateEntryBranch, 'entryDateFromSource', 'AddEntryModal does not reuse the source date when copying a payment')
 assertContains(addEntryModal, "categoryName: String(canonicalCategory.name || '').trim()", 'AddEntryModal records and renders the exact manually selected category')
 assertContains(addEntryModal, 'const categoryById = sourceCategoryId !== null', 'AddEntryModal reconciles an edited payment with the exact category returned by the scoped lookup')
@@ -1125,6 +1162,36 @@ assertContains(personalDashboard, "this.$emit('selected-entry-missing', this.sel
 assertNotContains(personalDashboard, '/api/templates', 'Personal dashboard removes template controls from the payment flow')
 assertContains(personalDashboard, 'dashboardMetrics', 'Personal dashboard server metrics state')
 assertContains(personalDashboard, 'dashboardTagCounts', 'Personal dashboard stores server tag counts')
+assertBefore(personalDashboard, 'class="stat-card current-month-card"', 'class="stat-card current-year-card"', 'Personal dashboard card order current month before current year')
+assertBefore(personalDashboard, 'class="stat-card current-year-card"', 'class="stat-card budget-card', 'Personal dashboard places period cards before the optional budget card')
+assertBefore(personalDashboard, 'class="stat-card current-year-card"', 'class="stat-card income-card"', 'Personal dashboard places period cards before income and expenses')
+const currentMonthCard = personalDashboard.slice(
+	personalDashboard.indexOf('<div class="stat-card current-month-card">'),
+	personalDashboard.indexOf('<div class="stat-card current-year-card">'),
+)
+const currentYearCard = personalDashboard.slice(
+	personalDashboard.indexOf('<div class="stat-card current-year-card">'),
+	personalDashboard.indexOf('<div\n\t\t\t\tv-if="showBudgetCard"'),
+)
+assertContains(currentMonthCard, 'CalendarMonthIcon :size="20" class="period-card-icon"', 'Current-month card uses its dedicated month icon with the shared period color class')
+assertContains(currentMonthCard, '{{ currentMonthName }}', 'Current-month card uses the localized month name')
+assertContains(currentMonthCard, ':class="currentMonthBalance >= 0 ? \'positive\' : \'negative\'"', 'Current-month balance uses signed status colors')
+assertContains(currentMonthCard, '{{ formatSignedMetric(currentMonthBalance) }}', 'Current-month card displays the balance as its main value')
+assertContains(currentMonthCard, '<div v-if="$enableIncomes" class="stat-sub-line">', 'Current-month card hides its income row when incomes are disabled')
+assertContains(currentMonthCard, '$texts.dashboard.incomes()', 'Current-month card labels income in the plural')
+assertContains(currentMonthCard, '$texts.dashboard.expenses()', 'Current-month card includes expenses')
+assertContains(currentYearCard, 'CalendarIcon :size="20" class="period-card-icon"', 'Current-year card reuses the sidebar calendar icon with the shared period color class')
+assertContains(currentYearCard, '{{ currentYearLabel }}', 'Current-year card displays the numeric year')
+assertContains(currentYearCard, ':class="currentYearBalance >= 0 ? \'positive\' : \'negative\'"', 'Current-year balance uses signed status colors')
+assertContains(currentYearCard, '{{ formatSignedMetric(currentYearBalance) }}', 'Current-year card displays the balance as its main value')
+assertContains(currentYearCard, '<div v-if="$enableIncomes" class="stat-sub-line">', 'Current-year card hides its income row when incomes are disabled')
+assertContains(currentYearCard, '$texts.dashboard.incomes()', 'Current-year card labels income in the plural')
+assertContains(currentYearCard, '$texts.dashboard.expenses()', 'Current-year card includes expenses')
+assertContains(personalDashboard, 'currentYear: normalizeMetricGroup(metrics?.currentYear)', 'Personal dashboard normalizes current-year server metrics')
+assertContains(personalDashboard, 'this.$texts.calendar[key]()', 'Personal dashboard resolves month names through translations')
+assertContains(personalDashboard, '.period-card-icon {\n\tcolor: var(--color-primary, #01679e);', 'Period-card icons inherit the active Nextcloud primary color through currentColor')
+assertContains(personalDashboard, "document.addEventListener('visibilitychange', this.handleCurrentPeriodVisibilityChange)", 'Personal dashboard refreshes period cards after returning to a long-open tab')
+assertContains(personalDashboard, 'this.scheduleCurrentPeriodRefresh()', 'Personal dashboard schedules period-card updates after midnight')
 assertContains(personalDashboard, 'showIncomeCard()', 'Personal dashboard hides income card without income entries')
 assertContains(personalDashboard, 'showFutureCard()', 'Personal dashboard hides planned payment card without entries')
 assertContains(personalDashboard, 'showImportantCard()', 'Personal dashboard hides important card without entries')
@@ -1139,6 +1206,29 @@ assertContains(personalDashboard, 'formatSignedMetric(totalImportantPayments)', 
 assertContains(personalDashboard, 'formatSignedMetric(totalReviewPayments)', 'Personal dashboard shows review card as signed metric')
 assertContains(personalDashboard, 'formatSignedMetric(totalChildRelated)', 'Personal dashboard shows child card as signed metric')
 assertContains(personalDashboard, 'formatSignedMetric(totalTaxRelevant)', 'Personal dashboard shows tax relevant card as signed metric')
+assertNotContains(personalDashboard, '$texts.dashboard.planned30Days()', 'Personal dashboard summary cards omit the planned 30-day line')
+assertNotContains(personalDashboard, 'futureIncome30Days()', 'Personal dashboard removes unused planned income card metrics')
+assertNotContains(personalDashboard, 'futureExpense30Days()', 'Personal dashboard removes unused planned expense card metrics')
+assertNotContains(personalDashboard, '$texts.dashboard.next30Days()', 'Dedicated planned card omits the next-30-days row')
+assertNotContains(personalDashboard, 'futureBalance30Days()', 'Personal dashboard removes the unused next-30-days card metric')
+assertEqual(Object.hasOwn(germanTranslations, 'Planned (30 days):'), false, 'German translations remove the obsolete planned summary row')
+assertEqual(Object.hasOwn(germanTranslations, 'Next 30 days:'), false, 'German translations remove the obsolete dedicated planned-card row')
+for (const [month, translatedMonth] of Object.entries({
+	January: 'Januar',
+	February: 'Februar',
+	March: 'März',
+	April: 'April',
+	May: 'Mai',
+	June: 'Juni',
+	July: 'Juli',
+	August: 'August',
+	September: 'September',
+	October: 'Oktober',
+	November: 'November',
+	December: 'Dezember',
+})) {
+	assertEqual(germanTranslations[month], translatedMonth, `German translation for ${month}`)
+}
 assertContains(personalDashboard, 'defaultEntryType()', 'Personal dashboard derives new entry default type')
 assertContains(personalDashboard, "this.filters.hasAttachment === 'false'", 'Personal dashboard can filter entries without receipts')
 assertContains(personalDashboard, 'defaultType: defaultEntryType', 'Personal dashboard forwards the default type to new entries')

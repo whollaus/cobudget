@@ -584,6 +584,7 @@ import { showRequestError, showToast } from '../services/notifications'
 import { readWorkspaceId } from '../services/workspaceStorage'
 import { getAreaColorPalette } from '../utils/areaColor'
 import { categoryParentId, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
+import { localDateKey, millisecondsUntilNextLocalDay, shouldRefreshDefaultEntryDate } from '../utils/entryDefaultDate'
 import { hasEntryFormChanges, snapshotEntryForm } from '../utils/entryFormState'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
@@ -618,6 +619,7 @@ export default {
 		}
 	},
 	data() {
+		const now = new Date();
 		return {
 			isOpen: false,
 			pendingInitialFocus: false,
@@ -634,7 +636,7 @@ export default {
 				userId: window.OC?.currentUser?.uid || '',
 				splitMode: 'project_shares',
 				splitUserId: null,
-				date: new Date(),
+				date: now,
 				recurrenceInterval: 'none',
 				recurrenceMultiplier: 1,
 				recurrenceEndDate: null,
@@ -680,6 +682,8 @@ export default {
 			isWideViewport: false,
 			mobileFormFieldFocused: false,
 			mobileFocusTimer: null,
+			currentDateKey: localDateKey(now),
+			defaultDateRefreshTimer: null,
 			categorySelectionSource: null,
 			categorySuggestionRequestId: 0,
 			entryFormBaseline: ''
@@ -1042,10 +1046,7 @@ export default {
 		},
 		minFutureDate() {
 			if (this.isFutureContext && !this.isEditing) {
-				const d = new Date();
-				const month = String(d.getMonth() + 1).padStart(2, '0');
-				const day = String(d.getDate()).padStart(2, '0');
-				return `${d.getFullYear()}-${month}-${day}`;
+				return this.currentDateKey;
 			}
 			return null;
 		}
@@ -1053,21 +1054,27 @@ export default {
 	mounted() {
 		// Data lists are now fetched when modal opens
 		window.addEventListener('popstate', this.handleModalPopState);
+		window.addEventListener('focus', this.handleEntryDateResume);
+		document.addEventListener('visibilitychange', this.handleEntryDateVisibilityChange);
 		document.addEventListener('mousedown', this.handleLookupOutside);
 		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
 			this.wideViewportMedia = window.matchMedia('(min-width: 1025px)');
 			this.updateWideViewport(this.wideViewportMedia);
 			this.wideViewportMedia.addEventListener?.('change', this.updateWideViewport);
 		}
+		this.scheduleDefaultDateRefresh();
 	},
 	beforeUnmount() {
 		window.removeEventListener('popstate', this.handleModalPopState);
+		window.removeEventListener('focus', this.handleEntryDateResume);
+		document.removeEventListener('visibilitychange', this.handleEntryDateVisibilityChange);
 		document.removeEventListener('mousedown', this.handleLookupOutside);
 		this.wideViewportMedia?.removeEventListener?.('change', this.updateWideViewport);
 		if (this.ignorePopStateTimer) {
 			window.clearTimeout(this.ignorePopStateTimer);
 			this.ignorePopStateTimer = null;
 		}
+		this.clearDefaultDateRefreshTimer();
 		this.clearMobileFocusTimer();
 		this.releaseModalHistory({ skipBack: true });
 	},
@@ -1105,6 +1112,42 @@ export default {
 		}
 	},
 	methods: {
+		handleEntryDateResume() {
+			this.refreshDefaultEntryDate();
+		},
+		handleEntryDateVisibilityChange() {
+			if (!document.hidden) {
+				this.refreshDefaultEntryDate();
+			}
+		},
+		clearDefaultDateRefreshTimer() {
+			if (this.defaultDateRefreshTimer) {
+				window.clearTimeout(this.defaultDateRefreshTimer);
+				this.defaultDateRefreshTimer = null;
+			}
+		},
+		scheduleDefaultDateRefresh(now = new Date()) {
+			this.clearDefaultDateRefreshTimer();
+			this.defaultDateRefreshTimer = window.setTimeout(() => {
+				this.defaultDateRefreshTimer = null;
+				this.refreshDefaultEntryDate();
+			}, millisecondsUntilNextLocalDay(now) + 100);
+		},
+		refreshDefaultEntryDate(now = new Date()) {
+			this.currentDateKey = localDateKey(now);
+
+			if (!this.isInitializingEntry && shouldRefreshDefaultEntryDate({
+				isCreatingNewEntry: this.isCreatingNewEntry,
+				hasUnsavedChanges: this.hasUnsavedChanges,
+				entryDate: this.entry.date,
+				now,
+			})) {
+				this.entry.date = now;
+				this.markEntryClean();
+			}
+
+			this.scheduleDefaultDateRefresh(now);
+		},
 		updateWideViewport(event) {
 			this.isWideViewport = !!event?.matches;
 		},
@@ -1229,6 +1272,7 @@ export default {
 			);
 		},
 		handleModalFocusIn(event) {
+			this.refreshDefaultEntryDate();
 			this.clearMobileFocusTimer();
 			this.mobileFormFieldFocused = this.isKeyboardInputTarget(event.target);
 		},
@@ -2012,6 +2056,9 @@ export default {
 			});
 		},
 		async openSidebar(entryToEdit = null, defaultProjectId = null, isFutureContext = false, entryToDuplicate = null, defaultType = 'expense', projectSelectionLocked = false, reuseLoadedData = false) {
+			const openedAt = new Date();
+			this.currentDateKey = localDateKey(openedAt);
+			this.scheduleDefaultDateRefresh(openedAt);
 			const canFocusImmediately = this.isOpen && !this.pendingInitialFocus;
 			this.invalidateCategorySuggestion(true);
 			this.categorySelectionSource = null;
@@ -2049,7 +2096,7 @@ export default {
 					userId: entryToEdit.user_id || this.currentUserId(),
 					splitMode: entryToEdit.split_mode || 'project_shares',
 					splitUserId: entryToEdit.split_user_id || null,
-					date: entryToEdit.date ? new Date(entryToEdit.date * 1000) : new Date(),
+					date: entryToEdit.date ? new Date(entryToEdit.date * 1000) : openedAt,
 					recurrenceInterval: entryToEdit.recurrence_interval || 'none',
 					recurrenceMultiplier: entryToEdit.recurrence_multiplier || 1,
 					recurrenceEndDate: entryToEdit.recurrence_end_date ? new Date(entryToEdit.recurrence_end_date * 1000) : null,
@@ -2080,7 +2127,7 @@ export default {
 					userId: entryToDuplicate.user_id || this.currentUserId(),
 					splitMode: entryToDuplicate.split_mode || 'project_shares',
 					splitUserId: entryToDuplicate.split_user_id || null,
-					date: new Date(),
+					date: openedAt,
 					recurrenceInterval: 'none',
 					recurrenceMultiplier: 1,
 					recurrenceEndDate: null,
@@ -2091,12 +2138,12 @@ export default {
 					needsReview: !!entryToDuplicate.needs_review,
 					isTaxRelevant: !!entryToDuplicate.is_tax_relevant,
 					hasReminder: !!entryToDuplicate.reminder_date,
-					reminderDate: entryToDuplicate.reminder_date ? new Date() : null, // Assuming user will reset it if needed
+					reminderDate: entryToDuplicate.reminder_date ? openedAt : null, // Assuming user will reset it if needed
 					reminderText: entryToDuplicate.reminder_text || ''
 				};
 			} else {
 				this.internalEditingEntry = null;
-				let defaultDate = new Date();
+				const defaultDate = openedAt;
 				
 				let defaultIsSubscription = false;
 				let defaultIsFixedCost = false;

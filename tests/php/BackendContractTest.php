@@ -525,13 +525,15 @@ return [
 		$t->assertContains('fetchDashboardCategories($workspaceId)', $dashboard, 'Dashboard should include category lookups');
 		$t->assertContains('fetchDashboardPaymentPartners($workspaceId)', $dashboard, 'Dashboard should include paymentPartner lookups');
 		$t->assertContains('buildDashboardMetricsFromAggregates(', $dashboard, 'Dashboard should return server-side aggregate metrics');
+		$t->assertContains('$currentYearStart', $dashboard, 'Dashboard should aggregate the current calendar year');
 		$t->assertContains('summaryOnly', $dashboard, 'Dashboard should support lightweight summary-only requests');
 		$t->assertContains('dashboardTagCountsFromAggregates(', $dashboard, 'Dashboard should return aggregate Kennzeichen counts');
 
 		$metrics = $t->methodBody('lib/Controller/EntryController.php', 'buildDashboardMetricsFromAggregates');
-		foreach (['total', 'average', 'currentMonth', 'future', 'future30Days'] as $bucket) {
+		foreach (['total', 'average', 'currentMonth', 'currentYear', 'future', 'future30Days'] as $bucket) {
 			$t->assertContains("'" . $bucket . "'", $metrics, 'Dashboard metrics should include ' . $bucket);
 		}
+		$t->assertContains("\$currentYear['monthlyMetrics'][date('Y-m')]", $metrics, 'Dashboard should derive the current month from the current-year aggregate');
 
 		$summarize = $t->methodBody('lib/Controller/EntryController.php', 'accumulateDashboardMetrics');
 		$t->assertContains('$signedAmount = $amount;', $summarize, 'Dashboard Kennzeichen metrics should treat income as positive');

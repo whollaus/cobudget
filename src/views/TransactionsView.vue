@@ -82,6 +82,50 @@
 		</Teleport>
 
 		<DraggableScroller class="stats-row">
+			<div class="stat-card current-month-card">
+				<div class="stat-header">
+					<div class="stat-title-group">
+						<div class="stat-icon"><CalendarMonthIcon :size="20" class="period-card-icon" /></div>
+						<span class="stat-label">{{ currentMonthName }}</span>
+					</div>
+					<span class="stat-value" :class="currentMonthBalance >= 0 ? 'positive' : 'negative'">
+						{{ formatSignedMetric(currentMonthBalance) }}
+					</span>
+				</div>
+				<div class="stat-sub-info">
+					<div v-if="$enableIncomes" class="stat-sub-line">
+						<span>{{ $texts.dashboard.incomes() }}</span>
+						<span>{{ formatPositiveMetric(currentMonthIncome) }}</span>
+					</div>
+					<div class="stat-sub-line">
+						<span>{{ $texts.dashboard.expenses() }}</span>
+						<span>{{ formatNegativeMetric(currentMonthExpense) }}</span>
+					</div>
+				</div>
+			</div>
+
+			<div class="stat-card current-year-card">
+				<div class="stat-header">
+					<div class="stat-title-group">
+						<div class="stat-icon"><CalendarIcon :size="20" class="period-card-icon" /></div>
+						<span class="stat-label">{{ currentYearLabel }}</span>
+					</div>
+					<span class="stat-value" :class="currentYearBalance >= 0 ? 'positive' : 'negative'">
+						{{ formatSignedMetric(currentYearBalance) }}
+					</span>
+				</div>
+				<div class="stat-sub-info">
+					<div v-if="$enableIncomes" class="stat-sub-line">
+						<span>{{ $texts.dashboard.incomes() }}</span>
+						<span>{{ formatPositiveMetric(currentYearIncome) }}</span>
+					</div>
+					<div class="stat-sub-line">
+						<span>{{ $texts.dashboard.expenses() }}</span>
+						<span>{{ formatNegativeMetric(currentYearExpense) }}</span>
+					</div>
+				</div>
+			</div>
+
 			<div
 				v-if="showBudgetCard"
 				class="stat-card budget-card clickable-budget-card"
@@ -128,10 +172,6 @@
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatPositiveMetric(currentMonthIncome) }}</span>
 					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatPositiveMetric(futureIncome30Days) }}</span>
-					</div>
 				</div>
 			</div>
 			
@@ -151,10 +191,6 @@
 					<div class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatNegativeMetric(currentMonthExpense) }}</span>
-					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatNegativeMetric(futureExpense30Days) }}</span>
 					</div>
 				</div>
 			</div>
@@ -178,10 +214,6 @@
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthBalance) }}</span>
 					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatSignedMetric(futureBalance30Days) }}</span>
-					</div>
 				</div>
 			</div>
 
@@ -201,10 +233,6 @@
 					<div class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthImportantPayments) }}</span>
-					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatSignedMetric(futureImportantPayments30Days) }}</span>
 					</div>
 				</div>
 			</div>
@@ -226,10 +254,6 @@
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthReviewPayments) }}</span>
 					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatSignedMetric(futureReviewPayments30Days) }}</span>
-					</div>
 				</div>
 			</div>
 			
@@ -249,10 +273,6 @@
 					<div class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatNegativeMetric(currentMonthFixedCosts) }}</span>
-					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatNegativeMetric(futureFixedCosts30Days) }}</span>
 					</div>
 				</div>
 			</div>
@@ -274,10 +294,6 @@
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthChildRelated) }}</span>
 					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatSignedMetric(futureChildRelated30Days) }}</span>
-					</div>
 				</div>
 			</div>
 
@@ -298,10 +314,6 @@
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatNegativeMetric(currentMonthSubscriptions) }}</span>
 					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatNegativeMetric(futureSubscriptions30Days) }}</span>
-					</div>
 				</div>
 			</div>
 
@@ -321,10 +333,6 @@
 					<div class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthTaxRelevant) }}</span>
-					</div>
-					<div class="stat-sub-line" v-if="$enableFuturePayments">
-						<span>{{ $texts.dashboard.planned30Days() }}</span>
-						<span>{{ formatSignedMetric(futureTaxRelevant30Days) }}</span>
 					</div>
 				</div>
 			</div>
@@ -347,10 +355,6 @@
 					<div class="stat-sub-line">
 						<span>{{ $texts.dashboard.expensesColon() }}</span>
 						<span>{{ formatNegativeMetric(totalFutureExpense) }}</span>
-					</div>
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.next30Days() }}</span>
-						<span>{{ formatSignedMetric(futureBalance30Days) }}</span>
 					</div>
 				</div>
 			</div>
@@ -450,6 +454,8 @@ import StarIcon from 'vue-material-design-icons/Star.vue'
 import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
 import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
+import CalendarIcon from 'vue-material-design-icons/Calendar.vue'
+import CalendarMonthIcon from 'vue-material-design-icons/CalendarMonth.vue'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
@@ -471,6 +477,21 @@ import { showRequestError, showToast } from '../services/notifications'
 import { downloadBlobResponse } from '../services/downloads'
 import { getAreaColorStyle } from '../utils/areaColor'
 
+const calendarMonthKeys = [
+	'january',
+	'february',
+	'march',
+	'april',
+	'may',
+	'june',
+	'july',
+	'august',
+	'september',
+	'october',
+	'november',
+	'december',
+]
+
 const emptyMetricGroup = () => ({
 	income: 0,
 	expense: 0,
@@ -487,6 +508,7 @@ const emptyDashboardMetrics = () => ({
 	total: emptyMetricGroup(),
 	average: emptyMetricGroup(),
 	currentMonth: emptyMetricGroup(),
+	currentYear: emptyMetricGroup(),
 	future: emptyMetricGroup(),
 	future30Days: emptyMetricGroup(),
 })
@@ -511,6 +533,7 @@ const normalizeDashboardMetrics = metrics => ({
 	total: normalizeMetricGroup(metrics?.total),
 	average: normalizeMetricGroup(metrics?.average),
 	currentMonth: normalizeMetricGroup(metrics?.currentMonth),
+	currentYear: normalizeMetricGroup(metrics?.currentYear),
 	future: normalizeMetricGroup(metrics?.future),
 	future30Days: normalizeMetricGroup(metrics?.future30Days),
 })
@@ -559,6 +582,8 @@ export default {
 		ClipboardCheckIcon,
 		AccountChildIcon,
 		ReceiptTextCheckOutlineIcon,
+		CalendarIcon,
+		CalendarMonthIcon,
 		CalendarSyncIcon,
 		CloseIcon,
 		DownloadIcon,
@@ -572,6 +597,7 @@ export default {
 		AppPageHeader,
 	},
 	data() {
+		const currentPeriodDate = new Date()
 		return {
 			showFilterPanel: false,
 			isExporting: false,
@@ -611,7 +637,9 @@ export default {
 				total: 0
 			},
 			isInternalFilterChange: false,
-			confirmDialog: null
+			confirmDialog: null,
+			currentPeriodDate,
+			currentPeriodRefreshTimer: null
 		}
 	},
 	computed: {
@@ -637,11 +665,11 @@ export default {
 		dashboardCurrentMonthMetrics() {
 			return normalizeMetricGroup(this.dashboardMetrics.currentMonth)
 		},
+		dashboardCurrentYearMetrics() {
+			return normalizeMetricGroup(this.dashboardMetrics.currentYear)
+		},
 		dashboardFutureMetrics() {
 			return normalizeMetricGroup(this.dashboardMetrics.future)
-		},
-		dashboardFuture30DaysMetrics() {
-			return normalizeMetricGroup(this.dashboardMetrics.future30Days)
 		},
 		tagCounts() {
 			return normalizeTagCounts(this.dashboardTagCounts)
@@ -682,6 +710,13 @@ export default {
 		totalFutureBalance() {
 			return this.dashboardFutureMetrics.balance
 		},
+		currentMonthName() {
+			const key = calendarMonthKeys[this.currentPeriodDate.getMonth()]
+			return key ? this.$texts.calendar[key]() : ''
+		},
+		currentYearLabel() {
+			return String(this.currentPeriodDate.getFullYear())
+		},
 		currentMonthIncome() {
 			return this.dashboardCurrentMonthMetrics.income
 		},
@@ -709,32 +744,14 @@ export default {
 		currentMonthTaxRelevant() {
 			return this.dashboardCurrentMonthMetrics.taxRelevant
 		},
-		futureIncome30Days() {
-			return this.dashboardFuture30DaysMetrics.income
+		currentYearIncome() {
+			return this.dashboardCurrentYearMetrics.income
 		},
-		futureExpense30Days() {
-			return this.dashboardFuture30DaysMetrics.expense
+		currentYearExpense() {
+			return this.dashboardCurrentYearMetrics.expense
 		},
-		futureBalance30Days() {
-			return this.dashboardFuture30DaysMetrics.balance
-		},
-		futureSubscriptions30Days() {
-			return this.dashboardFuture30DaysMetrics.subscriptions
-		},
-		futureFixedCosts30Days() {
-			return this.dashboardFuture30DaysMetrics.fixedCosts
-		},
-		futureImportantPayments30Days() {
-			return this.dashboardFuture30DaysMetrics.important
-		},
-		futureReviewPayments30Days() {
-			return this.dashboardFuture30DaysMetrics.review
-		},
-		futureChildRelated30Days() {
-			return this.dashboardFuture30DaysMetrics.childRelated
-		},
-		futureTaxRelevant30Days() {
-			return this.dashboardFuture30DaysMetrics.taxRelevant
+		currentYearBalance() {
+			return this.dashboardCurrentYearMetrics.balance
 		},
 		averageStats() {
 			return this.dashboardAverageMetrics
@@ -848,11 +865,17 @@ export default {
 		window.addEventListener('entry-saved', this.onEntrySaved)
 		window.addEventListener('settings-closed', this.onSettingsClosed);
 		window.addEventListener('keydown', this.onPaginationKeydown)
+		window.addEventListener('focus', this.handleCurrentPeriodResume)
+		document.addEventListener('visibilitychange', this.handleCurrentPeriodVisibilityChange)
+		this.scheduleCurrentPeriodRefresh()
 	},
 	beforeUnmount() {
 		window.removeEventListener('entry-saved', this.onEntrySaved)
 		window.removeEventListener('settings-closed', this.onSettingsClosed);
 		window.removeEventListener('keydown', this.onPaginationKeydown)
+		window.removeEventListener('focus', this.handleCurrentPeriodResume)
+		document.removeEventListener('visibilitychange', this.handleCurrentPeriodVisibilityChange)
+		this.clearCurrentPeriodRefreshTimer()
 	},
 	watch: {
 		'$route.query.filter': 'handleRouteQueryChange',
@@ -861,6 +884,42 @@ export default {
 		entries: 'notifySelectedEntryVisibility'
 	},
 	methods: {
+		currentPeriodKey(date) {
+			const year = String(date.getFullYear()).padStart(4, '0')
+			const month = String(date.getMonth() + 1).padStart(2, '0')
+			return `${year}-${month}`
+		},
+		handleCurrentPeriodResume() {
+			this.refreshCurrentPeriod()
+		},
+		handleCurrentPeriodVisibilityChange() {
+			if (!document.hidden) {
+				this.refreshCurrentPeriod()
+			}
+		},
+		clearCurrentPeriodRefreshTimer() {
+			if (this.currentPeriodRefreshTimer) {
+				window.clearTimeout(this.currentPeriodRefreshTimer)
+				this.currentPeriodRefreshTimer = null
+			}
+		},
+		scheduleCurrentPeriodRefresh(now = new Date()) {
+			this.clearCurrentPeriodRefreshTimer()
+			const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+			const delay = Math.max(0, nextDay.getTime() - now.getTime()) + 100
+			this.currentPeriodRefreshTimer = window.setTimeout(() => {
+				this.currentPeriodRefreshTimer = null
+				this.refreshCurrentPeriod()
+			}, delay)
+		},
+		refreshCurrentPeriod(now = new Date()) {
+			const periodChanged = this.currentPeriodKey(now) !== this.currentPeriodKey(this.currentPeriodDate)
+			this.currentPeriodDate = now
+			this.scheduleCurrentPeriodRefresh(now)
+			if (periodChanged) {
+				this.fetchData()
+			}
+		},
 		async openEntryHistory(entry) {
 			this.entryHistoryOpen = true
 			this.entryHistoryLoading = true
@@ -1580,6 +1639,10 @@ export default {
 	justify-content: center;
 	background: var(--cobudget-surface-muted, #f5f5f5);
 	border-radius: 50%;
+}
+
+.period-card-icon {
+	color: var(--color-primary, #01679e);
 }
 
 .stat-label {

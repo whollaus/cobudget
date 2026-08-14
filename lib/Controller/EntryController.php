@@ -452,8 +452,8 @@ class EntryController extends Controller {
 			$main = $this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
 			$mainAggregate = $main['_aggregate'];
 			unset($main['_aggregate']);
-			$currentMonthStart = mktime(0, 0, 0, (int)date('n'), 1, (int)date('Y'));
-			$currentMonthData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $currentMonthStart, null, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, false, $projectShareBasisPoints);
+			$currentYearStart = mktime(0, 0, 0, 1, 1, (int)date('Y'));
+			$currentYearData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $currentYearStart, null, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, false, $projectShareBasisPoints);
 			$futureData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, 'date', 'asc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true, $projectShareBasisPoints);
 
 			return new DataResponse([
@@ -462,7 +462,7 @@ class EntryController extends Controller {
 				'limit' => $main['limit'],
 				'offset' => $main['offset'],
 				'dateGroups' => $main['dateGroups'],
-				'metrics' => $this->buildDashboardMetricsFromAggregates($mainAggregate, $currentMonthData, $futureData),
+				'metrics' => $this->buildDashboardMetricsFromAggregates($mainAggregate, $currentYearData, $futureData),
 				'tagCounts' => $this->dashboardTagCountsFromAggregates($mainAggregate, $futureData),
 				'lookups' => [
 					'categories' => $this->fetchDashboardCategories($workspaceId),
@@ -753,11 +753,14 @@ class EntryController extends Controller {
 		}
 	}
 
-	private function buildDashboardMetricsFromAggregates(array $main, array $currentMonth, array $future): array {
+	private function buildDashboardMetricsFromAggregates(array $main, array $currentYear, array $future): array {
+		$currentMonthMetrics = $currentYear['monthlyMetrics'][date('Y-m')] ?? $this->zeroDashboardMetrics();
+
 		return [
 			'total' => $main['metrics'],
 			'average' => $this->calculateAverageDashboardMetricsFromAggregate($main),
-			'currentMonth' => $currentMonth['metrics'],
+			'currentMonth' => $currentMonthMetrics,
+			'currentYear' => $currentYear['metrics'],
 			'future' => $future['metrics'],
 			'future30Days' => $future['metrics30Days'],
 		];
