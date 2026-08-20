@@ -181,6 +181,13 @@ const { hasEntryFormChanges, snapshotEntryForm } = entryFormStateModule
 const entryDefaultDateSource = read('src/utils/entryDefaultDate.js')
 const entryDefaultDateModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(entryDefaultDateSource)}`)
 const { localDateKey, millisecondsUntilNextLocalDay, shouldRefreshDefaultEntryDate } = entryDefaultDateModule
+const areaSettlementStatusSource = read('src/utils/areaSettlementStatus.js')
+const areaSettlementStatusModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(areaSettlementStatusSource)}`)
+const { isAreaSettled } = areaSettlementStatusModule
+assertEqual(isAreaSettled({ is_settled: false, source_is_settled: false }), false, 'Open shared payments remain unsettled')
+assertEqual(isAreaSettled({ source_is_settled: true }), true, 'Linked personal projections inherit their shared source settlement state')
+assertEqual(isAreaSettled({ is_settled: false, settlement_id: 17, settled_at: 1787184000 }), true, 'Released personal payments retain their area settlement state')
+assertEqual(isAreaSettled({ area_is_settled: '0', is_settled: '0', source_is_settled: '0', settlement_id: '0', settled_at: '0' }), false, 'Serialized false settlement values stay false')
 const previousLocalDay = new Date(2026, 7, 12, 12, 0, 0)
 const currentLocalDay = new Date(2026, 7, 13, 9, 30, 0)
 assertEqual(localDateKey(currentLocalDay), '2026-08-13', 'Entry default dates use the browser local calendar day')
@@ -1331,6 +1338,8 @@ assertContains(entryTable, 'entry.paid_by_display_name', 'EntryTable shared-proj
 assertContains(entryTable, 'this.memberName(entry.paid_by_user_id)', 'EntryTable resolves the shared source payer when only its user ID is available')
 assertContains(entryTable, 'this.$texts.entry.amountNotSettled()', 'EntryTable shared-project tooltip explains open settlement status')
 assertContains(entryTable, 'this.$texts.entry.amountAlreadySettled()', 'EntryTable shared-project tooltip explains settled status')
+assertContains(entryTable, ':area-settled="isAreaSettled(row.entry)"', 'EntryTable gives the shared-payment icon the effective area settlement state')
+assertContains(entryTable, 'const statusText = this.isAreaSettled(entry)', 'EntryTable tooltip uses the effective area settlement state')
 assertNotContains(entryTable, 'Offen in:', 'EntryTable shared-project tooltip no longer repeats the project name for open entries')
 assertNotContains(entryTable, 'Abgerechnet in:', 'EntryTable shared-project tooltip no longer repeats the project name for settled entries')
 
@@ -1384,6 +1393,8 @@ assertContains(entryAmountCell, 'attachmentTooltip()', 'EntryAmountCell exposes 
 assertContains(entryAmountCell, 'entry.attachments_count', 'EntryAmountCell reads the attachment counter from API rows')
 assertContains(entryAmountCell, 'this.$enableReceipts', 'EntryAmountCell hides receipt icons when receipts are disabled')
 assertContains(entryAmountCell, 'this.$texts.entry.linkedReceipts(this.attachmentCount)', 'EntryAmountCell labels linked receipts through plural translation')
+assertContains(entryAmountCell, "AccountMultipleCheckIcon from 'vue-material-design-icons/AccountMultipleCheck.vue'", 'Settled shared payments retain their multi-user identity')
+assertContains(entryAmountCell, '<AccountMultipleCheckIcon v-if="areaSettled"', 'Settled shared payments use the multi-user check icon')
 
 const tableTooltip = read('src/components/TableTooltip.vue')
 assertContains(tableTooltip, 'tooltipLines()', 'TableTooltip splits multi-line tooltip text')

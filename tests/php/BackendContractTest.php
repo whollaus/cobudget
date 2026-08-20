@@ -578,6 +578,10 @@ return [
 		$t->assertContains('$this->participantService->participant($userId)', $normalizeEntryRow, 'Entry rows should resolve active and former payer display names through the participant service');
 		$t->assertContains("\$entry['paid_by_user_id']", $normalizeEntryRow, 'Personal projection rows should expose the shared source payer ID');
 		$t->assertContains("\$entry['paid_by_display_name']", $normalizeEntryRow, 'Personal projection rows should expose the shared source payer display name');
+		$t->assertContains("\$entry['area_is_settled']", $normalizeEntryRow, 'Entry rows should expose their effective area-settlement status');
+		$areaIsSettled = $t->methodBody('lib/Controller/EntryController.php', 'areaIsSettled');
+		$t->assertContains("\$entry['settlement_id']", $areaIsSettled, 'Released personal rows should retain their settled display state through the settlement group');
+		$t->assertContains("\$entry['settled_at']", $areaIsSettled, 'Released personal rows should retain their settled display state through the settlement timestamp');
 
 		$show = $t->methodBody('lib/Controller/EntryController.php', 'show');
 		$t->assertContains('source_e.user_id AS source_user_id', $show, 'Single-entry responses should retain the payer of their shared source entry');

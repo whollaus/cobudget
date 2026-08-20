@@ -98,6 +98,7 @@
 
 <script>
 import axios from '../services/http'
+import { REMOTE_DATA_CHANGED_EVENT, changeAffectsProject, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
@@ -153,6 +154,10 @@ export default {
 	},
 	mounted() {
 		this.fetchSettlements()
+		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
+	},
+	beforeUnmount() {
+		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 	},
 	watch: {
 		projectId() {
@@ -191,6 +196,12 @@ export default {
 				showRequestError(error, this.error, 'Failed to fetch project settlements')
 			} finally {
 				this.loading = false
+			}
+		},
+		onRemoteDataChanged(event) {
+			const change = event?.detail
+			if (changeAffectsProject(change, this.projectId) && changeTouches(change, ['projects', 'settlements'])) {
+				this.fetchSettlements()
 			}
 		},
 		goBackToProject() {

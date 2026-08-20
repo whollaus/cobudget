@@ -1,6 +1,6 @@
 {
   "name": "cobudget",
-	"version": "0.3.3",
+	"version": "0.3.4",
   "description": "Personal and shared budgeting for Nextcloud",
   "private": true,
   "scripts": {
@@ -21,6 +21,7 @@
     "@nextcloud/axios": "^2.1.0",
     "@nextcloud/dialogs": "^3.1.2",
     "@nextcloud/initial-state": "^2.0.0",
+    "@nextcloud/notify_push": "1.4.0",
     "@nextcloud/router": "^2.1.2",
     "@nextcloud/vue": "^9.8.2",
     "floating-vue": "^5.2.2",

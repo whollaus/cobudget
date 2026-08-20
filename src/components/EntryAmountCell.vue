@@ -37,8 +37,8 @@
 			</button>
 		</TableTooltip>
 		<TableTooltip v-if="sharedProjectTooltip" :text="sharedProjectTooltip">
-			<span class="shared-icon" :class="{ 'settled-icon': entry.is_settled }">
-				<CheckCircleOutlineIcon v-if="entry.is_settled" :size="16" />
+			<span class="shared-icon" :class="{ 'settled-icon': areaSettled }">
+				<AccountMultipleCheckIcon v-if="areaSettled" :size="16" />
 				<AccountMultipleIcon v-else :size="16" />
 			</span>
 		</TableTooltip>
@@ -55,6 +55,7 @@
 </template>
 
 <script>
+import AccountMultipleCheckIcon from 'vue-material-design-icons/AccountMultipleCheck.vue'
 import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
 import BellRingIcon from 'vue-material-design-icons/BellRing.vue'
 import CheckCircleOutlineIcon from 'vue-material-design-icons/CheckCircleOutline.vue'
@@ -67,6 +68,7 @@ import { formatMoney } from '../utils/formatMoney'
 export default {
 	name: 'EntryAmountCell',
 	components: {
+		AccountMultipleCheckIcon,
 		AccountMultipleIcon,
 		BellRingIcon,
 		CheckCircleOutlineIcon,
@@ -91,6 +93,10 @@ export default {
 		amountTooltip: {
 			type: String,
 			default: ''
+		},
+		areaSettled: {
+			type: Boolean,
+			default: false
 		},
 		sharedProjectTooltip: {
 			type: String,

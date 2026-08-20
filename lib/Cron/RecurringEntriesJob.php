@@ -6,6 +6,7 @@ use OCP\IDBConnection;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCA\CoBudget\Service\HashtagService;
 use OCA\CoBudget\Service\EntryProjectionService;
+use OCA\CoBudget\Service\DataChangeService;
 use OCA\CoBudget\Service\ParticipantService;
 use Psr\Log\LoggerInterface;
 
@@ -19,13 +20,15 @@ class RecurringEntriesJob extends TimedJob {
 	private LoggerInterface $logger;
 	private HashtagService $hashtagService;
 	private EntryProjectionService $entryProjectionService;
+	private DataChangeService $dataChangeService;
 
-	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, HashtagService $hashtagService, EntryProjectionService $entryProjectionService) {
+	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, HashtagService $hashtagService, EntryProjectionService $entryProjectionService, DataChangeService $dataChangeService) {
 		parent::__construct($timeFactory);
 		$this->db = $db;
 		$this->logger = $logger;
 		$this->hashtagService = $hashtagService;
 		$this->entryProjectionService = $entryProjectionService;
+		$this->dataChangeService = $dataChangeService;
 		
 		// Match common web-cron setups and allow due recurrences to run shortly after 09:00.
 		$this->setInterval(self::JOB_INTERVAL_SECONDS);
@@ -66,6 +69,7 @@ class RecurringEntriesJob extends TimedJob {
 
 				if (!empty($entry['recurrence_end_date']) && $runDate > (int)$entry['recurrence_end_date']) {
 					$this->db->commit();
+					$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
 					continue;
 				}
 
@@ -115,6 +119,7 @@ class RecurringEntriesJob extends TimedJob {
 					}
 
 				$this->db->commit();
+				$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
 			} catch (\Exception $e) {
 				$this->db->rollBack();
 				$this->logger->error('Failed to process recurring entry ' . $entry['id'] . ': ' . $e->getMessage(), ['app' => 'cobudget']);

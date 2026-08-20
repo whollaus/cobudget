@@ -169,6 +169,7 @@
 <script>
 import { defineAsyncComponent } from 'vue'
 import axios from './services/http'
+import { REMOTE_DATA_CHANGED_EVENT, startDataSync } from './services/dataSync'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { shouldCloseEntrySidebarForRequest } from './utils/entrySidebarToggle'
 import { generateUrl } from '@nextcloud/router'
@@ -303,6 +304,7 @@ export default {
 		}
 	},
 	created() {
+		startDataSync()
 	},
 	async mounted() {
 		if (this.$enableProjects) {
@@ -316,6 +318,7 @@ export default {
 		window.addEventListener('open-entry-sidebar', this.openEntrySidebar)
 		window.addEventListener('workspaces-updated', this.onWorkspacesUpdated)
 		window.addEventListener('cobudget-data-changed', this.refreshNavigationData)
+		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.refreshNavigationData)
 		window.addEventListener('click', this.closeWorkspaceMenu)
 		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
 			this.entrySidebarWideMedia = window.matchMedia('(min-width: 1025px)')
@@ -328,6 +331,7 @@ export default {
 		window.removeEventListener('open-entry-sidebar', this.openEntrySidebar)
 		window.removeEventListener('workspaces-updated', this.onWorkspacesUpdated)
 		window.removeEventListener('cobudget-data-changed', this.refreshNavigationData)
+		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.refreshNavigationData)
 		window.removeEventListener('click', this.closeWorkspaceMenu)
 		this.entrySidebarWideMedia?.removeEventListener?.('change', this.onEntrySidebarViewportChange)
 	},

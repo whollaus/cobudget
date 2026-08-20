@@ -300,6 +300,7 @@
 
 <script>
 import axios from '../services/http'
+import { REMOTE_DATA_CHANGED_EVENT, changeAffectsProject, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -484,11 +485,13 @@ export default {
 			this.applyEntryPageSize()
 			this.fetchProjectData()
 		window.addEventListener('entry-saved', this.onEntrySaved)
+		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.addEventListener('settings-closed', this.onSettingsClosed)
 		window.addEventListener('keydown', this.onPaginationKeydown)
 	},
 	beforeUnmount() {
 		window.removeEventListener('entry-saved', this.onEntrySaved)
+		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.removeEventListener('settings-closed', this.onSettingsClosed)
 		window.removeEventListener('keydown', this.onPaginationKeydown)
 	},
@@ -648,6 +651,13 @@ export default {
 		},
 		onEntrySaved() {
 			this.fetchProjectData();
+		},
+		onRemoteDataChanged(event) {
+			const change = event?.detail
+			if (!changeAffectsProject(change, this.projectId) || !changeTouches(change, ['entries', 'projects', 'settlements'])) {
+				return
+			}
+			this.fetchProjectData()
 		},
 		updateDateRangeFilters() {
 			const now = new Date();

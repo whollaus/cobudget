@@ -480,6 +480,7 @@
 
 <script>
 import axios from '../services/http'
+import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import PrinterIcon from 'vue-material-design-icons/Printer.vue'
@@ -967,6 +968,10 @@ export default {
 	},
 	mounted() {
 		this.fetchAnalytics()
+		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
+	},
+	beforeUnmount() {
+		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 	},
 	methods: {
 		decodeHtmlEntities(value) {
@@ -1440,6 +1445,11 @@ export default {
 				return
 			}
 			element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+		},
+		onRemoteDataChanged(event) {
+			if (changeTouches(event?.detail, ['entries', 'projects', 'budgets', 'analytics'])) {
+				this.fetchAnalytics()
+			}
 		},
 		async fetchAnalytics() {
 			this.loading = true

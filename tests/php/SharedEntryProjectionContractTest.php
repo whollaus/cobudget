@@ -128,6 +128,7 @@ return [
 		$t->assertContains("set('allocation_basis_points'", $unlock, 'Released personal rows no longer carry open-allocation state');
 		$t->assertContains("set('settlement_id'", $unlock, 'Released rows retain their settlement group');
 		$t->assertContains("set('settled_at'", $unlock, 'Released rows retain the settlement timestamp');
+		$t->assertNotContains("set('is_settled'", $unlock, 'Released personal rows remain independently editable after their area share was settled');
 		$t->assertContains("update('cobudget_entry_shares')", $unlock, 'Settlement clears reverse links while retaining immutable allocation snapshots');
 		$t->assertContains("set('personal_entry_id'", $unlock, 'Settled shares no longer control an independent personal payment');
 		$t->assertContains("set('source_attachment_id'", $unlock, 'Receipt copies become independent at settlement');

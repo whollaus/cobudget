@@ -2,6 +2,16 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.4] - 2026-08-20
+
+### Added
+
+- Open payment, area, settlement, budget, and analytics overviews now stay up to date when payments, areas, settlements, or budgets change elsewhere—for example, in another browser or device, by another area member, or during recurring-payment background processing. Configured installations can receive updates through `notify_push`; every client also checks for changes every 30 seconds while visible and whenever a tab resumes.
+
+### Fixed
+
+- Corrected shared-area payment tooltips in My Finances so already settled entries no longer appear as unsettled and use a multi-user check icon.
+
 ## [0.3.3] - 2026-08-14
 
 ### Added

@@ -6,6 +6,7 @@ use OCA\CoBudget\Service\HashtagService;
 use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\EntryProjectionService;
 use OCA\CoBudget\Service\EntryAttachmentProjectionService;
+use OCA\CoBudget\Service\DataChangeService;
 use OCA\CoBudget\Service\ProjectNotificationService;
 use OCA\CoBudget\Service\ParticipantService;
 use OCP\IRequest;
@@ -120,13 +121,14 @@ class EntryController extends Controller {
 	private EntryShareService $entryShareService;
 	private EntryProjectionService $entryProjectionService;
 	private EntryAttachmentProjectionService $attachmentProjectionService;
+	private DataChangeService $dataChangeService;
 	private ProjectNotificationService $projectNotificationService;
 	private ParticipantService $participantService;
 	private IRootFolder $rootFolder;
 	private IL10N $l10n;
 	private string $entryScope = 'personal';
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, HashtagService $hashtagService, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, EntryAttachmentProjectionService $attachmentProjectionService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IRootFolder $rootFolder, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, HashtagService $hashtagService, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, EntryAttachmentProjectionService $attachmentProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IRootFolder $rootFolder, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
@@ -136,6 +138,7 @@ class EntryController extends Controller {
 		$this->entryShareService = $entryShareService;
 		$this->entryProjectionService = $entryProjectionService;
 		$this->attachmentProjectionService = $attachmentProjectionService;
+		$this->dataChangeService = $dataChangeService;
 		$this->projectNotificationService = $projectNotificationService;
 		$this->participantService = $participantService;
 		$this->rootFolder = $rootFolder;
@@ -1549,6 +1552,7 @@ class EntryController extends Controller {
 				$entry[$key] = $this->dbBool($entry[$key]);
 			}
 		}
+		$entry['area_is_settled'] = $this->areaIsSettled($entry);
 
 		if (!empty($entry['user_id'])) {
 			$userId = (string)$entry['user_id'];
@@ -1565,6 +1569,13 @@ class EntryController extends Controller {
 		}
 
 		return $entry;
+	}
+
+	private function areaIsSettled(array $entry): bool {
+		return $this->dbBool($entry['is_settled'] ?? false)
+			|| $this->dbBool($entry['source_is_settled'] ?? false)
+			|| (int)($entry['settlement_id'] ?? 0) > 0
+			|| (int)($entry['settled_at'] ?? 0) > 0;
 	}
 
 	private function applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring = null, $isSubscription = null, $isFixedCost = null, $isChildRelated = null, $isImportant = null, $needsReview = null, $isTaxRelevant = null, $hasReminder = null, $hasAttachment = null, ?int $hashtagId = null, $isFuturePayments = false) {
@@ -1818,6 +1829,11 @@ class EntryController extends Controller {
 					$this->logInternalException($notificationError, 'Failed to notify shared-area members after payment commit');
 				}
 			}
+			$this->dataChangeService->publishForEntry([
+				'entry_kind' => $entryKind,
+				'project_id' => $projectId,
+				'user_id' => $entryUserId,
+			], ['entries', 'projects', 'analytics', 'budgets']);
 
 			return new DataResponse(['id' => $id, 'status' => 'success']);
 		} catch (\Throwable $e) {
@@ -2034,6 +2050,7 @@ class EntryController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForEntryChange($entry, $updatedEntry, ['entries', 'projects', 'analytics', 'budgets']);
 
 				return new DataResponse(['status' => 'success']);
 			} catch (\Throwable $e) {
@@ -2083,6 +2100,7 @@ class EntryController extends Controller {
 				$entry,
 				$updatedEntry
 			);
+			$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
 
 			return new DataResponse(['status' => 'success']);
 		} catch (\Throwable $e) {
@@ -2249,6 +2267,7 @@ class EntryController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForEntry($entry, ['entries']);
 
 			return new DataResponse([
 				'status' => 'success',
@@ -2372,6 +2391,7 @@ class EntryController extends Controller {
 			}
 
 			$this->deleteAttachmentFileAfterCommit($attachment);
+			$this->dataChangeService->publishForEntry($entry, ['entries']);
 
 			return new DataResponse(['status' => 'success']);
 		} catch (\Throwable $e) {
@@ -2435,6 +2455,7 @@ class EntryController extends Controller {
 			}
 
 			$this->deleteEntryAttachmentFilesAfterCommit($attachments);
+			$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
 
 			return new DataResponse(['status' => 'success']);
 		} catch (\Throwable $e) {

@@ -3,6 +3,7 @@
 namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\BudgetSnapshotService;
+use OCA\CoBudget\Service\DataChangeService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -26,13 +27,15 @@ class BudgetController extends Controller {
 
 	private IDBConnection $db;
 	private BudgetSnapshotService $budgetSnapshotService;
+	private DataChangeService $dataChangeService;
 	private ?string $userId;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, BudgetSnapshotService $budgetSnapshotService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, BudgetSnapshotService $budgetSnapshotService, DataChangeService $dataChangeService, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$this->budgetSnapshotService = $budgetSnapshotService;
+		$this->dataChangeService = $dataChangeService;
 		$user = $userSession->getUser();
 		$this->userId = $user ? $user->getUID() : null;
 		$this->l10n = $l10n;
@@ -101,6 +104,7 @@ class BudgetController extends Controller {
 			if ($goal === null) {
 				return $this->errorResponse('Budget goal could not be loaded', Http::STATUS_INTERNAL_SERVER_ERROR);
 			}
+			$this->dataChangeService->publishForUsers([(string)$this->userId], ['budgets', 'analytics']);
 
 			return new DataResponse($this->formatGoal($goal, $workspaceId), Http::STATUS_CREATED);
 		} catch (\Throwable $e) {
@@ -161,6 +165,7 @@ class BudgetController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForUsers([(string)$this->userId], ['budgets', 'analytics']);
 
 			return new DataResponse($this->formatGoal($goal, $workspaceId));
 		} catch (\Throwable $e) {
@@ -209,6 +214,7 @@ class BudgetController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForUsers([(string)$this->userId], ['budgets', 'analytics']);
 
 			return new DataResponse(['success' => true]);
 		} catch (\Throwable $e) {

@@ -3,6 +3,7 @@ namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\EntryProjectionService;
+use OCA\CoBudget\Service\DataChangeService;
 use OCA\CoBudget\Service\ProjectNotificationService;
 use OCA\CoBudget\Service\ParticipantService;
 use OCP\IRequest;
@@ -27,11 +28,12 @@ class ProjectController extends Controller {
 	private IConfig $config;
 	private EntryShareService $entryShareService;
 	private EntryProjectionService $entryProjectionService;
+	private DataChangeService $dataChangeService;
 	private ProjectNotificationService $projectNotificationService;
 	private ParticipantService $participantService;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IUserManager $userManager, IConfig $config, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IUserManager $userManager, IConfig $config, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IL10N $l10n) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
@@ -40,6 +42,7 @@ class ProjectController extends Controller {
 		$this->config = $config;
 		$this->entryShareService = $entryShareService;
 		$this->entryProjectionService = $entryProjectionService;
+		$this->dataChangeService = $dataChangeService;
 		$this->projectNotificationService = $projectNotificationService;
 		$this->participantService = $participantService;
 		$this->l10n = $l10n;
@@ -471,6 +474,7 @@ class ProjectController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForUsers($members, ['projects'], $projectId);
 
 			return new DataResponse(['id' => $projectId, 'name' => $name, 'color' => $color, 'status' => 'success']);
 		} catch (\Throwable $e) {
@@ -512,6 +516,7 @@ class ProjectController extends Controller {
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 			$qb->executeStatement();
+			$this->dataChangeService->publishForProject($id, ['projects']);
 
 			return new DataResponse(['id' => $id, 'name' => $name, 'color' => $color, 'status' => 'success']);
 		} catch (\Exception $e) {
@@ -546,6 +551,7 @@ class ProjectController extends Controller {
 			if ($this->budgetGoalsReferenceProject($id, $workspaceId, $categoryIds)) {
 				return $this->errorResponse('Remove this area from budget goals before permanently deleting it.', Http::STATUS_CONFLICT);
 			}
+			$memberUserIds = $this->projectMemberIds($this->projectMembers($id));
 
 			$this->db->beginTransaction();
 			try {
@@ -565,6 +571,7 @@ class ProjectController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForUsers($memberUserIds, ['projects'], $id);
 
 			return new DataResponse(['status' => 'success', 'deleted' => true]);
 		} catch (\Throwable $e) {
@@ -630,6 +637,7 @@ class ProjectController extends Controller {
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 			$qb->executeStatement();
+			$this->dataChangeService->publishForProject($id, ['projects']);
 
 			return new DataResponse(['status' => 'success']);
 		} catch (\Exception $e) {
@@ -665,6 +673,7 @@ class ProjectController extends Controller {
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 			$qb->executeStatement();
+			$this->dataChangeService->publishForProject($id, ['projects']);
 
 			return new DataResponse(['status' => 'success']);
 		} catch (\Exception $e) {
@@ -844,6 +853,7 @@ class ProjectController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForProject($id, ['projects']);
 
 			$userObj = $this->userManager->get($userId);
 			$shares = $this->projectShareBasisPoints($this->projectMembers($id));
@@ -891,9 +901,11 @@ class ProjectController extends Controller {
 			if ($userId === $project['owner_id']) {
 				return new DataResponse(['error' => 'Cannot remove the project owner'], Http::STATUS_BAD_REQUEST);
 			}
+			$memberUserIds = [];
 			$this->db->beginTransaction();
 			try {
 				$members = $this->projectMembers($id);
+				$memberUserIds = $this->projectMemberIds($members);
 				if (!in_array($userId, $this->projectMemberIds($members), true)) {
 					$this->db->rollBack();
 					return $this->errorResponse('Area member not found.', Http::STATUS_NOT_FOUND);
@@ -921,6 +933,7 @@ class ProjectController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForUsers($memberUserIds, ['projects'], $id);
 
 			return new DataResponse(['status' => 'success']);
 		} catch (\Throwable $e) {
@@ -1003,6 +1016,7 @@ class ProjectController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForProject($id, ['projects']);
 
 			return new DataResponse([
 				'status' => 'success',
@@ -1052,6 +1066,7 @@ class ProjectController extends Controller {
 				$this->db->rollBack();
 				throw $e;
 			}
+			$this->dataChangeService->publishForProject($id, ['projects']);
 
 			return new DataResponse([
 				'status' => 'success',
@@ -1163,6 +1178,7 @@ class ProjectController extends Controller {
 				throw $e;
 			}
 			$this->projectNotificationService->sendPreparedNotifications($settlementNotifications);
+			$this->dataChangeService->publishForProject($id, ['entries', 'projects', 'settlements', 'analytics', 'budgets']);
 
 			return new DataResponse([
 				'status' => 'success',

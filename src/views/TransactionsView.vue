@@ -442,6 +442,7 @@
 
 <script>
 import axios from '../services/http'
+import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import MagnifyIcon from 'vue-material-design-icons/Magnify.vue'
@@ -863,6 +864,7 @@ export default {
 			this.applyQueryFilters()
 			this.fetchData()
 		window.addEventListener('entry-saved', this.onEntrySaved)
+		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.addEventListener('settings-closed', this.onSettingsClosed);
 		window.addEventListener('keydown', this.onPaginationKeydown)
 		window.addEventListener('focus', this.handleCurrentPeriodResume)
@@ -871,6 +873,7 @@ export default {
 	},
 	beforeUnmount() {
 		window.removeEventListener('entry-saved', this.onEntrySaved)
+		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.removeEventListener('settings-closed', this.onSettingsClosed);
 		window.removeEventListener('keydown', this.onPaginationKeydown)
 		window.removeEventListener('focus', this.handleCurrentPeriodResume)
@@ -1204,6 +1207,11 @@ export default {
 		},
 		onEntrySaved() {
 			this.fetchData();
+		},
+		onRemoteDataChanged(event) {
+			if (changeTouches(event?.detail, ['entries', 'projects', 'budgets'])) {
+				this.fetchData()
+			}
 		},
 		onFiltersUpdate(newFilters) {
 			this.filters = { ...newFilters };

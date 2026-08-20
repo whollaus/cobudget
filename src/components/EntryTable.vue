@@ -99,6 +99,7 @@
 							:amount="displayAmount(row.entry)"
 							:currency="currency"
 							:amount-tooltip="amountTooltip(row.entry)"
+							:area-settled="isAreaSettled(row.entry)"
 							:shared-project-tooltip="sharedProjectTooltip(row.entry)"
 							:show-settled-icon="isProjectMode && !!row.entry.is_settled"
 							@history="$emit('history', $event)" />
@@ -134,6 +135,7 @@ import EntryAmountCell from './EntryAmountCell.vue'
 import EntryDescriptionCell from './EntryDescriptionCell.vue'
 import TableTooltip from './TableTooltip.vue'
 import { texts } from '../l10n/texts'
+import { isAreaSettled } from '../utils/areaSettlementStatus'
 import { formatMoney, formatSignedMoney } from '../utils/formatMoney'
 
 const amountResolver = entry => entry?.amount
@@ -410,6 +412,7 @@ export default {
 		}
 	},
 	methods: {
+		isAreaSettled,
 		emitAction(action, entry) {
 			this.$emit(action, entry)
 			this.actionsResetKey += 1
@@ -540,7 +543,7 @@ export default {
 				return ''
 			}
 			const paidByName = this.actualPayerName(entry)
-			const statusText = entry.is_settled
+			const statusText = this.isAreaSettled(entry)
 				? this.$texts.entry.amountAlreadySettled()
 				: this.$texts.entry.amountNotSettled()
 

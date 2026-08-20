@@ -132,6 +132,7 @@
 
 <script>
 import axios from '../services/http'
+import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
 import MemberSearch from '../components/MemberSearch.vue'
 import ModalActions from '../components/ModalActions.vue'
@@ -164,6 +165,10 @@ export default {
 	},
 	mounted() {
 		this.fetchProjects()
+		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
+	},
+	beforeUnmount() {
+		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 	},
 	watch: {
 		showCreateModal(newVal) {
@@ -200,6 +205,11 @@ export default {
 				this.projects = response.data || []
 			} catch (e) {
 				showRequestError(e, this.$texts.areas.loadError(), 'Failed to fetch projects')
+			}
+		},
+		onRemoteDataChanged(event) {
+			if (changeTouches(event?.detail, ['entries', 'projects'])) {
+				this.fetchProjects()
 			}
 		},
 		colorChanged(event) {

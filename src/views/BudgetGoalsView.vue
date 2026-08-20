@@ -93,6 +93,7 @@
 
 <script>
 import axios from '../services/http'
+import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -118,6 +119,10 @@ export default {
 	},
 	mounted() {
 		this.fetchData()
+		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
+	},
+	beforeUnmount() {
+		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 	},
 	methods: {
 		async fetchData() {
@@ -129,6 +134,11 @@ export default {
 					showRequestError(error, this.$texts.budgetGoals.loadError(), 'Failed to fetch budget goals')
 			} finally {
 				this.loading = false
+			}
+		},
+		onRemoteDataChanged(event) {
+			if (changeTouches(event?.detail, ['entries', 'projects', 'budgets'])) {
+				this.fetchData()
 			}
 		},
 		openNewGoal() {
