@@ -52,7 +52,7 @@
 - Deine Finanzdaten bleiben in deiner eigenen Nextcloud
 - Erhalte Benachrichtigungen über Aktivitäten in gemeinsamen Bereichen
 - Erstelle vollständige Admin-Backups für den Wiederherstellungsfall]]></description>
-	<version>0.3.4</version>
+	<version>0.3.5</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
@@ -92,4 +92,9 @@
         <job>OCA\CoBudget\Cron\BackupJob</job>
         <job>OCA\CoBudget\Cron\BudgetSnapshotJob</job>
     </background-jobs>
+    <repair-steps>
+        <post-migration>
+            <step>OCA\CoBudget\Migration\NormalizeBackgroundJobs</step>
+        </post-migration>
+    </repair-steps>
 </info>

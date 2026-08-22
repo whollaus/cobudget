@@ -339,24 +339,25 @@ return [
 		}
 	},
 
-	'Application boot ensures background jobs exist after zip-only updates' => function(TestRunner $t): void {
+	'Application boot is side-effect free and a repair step normalizes background jobs' => function(TestRunner $t): void {
 		$source = $t->read('lib/AppInfo/Application.php');
 		$register = $t->methodBody('lib/AppInfo/Application.php', 'register');
 		$boot = $t->methodBody('lib/AppInfo/Application.php', 'boot');
-		$ensure = $t->methodBody('lib/AppInfo/Application.php', 'ensureBackgroundJob');
-		$prioritize = $t->methodBody('lib/AppInfo/Application.php', 'prioritizeUnrunWebCronJob');
+		$backgroundJobRepair = $t->read('lib/Migration/NormalizeBackgroundJobs.php');
+		$backgroundJobRepairRun = $t->methodBody('lib/Migration/NormalizeBackgroundJobs.php', 'run');
+		$infoXml = $t->read('appinfo/info.xml');
 		$legacyCommandRegister = $t->read('appinfo/register_command.php');
 
-		$t->assertContains('use OCP\\BackgroundJob\\IJobList;', $source, 'Application should import the background job list');
-		$t->assertContains('use OCP\\IDBConnection;', $source, 'Application should import the database connection for job prioritization');
-		$t->assertContains('use OCA\\CoBudget\\Cron\\RecurringEntriesJob;', $source, 'Application should import the recurring job');
-		$t->assertContains('use OCA\\CoBudget\\Cron\\RemindersJob;', $source, 'Application should import the reminders job');
-		$t->assertContains('use OCA\\CoBudget\\Cron\\BackupJob;', $source, 'Application should import the backup job');
-		$t->assertContains('use OCA\\CoBudget\\Cron\\BudgetSnapshotJob;', $source, 'Application should import the budget snapshot job');
 		$t->assertContains('use OCA\\CoBudget\\Notification\\Notifier;', $source, 'Application should import the notification notifier');
 		$t->assertContains("method_exists(\$context, 'registerNotifierService')", $register, 'Application should guard notifier registration for Nextcloud API compatibility');
 		$t->assertContains('registerNotifierService(Notifier::class)', $register, 'Application should use the supported Nextcloud notifier registration API');
 		$t->assertNotContains('registerCommand(', $register, 'Application should not use Nextcloud 34 incompatible command bootstrap registration');
+		$t->assertMatches('/^\{\s*\}$/s', $boot, 'Application boot should not query or mutate persistent state');
+		$t->assertNotContains('IJobList', $source, 'Application boot should not resolve the background job list');
+		$t->assertNotContains('IDBConnection', $source, 'Application boot should not resolve the database connection');
+		$t->assertNotContains('IConfig', $source, 'Application boot should not query app config');
+		$t->assertNotContains('getServerContainer', $boot, 'Application boot should not resolve request-time services');
+		$t->assertNotContains('catch (\\Throwable', $source, 'Application should not silently swallow boot failures');
 		foreach ([
 			'CreateBackupCommand::class',
 			'CreateFullBackupCommand::class',
@@ -369,22 +370,31 @@ return [
 		}
 		$t->assertContains('new CoBudgetApplication()', $legacyCommandRegister, 'Legacy OCC registration should boot the app container');
 		$t->assertContains('$application->add($container->query($commandClass))', $legacyCommandRegister, 'Legacy OCC registration should add commands to Symfony console');
-		$t->assertContains('get(IJobList::class)', $boot, 'Application boot should resolve the Nextcloud job list');
-		$t->assertContains('get(IDBConnection::class)', $boot, 'Application boot should resolve the database connection');
-		$t->assertContains("method_exists(\$context, 'getServerContainer')", $boot, 'Application boot should guard server container access for Nextcloud API compatibility');
-		$t->assertContains('RecurringEntriesJob::class', $boot, 'Application boot should ensure the recurring job exists');
-		$t->assertContains('RemindersJob::class', $boot, 'Application boot should ensure the reminders job exists');
-		$t->assertContains('BackupJob::class', $boot, 'Application boot should ensure the backup job exists');
-		$t->assertContains('BudgetSnapshotJob::class', $boot, 'Application boot should ensure the budget snapshot job exists');
-		$t->assertContains('prioritizeUnrunWebCronJob($db, $jobClass)', $boot, 'Application should prioritize newly registered jobs for WebCron');
-		$t->assertContains('Background job registration must not block unrelated Nextcloud pages', $boot, 'Application boot should keep background job registration isolated');
-		$t->assertContains('Icon cache refresh must never prevent the app from booting', $boot, 'Application boot should keep icon cache refresh isolated');
-		$t->assertContains('$jobList->has($jobClass, null)', $ensure, 'Application should avoid duplicate legacy null-argument jobs');
-		$t->assertContains('$jobList->has($jobClass, [])', $ensure, 'Application should avoid duplicate empty-array jobs');
-		$t->assertContains('$jobList->add($jobClass, [])', $ensure, 'Application should add missing jobs with empty arguments');
-		$t->assertContains("update('jobs')", $prioritize, 'Application should update the Nextcloud jobs table for unrun CoBudget jobs');
-		$t->assertContains("eq('last_run'", $prioritize, 'Application should only prioritize jobs that have never run');
-		$t->assertContains("set('last_checked'", $prioritize, 'Application should reset last_checked for WebCron prioritization');
+		foreach ([
+			'OCA\\CoBudget\\Cron\\RecurringEntriesJob',
+			'OCA\\CoBudget\\Cron\\RemindersJob',
+			'OCA\\CoBudget\\Cron\\BackupJob',
+			'OCA\\CoBudget\\Cron\\BudgetSnapshotJob',
+		] as $jobClass) {
+			$t->assertContains('<job>' . $jobClass . '</job>', $infoXml, 'Nextcloud metadata should register ' . $jobClass);
+		}
+		$t->assertContains('<step>OCA\\CoBudget\\Migration\\NormalizeBackgroundJobs</step>', $infoXml, 'App updates should normalize legacy background jobs once');
+		$t->assertNotContains('RefreshThemingIconCache', $infoXml, 'CoBudget should not mutate Nextcloud theming internals during app repairs');
+		$t->assertContains('implements IRepairStep', $backgroundJobRepair, 'Background job normalization should use the Nextcloud repair lifecycle');
+		$t->assertContains('use OCA\\CoBudget\\Cron\\RecurringEntriesJob;', $backgroundJobRepair, 'Background job repair should include the recurring job');
+		$t->assertContains('use OCA\\CoBudget\\Cron\\RemindersJob;', $backgroundJobRepair, 'Background job repair should include the reminders job');
+		$t->assertContains('use OCA\\CoBudget\\Cron\\BackupJob;', $backgroundJobRepair, 'Background job repair should include the backup job');
+		$t->assertContains('use OCA\\CoBudget\\Cron\\BudgetSnapshotJob;', $backgroundJobRepair, 'Background job repair should include the budget snapshot job');
+		$t->assertContains('$this->jobList->has($jobClass, null)', $backgroundJobRepairRun, 'Background job repair should preserve the canonical null job');
+		$t->assertContains('$this->jobList->add($jobClass);', $backgroundJobRepairRun, 'Background job repair should restore missing canonical jobs with null arguments');
+		$t->assertContains('$this->jobList->remove($jobClass, []);', $backgroundJobRepairRun, 'Background job repair should remove legacy empty-array duplicates');
+		$t->assertContains('$this->db->beginTransaction()', $backgroundJobRepairRun, 'Background job normalization should be atomic');
+		$t->assertContains('$this->db->commit()', $backgroundJobRepairRun, 'Background job normalization should commit atomically');
+		$t->assertContains('$this->db->rollBack()', $backgroundJobRepairRun, 'Background job normalization should roll back on failure');
+		$t->assertContains('$this->logger->error(', $backgroundJobRepairRun, 'Background job normalization should log failures');
+		$t->assertContains("'exception' => \$e", $backgroundJobRepairRun, 'Background job normalization logs should retain exception details');
+		$t->assertContains('throw $e;', $backgroundJobRepairRun, 'Background job normalization should propagate failures to the updater');
+		$t->assertNotContains("update('jobs')", $backgroundJobRepair, 'CoBudget should not manipulate internal queue metadata directly');
 	},
 
 	'Global reset OCC command requires explicit confirmation and uses transactional deletes' => function(TestRunner $t): void {

@@ -167,31 +167,43 @@ try {
 
 	$application = $read('lib/AppInfo/Application.php');
 	$commandRegister = $read('appinfo/register_command.php');
+	$backgroundJobRepair = $read('lib/Migration/NormalizeBackgroundJobs.php');
+	$appInfo = $read('appinfo/info.xml');
 	$assertContains($application, "method_exists(\$context, 'registerNotifierService')", 'Application guards notifier registration for Nextcloud API compatibility');
 	$assertContains($application, 'registerNotifierService(Notifier::class)', 'Application uses supported notifier registration');
 	$assertNotContains($application, 'registerCommand(', 'Application avoids Nextcloud 34 incompatible command bootstrap registration');
 	if (strpos($application, 'registerNotifier(') !== false) {
 		$failures[] = 'Application must not call removed registerNotifier API';
 	}
-	$assertContains($application, 'use OCP\\BackgroundJob\\IJobList;', 'Application imports background job list');
-	$assertContains($application, 'use OCP\\IDBConnection;', 'Application imports database connection');
-	$assertContains($application, "method_exists(\$context, 'getServerContainer')", 'Application guards server container access for Nextcloud API compatibility');
+	$assertMatches($application, '/public function boot\(IBootContext \$context\): void \{\s*\}/', 'Application boot remains side-effect free');
+	$assertNotContains($application, 'IJobList', 'Application boot avoids background job database access');
+	$assertNotContains($application, 'IDBConnection', 'Application boot avoids direct database access');
+	$assertNotContains($application, 'IConfig', 'Application boot avoids app-config database access');
+	$assertNotContains($application, 'getServerContainer', 'Application boot does not resolve request-time services');
+	$assertNotContains($application, 'catch (\\Throwable', 'Application does not silently swallow boot failures');
 	$assertContains($commandRegister, 'CreateBackupCommand::class', 'Legacy OCC registration includes user backup command');
 	$assertContains($commandRegister, 'CreateFullBackupCommand::class', 'Legacy OCC registration includes full backup command');
 	$assertContains($commandRegister, 'RestoreBackupCommand::class', 'Legacy OCC registration includes user restore command');
 	$assertContains($commandRegister, 'RestoreFullBackupCommand::class', 'Legacy OCC registration includes full restore command');
-	$assertContains($application, 'RecurringEntriesJob::class', 'Application registers recurring job on boot');
-	$assertContains($application, 'RemindersJob::class', 'Application registers reminders job on boot');
-	$assertContains($application, 'Background job registration must not block unrelated Nextcloud pages', 'Application keeps boot-time job registration resilient');
-	$assertContains($application, 'BackupJob::class', 'Application registers backup job on boot');
-	$assertContains($application, 'BudgetSnapshotJob::class', 'Application registers budget snapshot job on boot');
-	$assertContains($application, '$jobList->has($jobClass, null)', 'Application avoids duplicate null-argument jobs');
-	$assertContains($application, '$jobList->has($jobClass, [])', 'Application avoids duplicate empty-array jobs');
-	$assertContains($application, '$jobList->add($jobClass, [])', 'Application adds missing jobs after zip-only updates');
-	$assertContains($application, 'prioritizeUnrunWebCronJob($db, $jobClass)', 'Application prioritizes never-run jobs for WebCron');
-	$assertContains($application, "update('jobs')", 'Application can reset Nextcloud job queue metadata');
-	$assertContains($application, "eq('last_run'", 'Application only prioritizes jobs that have never run');
-	$assertContains($application, "set('last_checked'", 'Application resets last_checked for newly registered jobs');
+	foreach ([
+		'OCA\\CoBudget\\Cron\\RecurringEntriesJob',
+		'OCA\\CoBudget\\Cron\\RemindersJob',
+		'OCA\\CoBudget\\Cron\\BackupJob',
+		'OCA\\CoBudget\\Cron\\BudgetSnapshotJob',
+	] as $jobClass) {
+		$assertContains($appInfo, '<job>' . $jobClass . '</job>', 'info.xml registers ' . $jobClass);
+	}
+	$assertContains($appInfo, '<step>OCA\\CoBudget\\Migration\\NormalizeBackgroundJobs</step>', 'info.xml registers background job normalization after migrations');
+	$assertNotContains($appInfo, 'RefreshThemingIconCache', 'CoBudget avoids mutating Nextcloud theming internals during app repairs');
+	$assertContains($backgroundJobRepair, 'implements IRepairStep', 'Background job normalization uses the Nextcloud repair lifecycle');
+	$assertContains($backgroundJobRepair, '$this->jobList->has($jobClass, null)', 'Background job repair keeps canonical null jobs');
+	$assertContains($backgroundJobRepair, '$this->jobList->add($jobClass);', 'Background job repair restores a missing canonical job');
+	$assertContains($backgroundJobRepair, '$this->jobList->remove($jobClass, []);', 'Background job repair removes legacy empty-array duplicates');
+	$assertContains($backgroundJobRepair, '$this->db->beginTransaction()', 'Background job repair is transactional');
+	$assertContains($backgroundJobRepair, '$this->logger->error(', 'Background job repair logs failures');
+	$assertContains($backgroundJobRepair, "'exception' => \$e", 'Background job repair logs exception details');
+	$assertContains($backgroundJobRepair, 'throw $e;', 'Background job repair propagates failures');
+	$assertNotContains($backgroundJobRepair, "update('jobs')", 'Background job repair avoids direct queue metadata updates');
 
 	$recurringJob = $read('lib/Cron/RecurringEntriesJob.php');
 	$assertContains($recurringJob, 'beginTransaction()', 'RecurringEntriesJob transaction');

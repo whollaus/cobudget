@@ -2,6 +2,18 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.5] - 2026-08-22
+
+### Changed
+
+- Moved background-job normalization out of request-time app boot and into a Nextcloud repair step.
+
+### Fixed
+
+- App upgrades now transactionally remove duplicate CoBudget background jobs registered with legacy empty-array arguments while retaining one canonical job per task.
+- Background-job normalization failures are now logged with their exception details and propagated instead of being silently ignored.
+- Removed obsolete writes to Nextcloud's internal theming cache-buster that could cause an app-config type conflict during upgrades.
+
 ## [0.3.4] - 2026-08-20
 
 ### Added
