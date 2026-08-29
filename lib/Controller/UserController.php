@@ -161,6 +161,8 @@ class UserController extends Controller {
 				'default_start_page' => $this->config->getUserValue($this->userId, 'cobudget', 'default_start_page', 'personal'),
 				'entries_per_page' => (int)$this->config->getUserValue($this->userId, 'cobudget', 'entries_per_page', '25'),
 				'theme_mode' => $this->config->getUserValue($this->userId, 'cobudget', 'theme_mode', 'auto'),
+				'show_nextcloud_header_desktop' => $this->config->getUserValue($this->userId, 'cobudget', 'show_nextcloud_header_desktop', 'yes') === 'yes',
+				'show_nextcloud_header_mobile' => $this->config->getUserValue($this->userId, 'cobudget', 'show_nextcloud_header_mobile', 'no') === 'yes',
 				'receipt_storage_folder' => $this->config->getUserValue($this->userId, 'cobudget', 'receipt_storage_folder', 'CoBudget/Belege'),
 				'receipt_folder_grouping' => $this->config->getUserValue($this->userId, 'cobudget', 'receipt_folder_grouping', 'year'),
 				'delete_receipts_with_entry' => $this->config->getUserValue($this->userId, 'cobudget', 'delete_receipts_with_entry', 'no') === 'yes',
@@ -176,7 +178,7 @@ class UserController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
-	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null): DataResponse {
+	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
@@ -273,6 +275,12 @@ class UserController extends Controller {
 			}
 			if ($theme_mode !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'theme_mode', $theme_mode);
+			}
+			if ($show_nextcloud_header_desktop !== null) {
+				$this->config->setUserValue($this->userId, 'cobudget', 'show_nextcloud_header_desktop', $show_nextcloud_header_desktop ? 'yes' : 'no');
+			}
+			if ($show_nextcloud_header_mobile !== null) {
+				$this->config->setUserValue($this->userId, 'cobudget', 'show_nextcloud_header_mobile', $show_nextcloud_header_mobile ? 'yes' : 'no');
 			}
 			if ($receipt_storage_folder !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'receipt_storage_folder', $receipt_storage_folder);

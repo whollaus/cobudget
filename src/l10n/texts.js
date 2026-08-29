@@ -58,6 +58,12 @@ export const texts = {
 		rows: count => nx('%n row', '%n rows', count),
 		values: count => nx('%n value', '%n values', count),
 	},
+	mobileNavigation: {
+		label: () => tx('Quick navigation'),
+		finances: () => tx('Finances'),
+		areas: () => tx('Areas'),
+		analytics: () => tx('Analytics'),
+	},
 	paymentPartnerDetails: {
 		displayName: () => tx('Display name'),
 		internalNote: () => tx('The display name is used by existing payments. All other details are currently stored for internal purposes only.'),
@@ -600,6 +606,7 @@ export const texts = {
 		deleteError: () => tx('Area could not be deleted.'),
 	},
 	dashboard: {
+		keyFigures: () => tx('Key figures'),
 		budgetGoals: () => tx('Budget goals'),
 		income: () => tx('Income'),
 		incomes: () => tx('Incomes'),
@@ -666,6 +673,9 @@ export const texts = {
 		themeModeAuto: () => tx('Automatic'),
 		themeModeLight: () => tx('Light'),
 		themeModeDark: () => tx('Dark'),
+		nextcloudHeader: () => tx('Nextcloud header'),
+		showNextcloudHeaderDesktop: () => tx('Desktop'),
+		showNextcloudHeaderMobile: () => tx('Mobile'),
 		receipts: () => tx('Receipts'),
 		enableReceipts: () => tx('Enable receipts'),
 		enableReceiptsDescription: () => tx('Allows linking invoices or receipts to payments.'),

@@ -1427,6 +1427,8 @@ return [
 			$t->assertContains('private const SETTINGS_DEFAULTS', $service, 'Backup service should export effective settings, not only stored preferences');
 			$t->assertContains("'enable_workspaces' => 'no'", $service, 'Backup settings defaults should include the workspace feature flag');
 			$t->assertContains("'show_workspace_switcher' => 'yes'", $service, 'Backup settings defaults should include the workspace switcher flag');
+			$t->assertContains("'show_nextcloud_header_desktop' => 'yes'", $service, 'Backup settings defaults should show the Nextcloud header on desktop');
+			$t->assertContains("'show_nextcloud_header_mobile' => 'no'", $service, 'Backup settings defaults should hide the Nextcloud header on mobile');
 			$t->assertContains("'hidden_workspaces' => '[]'", $service, 'Backup settings defaults should include hidden workspace ids');
 			$t->assertContains('settingsDefaultForUser($userId, $key)', $service, 'Personal export should export effective per-user settings defaults');
 			$t->assertContains("if (\$key === 'enable_workspaces' && \$this->userHasManagedWorkspaces(\$userId))", $service, 'Workspace backup default should stay enabled when extra workspaces exist');
@@ -1944,7 +1946,7 @@ return [
 			$t->assertContains("'US' => 'USD'", $userController, 'US locale should default to USD');
 
 			$getSettings = $t->methodBody('lib/Controller/UserController.php', 'getSettings');
-			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
+			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'show_nextcloud_header_desktop', 'show_nextcloud_header_mobile', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
 				$t->assertContains("'" . $setting . "'", $getSettings, 'Settings should expose ' . $setting);
 			}
 			$t->assertContains('effectiveCurrency()', $getSettings, 'Settings should expose an effective currency even before the user saves settings');
@@ -1956,7 +1958,7 @@ return [
 			$t->assertContains('validateEntriesPerPage($entries_per_page)', $saveSettings, 'Settings should validate entry page size centrally');
 			$t->assertContains('validateReceiptStorageFolder($receipt_storage_folder)', $saveSettings, 'Settings should validate receipt storage folders');
 			$t->assertContains('validateReceiptFolderGrouping($receipt_folder_grouping)', $saveSettings, 'Settings should validate receipt folder grouping');
-			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
+			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'show_nextcloud_header_desktop', 'show_nextcloud_header_mobile', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {
 				$t->assertContains($setting, $saveSettings, 'Settings should persist ' . $setting);
 			}
 

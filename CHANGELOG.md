@@ -2,6 +2,31 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.6] - 2026-08-29
+
+### Added
+
+- Added a persistent, app-style mobile bottom navigation for quick access to finances, areas and analytics, including active states and device safe-area spacing.
+- Kept the shared mobile page header and its primary actions visible while the page content scrolls underneath it, with an opaque lower edge and stronger theme-aware elevation appearing only after scrolling.
+- Added separate personal settings for showing the Nextcloud header on desktop and mobile, applied immediately with desktop-visible and mobile-hidden defaults.
+
+### Changed
+
+- Simplified the Nextcloud-header settings to the two concise choices Desktop and Mobile.
+- Reworked mobile payment rows into compact, day-grouped transaction lists with clearer descriptions, secondary metadata and fewer decorative chips.
+- Moved the mobile creation actions for payments, areas and budget goals into larger, safe-area-aware floating buttons above the quick navigation and strengthened the active navigation indicator across light and dark themes.
+- Replaced the mobile My Finances overflow menu with direct export and search icons in app-style order, and expanded the desktop search trigger into a labeled, borderless toolbar button matching the area settings action.
+- Restored horizontal swiping for the mobile My Finances summaries with content-sized cards that keep every amount on one line, omit the redundant balance label in month and year cards and isolate the gesture from Nextcloud's navigation drawer.
+- Replaced the wrapped analytics period buttons with a compact native dropdown on mobile while retaining the quick period switch on larger screens.
+- Shortened monthly analytics chart axes to localized month names while keeping the full month and year in chart tooltips and value tables.
+- Consolidated the five analytics summary tiles into consistent income, expense and balance cards with embedded averages and booking counts, plus a single-column mobile layout.
+
+### Fixed
+
+- Prevented the sticky mobile page header from shifting upward relative to Nextcloud's hamburger navigation button when scrolling.
+- Removed the unused header-height strip below CoBudget by resizing both the outer Nextcloud content container and its nested Vue app shell when the header is hidden.
+- Balanced the headerless desktop layout with the same Nextcloud container spacing on its top, right, bottom and left edges.
+
 ## [0.3.5] - 2026-08-22
 
 ### Changed

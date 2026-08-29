@@ -1,18 +1,37 @@
 <template>
 	<div class="entry-description-cell">
-		<div class="mobile-only mobile-meta">
-			<div class="mobile-date">{{ dateText }}</div>
-			<div v-if="hasMobileTags" class="mobile-tags">
-				<span v-if="paidByName" class="mobile-tag user-tag">
-					<NcAvatar :user="entry.user_id" :display-name="paidByName" :size="16" />
-					{{ paidByName }}
-				</span>
-				<span v-if="entry.category_name" class="mobile-tag icon-tag">
+		<div class="mobile-only mobile-entry-summary">
+			<div class="mobile-primary-title" :title="mobilePrimaryTitle">
+				<template v-if="entry.description">
+					<template v-for="(part, index) in descriptionParts" :key="`mobile-description-${index}`">
+						<span v-if="part.isTag" class="description-hashtag">#{{ part.text }}</span>
+						<span v-else>{{ part.text }}</span>
+					</template>
+				</template>
+				<template v-else>{{ mobilePrimaryTitle }}</template>
+			</div>
+			<div v-if="hasMobileSecondary" class="mobile-secondary">
+				<span v-if="showMobileDate" class="mobile-secondary-item mobile-date">{{ dateText }}</span>
+				<span v-if="showMobileCategory" class="mobile-secondary-item mobile-category">
 					<CategoryIcon v-if="entry.category_icon" :icon="entry.category_icon" :size="12" />
-					{{ entry.category_name }}
+					<span class="mobile-secondary-text">{{ entry.category_name }}</span>
 				</span>
-				<span v-if="entry.paymentPartner" class="mobile-tag">{{ entry.paymentPartner }}</span>
-				<span v-if="showProjectChip" class="mobile-tag entry-badge" :style="projectStyle">{{ projectName }}</span>
+				<span v-if="showMobilePaymentPartner" class="mobile-secondary-item">
+					<span class="mobile-secondary-text">{{ entry.paymentPartner }}</span>
+				</span>
+				<span v-if="paidByName" class="mobile-secondary-item mobile-paid-by">
+					<NcAvatar :user="entry.user_id" :display-name="paidByName" :size="16" />
+					<span class="mobile-secondary-text">{{ paidByName }}</span>
+				</span>
+			</div>
+			<div v-if="hasMobileBadges" class="mobile-badges">
+				<span v-if="showProjectChip" class="entry-badge mobile-project-badge" :style="projectStyle">{{ projectName }}</span>
+				<span v-if="entry.is_important && enableImportantPayments" class="entry-badge badge-important">{{ $texts.labels.important() }}</span>
+				<span v-if="entry.needs_review && enableReviewPayments" class="entry-badge badge-review">{{ $texts.labels.review() }}</span>
+				<span v-if="entry.is_fixed_cost && enableFixedCosts" class="entry-badge badge-fixed">{{ $texts.labels.fixedCosts() }}</span>
+				<span v-if="entry.is_child_related && enableChildRelated" class="entry-badge badge-child">{{ $texts.labels.children() }}</span>
+				<span v-if="entry.is_subscription && enableSubscriptions" class="entry-badge badge-abo">{{ $texts.labels.subscription() }}</span>
+				<span v-if="entry.is_tax_relevant && enableTaxRelevant" class="entry-badge badge-tax">{{ $texts.labels.taxRelevant() }}</span>
 			</div>
 		</div>
 		<div
@@ -59,6 +78,10 @@ export default {
 		dateText: {
 			type: String,
 			required: true
+		},
+		showMobileDate: {
+			type: Boolean,
+			default: true
 		},
 		enableFixedCosts: {
 			type: Boolean,
@@ -118,13 +141,40 @@ export default {
 		hasDesktopContent() {
 			return this.hasDescriptionContent || this.showProjectChip
 		},
-		hasMobileTags() {
-			return Boolean(
-				this.paidByName
-				|| this.entry.category_name
+		mobileTitleKind() {
+			if (this.entry.description) {
+				return 'description'
+			}
+			if (this.entry.paymentPartner) {
+				return 'paymentPartner'
+			}
+			if (this.entry.category_name) {
+				return 'category'
+			}
+			return 'fallback'
+		},
+		mobilePrimaryTitle() {
+			return this.entry.description
 				|| this.entry.paymentPartner
-				|| this.showProjectChip
+				|| this.entry.category_name
+				|| this.$texts.common.payment()
+		},
+		showMobileCategory() {
+			return Boolean(this.entry.category_name) && this.mobileTitleKind !== 'category'
+		},
+		showMobilePaymentPartner() {
+			return Boolean(this.entry.paymentPartner) && this.mobileTitleKind !== 'paymentPartner'
+		},
+		hasMobileSecondary() {
+			return Boolean(
+				this.showMobileDate
+					|| this.showMobileCategory
+					|| this.showMobilePaymentPartner
+					|| this.paidByName
 			)
+		},
+		hasMobileBadges() {
+			return this.hasEntryBadges || this.showProjectChip
 		},
 		descriptionParts() {
 			const text = String(this.entry.description || '')
@@ -235,47 +285,73 @@ export default {
 	display: none !important;
 }
 
-.mobile-meta {
+.mobile-entry-summary {
 	flex-direction: column;
-	gap: 6px;
+	min-width: 0;
+	gap: var(--default-grid-baseline, 4px);
 }
 
-.mobile-date {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-	font-size: var(--cobudget-font-compact);
+.mobile-primary-title {
+	display: -webkit-box;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--cobudget-text, var(--color-main-text));
+	font-size: var(--cobudget-font-base, 14px);
+	font-weight: 600;
+	line-height: 1.3;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 }
 
-.mobile-tags {
+.mobile-secondary {
 	display: flex;
 	align-items: center;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: calc(var(--default-grid-baseline, 4px) / 2) calc(var(--default-grid-baseline, 4px) * 2);
+	min-width: 0;
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast));
+	font-size: var(--cobudget-font-compact, 12px);
+	line-height: 1.35;
 }
 
-.mobile-tag {
+.mobile-secondary-item {
 	display: inline-flex;
 	align-items: center;
-	min-height: 28px;
-	padding: 2px 8px;
-	border-radius: 12px;
-	background: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	font-size: var(--cobudget-font-xs);
-	font-weight: 600;
-	line-height: 1.2;
+	gap: var(--default-grid-baseline, 4px);
+	min-width: 0;
+	max-width: 100%;
 }
 
-.icon-tag,
-.user-tag {
+.mobile-secondary-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mobile-category :deep(.material-design-icon),
+.mobile-paid-by :deep(.avatardiv) {
+	flex: 0 0 auto;
+}
+
+.mobile-badges {
+	display: flex;
 	align-items: center;
-	gap: 4px;
+	flex-wrap: wrap;
+	gap: var(--default-grid-baseline, 4px);
+	min-width: 0;
+}
+
+.mobile-project-badge {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 @media (max-width: 768px) {
 	.entry-description-cell {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
+		display: block;
+		min-width: 0;
 	}
 
 	.mobile-only {
@@ -286,8 +362,8 @@ export default {
 		display: none !important;
 	}
 
-	.desc-text.mobile-hidden-content {
-		display: none;
+	.desc-text {
+		display: none !important;
 	}
 }
 </style>

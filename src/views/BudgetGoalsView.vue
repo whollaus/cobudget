@@ -6,7 +6,7 @@
 			:subtitle="$texts.budgetGoals.settingsHint()">
 			<template #actions>
 				<NcButton
-					class="budget-new-button"
+					class="budget-new-button mobile-create-fab"
 					variant="primary"
 					:aria-label="$texts.budgetGoals.newTitle()"
 					:title="$texts.budgetGoals.newTitle()"

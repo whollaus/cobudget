@@ -2,7 +2,7 @@
 	<div class="project-list-view">
 		<AppPageHeader :title="$texts.areas.title()">
 			<template #actions>
-				<NcButton variant="primary" class="cobudget-primary-icon-button" @click="openCreateModal" :aria-label="$texts.areas.createArea()" :title="$texts.areas.createArea()">
+				<NcButton variant="primary" class="cobudget-primary-icon-button mobile-create-fab" @click="openCreateModal" :aria-label="$texts.areas.createArea()" :title="$texts.areas.createArea()">
 					<template #icon>
 						<PlusIcon :size="20" />
 					</template>

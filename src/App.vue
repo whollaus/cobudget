@@ -156,6 +156,43 @@
 			</div>
 		</NcAppContent>
 
+		<nav class="mobile-bottom-navigation" :aria-label="$texts.mobileNavigation.label()">
+			<router-link
+				:to="{ name: 'personal' }"
+				class="mobile-bottom-navigation__item"
+				:class="{ 'mobile-bottom-navigation__item--active': mobileFinancesActive }"
+				:aria-current="mobileFinancesActive ? 'page' : undefined"
+				@click="closeMobileNavigation">
+				<span class="mobile-bottom-navigation__icon" aria-hidden="true">
+					<WalletIcon :size="24" />
+				</span>
+				<span class="mobile-bottom-navigation__label">{{ $texts.mobileNavigation.finances() }}</span>
+			</router-link>
+			<router-link
+				v-if="$enableProjects"
+				:to="{ name: 'projects' }"
+				class="mobile-bottom-navigation__item"
+				:class="{ 'mobile-bottom-navigation__item--active': mobileAreasActive }"
+				:aria-current="mobileAreasActive ? 'page' : undefined"
+				@click="closeMobileNavigation">
+				<span class="mobile-bottom-navigation__icon" aria-hidden="true">
+					<ViewGridIcon :size="24" />
+				</span>
+				<span class="mobile-bottom-navigation__label">{{ $texts.mobileNavigation.areas() }}</span>
+			</router-link>
+			<router-link
+				:to="{ name: 'analytics' }"
+				class="mobile-bottom-navigation__item"
+				:class="{ 'mobile-bottom-navigation__item--active': mobileAnalyticsActive }"
+				:aria-current="mobileAnalyticsActive ? 'page' : undefined"
+				@click="closeMobileNavigation">
+				<span class="mobile-bottom-navigation__icon" aria-hidden="true">
+					<ChartLineIcon :size="24" />
+				</span>
+				<span class="mobile-bottom-navigation__label">{{ $texts.mobileNavigation.analytics() }}</span>
+			</router-link>
+		</nav>
+
 		<EntrySidebar
 			v-if="entrySidebarReady"
 			ref="globalEntrySidebar"
@@ -271,6 +308,15 @@ export default {
 		},
 		showWorkspaceSwitcher() {
 			return this.$enableWorkspaces && this.$showWorkspaceSwitcher !== false && this.visibleWorkspaces.length > 1;
+		},
+		mobileFinancesActive() {
+			return this.$route?.name === 'personal';
+		},
+		mobileAreasActive() {
+			return ['projects', 'project-detail', 'project-settings', 'project-settlements'].includes(this.$route?.name);
+		},
+		mobileAnalyticsActive() {
+			return this.$route?.name === 'analytics';
 		},
 		hasIncomes() {
 			return this.$enableIncomes && this.tagCounts.income > 0;
@@ -691,6 +737,10 @@ export default {
 	min-height: 80vh;
 }
 
+.mobile-bottom-navigation {
+	display: none;
+}
+
 @media (min-width: 1025px) {
 	:global(#content.app-cobudget) {
 		--cobudget-shell-gap: calc(var(--default-grid-baseline, 4px) * 3);
@@ -842,8 +892,94 @@ export default {
 }
 
 @media (max-width: 768px) {
+	:global(#content.app-cobudget) {
+		--cobudget-mobile-content-padding: calc(var(--default-grid-baseline, 4px) * 2.5);
+		--cobudget-mobile-bottom-navigation-height: calc(64px + env(safe-area-inset-bottom, 0px));
+	}
+
 	.content-wrapper {
-		padding: 10px;
+		padding:
+			var(--cobudget-mobile-content-padding)
+			var(--cobudget-mobile-content-padding)
+			calc(var(--cobudget-mobile-content-padding) + var(--cobudget-mobile-bottom-navigation-height));
+	}
+
+	.mobile-bottom-navigation {
+		position: absolute;
+		z-index: 1300;
+		inset-inline: 0;
+		inset-block-end: 0;
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: minmax(0, 1fr);
+		align-items: stretch;
+		height: var(--cobudget-mobile-bottom-navigation-height);
+		padding-block-start: var(--default-grid-baseline, 4px);
+		padding-block-end: calc(var(--default-grid-baseline, 4px) + env(safe-area-inset-bottom, 0px));
+		padding-inline-start: max(calc(var(--default-grid-baseline, 4px) * 2), env(safe-area-inset-left, 0px));
+		padding-inline-end: max(calc(var(--default-grid-baseline, 4px) * 2), env(safe-area-inset-right, 0px));
+		border-block-start: 1px solid var(--cobudget-border, var(--color-border));
+		background-color: var(--cobudget-surface, var(--color-main-background));
+		box-shadow: var(--box-shadow-header, 0 -2px 8px rgba(0, 0, 0, 0.12));
+		isolation: isolate;
+	}
+
+	.mobile-bottom-navigation__item,
+	.mobile-bottom-navigation__item:visited {
+		display: flex;
+		min-width: 0;
+		min-height: var(--default-clickable-area, 44px);
+		padding: var(--default-grid-baseline, 4px);
+		align-items: center;
+		justify-content: center;
+		flex-direction: column;
+		gap: 1px;
+		border-radius: var(--border-radius-element, var(--border-radius));
+		color: var(--cobudget-text-muted, var(--color-text-maxcontrast));
+		font-size: var(--cobudget-font-sm, 12px);
+		line-height: 1.15;
+		text-align: center;
+		text-decoration: none !important;
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.mobile-bottom-navigation__icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: calc(var(--default-grid-baseline, 4px) * 12);
+		height: calc(var(--default-grid-baseline, 4px) * 7.5);
+		padding-inline: calc(var(--default-grid-baseline, 4px) * 3);
+		border-radius: var(--border-radius-pill, 999px);
+		transition: background-color 0.15s ease, color 0.15s ease;
+	}
+
+	.mobile-bottom-navigation__item:focus-visible {
+		outline: 2px solid var(--color-primary-element, var(--cobudget-primary));
+		outline-offset: -2px;
+		background-color: var(--cobudget-navigation-hover-background, var(--color-background-hover));
+	}
+
+	.mobile-bottom-navigation__item:active {
+		background-color: var(--cobudget-navigation-hover-background, var(--color-background-hover));
+	}
+
+	.mobile-bottom-navigation__item--active,
+	.mobile-bottom-navigation__item--active:visited {
+		color: var(--color-primary-element, var(--cobudget-primary));
+		font-weight: var(--cobudget-font-weight-action, 700);
+	}
+
+	.mobile-bottom-navigation__item--active .mobile-bottom-navigation__icon {
+		background-color: var(--cobudget-navigation-active-background, var(--color-primary-element-light, var(--color-background-hover)));
+	}
+
+	.mobile-bottom-navigation__label {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	:global(#content.app-cobudget #app-navigation),
@@ -877,6 +1013,18 @@ export default {
 		background-color: var(--cobudget-navigation-active-background, var(--color-primary-element-light, var(--color-background-hover, #e6f4fb))) !important;
 		color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 		opacity: 1 !important;
+	}
+}
+
+@media (max-width: 768px) and (hover: hover) and (pointer: fine) {
+	.mobile-bottom-navigation__item:hover {
+		background-color: var(--cobudget-navigation-hover-background, var(--color-background-hover));
+	}
+}
+
+@media print {
+	.mobile-bottom-navigation {
+		display: none !important;
 	}
 }
 

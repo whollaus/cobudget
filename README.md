@@ -35,6 +35,8 @@ The screenshots below show the current alpha UI and may change during the test p
 ## Features
 
 - Track income and expenses
+- Switch between finances, areas and analytics through a persistent app-style mobile bottom navigation
+- Keep page titles and primary actions visible in a sticky mobile header while scrolling
 - Create and edit income and expenses in a responsive sidebar with mode-specific titles, guarded unsaved changes, support for consecutive desktop entries, and a new-payment action that remains available while reviewing existing payments
 - Review payment change history with changed fields, previous values and new values
 - Organize payments by categories and payment partners, with searchable category and payment-partner numbers, one level of main categories and subcategories, and opt-in advanced personal address, validated contact and bank master-data editing for payment partners
@@ -56,6 +58,8 @@ The screenshots below show the current alpha UI and may change during the test p
 - Settle shared areas and keep settlement history
 - Attach receipts and invoices stored in Nextcloud Files
 - Define flexible budget goals with hierarchy-aware category choices
+- Select analytics periods through a compact mobile dropdown and desktop quick-switch controls
+- Review income, expenses and balance through a consistent three-card analytics summary with embedded averages and booking counts
 - View analytics for spending, income, trends, labels, areas and budget signals, including direct main-category values, subcategory details and category-group totals
 - Use workspaces to separate independent data pools
 - Export payments as CSV

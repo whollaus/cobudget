@@ -253,6 +253,8 @@ try {
 	$assertContains($backupService, 'private const SETTINGS_DEFAULTS', 'BackupService exports effective settings defaults');
 	$assertContains($backupService, "'enable_workspaces' => 'no'", 'BackupService tracks workspace settings defaults');
 	$assertContains($backupService, "'show_workspace_switcher' => 'yes'", 'BackupService tracks workspace switcher settings defaults');
+	$assertContains($backupService, "'show_nextcloud_header_desktop' => 'yes'", 'BackupService defaults the desktop Nextcloud header to visible');
+	$assertContains($backupService, "'show_nextcloud_header_mobile' => 'no'", 'BackupService defaults the mobile Nextcloud header to hidden');
 	$assertContains($backupService, "'currency' => 'EUR'", 'BackupService defaults currency to EUR when no user preference exists');
 	$assertContains($backupService, "'hidden_workspaces' => '[]'", 'BackupService tracks hidden workspace settings defaults');
 	$assertContains($backupService, 'settingsDefaultForUser($userId, $key)', 'Personal export includes effective defaulted settings values');
@@ -307,6 +309,8 @@ try {
 	$assertContains($userResetService, 'leaveSettledSharedProject', 'User reset leaves settled shared areas created by another member');
 	$assertNotContains($userResetService, 'transferSettledSharedProject', 'User reset must not transfer owned shared areas to another member');
 	$assertContains($userResetService, "'delete_receipts_with_entry'", 'User reset honors the receipt file deletion setting');
+	$assertContains($userResetService, "'show_nextcloud_header_desktop'", 'User reset clears the desktop Nextcloud header setting');
+	$assertContains($userResetService, "'show_nextcloud_header_mobile'", 'User reset clears the mobile Nextcloud header setting');
 	$assertContains($userResetService, 'resetUserSettings', 'User reset clears user settings back to defaults');
 	$assertContains($userResetService, 'createDefaultWorkspaceForUser', 'User reset recreates a default workspace');
 
@@ -445,6 +449,8 @@ try {
 	$assertContains($user, "'enable_budget_goals'", 'User settings expose budget goal feature toggle');
 	$assertContains($user, "'enable_advanced_master_data'", 'User settings expose the advanced personal master-data toggle');
 	$assertContains($user, "'enable_receipts'", 'User settings expose receipt feature toggle');
+	$assertContains($user, "'show_nextcloud_header_desktop'", 'User settings expose desktop Nextcloud header visibility');
+	$assertContains($user, "'show_nextcloud_header_mobile'", 'User settings expose mobile Nextcloud header visibility');
 	$assertContains($user, 'validateReceiptStorageFolder', 'User settings validate receipt storage folders');
 	$assertContains($user, 'validateReceiptFolderGrouping', 'User settings validate receipt folder grouping');
 	$assertContains($user, 'CURRENCY_BY_COUNTRY', 'User settings can derive currency from Nextcloud locale');

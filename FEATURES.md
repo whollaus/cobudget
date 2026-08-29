@@ -8,6 +8,11 @@ CoBudget's current `0.3.x` release line is available through the official [Nextc
 
 CoBudget is a Nextcloud app for personal and shared household budgeting.
 
+## Navigation
+
+- Switch quickly between finances, areas and analytics through an always-visible mobile bottom navigation with active-section highlighting and device safe-area support.
+- Keep the current page title and its primary actions visible in a sticky mobile header while scrolling.
+
 ## Payments
 
 - Create income and expense entries.
@@ -89,6 +94,9 @@ Workspaces separate data into isolated pools, for example private and business d
 
 Analytics show where money is going and how financial trends develop.
 
+- Select the analytics period from a compact dropdown on mobile while retaining quick period buttons on larger screens.
+- Read monthly chart axes through localized month abbreviations while full period labels remain available in tooltips and value tables.
+- Compare income, expenses and balance in a consistent three-card summary with embedded averages and booking counts, shown as a readable single column on mobile.
 - Current year, current month, previous month, last 12 months, previous year and year-based views.
 - Income, expense and balance summaries.
 - Personal metrics use the user's exact materialized share, regardless of whether a payment originated personally or in a shared area.

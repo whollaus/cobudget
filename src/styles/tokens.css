@@ -36,6 +36,7 @@
 	--cobudget-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.12);
 	--cobudget-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.18);
 	--cobudget-shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.22);
+	--cobudget-shadow-header: 0 3px 10px rgba(0, 0, 0, 0.18);
 	--cobudget-focus-ring: 0 0 0 2px var(--cobudget-primary);
 
 	--cobudget-font-xxs: 10px;
@@ -59,6 +60,36 @@
 	--cobudget-button-height-large: 54px;
 	--cobudget-icon-button-size: var(--button-size, 34px);
 	--cobudget-mobile-touch-size: 44px;
+}
+
+@media (min-width: 769px) {
+	html.cobudget-nextcloud-header-desktop-hidden #header {
+		display: none !important;
+	}
+
+	html.cobudget-nextcloud-header-desktop-hidden #content {
+		margin-top: var(--body-container-margin) !important;
+	}
+
+	html.cobudget-nextcloud-header-desktop-hidden #content,
+	html.cobudget-nextcloud-header-desktop-hidden #content.app-cobudget .content {
+		height: calc(var(--body-height) + var(--header-height) - var(--body-container-margin)) !important;
+	}
+}
+
+@media (max-width: 768px) {
+	html.cobudget-nextcloud-header-mobile-hidden #header {
+		display: none !important;
+	}
+
+	html.cobudget-nextcloud-header-mobile-hidden #content {
+		margin-top: 0 !important;
+	}
+
+	html.cobudget-nextcloud-header-mobile-hidden #content,
+	html.cobudget-nextcloud-header-mobile-hidden #content.app-cobudget .content {
+		height: calc(var(--body-height) + var(--header-height) - var(--body-container-margin)) !important;
+	}
 }
 
 #app-navigation a[href*="/settings/admin/cobudget"] img,
@@ -160,6 +191,7 @@
 		--cobudget-tax-light: rgba(124, 58, 237, 0.22);
 		--cobudget-tax-dark: #c4b5fd;
 		--cobudget-mobile-navigation-background: #181818;
+		--cobudget-shadow-header: 0 4px 14px rgba(0, 0, 0, 0.52);
 	}
 }
 
@@ -189,6 +221,7 @@ body.cobudget-theme-light {
 	--cobudget-navigation-active-background: #c8dff1;
 	--cobudget-border: #ddd;
 	--cobudget-border-strong: #ccc;
+	--cobudget-shadow-header: 0 3px 10px rgba(0, 0, 0, 0.18);
 }
 
 html.cobudget-theme-light #content.app-cobudget,
@@ -231,6 +264,7 @@ body[data-cobudget-theme="dark"] {
 	--cobudget-navigation-active-background: #303030;
 	--cobudget-border: #3a3a3a;
 	--cobudget-border-strong: #555;
+	--cobudget-shadow-header: 0 4px 14px rgba(0, 0, 0, 0.52);
 }
 
 html.cobudget-theme-dark #content.app-cobudget,
@@ -284,6 +318,7 @@ body.theme--dark:not(.cobudget-theme-light) {
 	--cobudget-page-background: #121212;
 	--cobudget-border: #3a3a3a;
 	--cobudget-border-strong: #555;
+	--cobudget-shadow-header: 0 4px 14px rgba(0, 0, 0, 0.52);
 }
 
 html[data-themes*="dark"]:not(.cobudget-theme-light) #content.app-cobudget,
@@ -335,6 +370,7 @@ body.theme--dark:not(.cobudget-theme-light) #content.app-cobudget {
 		--cobudget-page-background: #121212;
 		--cobudget-border: #3a3a3a;
 		--cobudget-border-strong: #555;
+		--cobudget-shadow-header: 0 4px 14px rgba(0, 0, 0, 0.52);
 	}
 
 	html.cobudget-theme-auto #content.app-cobudget,

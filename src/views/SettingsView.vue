@@ -66,6 +66,28 @@
 					</div>
 
 					<div class="settings-mini-section">
+						<h4>{{ $texts.settings.nextcloudHeader() }}</h4>
+						<div class="setting-toggle-row">
+							<div>
+								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.showNextcloudHeaderDesktop() }}</label>
+							</div>
+							<label class="toggle-switch">
+								<input v-model="showNextcloudHeaderDesktop" type="checkbox" :aria-label="$texts.settings.showNextcloudHeaderDesktop()" @change="saveNextcloudHeaderSettings">
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<div class="setting-toggle-row" style="margin-top: 12px;">
+							<div>
+								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.showNextcloudHeaderMobile() }}</label>
+							</div>
+							<label class="toggle-switch">
+								<input v-model="showNextcloudHeaderMobile" type="checkbox" :aria-label="$texts.settings.showNextcloudHeaderMobile()" @change="saveNextcloudHeaderSettings">
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+					</div>
+
+					<div class="settings-mini-section">
 						<h4>{{ $texts.settings.receipts() }}</h4>
 						<div class="setting-toggle-row">
 							<div>
@@ -618,6 +640,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import { showSuccess, showInfo } from '@nextcloud/dialogs'
 import { ENTRY_PAGE_SIZE_OPTIONS, normalizeEntryPageSize } from '../services/pagination'
 import { applyThemeMode, normalizeThemeMode } from '../services/themeMode'
+import { applyNextcloudHeaderVisibility } from '../services/nextcloudHeader'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
 import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 import {
@@ -687,6 +710,8 @@ export default {
 			entryPageSize: 25,
 			entryPageSizeOptions: ENTRY_PAGE_SIZE_OPTIONS,
 			themeMode: 'auto',
+			showNextcloudHeaderDesktop: true,
+			showNextcloudHeaderMobile: false,
 			receiptStorageFolder: 'CoBudget/Belege',
 			receiptFolderGrouping: 'year',
 			deleteReceiptsWithEntry: false,
@@ -1216,6 +1241,11 @@ export default {
 				this.entryPageSize = normalizeEntryPageSize(settingsRes.data.entries_per_page);
 				this.themeMode = normalizeThemeMode(settingsRes.data.theme_mode);
 				applyThemeMode(this.themeMode);
+				this.showNextcloudHeaderDesktop = settingsRes.data.show_nextcloud_header_desktop ?? true;
+				this.showNextcloudHeaderMobile = settingsRes.data.show_nextcloud_header_mobile ?? false;
+				const headerVisibility = this.applyLocalNextcloudHeaderVisibility();
+				this.$showNextcloudHeaderDesktop = headerVisibility.showDesktop;
+				this.$showNextcloudHeaderMobile = headerVisibility.showMobile;
 				this.receiptStorageFolder = settingsRes.data.receipt_storage_folder || 'CoBudget/Belege';
 				this.receiptFolderGrouping = settingsRes.data.receipt_folder_grouping || 'year';
 				this.deleteReceiptsWithEntry = settingsRes.data.delete_receipts_with_entry ?? false;
@@ -1259,6 +1289,34 @@ export default {
 		},
 		applyLocalThemeMode() {
 			this.themeMode = applyThemeMode(this.themeMode);
+		},
+		applyLocalNextcloudHeaderVisibility() {
+			const visibility = applyNextcloudHeaderVisibility({
+				showDesktop: this.showNextcloudHeaderDesktop,
+				showMobile: this.showNextcloudHeaderMobile,
+			});
+			this.showNextcloudHeaderDesktop = visibility.showDesktop;
+			this.showNextcloudHeaderMobile = visibility.showMobile;
+			return visibility;
+		},
+		async saveNextcloudHeaderSettings() {
+			const previousVisibility = {
+				showDesktop: this.$showNextcloudHeaderDesktop ?? true,
+				showMobile: this.$showNextcloudHeaderMobile ?? false,
+			};
+			const visibility = this.applyLocalNextcloudHeaderVisibility();
+			const saved = await this.saveGeneralSettings({ reload: false });
+
+			if (saved) {
+				this.$showNextcloudHeaderDesktop = visibility.showDesktop;
+				this.$showNextcloudHeaderMobile = visibility.showMobile;
+				this.showSuccessMessage(this.$texts.settings.generalSaved());
+				return;
+			}
+
+			this.showNextcloudHeaderDesktop = previousVisibility.showDesktop;
+			this.showNextcloudHeaderMobile = previousVisibility.showMobile;
+			this.applyLocalNextcloudHeaderVisibility();
 		},
 		async updateCategoryIcon(cat, newIcon) {
 			try {
@@ -1477,7 +1535,8 @@ export default {
 			}
 			this.loading = false;
 		},
-		async saveGeneralSettings() {
+		async saveGeneralSettings(options = {}) {
+			const reload = options?.reload !== false;
 			this.loading = true;
 			try {
 				this.normalizeDefaultStartPageForProjects();
@@ -1503,6 +1562,8 @@ export default {
 					default_start_page: this.defaultStartPage,
 					entries_per_page: normalizeEntryPageSize(this.entryPageSize),
 					theme_mode: normalizeThemeMode(this.themeMode),
+					show_nextcloud_header_desktop: this.showNextcloudHeaderDesktop,
+					show_nextcloud_header_mobile: this.showNextcloudHeaderMobile,
 					receipt_storage_folder: this.receiptStorageFolder.trim() || 'CoBudget/Belege',
 					receipt_folder_grouping: this.receiptFolderGrouping,
 					delete_receipts_with_entry: this.deleteReceiptsWithEntry,
@@ -1532,12 +1593,17 @@ export default {
 					window.location.hash = '#/';
 				}
 				
-				window.location.reload(); // Reload to apply settings everywhere easily
+				if (reload) {
+					window.location.reload(); // Reload to apply settings everywhere easily
+				}
+				return true;
 			} catch (e) {
 				console.error('Failed to save settings', e)
 				this.showError(this.extractError(e, this.$texts.settings.generalSaveError()));
+				return false;
+			} finally {
+				this.loading = false;
 			}
-			this.loading = false;
 		}
 	}
 }

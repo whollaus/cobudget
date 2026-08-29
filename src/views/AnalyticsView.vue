@@ -605,49 +605,81 @@ export default {
 		},
 		summaryCards() {
 			const summary = this.analytics.summary || {}
+			const averageIncomeCents = this.summaryAverageCents('income', this.summaryAverageUnit)
+			const averageExpenseCents = this.summaryAverageCents('expense', this.summaryAverageUnit)
+			const averageBalanceCents = this.summaryAverageCents('balance', this.summaryAverageUnit)
 			const cards = [
 				{
 					key: 'income',
+					icon: 'income',
 					label: this.$texts.analytics.income(),
-					value: this.formatCents(summary.incomeCents || 0),
-					detail: this.$texts.analytics.bookings(summary.incomeCount || 0),
+					value: this.formatSummaryCents('income', summary.incomeCents || 0),
+					details: [
+						{
+							key: 'average',
+							label: this.summaryAverageLabel,
+							value: this.formatSummaryCents('income', averageIncomeCents),
+							tooltip: this.summaryAverageTooltip('income'),
+							className: 'positive'
+						},
+						{
+							key: 'bookings',
+							label: this.$texts.analytics.bookingsColumn(),
+							value: String(summary.incomeCount || 0),
+							className: ''
+						}
+					],
 					className: 'positive'
 				},
 				{
 					key: 'expense',
+					icon: 'expense',
 					label: this.$texts.analytics.expenses(),
-					value: this.formatCents(summary.expenseCents || 0),
-					detail: this.$texts.analytics.bookings(summary.expenseCount || 0),
+					value: this.formatSummaryCents('expense', summary.expenseCents || 0),
+					details: [
+						{
+							key: 'average',
+							label: this.summaryAverageLabel,
+							value: this.formatSummaryCents('expense', averageExpenseCents),
+							tooltip: this.summaryAverageTooltip('expense'),
+							className: 'negative'
+						},
+						{
+							key: 'bookings',
+							label: this.$texts.analytics.bookingsColumn(),
+							value: String(summary.expenseCount || 0),
+							className: ''
+						}
+					],
 					className: 'negative'
 				},
 				{
 					key: 'balance',
+					icon: 'balance',
 					label: this.$texts.analytics.balance(),
-					value: this.formatSignedCents(summary.balanceCents || 0),
-					detail: this.$texts.analytics.totalBookings(summary.bookingCount || 0),
+					value: this.formatSummaryCents('balance', summary.balanceCents || 0),
+					details: [
+						{
+							key: 'average',
+							label: this.summaryAverageLabel,
+							value: this.formatSummaryCents('balance', averageBalanceCents),
+							tooltip: this.summaryAverageTooltip('balance'),
+							className: this.amountClass(averageBalanceCents)
+						},
+						{
+							key: 'bookings',
+							label: this.$texts.analytics.bookingsColumn(),
+							value: String(summary.bookingCount || 0),
+							className: ''
+						}
+					],
 					className: this.amountClass(summary.balanceCents || 0)
-				},
-				{
-					key: 'average',
-					label: this.$texts.analytics.averageExpenses(),
-					value: this.formatCents(this.summaryAverageCents('expense', this.summaryAverageUnit)),
-					detail: this.summaryAverageDetail,
-					tooltip: this.summaryAverageTooltip('expense'),
-					className: ''
-				},
-				{
-					key: 'averageIncome',
-					label: this.$texts.analytics.averageIncome(),
-					value: this.formatCents(this.summaryAverageCents('income', this.summaryAverageUnit)),
-					detail: this.summaryAverageDetail,
-					tooltip: this.summaryAverageTooltip('income'),
-					className: ''
 				}
 			]
 
 			return this.incomeEnabled
 				? cards
-				: cards.filter(card => !['income', 'averageIncome', 'balance'].includes(card.key))
+				: cards.filter(card => !['income', 'balance'].includes(card.key))
 		},
 		summaryAverageUnit() {
 			if (this.analytics.period?.kind === 'current-month') {
@@ -655,8 +687,10 @@ export default {
 			}
 			return Number(this.analytics.summary?.averageMonthCount || 0) > 0 ? 'month' : 'day'
 		},
-		summaryAverageDetail() {
-			return this.summaryAverageUnit === 'day' ? this.$texts.analytics.perDay() : this.$texts.analytics.perMonth()
+		summaryAverageLabel() {
+			return this.summaryAverageUnit === 'day'
+				? this.$texts.analytics.averagePerDayShort()
+				: this.$texts.analytics.averagePerMonthShort()
 		},
 		developmentLabel() {
 			if (this.analytics.period?.granularity !== 'day') {
@@ -2575,23 +2609,42 @@ export default {
 		},
 		summaryAverageCents(type, unit) {
 			const summary = this.analytics.summary || {}
-			const metricType = type === 'income' ? 'Income' : 'Expense'
+			const metricTypes = {
+				income: 'Income',
+				expense: 'Expense',
+				balance: 'Balance'
+			}
+			const metricType = metricTypes[type] || metricTypes.expense
 			const metricUnit = unit === 'day' ? 'Day' : unit === 'week' ? 'Week' : 'Month'
 			return Number(summary[`average${metricType}Per${metricUnit}Cents`] || 0)
 		},
-			summaryAverageTooltip(type) {
-				const title = type === 'income' ? this.$texts.analytics.averageIncome() : this.$texts.analytics.averageExpenses()
-				const basis = this.summaryAverageUnit === 'day'
-					? this.$texts.analytics.calculatedUntilToday(Number(this.analytics.summary?.averageDayCount || this.periodDays()))
-					: this.$texts.analytics.currentMonthExcluded(Number(this.analytics.summary?.averageMonthCount || this.periodMonths()))
-				return [
-					title,
-					basis,
-					this.$texts.analytics.valuePerMonth(this.formatCents(this.summaryAverageCents(type, 'month'))),
-					this.$texts.analytics.valuePerWeek(this.formatCents(this.summaryAverageCents(type, 'week'))),
-					this.$texts.analytics.valuePerDay(this.formatCents(this.summaryAverageCents(type, 'day')))
-				].join('\n')
-			},
+		formatSummaryCents(type, cents) {
+			const value = Number(cents || 0)
+			if (type === 'income') {
+				return this.formatSignedCents(Math.abs(value))
+			}
+			if (type === 'expense') {
+				return this.formatSignedCents(-Math.abs(value))
+			}
+			return this.formatSignedCents(value)
+		},
+		summaryAverageTooltip(type) {
+			const title = type === 'income'
+				? this.$texts.analytics.averageIncome()
+				: type === 'balance'
+					? this.$texts.analytics.balance()
+					: this.$texts.analytics.averageExpenses()
+			const basis = this.summaryAverageUnit === 'day'
+				? this.$texts.analytics.calculatedUntilToday(Number(this.analytics.summary?.averageDayCount || this.periodDays()))
+				: this.$texts.analytics.currentMonthExcluded(Number(this.analytics.summary?.averageMonthCount || this.periodMonths()))
+			return [
+				title,
+				basis,
+				this.$texts.analytics.valuePerMonth(this.formatSummaryCents(type, this.summaryAverageCents(type, 'month'))),
+				this.$texts.analytics.valuePerWeek(this.formatSummaryCents(type, this.summaryAverageCents(type, 'week'))),
+				this.$texts.analytics.valuePerDay(this.formatSummaryCents(type, this.summaryAverageCents(type, 'day')))
+			].join('\n')
+		},
 		amountClass(cents) {
 			const value = Number(cents || 0)
 			if (value > 0) {

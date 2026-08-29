@@ -5,6 +5,7 @@ import axios from './services/http'
 import { generateUrl } from '@nextcloud/router'
 import { normalizeEntryPageSize } from './services/pagination'
 import { applyThemeMode, normalizeThemeMode } from './services/themeMode'
+import { applyNextcloudHeaderVisibility } from './services/nextcloudHeader'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { formatInputAmount, formatMoney, formatMoneyFromCents, formatSignedMoney, parseAmount } from './utils/formatMoney'
 import { installTexts } from './l10n/texts'
@@ -178,6 +179,12 @@ async function init() {
 		app.config.globalProperties.$defaultStartPage = res.data.default_start_page || 'personal'
 		app.config.globalProperties.$entriesPerPage = normalizeEntryPageSize(res.data.entries_per_page)
 		app.config.globalProperties.$themeMode = applyThemeMode(res.data.theme_mode)
+		const headerVisibility = applyNextcloudHeaderVisibility({
+			showDesktop: res.data.show_nextcloud_header_desktop,
+			showMobile: res.data.show_nextcloud_header_mobile,
+		})
+		app.config.globalProperties.$showNextcloudHeaderDesktop = headerVisibility.showDesktop
+		app.config.globalProperties.$showNextcloudHeaderMobile = headerVisibility.showMobile
 		await prepareWorkspaceContext(app.config.globalProperties.$enableWorkspaces)
 
 		router.beforeEach(to => {
@@ -215,6 +222,9 @@ async function init() {
 		app.config.globalProperties.$defaultStartPage = 'personal'
 		app.config.globalProperties.$entriesPerPage = 25
 		app.config.globalProperties.$themeMode = applyThemeMode(normalizeThemeMode())
+		const headerVisibility = applyNextcloudHeaderVisibility()
+		app.config.globalProperties.$showNextcloudHeaderDesktop = headerVisibility.showDesktop
+		app.config.globalProperties.$showNextcloudHeaderMobile = headerVisibility.showMobile
 	}
 
 	app.mount('#cobudget-app')

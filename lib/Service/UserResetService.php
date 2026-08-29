@@ -69,6 +69,8 @@ class UserResetService {
 		'default_start_page',
 		'entries_per_page',
 		'theme_mode',
+		'show_nextcloud_header_desktop',
+		'show_nextcloud_header_mobile',
 		'receipt_storage_folder',
 		'receipt_folder_grouping',
 		'delete_receipts_with_entry',

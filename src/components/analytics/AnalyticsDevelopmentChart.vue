@@ -55,7 +55,7 @@
 						@mouseleave="hideTooltip"></span>
 				</div>
 				<small :class="{ muted: !showSeriesLabel(index) }">
-					{{ showSeriesLabel(index) ? item.label : '' }}
+					{{ showSeriesLabel(index) ? seriesAxisLabel(item) : '' }}
 				</small>
 			</div>
 		</div>
@@ -169,6 +169,20 @@ export default {
 		}
 	},
 	methods: {
+		seriesAxisLabel(item) {
+			const monthKey = /^(\d{4})-(\d{2})$/.exec(String(item?.key || ''))
+			if (!monthKey) {
+				return item?.label || ''
+			}
+
+			const monthIndex = Number(monthKey[2]) - 1
+			if (monthIndex < 0 || monthIndex > 11) {
+				return item?.label || ''
+			}
+
+			return new Intl.DateTimeFormat(undefined, { month: 'short' })
+				.format(new Date(Number(monthKey[1]), monthIndex, 1))
+		},
 		barTooltip(label, cents) {
 			return `${label}: ${this.formatCents(Math.abs(Number(cents || 0)))}`
 		},

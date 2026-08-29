@@ -1,5 +1,7 @@
 <template>
-	<header class="app-page-header view-header">
+	<header
+		class="app-page-header view-header"
+		:class="{ 'app-page-header--scrolled': isScrolled }">
 		<div class="app-page-header__content view-header-content">
 			<h2 class="app-page-header__title view-header-title">
 				<slot name="title">{{ title }}</slot>
@@ -25,6 +27,58 @@ export default {
 		subtitle: {
 			type: String,
 			default: '',
+		},
+	},
+	data() {
+		return {
+			isScrolled: false,
+		}
+	},
+	mounted() {
+		if (typeof window === 'undefined') {
+			return
+		}
+
+		this.getScrollTarget()?.addEventListener('scroll', this.updateScrollState, { passive: true })
+		window.addEventListener('resize', this.updateScrollState, { passive: true })
+		this.updateScrollState()
+	},
+	beforeUnmount() {
+		if (typeof window === 'undefined') {
+			return
+		}
+
+		this.getScrollTarget()?.removeEventListener('scroll', this.updateScrollState)
+		window.removeEventListener('resize', this.updateScrollState)
+	},
+	methods: {
+		getScrollTarget() {
+			if (typeof window === 'undefined') {
+				return null
+			}
+
+			return this.$el?.closest?.('.app-content') || window
+		},
+		currentScrollTop() {
+			const scrollTarget = this.getScrollTarget()
+			if (!scrollTarget) {
+				return 0
+			}
+
+			if (scrollTarget === window) {
+				return window.scrollY || document.documentElement.scrollTop || 0
+			}
+
+			return scrollTarget.scrollTop || 0
+		},
+		updateScrollState() {
+			const nextState = typeof window !== 'undefined'
+				&& window.matchMedia('(max-width: 768px)').matches
+				&& this.currentScrollTop() > 1
+
+			if (this.isScrolled !== nextState) {
+				this.isScrolled = nextState
+			}
 		},
 	},
 }
@@ -87,12 +141,45 @@ export default {
 
 @media (max-width: 768px) {
 	.app-page-header {
+		--app-page-header-mobile-gutter: var(--cobudget-mobile-content-padding, calc(var(--default-grid-baseline, 4px) * 2.5));
+		--app-page-header-mobile-overlap: calc(var(--default-grid-baseline, 4px) * 1.5);
+		--app-page-header-mobile-sticky-offset: var(--default-grid-baseline, 4px);
+
+		position: sticky;
+		z-index: 30;
+		inset-block-start: var(--app-page-header-mobile-sticky-offset);
 		align-items: flex-start;
 		flex-direction: row;
 		gap: 8px;
+		width: calc(100% + var(--app-page-header-mobile-gutter) + var(--app-page-header-mobile-gutter));
 		min-height: var(--cobudget-button-height, 44px);
+		margin-inline: calc(0px - var(--app-page-header-mobile-gutter));
+		margin-bottom: 0;
+		padding-inline: var(--app-page-header-mobile-gutter);
+		padding-block-end: calc(var(--default-grid-baseline, 4px) * 3);
+		border-block-end: 1px solid transparent;
 		overflow: visible;
-    margin-top: -6px;
+		margin-top: calc(0px - var(--app-page-header-mobile-overlap));
+		background-color: var(--cobudget-page-background, var(--color-main-background));
+		box-shadow: none;
+		transition:
+			border-color var(--animation-quick, 100ms) ease,
+			box-shadow var(--animation-quick, 100ms) ease;
+	}
+
+	.app-page-header::before {
+		position: absolute;
+		inset-inline: 0;
+		inset-block-end: 100%;
+		height: var(--app-page-header-mobile-sticky-offset);
+		background-color: inherit;
+		content: '';
+		pointer-events: none;
+	}
+
+	.app-page-header--scrolled {
+		border-block-end-color: var(--cobudget-border, var(--color-border));
+		box-shadow: var(--cobudget-shadow-header, var(--box-shadow-header, var(--cobudget-shadow-sm)));
 	}
 
 	.app-page-header__content {
@@ -187,33 +274,54 @@ export default {
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button.button-vue),
-	.app-page-header__actions :deep(.new-payment-main-button .button-vue) {
-		min-width: calc(var(--cobudget-icon-button-size, 44px) * 2) !important;
-		width: auto !important;
-		min-height: var(--cobudget-mobile-touch-size, 44px) !important;
-		height: var(--cobudget-mobile-touch-size, 44px) !important;
-		padding-inline-start: calc(var(--default-grid-baseline, 4px) * 2) !important;
-		padding-inline-end: calc(var(--default-grid-baseline, 4px) * 3) !important;
+	.app-page-header__actions :deep(.new-payment-main-button .button-vue),
+	.app-page-header__actions :deep(.mobile-create-fab.button-vue),
+	.app-page-header__actions :deep(.mobile-create-fab .button-vue) {
+		--cobudget-mobile-fab-size: calc(var(--default-grid-baseline, 4px) * 16);
+		--cobudget-mobile-fab-icon-size: calc(var(--default-grid-baseline, 4px) * 7);
+
+		position: fixed !important;
+		z-index: 1290 !important;
+		inset-inline-end: max(calc(var(--default-grid-baseline, 4px) * 4), env(safe-area-inset-right, 0px)) !important;
+		inset-block-end: calc(var(--cobudget-mobile-bottom-navigation-height, 64px) + calc(var(--default-grid-baseline, 4px) * 4)) !important;
+		min-width: var(--cobudget-mobile-fab-size) !important;
+		width: var(--cobudget-mobile-fab-size) !important;
+		min-height: var(--cobudget-mobile-fab-size) !important;
+		height: var(--cobudget-mobile-fab-size) !important;
+		padding: 0 !important;
 		align-items: center !important;
 		justify-content: center !important;
+		border-radius: var(--border-radius-pill, 999px) !important;
+		box-shadow: var(--cobudget-shadow-md, var(--box-shadow)) !important;
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__wrapper),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__wrapper) {
-		gap: var(--default-grid-baseline, 4px);
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__wrapper),
+	.app-page-header__actions :deep(.mobile-create-fab .button-vue__wrapper),
+	.app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__wrapper) {
+		gap: 0;
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__icon),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__icon) {
-		width: calc(var(--default-grid-baseline, 4px) * 5) !important;
-		min-width: calc(var(--default-grid-baseline, 4px) * 5) !important;
-		height: calc(var(--default-grid-baseline, 4px) * 5) !important;
-		min-height: calc(var(--default-grid-baseline, 4px) * 5) !important;
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__icon),
+	.app-page-header__actions :deep(.mobile-create-fab .button-vue__icon),
+	.app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__icon) {
+		width: var(--cobudget-mobile-fab-icon-size) !important;
+		min-width: var(--cobudget-mobile-fab-icon-size) !important;
+		height: var(--cobudget-mobile-fab-icon-size) !important;
+		min-height: var(--cobudget-mobile-fab-icon-size) !important;
 		margin: 0 !important;
 	}
 
+	.app-page-header__actions :deep(.new-payment-main-button .material-design-icon),
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .material-design-icon),
+	.app-page-header__actions :deep(.mobile-create-fab .material-design-icon),
+	.app-page-header__actions :deep(.mobile-create-fab.button-vue .material-design-icon) {
+		font-size: var(--cobudget-mobile-fab-icon-size) !important;
+	}
+
 	.app-page-header__actions :deep(.mobile-payment-label) {
-		display: inline !important;
+		display: none !important;
 	}
 
 	.app-page-header__actions :deep(.budget-new-button .button-vue__icon),
@@ -222,10 +330,10 @@ export default {
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__text),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__text) {
-		display: inline-flex !important;
-		align-items: center;
-		overflow: visible;
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__text),
+	.app-page-header__actions :deep(.mobile-create-fab .button-vue__text),
+	.app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__text) {
+		display: none !important;
 	}
 
 	.app-page-header__actions :deep(.budget-new-button .button-vue__text),
@@ -233,6 +341,22 @@ export default {
 		display: none !important;
 	}
 
+}
+
+@media print {
+	.app-page-header {
+		position: static;
+		width: 100%;
+		margin-inline: 0;
+		padding-inline: 0;
+		padding-block-end: 0;
+		border-block-end: 0;
+		box-shadow: none;
+	}
+
+	.app-page-header::before {
+		content: none;
+	}
 }
 
 /*

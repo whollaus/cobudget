@@ -32,7 +32,14 @@
 			<tbody>
 				<template v-for="row in tableRows" :key="row.key">
 					<tr
-						v-if="row.type === 'group'"
+						v-if="row.type === 'mobile-date-group'"
+						class="mobile-date-group-row">
+						<td :colspan="tableColumnCount" class="mobile-date-group-label">
+							{{ row.label }}
+						</td>
+					</tr>
+					<tr
+						v-else-if="row.type === 'group'"
 						class="date-group-row"
 						:class="`date-group-row--${row.level}`">
 						<td :colspan="groupLabelColspan" class="date-group-label">
@@ -72,6 +79,7 @@
 						<EntryDescriptionCell
 							:entry="row.entry"
 							:date-text="formatDate(row.entry.date)"
+							:show-mobile-date="!shouldGroupEntries"
 							:enable-fixed-costs="enableFixedCosts"
 							:enable-subscriptions="enableSubscriptions"
 							:enable-child-related="enableChildRelated"
@@ -268,6 +276,9 @@ export default {
 		groupLabelColspan() {
 			return this.showProjectPayer ? 5 : 4
 		},
+		tableColumnCount() {
+			return this.showProjectPayer ? 7 : 6
+		},
 		shouldGroupEntries() {
 			return this.groupByDate && this.sortBy === 'date'
 		},
@@ -336,6 +347,27 @@ export default {
 			const rows = []
 			let currentYearGroup = null
 			let currentMonthGroup = null
+			let currentMobileDayKey = null
+
+			const appendEntry = entry => {
+				if (this.shouldGroupEntries) {
+					const dayKey = this.mobileDayGroupKey(entry.date)
+					if (dayKey !== currentMobileDayKey) {
+						rows.push({
+							type: 'mobile-date-group',
+							key: `mobile-date-${dayKey}-${rows.length}`,
+							label: this.formatMobileDayGroup(entry.date)
+						})
+						currentMobileDayKey = dayKey
+					}
+				}
+
+				rows.push({
+					type: 'entry',
+					key: `entry-${entry.id}`,
+					entry
+				})
+			}
 
 			const appendGroupSummary = group => {
 				if (!group) {
@@ -361,11 +393,7 @@ export default {
 					appendGroupSummary(currentYearGroup)
 					currentMonthGroup = null
 					currentYearGroup = null
-					rows.push({
-						type: 'entry',
-						key: `entry-${entry.id}`,
-						entry
-					})
+					appendEntry(entry)
 					return
 				}
 
@@ -398,11 +426,7 @@ export default {
 					}
 				}
 
-				rows.push({
-					type: 'entry',
-					key: `entry-${entry.id}`,
-					entry
-				})
+				appendEntry(entry)
 			})
 
 			appendGroupSummary(currentMonthGroup)
@@ -455,6 +479,18 @@ export default {
 		monthGroupKey(date) {
 			return `month-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 		},
+		mobileDayGroupKey(timestamp) {
+			const date = this.dateFromTimestamp(timestamp)
+			if (!date) {
+				return 'unknown'
+			}
+
+			return [
+				date.getFullYear(),
+				String(date.getMonth() + 1).padStart(2, '0'),
+				String(date.getDate()).padStart(2, '0')
+			].join('-')
+		},
 		dateGroupKeys(timestamp) {
 			const date = this.dateFromTimestamp(timestamp)
 			if (!date) {
@@ -468,6 +504,29 @@ export default {
 		},
 		formatMonthGroup(date) {
 			return date.toLocaleDateString(undefined, { month: 'long' })
+		},
+		formatMobileDayGroup(timestamp) {
+			const date = this.dateFromTimestamp(timestamp)
+			if (!date) {
+				return this.$texts.common.unknownDate()
+			}
+
+			const today = new Date()
+			const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+			const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+			const dayDifference = Math.round((dateStart.getTime() - todayStart.getTime()) / 86400000)
+
+			if (dayDifference >= -1 && dayDifference <= 1) {
+				const relativeLabel = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(dayDifference, 'day')
+				return relativeLabel.charAt(0).toLocaleUpperCase() + relativeLabel.slice(1)
+			}
+
+			return date.toLocaleDateString(undefined, {
+				weekday: 'long',
+				day: '2-digit',
+				month: 'short',
+				...(date.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {})
+			})
 		},
 		formatGroupTotal(label) {
 			return this.$texts.entry.groupTotal(label)
@@ -763,6 +822,10 @@ th.col-paymentPartner {
 	padding: 0 !important;
 }
 
+.mobile-date-group-row {
+	display: none;
+}
+
 .clickable-row {
 	cursor: pointer;
 	transition: background-color 0.15s ease;
@@ -975,11 +1038,14 @@ th.col-paymentPartner {
 		border: none;
 		background: transparent;
 		box-shadow: none;
+		overflow: visible;
 	}
 
 	.data-table {
 		min-width: 100% !important;
 		border: none;
+		border-radius: 0;
+		background: transparent;
 	}
 
 	.data-table thead {
@@ -994,35 +1060,37 @@ th.col-paymentPartner {
 		width: 100%;
 	}
 
-	.data-table tr {
+	.data-table tr.clickable-row {
 		display: grid;
-		grid-template-columns: 1fr auto;
-		grid-template-areas:
-			"desc amount"
-			"desc actions";
-		gap: 8px 12px;
-		margin-bottom: 12px;
-		padding: 12px;
-		border: 1px solid var(--cobudget-border, #ddd);
-		border-radius: 8px;
-		background: var(--cobudget-surface, #fff);
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-	}
-
-	.data-table tr.date-group-row {
-		display: flex;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		grid-template-areas: "desc amount actions";
 		align-items: center;
-		justify-content: space-between;
-		margin: 12px 0 8px;
-		padding: 8px 12px;
-		border: 1px solid var(--cobudget-border, #ddd);
-		border-radius: 8px;
-		background-color: var(--cobudget-surface, #fff) !important;
+		gap: var(--default-grid-baseline, 4px) calc(var(--default-grid-baseline, 4px) * 2);
+		min-height: calc(var(--default-clickable-area, 44px) + calc(var(--default-grid-baseline, 4px) * 4));
+		margin: 0;
+		padding: calc(var(--default-grid-baseline, 4px) * 2.5) 0;
+		border: none;
+		border-bottom: 1px solid var(--cobudget-border, var(--color-border));
+		border-radius: 0;
+		background: var(--cobudget-surface, var(--color-main-background));
 		box-shadow: none;
 	}
 
-	.data-table tr.date-group-row--year {
+	.data-table tr.date-group-row {
+		display: none;
+	}
 
+	.data-table tr.mobile-date-group-row {
+		display: block;
+		margin: calc(var(--default-grid-baseline, 4px) * 4) 0 0;
+		padding: 0;
+		border: none;
+		background: transparent;
+		box-shadow: none;
+	}
+
+	.data-table tr.mobile-date-group-row:first-child {
+		margin-block-start: 0;
 	}
 
 	.data-table td {
@@ -1036,19 +1104,17 @@ th.col-paymentPartner {
 		display: none !important;
 	}
 
-	.date-group-row .date-group-label,
-	.date-group-row .date-group-amount {
+	.mobile-date-group-row .mobile-date-group-label {
 		display: block !important;
-		width: auto !important;
+		width: 100% !important;
+		padding: 0 0 calc(var(--default-grid-baseline, 4px) * 1.5) !important;
 		border: none;
-	}
-
-	.date-group-row .date-group-label {
-		padding: 0 !important;
-	}
-
-	.date-group-row .date-group-actions {
-		display: none !important;
+		color: var(--cobudget-text-muted, var(--color-text-maxcontrast));
+		font-size: var(--cobudget-font-compact, 12px);
+		font-weight: var(--cobudget-font-weight-action, 700);
+		letter-spacing: 0.02em;
+		line-height: 1.3;
+		text-transform: none;
 	}
 
 	.date-cell,
@@ -1059,25 +1125,26 @@ th.col-paymentPartner {
 	}
 
 	.desc-cell {
-		display: flex !important;
+		display: block !important;
 		grid-area: desc;
-		flex-direction: column;
-		gap: 4px;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.amount-cell {
 		display: flex;
 		grid-area: amount;
-		align-items: flex-start;
+		align-items: center;
 		justify-content: flex-end;
 		width: auto !important;
+		min-width: 0;
 		text-align: right;
 	}
 
 	.actions-cell {
 		display: flex;
 		grid-area: actions;
-		align-items: flex-end;
+		align-items: center;
 		justify-content: flex-end;
 		justify-self: end;
 		width: auto !important;
