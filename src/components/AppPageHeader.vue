@@ -1,7 +1,10 @@
 <template>
 	<header
 		class="app-page-header view-header"
-		:class="{ 'app-page-header--scrolled': isScrolled }">
+		:class="{
+			'app-page-header--scrolled': isScrolled,
+			'app-page-header--pagination-visible': isPaginationVisible,
+		}">
 		<div class="app-page-header__content view-header-content">
 			<h2 class="app-page-header__title view-header-title">
 				<slot name="title">{{ title }}</slot>
@@ -32,6 +35,11 @@ export default {
 	data() {
 		return {
 			isScrolled: false,
+			isPaginationVisible: false,
+			paginationIntersectionObserver: null,
+			paginationMutationObserver: null,
+			paginationObservedElement: null,
+			paginationRefreshFrame: null,
 		}
 	},
 	mounted() {
@@ -41,7 +49,9 @@ export default {
 
 		this.getScrollTarget()?.addEventListener('scroll', this.updateScrollState, { passive: true })
 		window.addEventListener('resize', this.updateScrollState, { passive: true })
+		window.addEventListener('resize', this.schedulePaginationObservationRefresh, { passive: true })
 		this.updateScrollState()
+		this.$nextTick(this.startPaginationObservation)
 	},
 	beforeUnmount() {
 		if (typeof window === 'undefined') {
@@ -50,6 +60,12 @@ export default {
 
 		this.getScrollTarget()?.removeEventListener('scroll', this.updateScrollState)
 		window.removeEventListener('resize', this.updateScrollState)
+		window.removeEventListener('resize', this.schedulePaginationObservationRefresh)
+		this.paginationIntersectionObserver?.disconnect()
+		this.paginationMutationObserver?.disconnect()
+		if (this.paginationRefreshFrame !== null) {
+			window.cancelAnimationFrame(this.paginationRefreshFrame)
+		}
 	},
 	methods: {
 		getScrollTarget() {
@@ -72,13 +88,76 @@ export default {
 			return scrollTarget.scrollTop || 0
 		},
 		updateScrollState() {
-			const nextState = typeof window !== 'undefined'
+			const isMobile = typeof window !== 'undefined'
 				&& window.matchMedia('(max-width: 768px)').matches
+			const nextState = isMobile
 				&& this.currentScrollTop() > 1
 
 			if (this.isScrolled !== nextState) {
 				this.isScrolled = nextState
 			}
+		},
+		startPaginationObservation() {
+			if (typeof window === 'undefined') {
+				return
+			}
+
+			const viewRoot = this.$el?.parentElement
+			if (viewRoot && typeof MutationObserver !== 'undefined') {
+				this.paginationMutationObserver = new MutationObserver(() => {
+					this.schedulePaginationObservationRefresh()
+				})
+				this.paginationMutationObserver.observe(viewRoot, {
+					attributes: true,
+					attributeFilter: ['class'],
+					childList: true,
+					subtree: true,
+				})
+			}
+
+			this.refreshPaginationObservation()
+		},
+		schedulePaginationObservationRefresh() {
+			if (typeof window === 'undefined' || this.paginationRefreshFrame !== null) {
+				return
+			}
+
+			this.paginationRefreshFrame = window.requestAnimationFrame(() => {
+				this.paginationRefreshFrame = null
+				this.refreshPaginationObservation()
+			})
+		},
+		refreshPaginationObservation() {
+			const isMobile = typeof window !== 'undefined'
+				&& window.matchMedia('(max-width: 768px)').matches
+			const paginationElement = isMobile
+				? this.$el?.parentElement?.querySelector?.('.pagination-footer:not(.pagination-footer--single)') || null
+				: null
+
+			if (paginationElement === this.paginationObservedElement && this.paginationIntersectionObserver) {
+				return
+			}
+
+			this.paginationIntersectionObserver?.disconnect()
+			this.paginationIntersectionObserver = null
+			this.paginationObservedElement = paginationElement
+
+			if (!paginationElement || typeof IntersectionObserver === 'undefined') {
+				this.isPaginationVisible = false
+				return
+			}
+
+			const scrollTarget = this.getScrollTarget()
+			this.paginationIntersectionObserver = new IntersectionObserver(([entry]) => {
+				const nextState = Boolean(entry?.isIntersecting)
+				if (this.isPaginationVisible !== nextState) {
+					this.isPaginationVisible = nextState
+				}
+			}, {
+				root: scrollTarget === window ? null : scrollTarget,
+				threshold: 0.01,
+			})
+			this.paginationIntersectionObserver.observe(paginationElement)
 		},
 	},
 }
@@ -144,6 +223,7 @@ export default {
 		--app-page-header-mobile-gutter: var(--cobudget-mobile-content-padding, calc(var(--default-grid-baseline, 4px) * 2.5));
 		--app-page-header-mobile-overlap: calc(var(--default-grid-baseline, 4px) * 1.5);
 		--app-page-header-mobile-sticky-offset: var(--default-grid-baseline, 4px);
+		--app-page-header-mobile-fab-lift: 0px;
 
 		position: sticky;
 		z-index: 30;
@@ -180,6 +260,10 @@ export default {
 	.app-page-header--scrolled {
 		border-block-end-color: var(--cobudget-border, var(--color-border));
 		box-shadow: var(--cobudget-shadow-header, var(--box-shadow-header, var(--cobudget-shadow-sm)));
+	}
+
+	.app-page-header--pagination-visible {
+		--app-page-header-mobile-fab-lift: var(--cobudget-mobile-fab-pagination-lift, calc(var(--default-grid-baseline, 4px) * 10));
 	}
 
 	.app-page-header__content {
@@ -282,8 +366,8 @@ export default {
 
 		position: fixed !important;
 		z-index: 1290 !important;
-		inset-inline-end: max(calc(var(--default-grid-baseline, 4px) * 4), env(safe-area-inset-right, 0px)) !important;
-		inset-block-end: calc(var(--cobudget-mobile-bottom-navigation-height, 64px) + calc(var(--default-grid-baseline, 4px) * 4)) !important;
+		inset-inline-end: var(--cobudget-mobile-fab-inline-offset, max(calc(var(--default-grid-baseline, 4px) * 4), env(safe-area-inset-right, 0px))) !important;
+		inset-block-end: calc(var(--cobudget-mobile-bottom-navigation-height, 64px) + var(--default-grid-baseline, 4px) * 4 + var(--app-page-header-mobile-fab-lift)) !important;
 		min-width: var(--cobudget-mobile-fab-size) !important;
 		width: var(--cobudget-mobile-fab-size) !important;
 		min-height: var(--cobudget-mobile-fab-size) !important;
@@ -293,6 +377,7 @@ export default {
 		justify-content: center !important;
 		border-radius: var(--border-radius-pill, 999px) !important;
 		box-shadow: var(--cobudget-shadow-md, var(--box-shadow)) !important;
+		transition: inset-block-end var(--animation-slow, 200ms) ease !important;
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__wrapper),
@@ -341,6 +426,15 @@ export default {
 		display: none !important;
 	}
 
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue),
+	.app-page-header__actions :deep(.new-payment-main-button .button-vue),
+	.app-page-header__actions :deep(.mobile-create-fab.button-vue),
+	.app-page-header__actions :deep(.mobile-create-fab .button-vue) {
+		transition: none !important;
+	}
 }
 
 @media print {

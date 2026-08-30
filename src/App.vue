@@ -895,6 +895,10 @@ export default {
 	:global(#content.app-cobudget) {
 		--cobudget-mobile-content-padding: calc(var(--default-grid-baseline, 4px) * 2.5);
 		--cobudget-mobile-bottom-navigation-height: calc(64px + env(safe-area-inset-bottom, 0px));
+		--cobudget-mobile-fab-size: calc(var(--default-grid-baseline, 4px) * 16);
+		--cobudget-mobile-fab-inline-offset: max(calc(var(--default-grid-baseline, 4px) * 4), env(safe-area-inset-right, 0px));
+		--cobudget-mobile-fab-pagination-lift: calc(var(--default-grid-baseline, 4px) * 10);
+		--cobudget-mobile-fab-pagination-lane: calc(var(--cobudget-mobile-fab-size) + var(--default-grid-baseline, 4px) * 3);
 	}
 
 	.content-wrapper {

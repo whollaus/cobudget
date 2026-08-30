@@ -2,6 +2,17 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.7] - 2026-08-30
+
+### Changed
+
+- Removed the explanatory subtitle from the analytics page header for a cleaner, more compact presentation.
+- Updated the direct Nextcloud URL and Webpack build dependencies to the current major versions: `@nextcloud/router` 3.x and `@nextcloud/webpack-vue-config` 7.x.
+
+### Fixed
+
+- Restored full-width mobile payment pagination in My Finances and area details, with Previous and Next at the outer edges and the page count centered, while the floating creation action now lifts into a reserved lane when the page controls enter view.
+
 ## [0.3.6] - 2026-08-29
 
 ### Added
@@ -12,7 +23,8 @@ All notable changes to CoBudget are documented in this file.
 
 ### Changed
 
-- Simplified the Nextcloud-header settings to the two concise choices Desktop and Mobile.
+- Updated `@nextcloud/dialogs` to the supported 7.x line and bundled its required toast styles for both application entry points.
+- Renamed and simplified the Nextcloud-header setting to a clear "Show Nextcloud header" section with the two concise choices Desktop and Mobile.
 - Reworked mobile payment rows into compact, day-grouped transaction lists with clearer descriptions, secondary metadata and fewer decorative chips.
 - Moved the mobile creation actions for payments, areas and budget goals into larger, safe-area-aware floating buttons above the quick navigation and strengthened the active navigation indicator across light and dark themes.
 - Replaced the mobile My Finances overflow menu with direct export and search icons in app-style order, and expanded the desktop search trigger into a labeled, borderless toolbar button matching the area settings action.

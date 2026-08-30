@@ -673,7 +673,7 @@ export const texts = {
 		themeModeAuto: () => tx('Automatic'),
 		themeModeLight: () => tx('Light'),
 		themeModeDark: () => tx('Dark'),
-		nextcloudHeader: () => tx('Nextcloud header'),
+		nextcloudHeader: () => tx('Show Nextcloud header'),
 		showNextcloudHeaderDesktop: () => tx('Desktop'),
 		showNextcloudHeaderMobile: () => tx('Mobile'),
 		receipts: () => tx('Receipts'),
@@ -870,7 +870,6 @@ export const texts = {
 	},
 	analytics: {
 		title: () => tx('Analytics'),
-		subtitle: () => tx('Overview of development, forecast, and focus areas of your finances.'),
 		print: () => tx('Print'),
 		selectPeriod: () => tx('Select period'),
 		loading: () => tx('Loading analytics...'),

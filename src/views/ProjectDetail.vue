@@ -1919,6 +1919,15 @@ th.col-desc {
 		display: none;
 	}
 
+	.pagination-footer:not(.pagination-footer--single) {
+		padding-block-start: var(--cobudget-mobile-fab-pagination-lane, calc(var(--default-grid-baseline, 4px) * 19));
+	}
+
+	.pagination-footer:not(.pagination-footer--single) > .page-info {
+		text-align: center;
+		white-space: nowrap;
+	}
+
 	.btn-page {
 		min-width: var(--cobudget-icon-button-size) !important;
 		width: var(--cobudget-icon-button-size) !important;

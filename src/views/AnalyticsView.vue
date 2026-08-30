@@ -2,8 +2,7 @@
 	<div ref="printSource" class="analytics-view">
 		<AppPageHeader
 			class="analytics-page-header"
-			:title="$texts.analytics.title()"
-			:subtitle="$texts.analytics.subtitle()">
+			:title="$texts.analytics.title()">
 			<template #actions>
 				<div class="no-print">
 				<NcButton

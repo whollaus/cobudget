@@ -9,6 +9,7 @@ import { applyNextcloudHeaderVisibility } from './services/nextcloudHeader'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { formatInputAmount, formatMoney, formatMoneyFromCents, formatSignedMoney, parseAmount } from './utils/formatMoney'
 import { installTexts } from './l10n/texts'
+import '@nextcloud/dialogs/style.css'
 import './styles/tokens.css'
 
 const TransactionsView = () => import(/* webpackChunkName: "cobudget-view-transactions" */ './views/TransactionsView.vue')

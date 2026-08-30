@@ -1,6 +1,6 @@
 {
   "name": "cobudget",
-	"version": "0.3.6",
+	"version": "0.3.7",
   "description": "Personal and shared budgeting for Nextcloud",
   "private": true,
   "scripts": {
@@ -19,10 +19,10 @@
   },
   "dependencies": {
     "@nextcloud/axios": "^2.1.0",
-    "@nextcloud/dialogs": "^3.1.2",
+    "@nextcloud/dialogs": "^7.4.1",
     "@nextcloud/initial-state": "^2.0.0",
     "@nextcloud/notify_push": "1.4.0",
-    "@nextcloud/router": "^2.1.2",
+    "@nextcloud/router": "^3.1.0",
     "@nextcloud/vue": "^9.8.2",
     "floating-vue": "^5.2.2",
     "linkify-string": "^4.3.3",
@@ -34,7 +34,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@babel/preset-env": "^7.20.0",
-    "@nextcloud/webpack-vue-config": "^6.0.0",
+    "@nextcloud/webpack-vue-config": "^7.0.4",
     "babel-loader": "^10.0.0",
     "buffer": "^6.0.3",
     "css-loader": "^7.1.4",
