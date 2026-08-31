@@ -14,7 +14,7 @@
 					<template #icon>
 						<PlusIcon :size="20" />
 					</template>
-					{{ $texts.budgetGoals.newTitle() }}
+					<span class="btn-text">{{ $texts.budgetGoals.newTitle() }}</span>
 				</NcButton>
 			</template>
 		</AppPageHeader>
@@ -206,21 +206,6 @@ export default {
 	background-color: var(--cobudget-primary-hover) !important;
 	color: var(--cobudget-primary-text) !important;
 	border-color: var(--cobudget-primary-hover) !important;
-}
-
-@media (max-width: 768px) {
-	.budget-new-button,
-	:deep(.budget-new-button.button-vue),
-	.budget-new-button :deep(.button-vue) {
-		width: var(--cobudget-icon-button-size, 44px) !important;
-		min-width: var(--cobudget-icon-button-size, 44px) !important;
-		padding: 0 !important;
-	}
-
-	.budget-new-button :deep(.button-vue__text),
-	:deep(.budget-new-button.button-vue .button-vue__text) {
-		display: none !important;
-	}
 }
 
 .budget-goals-section {

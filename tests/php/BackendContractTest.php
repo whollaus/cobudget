@@ -1082,10 +1082,19 @@ return [
 		$routes = require $t->path('appinfo/routes.php');
 		$routeNames = array_column($routes['routes'], 'url', 'name');
 		$t->assertTrue(($routeNames['project#settlements'] ?? null) === '/api/projects/{id}/settlements', 'Project settlement history route should exist');
+		$t->assertTrue(($routeNames['project#settlementEntries'] ?? null) === '/api/projects/{id}/settlements/{settlementId}/entries', 'Paginated settlement payment route should exist');
 
 		$settlements = $t->methodBody('lib/Controller/ProjectController.php', 'settlements');
 		$t->assertContains('projectVisibleForCurrentUser($id)', $settlements, 'Settlement history should require project membership');
-		$t->assertContains('settlementHistory($id, $workspaceId, null, true)', $settlements, 'Settlement history endpoint should include settlement entries');
+		$t->assertContains('normalizeSettlementPagination($limit, $offset)', $settlements, 'Settlement history should normalize untrusted pagination parameters');
+		$t->assertContains('settlementHistory($id, $workspaceId, $limit, $offset)', $settlements, 'Settlement history endpoint should include only the requested settlement page');
+		$t->assertContains("'total' => \$this->settlementCount(\$id, \$workspaceId)", $settlements, 'Settlement history endpoint should report the total settlement count');
+
+		$settlementEntries = $t->methodBody('lib/Controller/ProjectController.php', 'settlementEntries');
+		$t->assertContains('projectVisibleForCurrentUser($id)', $settlementEntries, 'Settlement payments should require area membership');
+		$t->assertContains('settlementBelongsToProject($settlementId, $id, $workspaceId)', $settlementEntries, 'Settlement payments should verify their settlement belongs to the visible area');
+		$t->assertContains('normalizeSettlementEntryPagination($limit, $offset)', $settlementEntries, 'Settlement payments should normalize untrusted pagination parameters');
+		$t->assertContains('loadSettlementEntries($settlementId, $id, $workspaceId, $limit, $offset)', $settlementEntries, 'Settlement payments should load only their requested server-side page');
 
 		$settle = $t->methodBody('lib/Controller/ProjectController.php', 'settle');
 		$t->assertContains("insert('cobudget_settlements')", $settle, 'Settlement should create a settlement header');
@@ -1099,9 +1108,15 @@ return [
 		$t->assertContains("'amountCents'", $repayments, 'Repayment suggestions should stay in cents');
 
 		$history = $t->methodBody('lib/Controller/ProjectController.php', 'settlementHistory');
+		$t->assertContains('setMaxResults($limit)', $history, 'Settlement history should limit each page');
+		$t->assertContains('setFirstResult($offset)', $history, 'Settlement history should load the requested page offset');
 		$t->assertContains('loadSettlementBalances($settlementId)', $history, 'Settlement history should include balance snapshots');
 		$t->assertContains('loadSettlementTransfers($settlementId)', $history, 'Settlement history should include repayment transfers');
-		$t->assertContains('loadSettlementEntries($settlementId, $projectId, $workspaceId)', $history, 'Settlement history should include entry tables when requested');
+		$t->assertFalse(strpos($history, 'loadSettlementEntries(') !== false, 'Settlement history should defer payment rows until a settlement is opened');
+
+		$entryPage = $t->methodBody('lib/Controller/ProjectController.php', 'loadSettlementEntries');
+		$t->assertContains('setMaxResults($limit)', $entryPage, 'Settlement payments should limit each page');
+		$t->assertContains('setFirstResult($offset)', $entryPage, 'Settlement payments should load the requested page offset');
 
 		$infoXml = $t->read('appinfo/info.xml');
 		$packageJson = json_decode($t->read('package.json'), true);

@@ -21,6 +21,12 @@ class ProjectController extends Controller {
 	use WorkspaceAwareTrait;
 
 	private const MAX_PROJECT_MEMBERS = 100;
+	private const DEFAULT_SETTLEMENT_PAGE_SIZE = 10;
+	private const MAX_SETTLEMENT_PAGE_SIZE = 50;
+	private const MAX_SETTLEMENT_PAGE_OFFSET = 100000;
+	private const DEFAULT_SETTLEMENT_ENTRY_PAGE_SIZE = 25;
+	private const MAX_SETTLEMENT_ENTRY_PAGE_SIZE = 250;
+	private const MAX_SETTLEMENT_ENTRY_PAGE_OFFSET = 1000000;
 
 	private IDBConnection $db;
 	private ?string $userId;
@@ -727,7 +733,11 @@ class ProjectController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 */
-	public function settlements(int $id): DataResponse {
+	public function settlements(
+		int $id,
+		int $limit = self::DEFAULT_SETTLEMENT_PAGE_SIZE,
+		int $offset = 0
+	): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
@@ -748,10 +758,58 @@ class ProjectController extends Controller {
 				return new DataResponse(['error' => 'Project not found'], Http::STATUS_NOT_FOUND);
 			}
 			$project['members'] = $this->projectMembers($id);
+			[$limit, $offset] = $this->normalizeSettlementPagination($limit, $offset);
 
 			return new DataResponse([
 				'project' => $project,
-				'settlements' => $this->settlementHistory($id, $workspaceId, null, true),
+				'settlements' => $this->settlementHistory($id, $workspaceId, $limit, $offset),
+				'total' => $this->settlementCount($id, $workspaceId),
+				'limit' => $limit,
+				'offset' => $offset,
+			]);
+		} catch (\Throwable $e) {
+			return $this->loggedErrorResponse($e);
+		}
+	}
+
+	/**
+	 * @NoAdminRequired
+	 */
+	#[UserRateLimit(limit: 120, period: 60)]
+	public function settlementEntries(
+		int $id,
+		int $settlementId,
+		int $limit = self::DEFAULT_SETTLEMENT_ENTRY_PAGE_SIZE,
+		int $offset = 0
+	): DataResponse {
+		try {
+			if ($error = $this->authErrorResponse()) {
+				return $error;
+			}
+
+			if ($validationError = $this->validatePositiveId($id)) {
+				return $validationError;
+			}
+			if ($validationError = $this->validatePositiveId($settlementId, 'Invalid settlement id')) {
+				return $validationError;
+			}
+
+			$project = $this->projectVisibleForCurrentUser($id);
+			if (!$project) {
+				return new DataResponse(['error' => 'Forbidden'], Http::STATUS_FORBIDDEN);
+			}
+			$workspaceId = (int)$project['workspace_id'];
+			if (!$this->settlementBelongsToProject($settlementId, $id, $workspaceId)) {
+				return new DataResponse(['error' => 'Settlement not found'], Http::STATUS_NOT_FOUND);
+			}
+
+			[$limit, $offset] = $this->normalizeSettlementEntryPagination($limit, $offset);
+
+			return new DataResponse([
+				'entries' => $this->loadSettlementEntries($settlementId, $id, $workspaceId, $limit, $offset),
+				'total' => $this->settlementEntryCount($settlementId, $id, $workspaceId),
+				'limit' => $limit,
+				'offset' => $offset,
 			]);
 		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
@@ -1428,7 +1486,52 @@ class ProjectController extends Controller {
 		return $project ?: null;
 	}
 
-	private function settlementHistory(int $projectId, int $workspaceId, ?int $limit = 10, bool $includeEntries = false): array {
+	/** @return array{0: int, 1: int} */
+	private function normalizeSettlementPagination(int $limit, int $offset): array {
+		return [
+			max(1, min(self::MAX_SETTLEMENT_PAGE_SIZE, $limit)),
+			max(0, min(self::MAX_SETTLEMENT_PAGE_OFFSET, $offset)),
+		];
+	}
+
+	/** @return array{0: int, 1: int} */
+	private function normalizeSettlementEntryPagination(int $limit, int $offset): array {
+		return [
+			max(1, min(self::MAX_SETTLEMENT_ENTRY_PAGE_SIZE, $limit)),
+			max(0, min(self::MAX_SETTLEMENT_ENTRY_PAGE_OFFSET, $offset)),
+		];
+	}
+
+	private function settlementBelongsToProject(int $settlementId, int $projectId, int $workspaceId): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_settlements')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($settlementId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->setMaxResults(1);
+
+		$result = $qb->executeQuery();
+		$exists = $result->fetchOne() !== false;
+		$result->closeCursor();
+
+		return $exists;
+	}
+
+	private function settlementCount(int $projectId, int $workspaceId): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectAlias($qb->func()->count('*'), 'settlement_count')
+			->from('cobudget_settlements')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+		$result = $qb->executeQuery();
+		$count = (int)$result->fetchOne();
+		$result->closeCursor();
+
+		return $count;
+	}
+
+	private function settlementHistory(int $projectId, int $workspaceId, int $limit = self::DEFAULT_SETTLEMENT_PAGE_SIZE, int $offset = 0): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')
 			->from('cobudget_settlements')
@@ -1436,9 +1539,8 @@ class ProjectController extends Controller {
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
 			->orderBy('created_at', 'DESC')
 			->addOrderBy('id', 'DESC');
-		if ($limit !== null) {
-			$qb->setMaxResults($limit);
-		}
+		$qb->setMaxResults($limit);
+		$qb->setFirstResult($offset);
 		$result = $qb->executeQuery();
 		$settlements = $result->fetchAll();
 		$result->closeCursor();
@@ -1452,13 +1554,10 @@ class ProjectController extends Controller {
 				'createdBy' => (string)$settlement['created_by'],
 				'createdByDisplayName' => $this->displayNameForUser((string)$settlement['created_by']),
 				'currency' => (string)$settlement['currency'],
-				'entryCount' => $this->settlementEntryCount($settlementId),
+				'entryCount' => $this->settlementEntryCount($settlementId, $projectId, $workspaceId),
 				'balances' => $this->loadSettlementBalances($settlementId),
 				'transfers' => $this->loadSettlementTransfers($settlementId),
 			];
-			if ($includeEntries) {
-				$item['entries'] = $this->loadSettlementEntries($settlementId, $projectId, $workspaceId);
-			}
 			$history[] = $item;
 		}
 
@@ -1518,20 +1617,22 @@ class ProjectController extends Controller {
 		return $this->transferRowsForResponse($transfers);
 	}
 
-	private function settlementEntryCount(int $settlementId): int {
+	private function settlementEntryCount(int $settlementId, int $projectId, int $workspaceId): int {
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id')
-			->from('cobudget_entries')
-			->where($qb->expr()->eq('settlement_id', $qb->createNamedParameter($settlementId, \PDO::PARAM_INT)))
-			->andWhere($qb->expr()->eq('entry_kind', $qb->createNamedParameter('shared')));
+		$qb->selectAlias($qb->func()->count('*'), 'entry_count')
+			->from('cobudget_entries', 'e')
+			->where($qb->expr()->eq('e.settlement_id', $qb->createNamedParameter($settlementId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('e.project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('shared')));
 		$result = $qb->executeQuery();
-		$count = count($result->fetchAll());
+		$count = (int)$result->fetchOne();
 		$result->closeCursor();
 
 		return $count;
 	}
 
-	private function loadSettlementEntries(int $settlementId, int $projectId, int $workspaceId): array {
+	private function loadSettlementEntries(int $settlementId, int $projectId, int $workspaceId, int $limit, int $offset): array {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner')
 			->from('cobudget_entries', 'e')
@@ -1543,6 +1644,8 @@ class ProjectController extends Controller {
 			->andWhere($qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('shared')))
 			->orderBy('e.date', 'DESC')
 			->addOrderBy('e.id', 'DESC');
+		$qb->setMaxResults($limit);
+		$qb->setFirstResult($offset);
 		$result = $qb->executeQuery();
 		$entries = $result->fetchAll();
 		$result->closeCursor();

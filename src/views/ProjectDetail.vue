@@ -1,20 +1,38 @@
 <template>
-	<div v-if="project" class="project-detail">
+	<div
+		v-if="project"
+		class="project-detail"
+		:class="{ 'project-detail--table-only': isProjectPaymentsView }">
 		<AppPageHeader class="detail-header">
 			<template #title>
-				<span v-if="project.color" class="project-color-dot"
-					:style="{ backgroundColor: project.color }"></span>
-				{{ project.name }}
+				<span v-if="isProjectPaymentsView" class="cobudget-page-title-with-back">
+					<NcButton
+						variant="tertiary"
+						class="cobudget-header-back-button"
+						:aria-label="$texts.areaSettings.backToArea()"
+						:title="$texts.areaSettings.backToArea()"
+						@click="goBackToProjectOverview">
+						<template #icon>
+							<ArrowLeftIcon :size="20" />
+						</template>
+					</NcButton>
+					<span>{{ $texts.payments.title() }}</span>
+				</span>
+				<template v-else>
+					<span v-if="project.color" class="project-color-dot"
+						:style="{ backgroundColor: project.color }"></span>
+					{{ project.name }}
+				</template>
 			</template>
 			<template #actions>
 					<NcActions>
-						<NcActionButton v-if="canSettleProject && hasBalancesToSettle" :close-after-click="true" @click="settleUp" icon="icon-checkmark">
+						<NcActionButton v-if="!isProjectPaymentsView && canSettleProject && hasBalancesToSettle" :close-after-click="true" @click="settleUp" icon="icon-checkmark">
 							{{ $texts.areaDetail.settleArea() }}
 						</NcActionButton>
-						<NcActionButton v-if="canManageProject" :close-after-click="true" @click="openProjectSettings" icon="icon-rename">
+						<NcActionButton v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="openProjectSettings" icon="icon-rename">
 							{{ $texts.areaDetail.areaSettings() }}
 						</NcActionButton>
-						<NcActionButton v-if="showSettlementControls" :close-after-click="true" @click="openProjectSettlements" icon="icon-history">
+						<NcActionButton v-if="!isProjectPaymentsView && showSettlementControls" :close-after-click="true" @click="openProjectSettlements" icon="icon-history">
 							{{ $texts.areaDetail.settlements() }}
 						</NcActionButton>
 						<NcActionButton :close-after-click="true" @click="showFilterPanel = true" icon="icon-search">
@@ -23,13 +41,13 @@
 						<NcActionButton v-if="canExportEntries" :close-after-click="true" @click="exportEntries" icon="icon-download" :disabled="isExporting">
 							{{ isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv() }}
 						</NcActionButton>
-						<NcActionButton v-if="canManageProject" :close-after-click="true" @click="toggleArchiveProject"
+						<NcActionButton v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="toggleArchiveProject"
 							:icon="project.is_archived ? 'icon-history' : 'icon-toggle-pictures'"
 							:disabled="activeEntries.length > 0"
 							:title="activeEntries.length > 0 ? $texts.areaDetail.archiveBlocked() : ''">
 							{{ project.is_archived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive() }}
 						</NcActionButton>
-						<NcActionButton v-if="canManageProject" :close-after-click="true" @click="deleteProject" icon="icon-delete" :disabled="hasEntries"
+						<NcActionButton v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="deleteProject" icon="icon-delete" :disabled="hasEntries"
 							:title="hasEntries ? $texts.areaDetail.deleteBlockedWithEntries() : ''">
 							{{ $texts.common.delete() }}
 						</NcActionButton>
@@ -59,14 +77,14 @@
 							/>
 						</div>
 					</NcPopover>
-					<NcButton v-if="canManageProject" variant="secondary" class="edit-project-btn cobudget-toolbar-text-button project-settings-header-btn" @click="openProjectSettings"
+					<NcButton v-if="!isProjectPaymentsView && canManageProject" variant="secondary" class="edit-project-btn cobudget-toolbar-text-button project-settings-header-btn" @click="openProjectSettings"
 						:aria-label="$texts.areaDetail.areaSettings()" :title="$texts.areaDetail.areaSettings()">
 						<template #icon>
 							<PencilIcon :size="20" />
 						</template>
 						<span class="btn-text">{{ $texts.areaDetail.areaSettings() }}</span>
 					</NcButton>
-          <NcButton v-if="canSettleProject && hasBalancesToSettle" @click="settleUp" class="btn-settle-header project-settle-header-btn"
+	          <NcButton v-if="!isProjectPaymentsView && canSettleProject && hasBalancesToSettle" @click="settleUp" class="btn-settle-header project-settle-header-btn"
                     :title="$texts.areaDetail.settleArea()" variant="warning">
             <template #icon>
               <CheckAllIcon :size="20" fillColor="#000" />
@@ -74,7 +92,7 @@
             <span class="btn-text">{{ $texts.areaDetail.settleArea() }}</span>
 					</NcButton>
 					<NcButton
-						v-if="!hideNewPaymentAction"
+						v-if="!isProjectPaymentsView && !hideNewPaymentAction"
 						variant="primary"
 						class="new-payment-main-button"
 						:aria-label="$texts.areaDetail.newPayment()"
@@ -84,7 +102,6 @@
 							<PlusIcon :size="20" />
 						</template>
 						<span class="btn-text">{{ $texts.areaDetail.newPayment() }}</span>
-						<span class="mobile-payment-label">{{ $texts.common.payment() }}</span>
 					</NcButton>
 			</template>
 		</AppPageHeader>
@@ -118,7 +135,7 @@
 		</Teleport>
 
 		<div class="project-detail-scroll">
-		<DraggableScroller v-if="projectDashboardCards.length > 0" class="stats-row project-stats-row">
+			<DraggableScroller v-if="!isProjectPaymentsView && projectDashboardCards.length > 0" class="stats-row project-stats-row">
 			<div v-for="card in projectDashboardCards" :key="card.key" class="stat-card" :class="card.cardClass">
 				<div class="stat-header">
 					<div class="stat-title-group">
@@ -141,7 +158,7 @@
 		</DraggableScroller>
 
 		<!-- Members / Balances Section -->
-		<div class="section members-section balances-section" v-if="showMemberBalances && project.balances && project.balances.length > 0">
+			<div class="section members-section balances-section" v-if="!isProjectPaymentsView && showMemberBalances && project.balances && project.balances.length > 0">
 			<div class="section-header">
 				<h3 style="display: flex; align-items: center; gap: 8px;">
 					<AccountMultipleIcon :size="20" /> {{ $texts.areaDetail.members(project.members ? project.members.length : 0) }}
@@ -175,7 +192,7 @@
 			</DraggableScroller>
 		</div>
 
-		<div v-if="showSettlementControls && project.repaymentTransfers && project.repaymentTransfers.length > 0" class="section repayments-section">
+			<div v-if="!isProjectPaymentsView && showSettlementControls && project.repaymentTransfers && project.repaymentTransfers.length > 0" class="section repayments-section">
 			<div class="section-header">
 				<h3>{{ $texts.areaDetail.repayments() }}</h3>
 			</div>
@@ -192,8 +209,9 @@
 		<!-- Active Entries -->
 		<div class="section">
 			
-			<EntryTable
-				v-if="activeEntries.length > 0"
+				<EntryTable
+					v-if="activeEntries.length > 0"
+					ref="entryTable"
 				mode="project"
 				:entries="activeEntries"
 				:date-groups="activeDateGroups"
@@ -221,18 +239,33 @@
 				@delete="deleteEntry"
 				@history="openEntryHistory">
 				<template #pagination>
-					<div class="pagination-footer" :class="{ 'pagination-footer--single': activePagination.total <= activePagination.limit }">
+						<div
+							class="pagination-footer"
+							:class="{
+								'pagination-footer--single': activePagination.total <= activePagination.limit,
+								'pagination-footer--dashboard': !isProjectPaymentsView,
+							}">
 						<NcButton v-if="activePagination.total > activePagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: activePagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevActivePage">
 							<ArrowLeftIcon class="pagination-icon" :size="16" aria-hidden="true" />
 							<span class="pagination-label">{{ $texts.common.previous() }}</span>
 						</NcButton>
-						<span class="page-info">{{ $texts.common.pageInfo(activePagination.offset + 1, Math.min(activePagination.offset + activePagination.limit, activePagination.total), activePagination.total) }}</span>
+							<span class="page-info">{{ activePaginationInfo }}</span>
 						<NcButton v-if="activePagination.total > activePagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: activePagination.offset + activePagination.limit < activePagination.total ? 'visible' : 'hidden' }" @click="nextActivePage">
 							<span class="pagination-label">{{ $texts.common.next() }}</span>
 							<ArrowRightIcon class="pagination-icon" :size="16" aria-hidden="true" />
 						</NcButton>
-					</div>
-				</template>
+						</div>
+						<div
+							v-if="!isProjectPaymentsView && activePagination.total > activePagination.limit"
+							class="mobile-more-payments-footer">
+							<NcButton
+								variant="tertiary-no-background"
+								class="mobile-more-payments-button"
+								@click="openProjectPaymentsView">
+								{{ $texts.payments.showMore() }}
+							</NcButton>
+						</div>
+					</template>
 			</EntryTable>
 			<NcEmptyContent
 				v-else
@@ -246,7 +279,7 @@
 					<NcButton v-if="hasActiveFilters" variant="secondary" @click="resetFilters">
 						{{ $texts.common.resetFilters() }}
 					</NcButton>
-					<NcButton v-else-if="project.status !== 'archived' && !hideNewPaymentAction" variant="primary" class="new-payment-main-button" @click="openEntrySidebar">
+					<NcButton v-else-if="!isProjectPaymentsView && project.status !== 'archived' && !hideNewPaymentAction" variant="primary" class="new-payment-main-button" @click="openEntrySidebar">
 						<template #icon>
 							<PlusIcon :size="20" />
 						</template>
@@ -338,6 +371,14 @@ import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import ArrowRightIcon from 'vue-material-design-icons/ArrowRight.vue'
 import DraggableScroller from '../components/DraggableScroller.vue'
 import { normalizeEntryPageSize, shouldIgnorePaginationKeydown } from '../services/pagination'
+import {
+	createProjectEntryFilters,
+	entryOffsetFromPage,
+	entryPageFromOffset,
+	parseProjectEntryListRouteQuery,
+	personalEntryListQueriesEqual,
+	serializeProjectEntryListRouteQuery,
+} from '../services/entryListRoute'
 import { showRequestError, showToast } from '../services/notifications'
 import { downloadBlobResponse } from '../services/downloads'
 import { getAreaColorStyle } from '../utils/areaColor'
@@ -371,21 +412,7 @@ export default {
 			hashtags: [],
 			isExporting: false,
 			showSettleConfirm: false,
-			filters: {
-				search: '',
-				type: 'all',
-				status: 'active',
-				categoryId: null,
-				paymentPartnerId: null,
-				dateFrom: null,
-				dateTo: null,
-				timeRange: 'all',
-				recurring: 'all',
-				tags: 'all',
-				hashtagId: null,
-				hasReminder: 'all',
-				hasAttachment: 'all'
-			},
+			filters: createProjectEntryFilters(),
 			sortBy: 'date',
 			sortDir: 'desc',
 			activePagination: {
@@ -393,6 +420,10 @@ export default {
 				offset: 0,
 				total: 0
 			},
+			loadedProjectId: null,
+			projectFetchRequestId: 0,
+			entryFetchRequestId: 0,
+			mobilePaginationMedia: null,
 			entryHistoryOpen: false,
 			entryHistoryLoading: false,
 			entryHistoryRows: [],
@@ -400,6 +431,25 @@ export default {
 		}
 	},
 	computed: {
+		isProjectPaymentsView() {
+			return this.$route.name === 'project-payments'
+		},
+		currentActivePage() {
+			return entryPageFromOffset(this.activePagination.offset, this.activePagination.limit)
+		},
+		totalActivePages() {
+			return Math.max(1, Math.ceil(Number(this.activePagination.total || 0) / this.activePagination.limit))
+		},
+		activePaginationInfo() {
+			if (this.isProjectPaymentsView) {
+				return this.$texts.common.pageNumber(this.currentActivePage, this.totalActivePages)
+			}
+			return this.$texts.common.pageInfo(
+				this.activePagination.offset + 1,
+				Math.min(this.activePagination.offset + this.activePagination.limit, this.activePagination.total),
+				this.activePagination.total,
+			)
+		},
 		hasActiveFilters() {
 			return this.filters.search !== '' || 
 				   this.filters.type !== 'all' || 
@@ -482,8 +532,11 @@ export default {
 		}
 	},
 	mounted() {
-			this.applyEntryPageSize()
-			this.fetchProjectData()
+		this.handleProjectRouteChange()
+		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+			this.mobilePaginationMedia = window.matchMedia('(max-width: 768px)')
+			this.mobilePaginationMedia.addEventListener?.('change', this.onMobilePaginationViewportChange)
+		}
 		window.addEventListener('entry-saved', this.onEntrySaved)
 		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.addEventListener('settings-closed', this.onSettingsClosed)
@@ -494,12 +547,10 @@ export default {
 		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.removeEventListener('settings-closed', this.onSettingsClosed)
 		window.removeEventListener('keydown', this.onPaginationKeydown)
+		this.mobilePaginationMedia?.removeEventListener?.('change', this.onMobilePaginationViewportChange)
 	},
 	watch: {
-		projectId() {
-			this.resetProjectTableState()
-			this.fetchProjectData()
-		},
+		'$route.fullPath': 'handleProjectRouteChange',
 		selectedEntryId: 'notifySelectedEntryVisibility',
 		activeEntries: 'notifySelectedEntryVisibility'
 	},
@@ -540,12 +591,29 @@ export default {
 				resolver(confirmed);
 			}
 		},
-		applyEntryPageSize() {
-			this.activePagination.limit = normalizeEntryPageSize(this.$entriesPerPage)
+		applyEntryPageSize(value = this.$entriesPerPage) {
+			this.activePagination.limit = normalizeEntryPageSize(value)
 			this.activePagination.offset = 0
 		},
+		isMobileViewport() {
+			if (this.mobilePaginationMedia) {
+				return this.mobilePaginationMedia.matches
+			}
+			return typeof window !== 'undefined'
+				&& typeof window.matchMedia === 'function'
+				&& window.matchMedia('(max-width: 768px)').matches
+		},
+		onMobilePaginationViewportChange(event) {
+			if (event.matches && !this.isProjectPaymentsView && this.activePagination.offset > 0) {
+				this.activePagination.offset = 0
+				this.scrollEntriesToTop()
+				this.fetchActiveEntries()
+			}
+		},
 		onPaginationKeydown(event) {
-			if (shouldIgnorePaginationKeydown(event) || this.activePagination.total <= this.activePagination.limit) {
+			if ((!this.isProjectPaymentsView && this.isMobileViewport())
+				|| shouldIgnorePaginationKeydown(event)
+				|| this.activePagination.total <= this.activePagination.limit) {
 				return
 			}
 
@@ -555,6 +623,40 @@ export default {
 			} else if (event.key === 'ArrowRight' && this.activePagination.offset + this.activePagination.limit < this.activePagination.total) {
 				event.preventDefault()
 				this.nextActivePage()
+			}
+		},
+		handleProjectRouteChange() {
+			const routeState = parseProjectEntryListRouteQuery(this.$route.query, this.$entriesPerPage)
+			const nextProjectId = String(this.projectId)
+			const projectChanged = this.loadedProjectId !== nextProjectId
+
+			if (projectChanged) {
+				this.resetProjectTableState()
+				this.project = null
+				this.categories = []
+				this.paymentPartners = []
+				this.hashtags = []
+				this.loadedProjectId = nextProjectId
+			}
+
+			this.filters = routeState.filters
+			this.sortBy = routeState.sortBy
+			this.sortDir = routeState.sortDir
+			this.applyEntryPageSize(this.isProjectPaymentsView ? routeState.limit : this.$entriesPerPage)
+			if (this.isProjectPaymentsView) {
+				this.activePagination.offset = entryOffsetFromPage(routeState.page, this.activePagination.limit)
+			}
+
+			this.$nextTick(() => {
+				if (this.$refs.tableFilters) {
+					this.$refs.tableFilters.localFilters = { ...this.filters }
+				}
+			})
+
+			if (projectChanged || !this.project) {
+				this.fetchProjectData()
+			} else {
+				this.fetchActiveEntries()
 			}
 		},
 		onSettingsClosed() {
@@ -576,21 +678,9 @@ export default {
 			this.$router.push({ name: 'project-settlements', params: { id: this.projectId } });
 		},
 		resetProjectTableState() {
-			this.filters = {
-				search: '',
-				type: 'all',
-				status: 'active',
-				categoryId: null,
-				paymentPartnerId: null,
-				dateFrom: null,
-				dateTo: null,
-				timeRange: 'all',
-				recurring: 'all',
-				tags: 'all',
-				hashtagId: null,
-				hasReminder: 'all',
-				hasAttachment: 'all'
-			}
+			this.filters = createProjectEntryFilters()
+			this.sortBy = 'date'
+			this.sortDir = 'desc'
 			this.activePagination.offset = 0
 			if (this.$refs.tableFilters) {
 				this.$refs.tableFilters.localFilters = { ...this.filters }
@@ -630,23 +720,36 @@ export default {
 			}
 		},
 		async fetchProjectData() {
+			const requestId = ++this.projectFetchRequestId
+			const requestedProjectId = String(this.projectId)
 			try {
 				const projRes = await axios.get(generateUrl(`/apps/cobudget/api/projects/${this.projectId}`))
+				if (requestId !== this.projectFetchRequestId || requestedProjectId !== String(this.projectId)) {
+					return
+				}
 				this.project = projRes.data
 
 				if (this.categories.length === 0) {
-					const catRes = await axios.get(generateUrl('/apps/cobudget/api/categories'), { params: { projectId: this.projectId } })
+					const catRes = await axios.get(generateUrl('/apps/cobudget/api/categories'), { params: { projectId: requestedProjectId } })
+					if (requestId !== this.projectFetchRequestId || requestedProjectId !== String(this.projectId)) {
+						return
+					}
 					this.categories = (catRes.data || []).sort((a, b) => a.name.localeCompare(b.name))
 				}
 
 				if (this.paymentPartners.length === 0) {
-					const paymentPartnerRes = await axios.get(generateUrl('/apps/cobudget/api/payment-partners'), { params: { projectId: this.projectId } })
+					const paymentPartnerRes = await axios.get(generateUrl('/apps/cobudget/api/payment-partners'), { params: { projectId: requestedProjectId } })
+					if (requestId !== this.projectFetchRequestId || requestedProjectId !== String(this.projectId)) {
+						return
+					}
 					this.paymentPartners = (paymentPartnerRes.data || []).sort((a, b) => a.name.localeCompare(b.name))
 				}
 
 				await this.fetchActiveEntries();
 			} catch (e) {
-				showRequestError(e, this.$texts.areaDetail.loadError(), 'Failed to fetch project details')
+				if (requestId === this.projectFetchRequestId && requestedProjectId === String(this.projectId)) {
+					showRequestError(e, this.$texts.areaDetail.loadError(), 'Failed to fetch project details')
+				}
 			}
 		},
 		onEntrySaved() {
@@ -727,6 +830,7 @@ export default {
 				isImportant: isImportant,
 				needsReview: needsReview,
 				isTaxRelevant: isTaxRelevant,
+				isFuturePayments: this.filters.tags === 'future',
 				hasReminder: hasReminder,
 				hasAttachment: hasAttachment,
 				hashtagId: this.filters.hashtagId,
@@ -748,18 +852,28 @@ export default {
 			return params;
 		},
 		async fetchActiveEntries() {
+			const requestId = ++this.entryFetchRequestId
 			const params = this.buildEntryQueryParams(true);
 			try {
 				const res = await axios.get(generateUrl('/apps/cobudget/api/entries'), { params });
+				if (requestId !== this.entryFetchRequestId) {
+					return
+				}
 				this.activeEntries = res.data.entries || [];
 				this.activeDateGroups = res.data.dateGroups || null;
 				this.activePagination.total = res.data.total || 0;
+				if (this.isProjectPaymentsView && this.currentActivePage > this.totalActivePages) {
+					this.goToProjectPaymentsPage(this.totalActivePages)
+					return
+				}
 				if (Array.isArray(res.data.lookups?.hashtags)) {
 					this.hashtags = res.data.lookups.hashtags.sort((a, b) => String(a.displayName || a.name || '').localeCompare(String(b.displayName || b.name || ''), undefined, { sensitivity: 'base' }))
+					}
+				} catch (e) {
+					if (requestId === this.entryFetchRequestId) {
+						showRequestError(e, this.$texts.areaDetail.entriesLoadError(), 'Failed to fetch project entries')
+					}
 				}
-			} catch (e) {
-				showRequestError(e, this.$texts.areaDetail.entriesLoadError(), 'Failed to fetch project entries')
-			}
 		},
 		async exportEntries() {
 			if (this.isExporting) {
@@ -780,28 +894,16 @@ export default {
 			}
 		},
 		onFiltersUpdate(newFilters) {
-			this.filters = newFilters;
-			this.activePagination.offset = 0;
-			this.fetchActiveEntries();
-		},
-		resetFilters() {
 			this.filters = {
-				search: '',
-				type: 'all',
-				status: 'active',
-				categoryId: null,
-				paymentPartnerId: null,
-				dateFrom: null,
-				dateTo: null,
-				timeRange: 'all',
-				recurring: 'all',
-				tags: 'all',
-				hashtagId: null,
-				hasReminder: 'all',
-				hasAttachment: 'all'
+				...createProjectEntryFilters(),
+				...newFilters,
 			};
 			this.activePagination.offset = 0;
-			this.fetchActiveEntries();
+			this.scrollEntriesToTop()
+			this.replaceProjectEntryListRoute({ page: 1 })
+		},
+		resetFilters() {
+			this.onFiltersUpdate(createProjectEntryFilters())
 		},
 		toggleSort(col) {
 			if (this.sortBy === col) {
@@ -811,18 +913,102 @@ export default {
 				this.sortDir = 'desc';
 			}
 			this.activePagination.offset = 0;
-			this.fetchActiveEntries();
+			this.scrollEntriesToTop()
+			this.replaceProjectEntryListRoute({ page: 1 })
 		},
 		prevActivePage() {
 			if (this.activePagination.offset > 0) {
+				if (this.isProjectPaymentsView) {
+					this.goToProjectPaymentsPage(this.currentActivePage - 1)
+					return
+				}
 				this.activePagination.offset = Math.max(0, this.activePagination.offset - this.activePagination.limit);
+				this.scrollEntriesToTop()
 				this.fetchActiveEntries();
 			}
 		},
 		nextActivePage() {
 			if (this.activePagination.offset + this.activePagination.limit < this.activePagination.total) {
+				if (this.isProjectPaymentsView) {
+					this.goToProjectPaymentsPage(this.currentActivePage + 1)
+					return
+				}
 				this.activePagination.offset += this.activePagination.limit;
+				this.scrollEntriesToTop()
 				this.fetchActiveEntries();
+			}
+		},
+		replaceProjectEntryListRoute({ page = this.currentActivePage } = {}) {
+			const query = serializeProjectEntryListRouteQuery({
+				filters: this.filters,
+				sortBy: this.sortBy,
+				sortDir: this.sortDir,
+				page,
+				limit: this.activePagination.limit,
+				includePagination: this.isProjectPaymentsView,
+			})
+			if (personalEntryListQueriesEqual(this.$route.query, query)) {
+				this.fetchActiveEntries()
+				return
+			}
+			this.$router.replace({
+				name: this.$route.name,
+				params: this.$route.params,
+				query,
+			}).catch(() => this.fetchActiveEntries())
+		},
+		goToProjectPaymentsPage(page) {
+			const targetPage = Math.min(this.totalActivePages, Math.max(1, page))
+			this.activePagination.offset = entryOffsetFromPage(targetPage, this.activePagination.limit)
+			this.scrollEntriesToTop()
+			this.replaceProjectEntryListRoute({ page: targetPage })
+		},
+		openProjectPaymentsView() {
+			const query = serializeProjectEntryListRouteQuery({
+				filters: this.filters,
+				sortBy: this.sortBy,
+				sortDir: this.sortDir,
+				page: this.currentActivePage + 1,
+				limit: this.activePagination.limit,
+				includePagination: true,
+			})
+			this.$router.push({
+				name: 'project-payments',
+				params: { id: this.projectId },
+				query,
+			}).then(() => this.$nextTick(this.scrollProjectPageToTop))
+		},
+		goBackToProjectOverview() {
+			const query = serializeProjectEntryListRouteQuery({
+				filters: this.filters,
+				sortBy: this.sortBy,
+				sortDir: this.sortDir,
+			})
+			this.$router.push({
+				name: 'project-detail',
+				params: { id: this.projectId },
+				query,
+			}).then(() => this.$nextTick(this.scrollProjectPageToTop))
+		},
+		scrollEntriesToTop() {
+			this.$refs.entryTable?.scrollToTop?.()
+			if (this.isProjectPaymentsView && this.isMobileViewport()) {
+				this.scrollProjectPageToTop()
+			}
+		},
+		scrollProjectPageToTop() {
+			const projectScroller = this.$el?.querySelector?.('.project-detail-scroll')
+			if (projectScroller) {
+				projectScroller.scrollTop = 0
+			}
+			const appScroller = this.$el?.closest?.('.app-content')
+			if (!appScroller) {
+				return
+			}
+			if (typeof appScroller.scrollTo === 'function') {
+				appScroller.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+			} else {
+				appScroller.scrollTop = 0
 			}
 		},
 		getMemberName(userId) {
@@ -1004,7 +1190,7 @@ export default {
 				this.$refs.tableFilters.localFilters.status = this.filters.status;
 			}
 			this.activePagination.offset = 0;
-			this.fetchActiveEntries();
+			this.replaceProjectEntryListRoute({ page: 1 })
 		}
 	}
 }
@@ -1777,6 +1963,12 @@ th.col-desc {
 	display: none !important;
 }
 
+.mobile-more-payments-footer,
+.mobile-more-payments-button,
+.mobile-more-payments-button.button-vue {
+	display: none !important;
+}
+
 @media (max-width: 768px) {
 
   .stats-row {
@@ -1919,8 +2111,27 @@ th.col-desc {
 		display: none;
 	}
 
-	.pagination-footer:not(.pagination-footer--single) {
-		padding-block-start: var(--cobudget-mobile-fab-pagination-lane, calc(var(--default-grid-baseline, 4px) * 19));
+	.pagination-footer--dashboard {
+		display: none;
+	}
+
+	.mobile-more-payments-footer {
+		display: flex !important;
+		min-height: var(--cobudget-mobile-fab-pagination-lane, calc(var(--default-grid-baseline, 4px) * 19));
+		align-items: center;
+		justify-content: center;
+	}
+
+	.mobile-more-payments-button,
+	.mobile-more-payments-button.button-vue {
+		display: inline-flex !important;
+		width: auto !important;
+		min-height: var(--default-clickable-area, 44px) !important;
+		margin: 0;
+		padding-inline: calc(var(--default-grid-baseline, 4px) * 3) !important;
+		justify-content: center;
+		background-color: transparent !important;
+		font-weight: 600;
 	}
 
 	.pagination-footer:not(.pagination-footer--single) > .page-info {
@@ -1933,6 +2144,27 @@ th.col-desc {
 		width: var(--cobudget-icon-button-size) !important;
 		padding-inline: 0 !important;
 		justify-content: center;
+	}
+
+	.project-detail--table-only .pagination-footer {
+		gap: calc(var(--default-grid-baseline, 4px) * 2);
+		margin-block-start: calc(var(--default-grid-baseline, 4px) * 2);
+		padding: calc(var(--default-grid-baseline, 4px) * 2);
+		border: 1px solid var(--cobudget-border, var(--color-border));
+		border-radius: var(--border-radius-large, 8px);
+		background: var(--cobudget-surface-muted, var(--color-background-hover));
+	}
+
+	.project-detail--table-only .pagination-label {
+		display: inline-flex;
+	}
+
+	.project-detail--table-only .btn-page,
+	.project-detail--table-only .btn-page.button-vue {
+		width: auto !important;
+		min-width: 0 !important;
+		padding-inline: calc(var(--default-grid-baseline, 4px) * 2) !important;
+		background: transparent !important;
 	}
 
 	.repayment-row {

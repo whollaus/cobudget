@@ -53,6 +53,7 @@ export const texts = {
 		previous: () => tx('Previous'),
 		next: () => tx('Next'),
 		pageInfo: (from, to, total) => tx('{from} to {to} of {total}', { from, to, total }),
+		pageNumber: (current, total) => tx('Page {current} of {total}', { current, total }),
 		requestFailedWithStatus: status => tx('Request failed with status {status}', { status }),
 		nonJsonResponse: () => tx('Request did not return JSON'),
 		rows: count => nx('%n row', '%n rows', count),
@@ -63,6 +64,11 @@ export const texts = {
 		finances: () => tx('Finances'),
 		areas: () => tx('Areas'),
 		analytics: () => tx('Analytics'),
+	},
+	payments: {
+		title: () => tx('Payments'),
+		backToFinances: () => tx('Back to finances'),
+		showMore: () => tx('Show more payments'),
 	},
 	paymentPartnerDetails: {
 		displayName: () => tx('Display name'),

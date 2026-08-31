@@ -2,6 +2,22 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.8] - 2026-08-31
+
+### Changed
+
+- Expanded the mobile creation buttons for payments, areas and budget goals with explicit labels at the top of each page; after a deliberate scroll they smoothly collapse to the plus icon and expand again only at the top.
+- Simplified mobile payment browsing in My Finances and area overviews: each now shows only its first configured page with a quiet text action aligned vertically with the floating creation button, which opens a table-only Payments view on the next unseen server-side page without summary cards or a creation button.
+- Preserved all active payment filters, sorting and page size in both personal and area-specific Payments routes, including their current page during navigation and reloads; returning keeps the same filtered result context.
+- Added bounded server-side pagination to both area settlement history and the payments inside each opened settlement; both provide Previous and Next controls, page indicators and keyboard navigation, while payment pages honor the configured table size and load only on demand.
+- Aligned the settlement page header with other area subpages by moving its Back action beside the concise “Settlements” title.
+
+### Fixed
+
+- Removed the competing previous/next controls from mobile area overviews by moving page navigation into the dedicated area Payments view.
+- Restored rounded corners and balanced horizontal padding for payment tables embedded in expanded settlements on mobile screens.
+- Removed the duplicated mobile inset around the settlement header so its Back action aligns with other area subpages and the sticky header spans the full content width.
+
 ## [0.3.7] - 2026-08-30
 
 ### Changed

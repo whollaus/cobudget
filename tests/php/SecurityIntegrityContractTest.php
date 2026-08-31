@@ -510,24 +510,35 @@ return [
 		$t->assertContains('return false;', $matches, 'Budget criteria should reject entries that match no rule');
 	},
 
-	'Settlement history returns scoped settlement groups with their exact entries' => function(TestRunner $t): void {
+	'Settlement history and paginated payments remain fully scoped' => function(TestRunner $t): void {
 		$settlements = $t->methodBody('lib/Controller/ProjectController.php', 'settlements');
+		$settlementEntries = $t->methodBody('lib/Controller/ProjectController.php', 'settlementEntries');
 		$history = $t->methodBody('lib/Controller/ProjectController.php', 'settlementHistory');
 		$count = $t->methodBody('lib/Controller/ProjectController.php', 'settlementEntryCount');
 		$entries = $t->methodBody('lib/Controller/ProjectController.php', 'loadSettlementEntries');
 
 		$t->assertContains('projectVisibleForCurrentUser($id)', $settlements, 'Settlement history endpoint should be visible only to area members');
-		$t->assertContains('settlementHistory($id, $workspaceId, null, true)', $settlements, 'Settlement history endpoint should include entry groups for each settlement');
+		$t->assertContains('normalizeSettlementPagination($limit, $offset)', $settlements, 'Settlement history endpoint should bound untrusted page parameters');
+		$t->assertContains('settlementHistory($id, $workspaceId, $limit, $offset)', $settlements, 'Settlement history endpoint should include only the requested group page');
+		$t->assertContains('projectVisibleForCurrentUser($id)', $settlementEntries, 'Settlement payment endpoint should require area membership');
+		$t->assertContains('settlementBelongsToProject($settlementId, $id, $workspaceId)', $settlementEntries, 'Settlement payment endpoint should reject cross-area settlement ids');
+		$t->assertContains('normalizeSettlementEntryPagination($limit, $offset)', $settlementEntries, 'Settlement payment endpoint should bound page parameters');
 		$t->assertContains('cobudget_settlements', $history, 'Settlement history should read settlement group headers');
 		$t->assertContains('project_id', $history, 'Settlement history should scope groups by project');
 		$t->assertContains('workspace_id', $history, 'Settlement history should scope groups by workspace');
+		$t->assertContains('setMaxResults($limit)', $history, 'Settlement history should enforce its page size');
+		$t->assertContains('setFirstResult($offset)', $history, 'Settlement history should apply the requested page offset');
 		$t->assertContains('loadSettlementBalances($settlementId)', $history, 'Settlement history should include stored balance snapshots');
 		$t->assertContains('loadSettlementTransfers($settlementId)', $history, 'Settlement history should include stored repayment suggestions');
-		$t->assertContains('loadSettlementEntries($settlementId, $projectId, $workspaceId)', $history, 'Settlement history should load entries only when requested');
+		$t->assertFalse(strpos($history, 'loadSettlementEntries(') !== false, 'Settlement history should not eagerly load every payment row');
 		$t->assertContains('settlement_id', $count, 'Settlement entry count should count entries linked to the settlement id');
+		$t->assertContains('e.project_id', $count, 'Settlement entry count should remain scoped to the area');
+		$t->assertContains('e.workspace_id', $count, 'Settlement entry count should remain scoped to the workspace');
 		$t->assertContains('e.settlement_id', $entries, 'Settlement entries should be filtered by settlement id');
 		$t->assertContains('e.project_id', $entries, 'Settlement entries should be filtered by project id');
 		$t->assertContains('e.workspace_id', $entries, 'Settlement entries should be filtered by workspace id');
+		$t->assertContains('setMaxResults($limit)', $entries, 'Settlement entries should enforce the requested page size');
+		$t->assertContains('setFirstResult($offset)', $entries, 'Settlement entries should enforce the requested page offset');
 		$t->assertContains('attachEntryAttachmentCounts($entries, $workspaceId)', $entries, 'Settlement entries should keep attachment metadata scoped to the workspace');
 	},
 ];

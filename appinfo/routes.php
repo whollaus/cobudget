@@ -72,6 +72,7 @@ return [
 		['name' => 'project#unarchive', 'url' => '/api/projects/{id}/unarchive', 'verb' => 'POST'],
 		['name' => 'project#settle', 'url' => '/api/projects/{id}/settle', 'verb' => 'POST'],
 		['name' => 'project#settlements', 'url' => '/api/projects/{id}/settlements', 'verb' => 'GET'],
+		['name' => 'project#settlementEntries', 'url' => '/api/projects/{id}/settlements/{settlementId}/entries', 'verb' => 'GET'],
 		['name' => 'project#updateShares', 'url' => '/api/projects/{id}/shares', 'verb' => 'PUT'],
 		['name' => 'project#transferOwnership', 'url' => '/api/projects/{id}/owner', 'verb' => 'PUT'],
 

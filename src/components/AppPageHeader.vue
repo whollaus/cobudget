@@ -3,6 +3,7 @@
 		class="app-page-header view-header"
 		:class="{
 			'app-page-header--scrolled': isScrolled,
+			'app-page-header--fab-collapsed': isFabCollapsed,
 			'app-page-header--pagination-visible': isPaginationVisible,
 		}">
 		<div class="app-page-header__content view-header-content">
@@ -20,6 +21,9 @@
 </template>
 
 <script>
+const MOBILE_FAB_COLLAPSE_SCROLL_TOP = 12
+const MOBILE_FAB_EXPAND_SCROLL_TOP = 1
+
 export default {
 	name: 'AppPageHeader',
 	props: {
@@ -35,6 +39,7 @@ export default {
 	data() {
 		return {
 			isScrolled: false,
+			isFabCollapsed: false,
 			isPaginationVisible: false,
 			paginationIntersectionObserver: null,
 			paginationMutationObserver: null,
@@ -90,11 +95,19 @@ export default {
 		updateScrollState() {
 			const isMobile = typeof window !== 'undefined'
 				&& window.matchMedia('(max-width: 768px)').matches
+			const scrollTop = this.currentScrollTop()
 			const nextState = isMobile
-				&& this.currentScrollTop() > 1
+				&& scrollTop > 1
+			const nextFabCollapsedState = isMobile
+				&& (this.isFabCollapsed
+					? scrollTop > MOBILE_FAB_EXPAND_SCROLL_TOP
+					: scrollTop >= MOBILE_FAB_COLLAPSE_SCROLL_TOP)
 
 			if (this.isScrolled !== nextState) {
 				this.isScrolled = nextState
+			}
+			if (this.isFabCollapsed !== nextFabCollapsedState) {
+				this.isFabCollapsed = nextFabCollapsedState
 			}
 		},
 		startPaginationObservation() {
@@ -131,7 +144,7 @@ export default {
 			const isMobile = typeof window !== 'undefined'
 				&& window.matchMedia('(max-width: 768px)').matches
 			const paginationElement = isMobile
-				? this.$el?.parentElement?.querySelector?.('.pagination-footer:not(.pagination-footer--single)') || null
+				? this.$el?.parentElement?.querySelector?.('.pagination-footer:not(.pagination-footer--single):not(.pagination-footer--dashboard)') || null
 				: null
 
 			if (paginationElement === this.paginationObservedElement && this.paginationIntersectionObserver) {
@@ -212,10 +225,6 @@ export default {
 	justify-content: flex-end;
 	gap: 8px;
 	min-width: 0;
-}
-
-.app-page-header__actions :deep(.mobile-payment-label) {
-	display: none;
 }
 
 @media (max-width: 768px) {
@@ -363,21 +372,28 @@ export default {
 	.app-page-header__actions :deep(.mobile-create-fab .button-vue) {
 		--cobudget-mobile-fab-size: calc(var(--default-grid-baseline, 4px) * 16);
 		--cobudget-mobile-fab-icon-size: calc(var(--default-grid-baseline, 4px) * 7);
+		--app-page-header-mobile-fab-label-gap: calc(var(--default-grid-baseline, 4px) * 2);
+		--app-page-header-mobile-fab-label-max-width: calc(var(--default-grid-baseline, 4px) * 45);
 
 		position: fixed !important;
 		z-index: 1290 !important;
 		inset-inline-end: var(--cobudget-mobile-fab-inline-offset, max(calc(var(--default-grid-baseline, 4px) * 4), env(safe-area-inset-right, 0px))) !important;
 		inset-block-end: calc(var(--cobudget-mobile-bottom-navigation-height, 64px) + var(--default-grid-baseline, 4px) * 4 + var(--app-page-header-mobile-fab-lift)) !important;
 		min-width: var(--cobudget-mobile-fab-size) !important;
-		width: var(--cobudget-mobile-fab-size) !important;
+		width: fit-content !important;
+		max-width: calc(100vw - var(--cobudget-mobile-fab-inline-offset, calc(var(--default-grid-baseline, 4px) * 4)) - var(--default-grid-baseline, 4px) * 4) !important;
 		min-height: var(--cobudget-mobile-fab-size) !important;
 		height: var(--cobudget-mobile-fab-size) !important;
-		padding: 0 !important;
+		padding: 0 calc(var(--default-grid-baseline, 4px) * 4) !important;
 		align-items: center !important;
 		justify-content: center !important;
 		border-radius: var(--border-radius-pill, 999px) !important;
 		box-shadow: var(--cobudget-shadow-md, var(--box-shadow)) !important;
-		transition: inset-block-end var(--animation-slow, 200ms) ease !important;
+		box-sizing: border-box;
+		overflow: hidden;
+		transition:
+			inset-block-end var(--animation-slow, 200ms) ease,
+			max-width var(--animation-slow, 200ms) ease !important;
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__wrapper),
@@ -385,6 +401,7 @@ export default {
 	.app-page-header__actions :deep(.mobile-create-fab .button-vue__wrapper),
 	.app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__wrapper) {
 		gap: 0;
+		min-width: 0;
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__icon),
@@ -405,10 +422,6 @@ export default {
 		font-size: var(--cobudget-mobile-fab-icon-size) !important;
 	}
 
-	.app-page-header__actions :deep(.mobile-payment-label) {
-		display: none !important;
-	}
-
 	.app-page-header__actions :deep(.budget-new-button .button-vue__icon),
 	.app-page-header__actions :deep(.budget-new-button.button-vue .button-vue__icon) {
 		margin: 0 !important;
@@ -418,12 +431,37 @@ export default {
 	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__text),
 	.app-page-header__actions :deep(.mobile-create-fab .button-vue__text),
 	.app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__text) {
-		display: none !important;
+		display: inline-flex !important;
+		min-width: 0;
+		max-width: var(--app-page-header-mobile-fab-label-max-width);
+		margin-inline-start: var(--app-page-header-mobile-fab-label-gap);
+		overflow: hidden;
+		opacity: 1;
+		white-space: nowrap;
+		transition:
+			max-width var(--animation-slow, 200ms) ease,
+			margin-inline-start var(--animation-slow, 200ms) ease,
+			opacity var(--animation-quick, 100ms) linear;
 	}
 
-	.app-page-header__actions :deep(.budget-new-button .button-vue__text),
-	.app-page-header__actions :deep(.budget-new-button.button-vue .button-vue__text) {
-		display: none !important;
+	.app-page-header__actions :deep(.new-payment-main-button .btn-text),
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .btn-text),
+	.app-page-header__actions :deep(.mobile-create-fab .btn-text),
+	.app-page-header__actions :deep(.mobile-create-fab.button-vue .btn-text) {
+		display: block !important;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.app-page-header--fab-collapsed .app-page-header__actions :deep(.new-payment-main-button .button-vue__text),
+	.app-page-header--fab-collapsed .app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__text),
+	.app-page-header--fab-collapsed .app-page-header__actions :deep(.mobile-create-fab .button-vue__text),
+	.app-page-header--fab-collapsed .app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__text) {
+		max-width: 0;
+		margin-inline-start: 0;
+		opacity: 0;
 	}
 
 }
@@ -434,6 +472,13 @@ export default {
 	.app-page-header__actions :deep(.mobile-create-fab.button-vue),
 	.app-page-header__actions :deep(.mobile-create-fab .button-vue) {
 		transition: none !important;
+	}
+
+	.app-page-header__actions :deep(.new-payment-main-button .button-vue__text),
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__text),
+	.app-page-header__actions :deep(.mobile-create-fab .button-vue__text),
+	.app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__text) {
+		transition: none;
 	}
 }
 

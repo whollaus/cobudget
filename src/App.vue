@@ -6,37 +6,37 @@
 		}">
 		<NcAppNavigation>
 			<template #list>
-				<NcAppNavigationItem :name="$texts.settings.myFinances()" :active="$route.name === 'personal' && !$route.query.filter"
+				<NcAppNavigationItem :name="$texts.settings.myFinances()" :active="['personal', 'payments'].includes($route.name) && !$route.query.filter"
 					@click.prevent="navigateTo('/')" :allow-collapse="true" :open="true">
 					<template #icon>
 						<WalletIcon :size="20" />
 					</template>
 					<template #default>
-						<NcAppNavigationItem v-if="hasIncomes" :name="$texts.labels.incomePayments()" :active="$route.name === 'personal' && $route.query.filter === 'income'"
+						<NcAppNavigationItem v-if="hasIncomes" :name="$texts.labels.incomePayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'income'"
 							@click.prevent="navigateTo('/?filter=income')">
 							<template #icon>
 								<TrendingUpIcon :size="20" />
 							</template>
 						</NcAppNavigationItem>
-						<NcAppNavigationItem :name="$texts.settings.currentYear()" :active="$route.name === 'personal' && $route.query.filter === 'currentYear'"
+						<NcAppNavigationItem :name="$texts.settings.currentYear()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'currentYear'"
 							@click.prevent="navigateTo('/?filter=currentYear')">
 							<template #icon>
 								<CalendarIcon :size="20" />
 							</template>
 						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasFuturePayments" :name="$texts.filters.futurePayments()" :active="$route.name === 'personal' && $route.query.filter === 'future'"
+						<NcAppNavigationItem v-if="hasFuturePayments" :name="$texts.filters.futurePayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'future'"
 							@click.prevent="navigateTo('/?filter=future')">
 							<template #icon>
 								<CalendarSyncIcon :size="20" />
 							</template>
 						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasImportantPayments" :name="$texts.labels.importantPayments()" :active="$route.name === 'personal' && $route.query.filter === 'important'"
+						<NcAppNavigationItem v-if="hasImportantPayments" :name="$texts.labels.importantPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'important'"
 							@click.prevent="navigateTo('/?filter=important')">
 							<template #icon>
 								<StarIcon :size="20" />
 							</template>
 						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasReviewPayments" :name="$texts.labels.reviewPayments()" :active="$route.name === 'personal' && $route.query.filter === 'review'"
+						<NcAppNavigationItem v-if="hasReviewPayments" :name="$texts.labels.reviewPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'review'"
 							@click.prevent="navigateTo('/?filter=review')">
 							<template #icon>
 								<ClipboardCheckIcon :size="20" />
@@ -45,25 +45,25 @@
 								<div class="project-balance-dot negative review-alert-dot" :aria-label="$texts.labels.reviewPayments()"></div>
 							</template>
 						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasFixedCosts" :name="$texts.labels.fixedCostPayments()" :active="$route.name === 'personal' && $route.query.filter === 'fixedCost'"
+						<NcAppNavigationItem v-if="hasFixedCosts" :name="$texts.labels.fixedCostPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'fixedCost'"
 							@click.prevent="navigateTo('/?filter=fixedCost')">
 							<template #icon>
 								<BankIcon :size="20" />
 							</template>
 						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasChildRelatedPayments" :name="$texts.labels.childPayments()" :active="$route.name === 'personal' && $route.query.filter === 'childRelated'"
+						<NcAppNavigationItem v-if="hasChildRelatedPayments" :name="$texts.labels.childPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'childRelated'"
 							@click.prevent="navigateTo('/?filter=childRelated')">
 							<template #icon>
 								<AccountChildIcon :size="20" />
 							</template>
 						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasSubscriptions" :name="$texts.labels.subscriptionPayments()" :active="$route.name === 'personal' && $route.query.filter === 'subscription'"
+						<NcAppNavigationItem v-if="hasSubscriptions" :name="$texts.labels.subscriptionPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'subscription'"
 							@click.prevent="navigateTo('/?filter=subscription')">
 							<template #icon>
 								<SyncIcon :size="20" />
 							</template>
 						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasTaxRelevantPayments" :name="$texts.labels.taxRelevantPayments()" :active="$route.name === 'personal' && $route.query.filter === 'taxRelevant'"
+						<NcAppNavigationItem v-if="hasTaxRelevantPayments" :name="$texts.labels.taxRelevantPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'taxRelevant'"
 							@click.prevent="navigateTo('/?filter=taxRelevant')">
 							<template #icon>
 								<ReceiptTextCheckOutlineIcon :size="20" />
@@ -138,14 +138,14 @@
 		<NcAppContent
 			class="cobudget-main-content"
 			:class="{
-				'payment-table-viewport-content': $route.name === 'personal',
-				'project-detail-viewport-content': $route.name === 'project-detail',
+				'payment-table-viewport-content': ['personal', 'payments'].includes($route.name),
+				'project-detail-viewport-content': ['project-detail', 'project-payments'].includes($route.name),
 			}">
 			<div
 				class="content-wrapper"
 				:class="{
-					'content-wrapper--payment-table-viewport': $route.name === 'personal',
-					'content-wrapper--project-detail-viewport': $route.name === 'project-detail',
+					'content-wrapper--payment-table-viewport': ['personal', 'payments'].includes($route.name),
+					'content-wrapper--project-detail-viewport': ['project-detail', 'project-payments'].includes($route.name),
 				}">
 				<router-view
 					v-bind="entryViewProps"
@@ -209,6 +209,7 @@ import axios from './services/http'
 import { REMOTE_DATA_CHANGED_EVENT, startDataSync } from './services/dataSync'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { shouldCloseEntrySidebarForRequest } from './utils/entrySidebarToggle'
+import { hasPersonalEntryListRouteState, hasProjectEntryListRouteState } from './services/entryListRoute'
 import { generateUrl } from '@nextcloud/router'
 import { emit as emitNextcloudEvent } from '@nextcloud/event-bus'
 import NcContent from '@nextcloud/vue/components/NcContent'
@@ -285,7 +286,7 @@ export default {
 	},
 	computed: {
 		entryViewProps() {
-			return ['personal', 'project-detail'].includes(this.$route?.name)
+			return ['personal', 'payments', 'project-detail', 'project-payments'].includes(this.$route?.name)
 				? {
 					selectedEntryId: this.selectedEntryId,
 					hideNewPaymentAction: this.entrySidebarCreatingNew
@@ -310,10 +311,10 @@ export default {
 			return this.$enableWorkspaces && this.$showWorkspaceSwitcher !== false && this.visibleWorkspaces.length > 1;
 		},
 		mobileFinancesActive() {
-			return this.$route?.name === 'personal';
+			return ['personal', 'payments'].includes(this.$route?.name);
 		},
 		mobileAreasActive() {
-			return ['projects', 'project-detail', 'project-settings', 'project-settlements'].includes(this.$route?.name);
+			return ['projects', 'project-detail', 'project-payments', 'project-settings', 'project-settlements'].includes(this.$route?.name);
 		},
 		mobileAnalyticsActive() {
 			return this.$route?.name === 'analytics';
@@ -583,7 +584,7 @@ export default {
 			});
 		},
 		routeProjectId() {
-			if (this.$route?.name !== 'project-detail') {
+			if (!['project-detail', 'project-payments'].includes(this.$route?.name)) {
 				return null;
 			}
 
@@ -600,7 +601,10 @@ export default {
 		},
 		routeSupportsOpenEntrySidebar() {
 			if (this.$route?.name === 'personal') {
-				return !this.$route.query?.filter && !this.$route.query?.hasAttachment;
+				return !hasPersonalEntryListRouteState(this.$route.query);
+			}
+			if (this.$route?.name === 'project-payments') {
+				return false;
 			}
 
 			const projectId = this.routeProjectId();
@@ -610,7 +614,7 @@ export default {
 
 			const project = this.projects.find(item => Number(item.id) === projectId);
 			const isArchived = [true, 1, '1', 'true'].includes(project?.is_archived) || project?.status === 'archived';
-			return !!project && !isArchived;
+			return !!project && !isArchived && !hasProjectEntryListRouteState(this.$route.query);
 		},
 		async syncEntrySidebarForRoute() {
 			const sidebar = this.$refs.globalEntrySidebar;
@@ -669,7 +673,7 @@ export default {
 			}
 		},
 		routeDefaultEntryType() {
-			return this.$enableIncomes && this.$route?.name === 'personal' && this.$route?.query?.filter === 'income'
+			return this.$enableIncomes && ['personal', 'payments'].includes(this.$route?.name) && this.$route?.query?.filter === 'income'
 				? 'income'
 				: 'expense';
 		},
@@ -688,7 +692,7 @@ export default {
 			emitNextcloudEvent('toggle-navigation', { open: false });
 		},
 		isProjectItemActive(project) {
-			return ['project-detail', 'project-settings', 'project-settlements'].includes(this.$route.name)
+			return ['project-detail', 'project-payments', 'project-settings', 'project-settlements'].includes(this.$route.name)
 				&& String(this.$route.params.id) === String(project.id);
 		},
 		onEntrySaved(payload = {}) {

@@ -1,6 +1,24 @@
 <template>
-	<div class="personal-dashboard">
-		<AppPageHeader class="payments-page-header" :title="pageTitle">
+	<div
+		class="personal-dashboard"
+		:class="{ 'personal-dashboard--table-only': isPaymentsView }">
+		<AppPageHeader class="payments-page-header">
+			<template #title>
+				<span v-if="isPaymentsView" class="cobudget-page-title-with-back">
+					<NcButton
+						variant="tertiary"
+						class="cobudget-header-back-button"
+						:aria-label="$texts.payments.backToFinances()"
+						:title="$texts.payments.backToFinances()"
+						@click="goBackToFinances">
+						<template #icon>
+							<ArrowLeftIcon :size="20" />
+						</template>
+					</NcButton>
+					<span>{{ $texts.payments.title() }}</span>
+				</span>
+				<span v-else>{{ pageTitle }}</span>
+			</template>
 			<template #actions>
 				<NcButton
 					v-if="canExportEntries"
@@ -53,7 +71,7 @@
 					</div>
 				</NcPopover>
 				<NcButton
-					v-if="!hideNewPaymentAction"
+					v-if="!isPaymentsView && !hideNewPaymentAction"
 					variant="primary"
 					class="new-payment-main-button"
 					:aria-label="filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment()"
@@ -63,7 +81,6 @@
 						<PlusIcon :size="20" />
 					</template>
 					<span class="btn-text">{{ filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment() }}</span>
-					<span class="mobile-payment-label">{{ $texts.common.payment() }}</span>
 				</NcButton>
 			</template>
 		</AppPageHeader>
@@ -98,10 +115,11 @@
 		</Teleport>
 
 		<MobileFinanceSummary
+			v-if="!isPaymentsView"
 			:periods="mobilePeriodCards"
 			:metrics="mobileAdditionalMetrics" />
 
-		<DraggableScroller class="stats-row desktop-summary-cards">
+		<DraggableScroller v-if="!isPaymentsView" class="stats-row desktop-summary-cards">
 			<div class="stat-card current-month-card">
 				<div class="stat-header">
 					<div class="stat-title-group">
@@ -416,15 +434,30 @@
 				@history="openEntryHistory"
 				@delete="deleteEntry">
 					<template #pagination>
-						<div class="pagination-footer" :class="{ 'pagination-footer--single': pagination.total <= pagination.limit }">
+						<div
+							class="pagination-footer"
+							:class="{
+								'pagination-footer--single': pagination.total <= pagination.limit,
+								'pagination-footer--dashboard': !isPaymentsView,
+							}">
 							<NcButton v-if="pagination.total > pagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: pagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevPage">
 								<ArrowLeftIcon class="pagination-icon" :size="16" aria-hidden="true" />
 								<span class="pagination-label">{{ $texts.common.previous() }}</span>
 							</NcButton>
-							<span class="page-info">{{ $texts.common.pageInfo(pagination.offset + 1, Math.min(pagination.offset + pagination.limit, pagination.total), pagination.total) }}</span>
+							<span class="page-info">{{ paginationInfo }}</span>
 							<NcButton v-if="pagination.total > pagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: pagination.offset + pagination.limit < pagination.total ? 'visible' : 'hidden' }" @click="nextPage">
 								<span class="pagination-label">{{ $texts.common.next() }}</span>
 								<ArrowRightIcon class="pagination-icon" :size="16" aria-hidden="true" />
+							</NcButton>
+						</div>
+						<div
+							v-if="!isPaymentsView && pagination.total > pagination.limit"
+							class="mobile-more-payments-footer">
+							<NcButton
+								variant="tertiary-no-background"
+								class="mobile-more-payments-button"
+								@click="openPaymentsView">
+								{{ $texts.payments.showMore() }}
 							</NcButton>
 						</div>
 					</template>
@@ -441,7 +474,7 @@
 					<NcButton v-if="hasActiveFilters" variant="secondary" @click="resetFilters">
 						{{ $texts.common.resetFilters() }}
 					</NcButton>
-					<NcButton v-else-if="!hideNewPaymentAction" variant="primary" class="new-payment-main-button" @click="$emit('open-entry-sidebar', { isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
+					<NcButton v-else-if="!isPaymentsView && !hideNewPaymentAction" variant="primary" class="new-payment-main-button" @click="$emit('open-entry-sidebar', { isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
 						<template #icon>
 							<PlusIcon :size="20" />
 						</template>
@@ -499,6 +532,14 @@ import EntryHistoryModal from '../components/EntryHistoryModal.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import MobileFinanceSummary from '../components/MobileFinanceSummary.vue'
 import { normalizeEntryPageSize, shouldIgnorePaginationKeydown } from '../services/pagination'
+import {
+	createPersonalEntryFilters,
+	entryOffsetFromPage,
+	entryPageFromOffset,
+	parsePersonalEntryListRouteQuery,
+	personalEntryListQueriesEqual,
+	serializePersonalEntryListRouteQuery,
+} from '../services/entryListRoute'
 import { showRequestError, showToast } from '../services/notifications'
 import { downloadBlobResponse } from '../services/downloads'
 import { getAreaColorStyle } from '../utils/areaColor'
@@ -639,21 +680,7 @@ export default {
 			entryHistoryOpen: false,
 			entryHistoryLoading: false,
 			entryHistoryRows: [],
-			filters: {
-				search: '',
-				type: 'all',
-				status: 'all',
-				categoryId: null,
-				projectId: null,
-				paymentPartnerId: null,
-				dateFrom: null,
-				dateTo: null,
-				timeRange: 'all',
-				tags: 'all',
-				hashtagId: null,
-				hasReminder: 'all',
-				hasAttachment: 'all'
-			},
+			filters: createPersonalEntryFilters(),
 			sortBy: 'date',
 			sortDir: 'desc',
 			pagination: {
@@ -661,13 +688,33 @@ export default {
 				offset: 0,
 				total: 0
 			},
-			isInternalFilterChange: false,
+			fetchRequestId: 0,
 			confirmDialog: null,
 			currentPeriodDate,
-			currentPeriodRefreshTimer: null
+			currentPeriodRefreshTimer: null,
+			mobilePaginationMedia: null,
 		}
 	},
 	computed: {
+		isPaymentsView() {
+			return this.$route.name === 'payments'
+		},
+		currentPage() {
+			return entryPageFromOffset(this.pagination.offset, this.pagination.limit)
+		},
+		totalPages() {
+			return Math.max(1, Math.ceil(Number(this.pagination.total || 0) / this.pagination.limit))
+		},
+		paginationInfo() {
+			if (this.isPaymentsView) {
+				return this.$texts.common.pageNumber(this.currentPage, this.totalPages)
+			}
+			return this.$texts.common.pageInfo(
+				this.pagination.offset + 1,
+				Math.min(this.pagination.offset + this.pagination.limit, this.pagination.total),
+				this.pagination.total,
+			)
+		},
 		hasActiveFilters() {
 			return this.filters.search !== '' || 
 				   this.filters.type !== 'all' || 
@@ -1089,9 +1136,11 @@ export default {
 		}
 	},
 	mounted() {
-			this.applyEntryPageSize()
-			this.applyQueryFilters()
-			this.fetchData()
+		this.handleRouteQueryChange()
+		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+			this.mobilePaginationMedia = window.matchMedia('(max-width: 768px)')
+			this.mobilePaginationMedia.addEventListener?.('change', this.onMobilePaginationViewportChange)
+		}
 		window.addEventListener('entry-saved', this.onEntrySaved)
 		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.addEventListener('settings-closed', this.onSettingsClosed);
@@ -1107,11 +1156,11 @@ export default {
 		window.removeEventListener('keydown', this.onPaginationKeydown)
 		window.removeEventListener('focus', this.handleCurrentPeriodResume)
 		document.removeEventListener('visibilitychange', this.handleCurrentPeriodVisibilityChange)
+		this.mobilePaginationMedia?.removeEventListener?.('change', this.onMobilePaginationViewportChange)
 		this.clearCurrentPeriodRefreshTimer()
 	},
 	watch: {
-		'$route.query.filter': 'handleRouteQueryChange',
-		'$route.query.hasAttachment': 'handleRouteQueryChange',
+		'$route.fullPath': 'handleRouteQueryChange',
 		selectedEntryId: 'notifySelectedEntryVisibility',
 		entries: 'notifySelectedEntryVisibility'
 	},
@@ -1191,12 +1240,29 @@ export default {
 		openBudgetGoals() {
 			this.$router.push({ name: 'budgets' })
 		},
-		applyEntryPageSize() {
-			this.pagination.limit = normalizeEntryPageSize(this.$entriesPerPage)
+		applyEntryPageSize(value = this.$entriesPerPage) {
+			this.pagination.limit = normalizeEntryPageSize(value)
 			this.pagination.offset = 0
 		},
+		isMobileViewport() {
+			if (this.mobilePaginationMedia) {
+				return this.mobilePaginationMedia.matches
+			}
+			return typeof window !== 'undefined'
+				&& typeof window.matchMedia === 'function'
+				&& window.matchMedia('(max-width: 768px)').matches
+		},
+		onMobilePaginationViewportChange(event) {
+			if (event.matches && !this.isPaymentsView && this.pagination.offset > 0) {
+				this.pagination.offset = 0
+				this.scrollEntriesToTop()
+				this.fetchData()
+			}
+		},
 		onPaginationKeydown(event) {
-			if (shouldIgnorePaginationKeydown(event) || this.pagination.total <= this.pagination.limit) {
+			if ((!this.isPaymentsView && this.isMobileViewport())
+				|| shouldIgnorePaginationKeydown(event)
+				|| this.pagination.total <= this.pagination.limit) {
 				return
 			}
 
@@ -1215,77 +1281,20 @@ export default {
 			this.fetchData();
 		},
 		handleRouteQueryChange() {
-			if (this.isInternalFilterChange) {
-				this.isInternalFilterChange = false;
-				return;
+			const routeState = parsePersonalEntryListRouteQuery(this.$route.query, this.$entriesPerPage)
+			this.filters = routeState.filters
+			this.sortBy = routeState.sortBy
+			this.sortDir = routeState.sortDir
+			this.applyEntryPageSize(this.isPaymentsView ? routeState.limit : this.$entriesPerPage)
+			if (this.isPaymentsView) {
+				this.pagination.offset = entryOffsetFromPage(routeState.page, this.pagination.limit)
 			}
-			// External change (e.g. sidebar or analytics click), so clear other filters.
-			this.filters = {
-				search: '',
-				type: 'all',
-				status: 'all',
-				categoryId: null,
-				projectId: null,
-				paymentPartnerId: null,
-				dateFrom: null,
-				dateTo: null,
-				timeRange: 'all',
-				tags: 'all',
-				hashtagId: null,
-				hasReminder: 'all',
-				hasAttachment: 'all'
-			};
-			this.pagination.offset = 0;
-
-			this.applyQueryFilters();
-
-			if (this.$refs.tableFilters) {
-				this.$refs.tableFilters.localFilters = { ...this.filters };
-			}
-
-			this.fetchData();
-		},
-		applyQueryFilters() {
-			// Reset filters
-			this.filters.tags = 'all';
-			this.filters.timeRange = 'all';
-			this.filters.type = 'all';
-			this.filters.hasReminder = 'all';
-			this.filters.hasAttachment = 'all';
-
-			if (this.$route.query.filter === 'subscription') {
-				this.filters.tags = 'subscription'
-			} else if (this.$route.query.filter === 'taxRelevant') {
-				this.filters.tags = 'taxRelevant'
-			} else if (this.$route.query.filter === 'fixedCost') {
-				this.filters.tags = 'fixedCost'
-			} else if (this.$route.query.filter === 'childRelated') {
-				this.filters.tags = 'childRelated'
-			} else if (this.$route.query.filter === 'important') {
-				this.filters.tags = 'important'
-			} else if (this.$route.query.filter === 'review') {
-				this.filters.tags = 'review'
-			} else if (this.$route.query.filter === 'future') {
-				this.filters.tags = 'future'
-			} else if (this.$route.query.filter === 'reminder') {
-				this.filters.hasReminder = 'true'
-			} else if (this.$route.query.filter === 'currentYear') {
-				this.filters.timeRange = 'currentYear'
-			} else if (this.$route.query.filter === 'income') {
-				this.filters.type = 'income'
-			}
-
-			if (this.$route.query.hasAttachment === 'true' || this.$route.query.hasAttachment === 'false') {
-				this.filters.hasAttachment = this.$route.query.hasAttachment
-			}
-			
-			if (this.$refs.tableFilters) {
-				this.$refs.tableFilters.localFilters.tags = this.filters.tags;
-				this.$refs.tableFilters.localFilters.timeRange = this.filters.timeRange;
-				this.$refs.tableFilters.localFilters.type = this.filters.type;
-				this.$refs.tableFilters.localFilters.hasReminder = this.filters.hasReminder;
-				this.$refs.tableFilters.localFilters.hasAttachment = this.filters.hasAttachment;
-			}
+			this.$nextTick(() => {
+				if (this.$refs.tableFilters) {
+					this.$refs.tableFilters.localFilters = { ...this.filters }
+				}
+			})
+			this.fetchData()
 		},
 		updateDateRangeFilters() {
 			const now = new Date();
@@ -1372,17 +1381,25 @@ export default {
 			return params;
 		},
 		async fetchData() {
+			const requestId = ++this.fetchRequestId
 			try {
 				this.userName = window.OC && window.OC.currentUser ? window.OC.currentUser.displayName || window.OC.currentUser.uid : 'User'
 				const params = this.buildEntryQueryParams(true);
 
 				const dashboardRes = await axios.get(generateUrl('/apps/cobudget/api/dashboard'), { params });
+				if (requestId !== this.fetchRequestId) {
+					return
+				}
 				const dashboardData = dashboardRes.data || {};
 				const lookups = dashboardData.lookups || {};
 
 				this.entries = dashboardData.entries || [];
 				this.dateGroups = dashboardData.dateGroups || null;
 				this.pagination.total = dashboardData.total || 0;
+				if (this.isPaymentsView && this.currentPage > this.totalPages) {
+					this.goToPaymentsPage(this.totalPages)
+					return
+				}
 				this.dashboardMetrics = normalizeDashboardMetrics(dashboardData.metrics || {});
 				this.dashboardTagCounts = normalizeTagCounts(dashboardData.tagCounts || {});
 
@@ -1398,9 +1415,13 @@ export default {
 				if (Array.isArray(lookups.hashtags)) {
 					this.hashtags = lookups.hashtags.sort((a, b) => String(a.displayName || a.name || '').localeCompare(String(b.displayName || b.name || ''), undefined, { sensitivity: 'base' }));
 				}
-				await this.fetchBudgetGoals()
+				if (!this.isPaymentsView) {
+					await this.fetchBudgetGoals()
+				}
 			} catch (e) {
-				showRequestError(e, this.$texts.dashboard.paymentsLoadError(), 'Failed to fetch dashboard data')
+				if (requestId === this.fetchRequestId) {
+					showRequestError(e, this.$texts.dashboard.paymentsLoadError(), 'Failed to fetch dashboard data')
+				}
 			}
 		},
 		async exportEntries() {
@@ -1443,106 +1464,112 @@ export default {
 			}
 		},
 		onFiltersUpdate(newFilters) {
-			this.filters = { ...newFilters };
-			this.pagination.offset = 0; // Reset pagination on filter change
-			this.scrollEntriesToTop();
-			
-			// Sync tags filter to URL query so the sidebar matches
-			let newQuery = { ...this.$route.query };
-			if (this.filters.tags === 'subscription') {
-				newQuery.filter = 'subscription';
-			} else if (this.filters.tags === 'taxRelevant') {
-				newQuery.filter = 'taxRelevant';
-			} else if (this.filters.tags === 'fixedCost') {
-				newQuery.filter = 'fixedCost';
-			} else if (this.filters.tags === 'childRelated') {
-				newQuery.filter = 'childRelated';
-			} else if (this.filters.tags === 'important') {
-				newQuery.filter = 'important';
-			} else if (this.filters.tags === 'review') {
-				newQuery.filter = 'review';
-			} else if (this.filters.tags === 'future') {
-				newQuery.filter = 'future';
-			} else if (this.filters.hasReminder === 'true') {
-				newQuery.filter = 'reminder';
-			} else if (this.filters.timeRange === 'currentYear') {
-				newQuery.filter = 'currentYear';
-			} else {
-				delete newQuery.filter;
+			this.filters = {
+				...createPersonalEntryFilters(),
+				...newFilters,
 			}
-
-			if (this.filters.hasAttachment === 'true' || this.filters.hasAttachment === 'false') {
-				newQuery.hasAttachment = this.filters.hasAttachment;
-			} else {
-				delete newQuery.hasAttachment;
-			}
-			
-			// Only push if query actually changed to avoid infinite loop
-			if (this.$route.query.filter !== newQuery.filter || this.$route.query.hasAttachment !== newQuery.hasAttachment) {
-				this.isInternalFilterChange = true;
-				this.$router.replace({ path: this.$route.path, query: newQuery }).catch(() => {});
-			}
-			
-			this.fetchData();
+			this.pagination.offset = 0
+			this.scrollEntriesToTop()
+			this.replaceEntryListRoute({ page: 1 })
 		},
 		resetFilters() {
-			if (this.$refs.tableFilters) {
-				this.$refs.tableFilters.clearFilters();
-			} else {
-				this.filters = {
-					search: '',
-					type: 'all',
-					status: 'all',
-					categoryId: null,
-					projectId: null,
-					paymentPartnerId: null,
-					dateFrom: null,
-					dateTo: null,
-					timeRange: 'all',
-					tags: 'all',
-					hasReminder: 'all',
-					hasAttachment: 'all'
-				};
-				this.pagination.offset = 0;
-				this.scrollEntriesToTop();
-				
-				let newQuery = { ...this.$route.query };
-				delete newQuery.filter;
-				delete newQuery.hasAttachment;
-				if (this.$route.query.filter || this.$route.query.hasAttachment) {
-					this.$router.replace({ path: this.$route.path, query: newQuery }).catch(() => {});
-				}
-				
-				this.fetchData();
-			}
+			this.onFiltersUpdate(createPersonalEntryFilters())
 		},
 		toggleSort(col) {
 			if (this.sortBy === col) {
-				this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
+				this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc'
 			} else {
-				this.sortBy = col;
-				this.sortDir = 'desc'; // Default direction when switching columns
+				this.sortBy = col
+				this.sortDir = 'desc'
 			}
-			this.pagination.offset = 0;
-			this.scrollEntriesToTop();
-			this.fetchData();
+			this.pagination.offset = 0
+			this.scrollEntriesToTop()
+			this.replaceEntryListRoute({ page: 1 })
 		},
 		prevPage() {
 			if (this.pagination.offset > 0) {
-				this.pagination.offset = Math.max(0, this.pagination.offset - this.pagination.limit);
-				this.scrollEntriesToTop();
-				this.fetchData();
+				if (this.isPaymentsView) {
+					this.goToPaymentsPage(this.currentPage - 1)
+					return
+				}
+				this.pagination.offset = Math.max(0, this.pagination.offset - this.pagination.limit)
+				this.scrollEntriesToTop()
+				this.fetchData()
 			}
 		},
 		nextPage() {
 			if (this.pagination.offset + this.pagination.limit < this.pagination.total) {
-				this.pagination.offset += this.pagination.limit;
-				this.scrollEntriesToTop();
-				this.fetchData();
+				if (this.isPaymentsView) {
+					this.goToPaymentsPage(this.currentPage + 1)
+					return
+				}
+				this.pagination.offset += this.pagination.limit
+				this.scrollEntriesToTop()
+				this.fetchData()
 			}
 		},
+		replaceEntryListRoute({ page = this.currentPage } = {}) {
+			const query = serializePersonalEntryListRouteQuery({
+				filters: this.filters,
+				sortBy: this.sortBy,
+				sortDir: this.sortDir,
+				page,
+				limit: this.pagination.limit,
+				includePagination: this.isPaymentsView,
+			})
+			if (personalEntryListQueriesEqual(this.$route.query, query)) {
+				this.fetchData()
+				return
+			}
+			this.$router.replace({
+				name: this.$route.name,
+				params: this.$route.params,
+				query,
+			}).catch(() => this.fetchData())
+		},
+		goToPaymentsPage(page) {
+			const targetPage = Math.min(this.totalPages, Math.max(1, page))
+			this.pagination.offset = entryOffsetFromPage(targetPage, this.pagination.limit)
+			this.scrollEntriesToTop()
+			this.replaceEntryListRoute({ page: targetPage })
+		},
+		openPaymentsView() {
+			const query = serializePersonalEntryListRouteQuery({
+				filters: this.filters,
+				sortBy: this.sortBy,
+				sortDir: this.sortDir,
+				page: this.currentPage + 1,
+				limit: this.pagination.limit,
+				includePagination: true,
+			})
+			this.$router.push({ name: 'payments', query })
+				.then(() => this.$nextTick(this.scrollPageToTop))
+		},
+		goBackToFinances() {
+			const query = serializePersonalEntryListRouteQuery({
+				filters: this.filters,
+				sortBy: this.sortBy,
+				sortDir: this.sortDir,
+			})
+			this.$router.push({ name: 'personal', query })
+				.then(() => this.$nextTick(this.scrollPageToTop))
+		},
 		scrollEntriesToTop() {
-			this.$refs.entryTable?.scrollToTop?.();
+			this.$refs.entryTable?.scrollToTop?.()
+			if (this.isMobileViewport()) {
+				this.scrollPageToTop()
+			}
+		},
+		scrollPageToTop() {
+			const scrollTarget = this.$el?.closest?.('.app-content')
+			if (!scrollTarget) {
+				return
+			}
+			if (typeof scrollTarget.scrollTo === 'function') {
+				scrollTarget.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+			} else {
+				scrollTarget.scrollTop = 0
+			}
 		},
 		getProjectName(id) {
 			const p = this.projects.find(p => String(p.id) === String(id));
@@ -1804,6 +1831,15 @@ export default {
 
 .mobile-header-action {
 	display: none !important;
+}
+
+.mobile-more-payments-button,
+.mobile-more-payments-button.button-vue {
+	display: none !important;
+}
+
+.mobile-more-payments-footer {
+	display: none;
 }
 
 .desktop-search-button,
@@ -2332,6 +2368,29 @@ th.col-desc {
 		display: inline-flex !important;
 	}
 
+	.pagination-footer--dashboard {
+		display: none;
+	}
+
+	.mobile-more-payments-footer {
+		display: flex;
+		min-height: var(--cobudget-mobile-fab-pagination-lane, calc(var(--default-grid-baseline, 4px) * 19));
+		align-items: center;
+		justify-content: center;
+	}
+
+	.mobile-more-payments-button,
+	.mobile-more-payments-button.button-vue {
+		display: inline-flex !important;
+		width: auto !important;
+		min-height: var(--default-clickable-area, 44px) !important;
+		margin: 0;
+		padding-inline: calc(var(--default-grid-baseline, 4px) * 3) !important;
+		justify-content: center;
+		background-color: transparent !important;
+		font-weight: 600;
+	}
+
 	.table-container {
 		border: none;
 		background: transparent;
@@ -2440,6 +2499,31 @@ th.col-desc {
 		width: var(--cobudget-icon-button-size) !important;
 		padding-inline: 0 !important;
 		justify-content: center;
+	}
+
+	.personal-dashboard--table-only .pagination-footer {
+		gap: calc(var(--default-grid-baseline, 4px) * 2);
+		margin-block-start: calc(var(--default-grid-baseline, 4px) * 2);
+		padding: calc(var(--default-grid-baseline, 4px) * 2);
+		border: 1px solid var(--cobudget-border, var(--color-border));
+		border-radius: var(--border-radius-large, 8px);
+		background: var(--cobudget-surface-muted, var(--color-background-hover));
+	}
+
+	.personal-dashboard--table-only .pagination-footer:not(.pagination-footer--single) {
+		padding-block-start: calc(var(--default-grid-baseline, 4px) * 2);
+	}
+
+	.personal-dashboard--table-only .pagination-label {
+		display: inline-flex;
+	}
+
+	.personal-dashboard--table-only .btn-page,
+	.personal-dashboard--table-only .btn-page.button-vue {
+		width: auto !important;
+		min-width: 0 !important;
+		padding-inline: calc(var(--default-grid-baseline, 4px) * 2) !important;
+		background: transparent !important;
 	}
 
 }

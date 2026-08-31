@@ -24,7 +24,9 @@ const SettingsView = () => import(/* webpackChunkName: "cobudget-view-settings" 
 
 const routes = [
 	{ path: '/', name: 'personal', component: TransactionsView },
+	{ path: '/payments', name: 'payments', component: TransactionsView },
 	{ path: '/projects', name: 'projects', component: ProjectList },
+	{ path: '/projects/:id/payments', name: 'project-payments', component: ProjectDetail, props: true },
 	{ path: '/projects/:id/settings', name: 'project-settings', component: ProjectSettingsView, props: true },
 	{ path: '/projects/:id/settlements', name: 'project-settlements', component: ProjectSettlementsView, props: true },
 	{ path: '/projects/:id', name: 'project-detail', component: ProjectDetail, props: true },
@@ -42,7 +44,7 @@ const router = createRouter({
 })
 
 const projectStartPagePattern = /^project:(\d+)$/
-const projectRouteNames = ['projects', 'project-detail', 'project-settings', 'project-settlements']
+const projectRouteNames = ['projects', 'project-detail', 'project-payments', 'project-settings', 'project-settlements']
 const budgetRouteNames = ['budgets', 'budget-new', 'budget-edit']
 
 const isRootHash = hash => hash === '' || hash === '#/'
