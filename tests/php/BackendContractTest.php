@@ -309,7 +309,7 @@ return [
 		] as $file => $method) {
 			$source = $t->read('lib/Controller/' . $file);
 			$t->assertMatches(
-				'/\/\*\*[\s\S]*@NoAdminRequired[\s\S]*\*\/\s*public function\s+' . preg_quote($method, '/') . '\s*\(/',
+				'/#\[NoAdminRequired\]\s*public function\s+' . preg_quote($method, '/') . '\s*\(/',
 				$source,
 				$file . '::' . $method . ' should not be treated as an admin-only settings endpoint'
 			);
@@ -1605,7 +1605,7 @@ return [
 
 			$backupController = $t->read('lib/Controller/BackupController.php');
 			$backupDownload = $t->methodBody('lib/Controller/BackupController.php', 'download');
-			$t->assertContains('@NoCSRFRequired', $backupController, 'Backup download may be opened directly by the browser');
+			$t->assertContains('#[NoCSRFRequired]', $backupController, 'Backup download may be opened directly by the browser');
 			$t->assertContains('authErrorResponse()', $backupDownload, 'Backup download should still require an authenticated user');
 			$t->assertContains('getBackupFile((string)$this->userId, $fileName)', $backupDownload, 'Backup download should be scoped to the current user backup folder');
 			$t->assertContains('Persönlicher Export konnte nicht heruntergeladen werden.', $backupDownload, 'Personal export download should return a generic validation error');
@@ -1898,7 +1898,7 @@ return [
 
 			$entrySource = $t->read('lib/Controller/EntryController.php');
 			$t->assertContains('FileDisplayResponse', $entrySource, 'Attachment downloads should render files inline where possible');
-			$t->assertContains('@NoCSRFRequired', $entrySource, 'Attachment display route should allow direct browser opening without CSRF failure');
+			$t->assertContains('#[NoCSRFRequired]', $entrySource, 'Attachment display route should allow direct browser opening without CSRF failure');
 
 			foreach (['attachments', 'uploadAttachment', 'downloadAttachment', 'destroyAttachment'] as $method) {
 				$body = $t->methodBody('lib/Controller/EntryController.php', $method);

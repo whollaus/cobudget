@@ -16,6 +16,8 @@ use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\IDBConnection;
 use OCP\IUserSession;
 use OCP\AppFramework\Http;
@@ -146,9 +148,7 @@ class EntryController extends Controller {
 		$this->initWorkspace();
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function index(
 		int $limit = 50,
@@ -201,8 +201,8 @@ class EntryController extends Controller {
 	 * Suggests a category only when this user's personal payment history shows
 	 * a clear habit for the exact workspace, area, type and payment partner.
 	 *
-	 * @NoAdminRequired
 	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function suggestCategory(int $paymentPartnerId, string $type = 'expense', ?int $projectId = null): DataResponse {
 		try {
@@ -300,8 +300,8 @@ class EntryController extends Controller {
 	 * Returns one payment that is visible to the current user. Locked personal
 	 * payments use this endpoint to open their shared source for editing.
 	 *
-	 * @NoAdminRequired
 	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function show(int $id): DataResponse {
 		try {
@@ -346,9 +346,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 5, period: 300)]
 	public function exportCsv(
 		string $search = '',
@@ -396,9 +394,7 @@ class EntryController extends Controller {
 			}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function dashboard(
 		int $limit = 50,
@@ -855,7 +851,12 @@ class EntryController extends Controller {
 			->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'));
 		$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.user_id AS source_user_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled');
 		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture);
-		$qb->groupBy('e.id');
+		// PostgreSQL needs each selected table's primary key when deduplicating joined rows.
+		$qb->groupBy('e.id')
+			->addGroupBy('c.id')
+			->addGroupBy('p.id')
+			->addGroupBy('pr.id')
+			->addGroupBy('source_e.id');
 		$this->applyEntryOrdering($qb, $sortBy, $sortDir, $isFuture);
 		$qb->setMaxResults($limit);
 		$qb->setFirstResult($offset);
@@ -1419,7 +1420,7 @@ class EntryController extends Controller {
 		$entriesByProject = [];
 		foreach (array_chunk($projectIds, 500) as $chunk) {
 			$qb = $this->db->getQueryBuilder();
-			$qb->select('id', 'project_id', 'user_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
+			$qb->select('id', 'project_id', 'user_id', 'entry_kind', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 				->from('cobudget_entries')
 				->where($qb->expr()->in('project_id', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)))
 				->andWhere($qb->expr()->eq('entry_kind', $qb->createNamedParameter('shared')))
@@ -1682,9 +1683,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function create(
 		string $type = 'expense',
@@ -1841,9 +1840,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function update(
 		int $id,
@@ -2058,9 +2055,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function stopRecurrence(int $id): DataResponse {
 			try {
@@ -2108,9 +2103,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function history(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -2145,9 +2138,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function attachments(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -2175,9 +2166,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 20, period: 60)]
 	public function uploadAttachment(int $id): DataResponse {
 		$createdFile = null;
@@ -2285,10 +2274,8 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function downloadAttachment(int $id, int $attachmentId, ?int $workspaceId = null): Response {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -2337,9 +2324,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 20, period: 60)]
 	public function destroyAttachment(int $id, int $attachmentId): DataResponse {
 		try {
@@ -2399,9 +2384,7 @@ class EntryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function destroy(int $id): DataResponse {
 			try {

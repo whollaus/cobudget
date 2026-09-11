@@ -345,7 +345,7 @@ try {
 
 	$backupController = $read('lib/Controller/BackupController.php');
 	$assertContains($backupController, 'public function download(string $fileName)', 'Backup API exposes direct backup downloads');
-	$assertContains($backupController, '@NoCSRFRequired', 'Backup download direct links avoid browser CSRF failures');
+	$assertContains($backupController, '#[NoCSRFRequired]', 'Backup download direct links avoid browser CSRF failures');
 	$assertContains($backupController, 'authErrorResponse()', 'Backup download still requires an authenticated user');
 	$assertContains($backupController, 'getBackupFile((string)$this->userId, $fileName)', 'Backup download is scoped to the current user');
 	$assertContains($backupController, 'public function destroy(string $fileName)', 'Backup API exposes backup deletion');
@@ -423,7 +423,7 @@ try {
 	$assertContains($entry, 'entryVisibleInActiveWorkspace($id)', 'EntryController keeps attachment APIs tied to visible active-workspace entries');
 	$assertContains($entry, '$workspaceId !== null && (int)$workspaceId !== $activeWorkspaceId', 'EntryController validates explicit workspace ids for attachment display');
 	$assertContains($entry, 'FileDisplayResponse', 'EntryController displays receipt files inline where possible');
-	$assertContains($entry, '@NoCSRFRequired', 'EntryController receipt display avoids browser CSRF failures');
+	$assertContains($entry, '#[NoCSRFRequired]', 'EntryController receipt display avoids browser CSRF failures');
 	$assertContains($entry, "'receipt_storage_folder'", 'EntryController uses the configured receipt storage folder');
 	$assertContains($entry, "'receipt_folder_grouping'", 'EntryController uses the configured receipt folder grouping');
 	$assertContains($entry, "'delete_receipts_with_entry'", 'EntryController honors configured receipt file deletion behavior');

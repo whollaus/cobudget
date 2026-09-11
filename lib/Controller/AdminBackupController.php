@@ -6,6 +6,7 @@ namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\BackupService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
@@ -105,9 +106,7 @@ class AdminBackupController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 */
+	#[NoCSRFRequired]
 	public function download(string $fileName): FileDisplayResponse|DataResponse {
 		try {
 			if ($adminError = $this->requireAdmin()) {

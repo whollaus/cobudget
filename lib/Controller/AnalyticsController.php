@@ -7,6 +7,7 @@ use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\HashtagService;
 use OCA\CoBudget\Service\ParticipantService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -63,9 +64,7 @@ class AnalyticsController extends Controller {
 		$this->initWorkspace();
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 12, period: 60)]
 	public function summary(string $period = 'current-month'): DataResponse {
 		try {
@@ -311,6 +310,7 @@ class AnalyticsController extends Controller {
 			'e.project_id',
 			'e.split_mode',
 			'e.split_user_id',
+			'e.entry_kind',
 			'e.is_settled',
 			'pr.name AS project_name'
 		)
@@ -327,6 +327,7 @@ class AnalyticsController extends Controller {
 			->andWhere($qb->expr()->lt('e.date', $qb->createNamedParameter($end, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter(time(), \PDO::PARAM_INT)))
 			->groupBy('e.id')
+			->addGroupBy('pr.id')
 			->orderBy('e.date', 'ASC')
 			->addOrderBy('e.id', 'ASC');
 
@@ -437,6 +438,10 @@ class AnalyticsController extends Controller {
 				)
 			))
 			->groupBy('e.id')
+			->addGroupBy('c.id')
+			->addGroupBy('parent_category.id')
+			->addGroupBy('p.id')
+			->addGroupBy('pr.id')
 			->orderBy('e.date', 'ASC')
 			->addOrderBy('e.id', 'ASC');
 

@@ -5,6 +5,8 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 
 class PageController extends Controller {
 	private IURLGenerator $urlGenerator;
@@ -14,10 +16,8 @@ class PageController extends Controller {
 		$this->urlGenerator = $urlGenerator;
 	}
 
-	/**
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function index(): TemplateResponse {
 		\OCP\Util::addTranslations('cobudget');
 		\OCP\Util::addScript('cobudget', 'cobudget-main');

@@ -8,6 +8,7 @@ use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\IDBConnection;
 use OCP\IUserManager;
 use OCP\IUserSession;
@@ -73,9 +74,7 @@ class UserController extends Controller {
 		$this->initWorkspace();
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function search(string $term = ''): DataResponse {
 		try {
@@ -130,9 +129,7 @@ class UserController extends Controller {
 		return !in_array(strtolower((string)$value), ['0', 'false', 'no', 'off'], true);
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function getSettings(): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -175,9 +172,7 @@ class UserController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -306,9 +301,7 @@ class UserController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function resetPreview(): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -323,9 +316,7 @@ class UserController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function resetAll(): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {

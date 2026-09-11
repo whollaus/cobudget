@@ -4,6 +4,7 @@ namespace OCA\CoBudget\Controller;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\IDBConnection;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IUserSession;
@@ -184,9 +185,7 @@ class PaymentPartnerController extends Controller {
 		$qb->executeStatement();
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function index(?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -240,9 +239,7 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function settingsData(?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -317,9 +314,7 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function create(string $name = '', string $type = 'expense', ?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -369,9 +364,7 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function update(int $id, string $name = ''): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -433,9 +426,7 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function hide(int $id): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -462,9 +453,7 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function unhide(int $id): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -489,9 +478,7 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function destroy(int $id): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {

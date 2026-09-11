@@ -2,6 +2,24 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.3.8.2] - 2026-09-11
+
+### Added
+
+- Added `occ cobudget:background-jobs:check` to diagnose background-job class loading and missing queue registrations directly, including underlying exception messages. Its optional `--repair` restores missing registrations only after all CoBudget jobs load successfully, without executing jobs or resetting existing ones.
+
+### Fixed
+
+- Replaced deprecated controller security annotations with Nextcloud PHP attributes while preserving endpoint permissions and existing CSRF exemptions.
+- Avoided unnecessary workspace backfill UPDATEs during normal dashboard reads, preventing the resulting Nextcloud "dirty table reads" debug messages when no legacy rows need assignment.
+- Fixed PostgreSQL grouping errors when loading dashboard payments, payment lists, CSV exports and shared or upcoming analytics entries, while preserving deduplication for joined records.
+
+## [0.3.8.1] - 2026-08-31
+
+### Fixed
+
+- Area overview balances now use the same stored exact-cent share snapshots as area details, preventing small rounding differences in owed amounts; related dashboard and analytics totals use the same calculation path.
+
 ## [0.3.8] - 2026-08-31
 
 ### Changed

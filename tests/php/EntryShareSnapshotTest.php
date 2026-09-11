@@ -159,6 +159,15 @@ return [
 		$t->assertContains("'income_rounding_units'", $roundingMigration, 'Area members should persist separate income rounding balances');
 		$t->assertContains('$this->entryProjectionService->syncSharedEntry($id)', $entryController, 'Shared payment creates and edits should refresh snapshots and locked personal payments together');
 		$t->assertContains("array_key_exists('snapshot_share_cents'", $projectController, 'Area balances should prefer stored personal cents');
+		$overviewBalance = $t->methodBody('lib/Controller/ProjectController.php', 'calculatePersonalBalance');
+		$t->assertContains("'entry_kind'", $overviewBalance, 'Area overview balances must load the shared-entry marker needed to attach exact personal share snapshots');
+		$t->assertContains('attachPersonalShares($entries, $userId)', $overviewBalance, 'Area overview balances must use the same stored personal share cents as area details');
+		$dashboardProjects = $t->methodBody('lib/Controller/EntryController.php', 'fetchOpenSharedEntriesByProjectIds');
+		$t->assertContains("'entry_kind'", $dashboardProjects, 'Dashboard area balances must load the shared-entry marker needed to attach exact personal share snapshots');
+		$projectDashboard = $t->methodBody('lib/Controller/ProjectController.php', 'calculateProjectDashboard');
+		$t->assertContains("'entry_kind'", $projectDashboard, 'Area dashboard metrics must load the entry kind before attaching exact personal share snapshots');
+		$analyticsEntries = $t->methodBody('lib/Controller/AnalyticsController.php', 'loadSharedProjectEntries');
+		$t->assertContains("'e.entry_kind'", $analyticsEntries, 'Shared analytics must load the entry kind before attaching exact personal share snapshots');
 		$t->assertContains("'cobudget_entry_shares'", $backupService, 'Backup and restore should include exact share snapshots');
 		$t->assertContains("'expense_rounding_units'", $backupService, 'Full backups should preserve member expense rounding balances');
 		$t->assertContains("'rounding_residual_units'", $backupService, 'Full backups should preserve each payment snapshots exact residual contribution');

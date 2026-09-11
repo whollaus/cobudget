@@ -4,6 +4,7 @@ namespace OCA\CoBudget\Controller;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\IDBConnection;
 use OCP\IUserSession;
 use OCP\IConfig;
@@ -370,9 +371,7 @@ class CategoryController extends Controller {
 		return $categories;
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function index(?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -426,9 +425,7 @@ class CategoryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function settingsData(?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -509,9 +506,7 @@ class CategoryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function create(string $name = '', string $icon = 'Shape', string $type = 'expense', ?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -565,9 +560,7 @@ class CategoryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function update(int $id, string $name = '', ?string $code = null, ?int $parentCategoryId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -652,9 +645,7 @@ class CategoryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function updateIcon(int $id, string $icon): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -699,9 +690,7 @@ class CategoryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function hide(int $id, ?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -747,9 +736,7 @@ class CategoryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function unhide(int $id, ?int $projectId = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -795,9 +782,7 @@ class CategoryController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function destroy(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {

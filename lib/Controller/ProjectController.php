@@ -9,6 +9,7 @@ use OCA\CoBudget\Service\ParticipantService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\IDBConnection;
 use OCP\IUserSession;
 use OCP\IUserManager;
@@ -336,7 +337,7 @@ class ProjectController extends Controller {
 		}
 
 		$qbEntries = $this->db->getQueryBuilder();
-		$qbEntries->select('id', 'user_id', 'project_id', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
+		$qbEntries->select('id', 'user_id', 'project_id', 'entry_kind', 'amount', 'amount_cents', 'type', 'split_mode', 'split_user_id')
 			->from('cobudget_entries')
 			->where($qbEntries->expr()->eq('project_id', $qbEntries->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qbEntries->expr()->eq('workspace_id', $qbEntries->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -360,9 +361,7 @@ class ProjectController extends Controller {
 		return round($balanceCents / 100, 2);
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(): DataResponse {
 		try {
@@ -405,9 +404,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 10, period: 60)]
 	public function create(string $name = '', array $members = [], string $color = ''): DataResponse {
 		try {
@@ -488,9 +485,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function update(int $id, string $name = '', string $color = ''): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -530,9 +525,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function destroy(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -612,9 +605,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function archive(int $id): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -651,9 +642,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function unarchive(int $id): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -687,9 +676,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function show(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -730,9 +717,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function settlements(
 		int $id,
 		int $limit = self::DEFAULT_SETTLEMENT_PAGE_SIZE,
@@ -772,9 +757,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function settlementEntries(
 		int $id,
@@ -816,9 +799,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 10, period: 60)]
 	public function addMember(int $id, string $userId = ''): DataResponse {
 			try {
@@ -929,9 +910,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function removeMember(int $id, string $userId = ''): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -999,9 +978,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function updateShares(int $id, array $shares = []): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -1085,9 +1062,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function transferOwnership(int $id, string $userId = ''): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -1136,9 +1111,7 @@ class ProjectController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function settle(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -1720,7 +1693,7 @@ class ProjectController extends Controller {
 		$isSharedArea = count($members) > 1;
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'user_id', 'project_id', 'type', 'amount', 'amount_cents', 'split_mode', 'split_user_id', 'is_settled', 'is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant')
+		$qb->select('id', 'user_id', 'project_id', 'entry_kind', 'type', 'amount', 'amount_cents', 'split_mode', 'split_user_id', 'is_settled', 'is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))

@@ -6,6 +6,8 @@ namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\BackupService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
@@ -33,9 +35,7 @@ class BackupController extends Controller {
 		$this->userId = $user ? $user->getUID() : null;
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function index(): DataResponse {
 		if ($error = $this->authErrorResponse()) {
@@ -51,9 +51,7 @@ class BackupController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 3, period: 300)]
 	public function create(): DataResponse {
 		if ($error = $this->authErrorResponse()) {
@@ -74,9 +72,7 @@ class BackupController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 10, period: 60)]
 	public function inspect(string $fileName): DataResponse {
 		if ($error = $this->authErrorResponse()) {
@@ -94,9 +90,7 @@ class BackupController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 2, period: 300)]
 	public function restore(string $fileName): DataResponse {
 		if ($error = $this->authErrorResponse()) {
@@ -124,9 +118,7 @@ class BackupController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 10, period: 60)]
 	public function destroy(string $fileName): DataResponse {
 		if ($error = $this->authErrorResponse()) {
@@ -146,10 +138,8 @@ class BackupController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
-	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function download(string $fileName): FileDisplayResponse|DataResponse {
 		if ($error = $this->authErrorResponse()) {
 			return $error;

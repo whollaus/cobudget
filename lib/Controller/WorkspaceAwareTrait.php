@@ -1276,6 +1276,26 @@ trait WorkspaceAwareTrait {
 		];
 
 		foreach ($tablesWithUsers as $twu) {
+			// Even an UPDATE affecting no rows marks the table dirty in Nextcloud.
+			// Keep normal workspace reads free of writes once legacy rows are assigned.
+			$check = $this->db->getQueryBuilder();
+			$check->select('id')
+				->from($twu['table'])
+				->where($check->expr()->eq($twu['column'], $check->createNamedParameter($this->userId)))
+				->andWhere($check->expr()->isNull('workspace_id'))
+				->setMaxResults(1);
+
+			if ($twu['table'] === 'cobudget_categories' || $twu['table'] === 'cobudget_payment_partners') {
+				$check->andWhere($check->expr()->eq('is_global', $check->createNamedParameter(false, \PDO::PARAM_BOOL)));
+			}
+
+			$result = $check->executeQuery();
+			$hasUnscopedRows = $result->fetch() !== false;
+			$result->closeCursor();
+			if (!$hasUnscopedRows) {
+				continue;
+			}
+
 			$qb = $this->db->getQueryBuilder();
 			$qb->update($twu['table'])
 			   ->set('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT))

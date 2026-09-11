@@ -6,6 +6,7 @@ namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\DataChangeService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IDBConnection;
@@ -32,9 +33,7 @@ final class SyncController extends Controller {
 		$this->initWorkspace();
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
 	public function state(): DataResponse {
 		try {

@@ -37,7 +37,7 @@ if grep -Ev '^cobudget(/|$)' "$LIST_FILE" | grep -q .; then
 	exit 65
 fi
 
-if grep -Eq '(^|/)(screenshots|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md)(/|$)' "$LIST_FILE"; then
+if grep -Eq '(^|/)(screenshots|scripts|tests|\.github|node_modules|\.git|README\.md|FEATURES\.md)(/|$)' "$LIST_FILE"; then
 	echo "Release archive contains repository-only files." >&2
 	exit 65
 fi

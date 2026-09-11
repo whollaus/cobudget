@@ -5,6 +5,7 @@ namespace OCA\CoBudget\Controller;
 use OCA\CoBudget\Service\BudgetSnapshotService;
 use OCA\CoBudget\Service\DataChangeService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -42,9 +43,7 @@ class BudgetController extends Controller {
 		$this->initWorkspace();
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
 	public function index(): DataResponse {
 		try {
@@ -63,9 +62,7 @@ class BudgetController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function create(string $name = '', $amount = 0, string $period = 'year', string $mode = 'flexible', array $criteria = []): DataResponse {
 		try {
@@ -112,9 +109,7 @@ class BudgetController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function update(int $id, string $name = '', $amount = 0, string $period = 'year', string $mode = 'flexible', array $criteria = []): DataResponse {
 		try {
@@ -173,9 +168,7 @@ class BudgetController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	#[UserRateLimit(limit: 30, period: 60)]
 	public function destroy(int $id): DataResponse {
 		try {

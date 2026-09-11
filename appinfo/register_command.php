@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use OCA\CoBudget\AppInfo\Application as CoBudgetApplication;
+use OCA\CoBudget\Command\CheckBackgroundJobsCommand;
 use OCA\CoBudget\Command\CheckDataIntegrityCommand;
 use OCA\CoBudget\Command\CreateBackupCommand;
 use OCA\CoBudget\Command\CreateFullBackupCommand;
@@ -16,6 +17,7 @@ $cobudgetApp = new CoBudgetApplication();
 $container = $cobudgetApp->getContainer();
 
 foreach ([
+	CheckBackgroundJobsCommand::class,
 	CreateBackupCommand::class,
 	CreateFullBackupCommand::class,
 	CheckDataIntegrityCommand::class,

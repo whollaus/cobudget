@@ -8,6 +8,7 @@ use OCA\CoBudget\Service\EntryProjectionService;
 use OCA\CoBudget\Service\DataIntegrityService;
 use OCP\IRequest;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -49,9 +50,7 @@ class WorkspaceController extends Controller {
 		$this->initWorkspace();
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function index(): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -65,9 +64,7 @@ class WorkspaceController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function create(string $name = ''): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -112,9 +109,7 @@ class WorkspaceController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function update(int $id, string $name = ''): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -157,9 +152,7 @@ class WorkspaceController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function destroy(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -412,9 +405,7 @@ class WorkspaceController extends Controller {
 		return array_values(array_unique(array_filter(array_map('intval', $ids), static fn(int $id): bool => $id > 0)));
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function hide(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
@@ -441,9 +432,7 @@ class WorkspaceController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function unhide(int $id): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {

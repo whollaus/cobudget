@@ -98,7 +98,66 @@ If the App Store is unavailable, install a signed GitHub release manually:
 
 Only the signed `cobudget.tar.gz` release asset is an installable app package. GitHub's automatically generated source archives are repository snapshots and must not be installed as Nextcloud apps.
 
+## Background jobs
+
+CoBudget uses Nextcloud background jobs for recurring payments, reminders, automatic backups and budget snapshots. Configure system cron to call Nextcloud's `cron.php` every five minutes as the web server user; see the [Nextcloud background-job documentation](https://docs.nextcloud.com/server/33/admin_manual/configuration_server/background_jobs_configuration.html#cron).
+
+If the log reports `failed to create instance of background job`, check the CoBudget jobs from the Nextcloud directory, using the same PHP installation and user as your cron setup:
+
+```sh
+php occ cobudget:background-jobs:check
+```
+
+The command prints each job's loaded file, constructor/dependency errors and queue registration. It does not execute, reserve or remove jobs. A successful check confirms that the jobs can be constructed and are registered; it does not verify their actual execution or the system cron schedule. A web-only problem can still require checking the web server's PHP configuration and deployed app files.
+
+After resolving any loading errors, restore missing registrations with:
+
+```sh
+php occ cobudget:background-jobs:check --repair
+```
+
+Repair checks all four jobs before adding missing registrations. Existing registrations, including legacy jobs with empty-array arguments, keep their schedule and state. Jobs are run later by the configured Nextcloud scheduler. The command must be installed on the server along with the updated CoBudget files before it is available.
+
 ## Development
+
+### Reset CoBudget for a fresh-install test
+
+The standalone `scripts/development/reset-installation.php` tool removes CoBudget's database installation state so that enabling the app runs its migrations as a fresh installation. Deleting only its tables is insufficient: Nextcloud also stores the installed version and completed migrations. The existing `occ cobudget:reset-all` command clears app data but retains the installation state.
+
+**The reset permanently deletes CoBudget data for all users. Create a backup first.** It drops tables whose names start with the configured Nextcloud database prefix followed by `cobudget_`, including obsolete app tables. It also removes CoBudget's user preferences, app configuration, migration records and background-job registrations. Other apps' entries in shared Nextcloud tables are preserved. App code, receipt/backup files in Nextcloud Files and existing logs or activity history remain; this is an installation test reset, not a complete personal-data erasure.
+
+The tool supports PostgreSQL and SQLite. Deletion requires a disabled CoBudget app, Nextcloud maintenance mode and the exact confirmation below. If a CoBudget job is still reserved, the reset stops; let the running job finish before retrying. Table and metadata changes run in one database transaction and are rolled back if an operation fails. External foreign-key dependencies block deletion instead of being removed with `CASCADE`.
+
+This development tool is intentionally excluded from installable CoBudget release archives. For a deliberate fresh-install test, copy `scripts/development/reset-installation.php` and `scripts/development/InstallationResetService.php` from the source repository into a temporary directory in the installed app. Remove both files from the server when the test is complete. The following commands assume they were copied to `custom_apps/cobudget/scripts/development/`, use the standard Nextcloud AIO paths and execute PHP as the web server user.
+
+Preview the affected tables and row counts without deleting data:
+
+```sh
+docker exec -u www-data nextcloud-aio-nextcloud \
+  php /var/www/html/custom_apps/cobudget/scripts/development/reset-installation.php \
+  --nextcloud=/var/www/html
+```
+
+After checking the preview and creating a backup, run these commands in order. Continue only if each command succeeds:
+
+```sh
+docker exec -u www-data nextcloud-aio-nextcloud php /var/www/html/occ app:disable cobudget
+docker exec -u www-data nextcloud-aio-nextcloud php /var/www/html/occ maintenance:mode --on
+docker exec -u www-data nextcloud-aio-nextcloud \
+  php /var/www/html/custom_apps/cobudget/scripts/development/reset-installation.php \
+  --nextcloud=/var/www/html --confirm=DELETE-COBUDGET-INSTALLATION
+```
+
+Only after the reset reports success, end maintenance mode and enable CoBudget to install it again:
+
+```sh
+docker exec -u www-data nextcloud-aio-nextcloud php /var/www/html/occ maintenance:mode --off
+docker exec -u www-data nextcloud-aio-nextcloud php /var/www/html/occ app:enable cobudget
+```
+
+The reset is standalone because Nextcloud does not load app-provided OCC commands while maintenance mode is enabled. It leaves maintenance mode under the operator's control, including after a failure. Resetting the installation enables a fresh-install test; it does not establish the cause of an earlier background-job class-loading error. Because `scripts/` is not part of the release archive, normal installations do not contain this destructive maintenance tool.
+
+### Build and test
 
 Install frontend dependencies:
 
