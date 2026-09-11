@@ -2,7 +2,7 @@
 
 All notable changes to CoBudget are documented in this file.
 
-## [0.3.8.2] - 2026-09-11
+## [0.3.9] - 2026-09-11
 
 ### Added
 

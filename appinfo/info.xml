@@ -52,17 +52,17 @@
 - Deine Finanzdaten bleiben in deiner eigenen Nextcloud
 - Erhalte Benachrichtigungen über Aktivitäten in gemeinsamen Bereichen
 - Erstelle vollständige Admin-Backups für den Wiederherstellungsfall]]></description>
-	<version>0.3.8.2</version>
+	<version>0.3.9</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
-    <category>office</category>
-    <website>https://github.com/whollaus/cobudget</website>
     <documentation>
         <user>https://github.com/whollaus/cobudget#readme</user>
         <admin>https://github.com/whollaus/cobudget#readme</admin>
         <developer>https://github.com/whollaus/cobudget/blob/main/CONTRIBUTING.md</developer>
     </documentation>
+    <category>office</category>
+    <website>https://github.com/whollaus/cobudget</website>
     <bugs>https://github.com/whollaus/cobudget/issues</bugs>
     <repository>https://github.com/whollaus/cobudget</repository>
     <screenshot small-thumbnail="https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/appstore-preview-v0.2.10-1.jpg">https://raw.githubusercontent.com/whollaus/cobudget/main/screenshots/screenshot-v0.2.10-1.jpg</screenshot>
@@ -74,18 +74,6 @@
     <dependencies>
         <nextcloud min-version="33" max-version="34" />
     </dependencies>
-    <navigations>
-        <navigation>
-            <name>CoBudget</name>
-            <route>cobudget.page.index</route>
-            <icon>app-navigation.svg</icon>
-            <order>50</order>
-        </navigation>
-    </navigations>
-    <settings>
-        <admin>OCA\CoBudget\Settings\Admin</admin>
-        <admin-section>OCA\CoBudget\Settings\AdminSection</admin-section>
-    </settings>
     <background-jobs>
         <job>OCA\CoBudget\Cron\RecurringEntriesJob</job>
         <job>OCA\CoBudget\Cron\RemindersJob</job>
@@ -97,4 +85,16 @@
             <step>OCA\CoBudget\Migration\NormalizeBackgroundJobs</step>
         </post-migration>
     </repair-steps>
+    <settings>
+        <admin>OCA\CoBudget\Settings\Admin</admin>
+        <admin-section>OCA\CoBudget\Settings\AdminSection</admin-section>
+    </settings>
+    <navigations>
+        <navigation>
+            <name>CoBudget</name>
+            <route>cobudget.page.index</route>
+            <icon>app-navigation.svg</icon>
+            <order>50</order>
+        </navigation>
+    </navigations>
 </info>

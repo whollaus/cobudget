@@ -321,6 +321,8 @@ LOCK_VERSION="$(node -p "require('./package-lock.json').version")"
 LOCK_ROOT_VERSION="$(node -p "require('./package-lock.json').packages[''].version")"
 
 [ -n "$VERSION" ] || fail "Version konnte nicht aus appinfo/info.xml gelesen werden."
+[[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z-]+)(\.[0-9A-Za-z-]+)*)?$ ]] \
+	|| fail "Ungültige Nextcloud-App-Version: $VERSION. Erwartet wird MAJOR.MINOR.PATCH mit optionalem -PRERELEASE."
 [ "$VERSION" = "$PACKAGE_VERSION" ] || fail "Versionskonflikt: info.xml=$VERSION, package.json=$PACKAGE_VERSION"
 [ "$VERSION" = "$LOCK_VERSION" ] || fail "Versionskonflikt: info.xml=$VERSION, package-lock.json=$LOCK_VERSION"
 [ "$VERSION" = "$LOCK_ROOT_VERSION" ] || fail "Versionskonflikt im Root-Paket des package-lock.json: $LOCK_ROOT_VERSION"

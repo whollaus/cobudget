@@ -599,8 +599,21 @@ try {
 	$infoXml = $read('appinfo/info.xml');
 	$packageJson = json_decode($read('package.json'), true);
 	$packageVersion = is_array($packageJson) ? ($packageJson['version'] ?? null) : null;
-	if (!$packageVersion || preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) !== 1 || $versionMatch[1] !== $packageVersion) {
+	$infoVersion = preg_match('/<version>([^<]+)<\/version>/', $infoXml, $versionMatch) === 1 ? $versionMatch[1] : null;
+	if (!$packageVersion || $infoVersion !== $packageVersion) {
 		$failures[] = 'appinfo/info.xml version should match package.json';
+	}
+	if (!is_string($infoVersion) || preg_match('/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/', $infoVersion) !== 1) {
+		$failures[] = 'appinfo/info.xml version should match the Nextcloud three-part version schema';
+	}
+	$metadataPosition = -1;
+	foreach (['documentation', 'category', 'website', 'bugs', 'repository', 'screenshot', 'donation', 'dependencies', 'background-jobs', 'repair-steps', 'settings', 'navigations'] as $element) {
+		$position = strpos($infoXml, '<' . $element);
+		if ($position === false || $position <= $metadataPosition) {
+			$failures[] = 'appinfo/info.xml metadata elements should follow the Nextcloud schema order';
+			break;
+		}
+		$metadataPosition = $position;
 	}
 	if (
 		preg_match('/<nextcloud[^>]*min-version="([^"]+)"[^>]*max-version="([^"]+)"/', $infoXml, $nextcloudMatch) !== 1
