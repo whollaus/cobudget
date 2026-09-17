@@ -2,6 +2,20 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.4.0] - 2026-09-16
+
+### Added
+
+- Added Nextcloud 35 to the supported server versions while retaining Nextcloud 33 and 34.
+- Added CI installation, migration and OCC smoke checks against Nextcloud 33/PHP 8.2, 34/PHP 8.2 and 35/PHP 8.3.
+
+### Changed
+
+- Updated the currently unused `fetchJson` helper to read CSRF tokens through `@nextcloud/auth`, including token updates in long-lived tabs, instead of accessing private or removed global aliases. Active requests already use the supported Axios integration.
+- Documented version-specific PHP requirements and the Nextcloud 35 compatibility review.
+- Preserve existing GitHub releases when the tag workflow runs, allowing the local release publisher to upload and publish without being reset to a draft.
+- Document the optional local App Store publishing flow and the distinction between GitHub prereleases and App Store version channels.
+
 ## [0.3.9] - 2026-09-11
 
 ### Added

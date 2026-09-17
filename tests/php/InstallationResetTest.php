@@ -54,7 +54,7 @@ namespace CoBudget\Tests {
 			}
 			$this->seed("INSERT INTO {$prefix}jobs VALUES ('201', ?, 0, 'null'), ('202', ?, 123, 'null')", ['OCA\\CoBudgetExtra\\Cron\\Job', 'OCA\\Other\\Cron\\Job']);
 			$this->seed("CREATE TABLE {$prefix}appconfig (appid TEXT, configkey TEXT, configvalue TEXT)");
-			$this->seed("INSERT INTO {$prefix}appconfig VALUES ('cobudget', 'enabled', 'no'), ('cobudget', 'installed_version', '0.3.9'), ('other', 'installed_version', '1'), ('cobudget_extra', 'enabled', 'yes')");
+			$this->seed("INSERT INTO {$prefix}appconfig VALUES ('cobudget', 'enabled', 'no'), ('cobudget', 'installed_version', '0.4.0'), ('other', 'installed_version', '1'), ('cobudget_extra', 'enabled', 'yes')");
 			$this->seed("CREATE TABLE {$prefix}preferences (userid TEXT, appid TEXT, configkey TEXT, configvalue TEXT)");
 			$this->seed("INSERT INTO {$prefix}preferences VALUES ('alice', 'cobudget', 'setting', '1'), ('bob', 'cobudget', 'setting', '2'), ('alice', 'other', 'setting', '3')");
 			$this->seed("CREATE TABLE {$prefix}migrations (app TEXT, version TEXT)");

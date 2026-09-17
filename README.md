@@ -13,8 +13,8 @@ It helps you track income, expenses, budgets, receipts and shared areas directly
 
 CoBudget is available in the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and remains under active early-alpha development.
 
-- The supported release line is `0.3.x`; see the [changelog](CHANGELOG.md) for the latest changes.
-- Nextcloud 33 and 34 are supported.
+- The supported release line is `0.4.x`; see the [changelog](CHANGELOG.md) for the latest changes.
+- Nextcloud 33, 34 and 35 are supported.
 - App Store releases are signed and mirrored as installable assets on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
 - Features, data structures and upgrade behavior may still change before `1.0.0`.
 - Backups are strongly recommended before every update, especially for shared areas and restore workflows.
@@ -70,10 +70,12 @@ See [FEATURES.md](FEATURES.md) for a more detailed overview.
 
 ## Requirements
 
-- Nextcloud 33 or 34
-- PHP 8.0 or newer
+- Nextcloud 33, 34 or 35
+- A PHP version supported by the installed Nextcloud release: at least PHP 8.2 for Nextcloud 33/34, or PHP 8.3 for Nextcloud 35
 - A user account with access to the CoBudget app
 - Browser with modern JavaScript support
+
+See the [Nextcloud 35 compatibility review](docs/nextcloud-35-compatibility.md) for the API audit, server requirements and validation scope.
 
 ## Installation
 

@@ -31,6 +31,18 @@ chmod 600 ~/.nextcloud/certificates/cobudget.key
 
 ## Recommended: Interactive Release Assistant
 
+For the private local development workspace containing both CoBudget and
+CoCalculator, `../release-private/create-signed-release.sh` provides a shared
+Herd/Nextcloud 35 signing and GitHub publication flow. Its optional `--appstore`
+mode submits the verified public GitHub asset to the Nextcloud App Store after
+checking for an existing version. Store credentials stay in the macOS Keychain.
+See that workspace's private README for setup and recovery. These private tools
+are not distributed in this repository or the installable app archive.
+
+The App Store derives the release channel from the app version: `0.4.0` is stable,
+while `0.4.0-beta.1` is a prerelease. GitHub's prerelease flag does not select the
+App Store channel.
+
 The release assistant reads the version from `appinfo/info.xml`, verifies it
 against `package.json`, `package-lock.json`, and `CHANGELOG.md`, runs the test
 and build pipeline, reviews Git changes, and asks separately before creating a
@@ -65,6 +77,11 @@ never overwrites tags and deliberately leaves the final inspection and
 publication of the GitHub draft as manual steps.
 
 The commands below document the equivalent manual fallback.
+
+The tag workflow creates a draft only when no release exists. It preserves an
+existing draft or published release, including its notes and assets, so an
+external local publisher can upload signed packages and publish without the
+workflow reverting the release to a draft.
 
 ## 1. Verify And Tag The Release
 

@@ -12,6 +12,22 @@ npm run test:frontend-smoke
 npm test
 ```
 
+## Nextcloud 33–35 compatibility
+
+CI additionally installs Nextcloud 33/PHP 8.2, 34/PHP 8.2 and 35/PHP 8.3
+in isolated SQLite instances. Each job enables CoBudget (running all app
+migrations), loads its OCC commands, checks background-job registration and
+data integrity, and disables/re-enables the app. These are server integration
+smoke tests; they do not cover browser interaction or populated server upgrades.
+
+`npm run test:frontend-smoke` also runs `tests/fetch-json.mjs` against the actual
+HTTP service and installed Nextcloud auth/router libraries with simulated DOM,
+storage and network boundaries. It verifies CSRF token lookup and rotation
+without private globals while retaining workspace headers and token overrides.
+
+See [the compatibility review](../docs/nextcloud-35-compatibility.md) for findings,
+local validation results and remaining test coverage.
+
 `tests/php/run.php` ist der schnelle Backend-Regressionslauf. Er prueft:
 
 - Routen zeigen auf existierende Controller-Methoden und haben eindeutige Verb-/URL-Paare.

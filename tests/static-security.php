@@ -618,9 +618,9 @@ try {
 	if (
 		preg_match('/<nextcloud[^>]*min-version="([^"]+)"[^>]*max-version="([^"]+)"/', $infoXml, $nextcloudMatch) !== 1
 		|| $nextcloudMatch[1] !== '33'
-		|| $nextcloudMatch[2] !== '34'
+		|| $nextcloudMatch[2] !== '35'
 	) {
-		$failures[] = 'App metadata should support only Nextcloud 33 and 34';
+		$failures[] = 'App metadata should support Nextcloud 33, 34 and 35';
 	}
 
 	$app = $read('src/App.vue');

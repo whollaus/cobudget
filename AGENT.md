@@ -6,7 +6,7 @@
 - Nextcloud app id: `cobudget`
 - PHP namespace: `OCA\CoBudget`
 - This is a technical reset. New installs use only `cobudget` identifiers and `cobudget_*` database tables.
-- Nextcloud target versions: min `33`, max `34`
+- Nextcloud target versions: min `33`, max `35`
 - Current app version: see `appinfo/info.xml`
 
 ## Stack

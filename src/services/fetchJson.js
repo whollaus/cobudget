@@ -1,4 +1,5 @@
 import { generateUrl } from '@nextcloud/router'
+import { getRequestToken } from '@nextcloud/auth'
 import { translate as t } from '@nextcloud/l10n'
 import { readWorkspaceId } from './workspaceStorage'
 
@@ -30,7 +31,7 @@ export async function fetchJson(path, options = {}) {
 		...headers
 	};
 
-	const requestToken = window.OC?.requestToken || window.oc_requesttoken;
+	const requestToken = getRequestToken();
 	if (requestToken && !requestHeaders.requesttoken) {
 		requestHeaders.requesttoken = requestToken;
 	}

@@ -60,21 +60,20 @@ jobs:
           CoBudget is currently an early alpha release. Please test carefully and keep backups before using it with important data.
           EOF
 
-      - name: Create or update draft GitHub release
+      - name: Create draft GitHub release if missing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" \
-              --draft \
-              --prerelease \
-              --title "CoBudget $GITHUB_REF_NAME" \
-              --notes-file /tmp/release-notes.md
+            echo "Release already exists; preserve its publication state, notes and assets."
           else
             gh release create "$GITHUB_REF_NAME" \
               --verify-tag \
               --draft \
               --prerelease \
               --title "CoBudget $GITHUB_REF_NAME" \
-              --notes-file /tmp/release-notes.md
+              --notes-file /tmp/release-notes.md || {
+                # The local publisher can create the release concurrently.
+                gh release view "$GITHUB_REF_NAME" >/dev/null
+              }
           fi

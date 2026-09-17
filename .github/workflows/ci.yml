@@ -12,6 +12,68 @@ permissions:
   contents: read
 
 jobs:
+  nextcloud-compatibility:
+    name: Nextcloud ${{ matrix.nextcloud }} / PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nextcloud: '33'
+            php: '8.2'
+          - nextcloud: '34'
+            php: '8.2'
+          - nextcloud: '35'
+            php: '8.3'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, simplexml, zip
+          ini-values: memory_limit=512M
+          coverage: none
+
+      - name: Run backend and security tests on the minimum supported PHP
+        run: |
+          php tests/php/run.php
+          php tests/static-security.php
+
+      - name: Download Nextcloud
+        env:
+          NEXTCLOUD_MAJOR: ${{ matrix.nextcloud }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/nextcloud"
+          curl --fail --location --retry 3 --max-time 180 \
+            "https://download.nextcloud.com/server/releases/latest-${NEXTCLOUD_MAJOR}.tar.bz2" \
+            --output "$RUNNER_TEMP/nextcloud.tar.bz2"
+          tar -xjf "$RUNNER_TEMP/nextcloud.tar.bz2" -C "$RUNNER_TEMP/nextcloud" --strip-components=1
+
+      - name: Install isolated Nextcloud instance
+        working-directory: ${{ runner.temp }}/nextcloud
+        run: |
+          printf '%s\n' '<?php $CONFIG = ["appstoreenabled" => false, "updatechecker" => false];' > config/config.php
+          php occ maintenance:install --database sqlite \
+            --admin-user cobudget-ci --admin-pass cobudget-ci-test-only \
+            --data-dir "$RUNNER_TEMP/nextcloud-data" --no-interaction
+          ln -s "$GITHUB_WORKSPACE" apps/cobudget
+
+      - name: Check app installation, migrations and OCC commands
+        working-directory: ${{ runner.temp }}/nextcloud
+        run: |
+          php occ app:enable cobudget
+          php occ status
+          php occ list cobudget
+          php occ cobudget:background-jobs:check
+          php occ cobudget:integrity:check
+          php occ app:disable cobudget
+          php occ app:enable cobudget
+          php occ cobudget:background-jobs:check
+
   test-build:
     name: Test and build
     runs-on: ubuntu-latest
