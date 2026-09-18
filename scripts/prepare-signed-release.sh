@@ -84,7 +84,7 @@ echo "Creating Nextcloud app signature..."
 require_file "$TEMP_DIR/package/cobudget/appinfo/signature.json"
 
 echo "Packing signed release archive..."
-tar \
+"$SCRIPT_DIR/tar-create.sh" \
 	--exclude='._*' \
 	--exclude='*/._*' \
 	--exclude='.DS_Store' \

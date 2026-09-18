@@ -7,6 +7,14 @@ CoBudget uses a two-stage Nextcloud signing process:
 
 The private key must be the exact key used to create the certificate signing request for `cobudget.crt`. Never commit the key, certificate, CSR, generated signature, or release archive to this repository.
 
+Release archives must use **GNU tar format**, including GNU long-name records.
+Use `scripts/tar-create.sh` for creation: macOS tar defaults to PAX, whose `path`
+headers Nextcloud's `Archive_Tar` extractor ignores. Long lazy JavaScript filenames
+then become truncated, causing 404/ChunkLoadError and blank payment views after
+installation even though ordinary `tar -tf` and extraction appear correct.
+The release verifier rejects PAX headers. The private shared release flow also
+extracts the archive with the local Nextcloud dependency and compares every file.
+
 ## Prerequisites
 
 - A clean release commit on `main`

@@ -12,6 +12,8 @@ if [ ! -s "$ARCHIVE" ]; then
 	exit 66
 fi
 
+"${PHP_BIN:-php}" "$SCRIPT_DIR/verify-tar-compatibility.php" "$ARCHIVE"
+
 LIST_FILE="$(mktemp "${TMPDIR:-/tmp}/cobudget-archive-list.XXXXXX")"
 EXTRACT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cobudget-archive.XXXXXX")"
 REFERENCES_FILE="$(mktemp "${TMPDIR:-/tmp}/cobudget-js-refs.XXXXXX")"

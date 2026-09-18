@@ -2,6 +2,12 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.4.1] - 2026-09-18
+
+### Fixed
+
+- Create release archives in GNU tar format on macOS and Linux. Nextcloud ignores PAX long-path headers, which truncated lazy JavaScript chunk filenames during App Store installation and left payment views blank. Reject PAX archives during release verification.
+
 ## [0.4.0] - 2026-09-16
 
 ### Added
