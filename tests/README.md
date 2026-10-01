@@ -30,6 +30,8 @@ local validation results and remaining test coverage.
 
 `tests/php/run.php` ist der schnelle Backend-Regressionslauf. Er prueft:
 
+- Dashboard-Monats-/Jahresgruppen und Tabellen-Zwischensummen verwenden dieselbe Zeitzone wie die im Browser angezeigten Zahlungsdaten, einschliesslich Monats-/Jahreswechseln und wiederkehrenden Zahlungen.
+
 - Routen zeigen auf existierende Controller-Methoden und haben eindeutige Verb-/URL-Paare.
 - User-Daten-API-Methoden liefern JSON-Fehler und pruefen Auth-/Workspace-Header-Fehler.
 - `WorkspaceAwareTrait` validiert Workspace-Header, Pflichtnamen, Typen, Betraege und Integer-Cents.

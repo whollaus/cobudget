@@ -1,5 +1,20 @@
 # CoBudget agent instructions
 
+## Default release handoff
+
+The user prefers to run the shared publishing script personally. For future
+release preparation, update the version metadata and changelog, complete the
+required local checks, then give the user this command from the workspace root:
+
+```sh
+./scripts/create-signed-release.sh cobudget --appstore
+```
+
+Do not run the publishing script automatically. A request to prepare a release
+or change its version means preparation and handoff by default. Only publish
+when the user explicitly asks the assistant to perform that publication; prior
+authorization for an earlier release does not authorize future releases.
+
 ## Version bumps
 
 When the user asks to increase the CoBudget version without naming a target,

@@ -543,7 +543,7 @@ return [
 		foreach (['total', 'average', 'currentMonth', 'currentYear', 'future', 'future30Days'] as $bucket) {
 			$t->assertContains("'" . $bucket . "'", $metrics, 'Dashboard metrics should include ' . $bucket);
 		}
-		$t->assertContains("\$currentYear['monthlyMetrics'][date('Y-m')]", $metrics, 'Dashboard should derive the current month from the current-year aggregate');
+		$t->assertContains("\$currentYear['monthlyMetrics'][\$this->calendarDate()->format('Y-m')]", $metrics, 'Dashboard should derive the browser-local current month from the current-year aggregate');
 
 		$summarize = $t->methodBody('lib/Controller/EntryController.php', 'accumulateDashboardMetrics');
 		$t->assertContains('$signedAmount = $amount;', $summarize, 'Dashboard Kennzeichen metrics should treat income as positive');

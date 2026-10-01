@@ -396,6 +396,11 @@ export default {
 			max-width var(--animation-slow, 200ms) ease !important;
 	}
 
+	.app-page-header__actions :deep(.new-payment-main-button.button-vue),
+	.app-page-header__actions :deep(.new-payment-main-button .button-vue) {
+		padding-inline-end: calc(var(--default-grid-baseline, 4px) * 6.5) !important;
+	}
+
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__wrapper),
 	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__wrapper),
 	.app-page-header__actions :deep(.mobile-create-fab .button-vue__wrapper),

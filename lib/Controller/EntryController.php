@@ -129,6 +129,7 @@ class EntryController extends Controller {
 	private IRootFolder $rootFolder;
 	private IL10N $l10n;
 	private string $entryScope = 'personal';
+	private ?\DateTimeZone $calendarTimezone = null;
 
 	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, HashtagService $hashtagService, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, EntryAttachmentProjectionService $attachmentProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IRootFolder $rootFolder, IL10N $l10n) {
 		parent::__construct($appName, $request);
@@ -451,7 +452,8 @@ class EntryController extends Controller {
 			$main = $this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints);
 			$mainAggregate = $main['_aggregate'];
 			unset($main['_aggregate']);
-			$currentYearStart = mktime(0, 0, 0, 1, 1, (int)date('Y'));
+			$calendarNow = $this->calendarDate();
+			$currentYearStart = $calendarNow->setDate((int)$calendarNow->format('Y'), 1, 1)->setTime(0, 0)->getTimestamp();
 			$currentYearData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $currentYearStart, null, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, false, $projectShareBasisPoints);
 			$futureData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, 'date', 'asc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true, $projectShareBasisPoints);
 
@@ -644,7 +646,7 @@ class EntryController extends Controller {
 			$this->accumulateDashboardTagCounts($aggregate['tagCounts'], $entry);
 
 			if ($effectiveDate > 0) {
-				$monthKey = date('Y-m', $effectiveDate);
+				$monthKey = $this->calendarDate($effectiveDate)->format('Y-m');
 				$aggregate['monthlyMetrics'][$monthKey] ??= $this->zeroDashboardMetrics();
 				$this->accumulateDashboardMetrics($aggregate['monthlyMetrics'][$monthKey], $entry, $amount);
 				if ($isFuture && $effectiveDate <= $future30DaysLimit) {
@@ -753,7 +755,7 @@ class EntryController extends Controller {
 	}
 
 	private function buildDashboardMetricsFromAggregates(array $main, array $currentYear, array $future): array {
-		$currentMonthMetrics = $currentYear['monthlyMetrics'][date('Y-m')] ?? $this->zeroDashboardMetrics();
+		$currentMonthMetrics = $currentYear['monthlyMetrics'][$this->calendarDate()->format('Y-m')] ?? $this->zeroDashboardMetrics();
 
 		return [
 			'total' => $main['metrics'],
@@ -775,7 +777,7 @@ class EntryController extends Controller {
 			return reset($monthlyMetrics);
 		}
 
-		$currentMonth = date('Y-m');
+		$currentMonth = $this->calendarDate()->format('Y-m');
 		$selected = $monthlyMetrics;
 		if ((string)array_key_last($monthlyMetrics) >= $currentMonth) {
 			$past = array_filter($monthlyMetrics, static fn(array $metrics, string $month): bool => $month < $currentMonth, ARRAY_FILTER_USE_BOTH);
@@ -785,8 +787,8 @@ class EntryController extends Controller {
 		}
 
 		$keys = array_keys($selected);
-		$first = strtotime($keys[0] . '-01 00:00:00');
-		$last = strtotime($keys[count($keys) - 1] . '-01 00:00:00');
+		$first = new \DateTimeImmutable($keys[0] . '-01 00:00:00', $this->calendarDate()->getTimezone());
+		$last = new \DateTimeImmutable($keys[count($keys) - 1] . '-01 00:00:00', $first->getTimezone());
 		$summary = $this->zeroDashboardMetrics();
 		foreach ($selected as $metrics) {
 			foreach ($summary as $key => $_value) {
@@ -794,7 +796,7 @@ class EntryController extends Controller {
 			}
 		}
 
-		return $this->divideDashboardMetrics($summary, $this->monthSpanInclusive($first, $last));
+		return $this->divideDashboardMetrics($summary, $this->monthSpanInclusive($first->getTimestamp(), $last->getTimestamp()));
 	}
 
 	private function dashboardTagCountsFromAggregates(array $main, array $future): array {
@@ -813,10 +815,23 @@ class EntryController extends Controller {
 	}
 
 	private function dateGroupKeys(int $timestamp): array {
+		$date = $this->calendarDate($timestamp);
 		return [
-			'year-' . date('Y', $timestamp),
-			'month-' . date('Y-m', $timestamp),
+			'year-' . $date->format('Y'),
+			'month-' . $date->format('Y-m'),
 		];
+	}
+
+	private function calendarDate(?int $timestamp = null): \DateTimeImmutable {
+		if ($this->calendarTimezone === null) {
+			$timezone = trim((string)$this->request->getHeader('X-CoBudget-Timezone'));
+			if ($timezone === '' || !in_array($timezone, \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC), true)) {
+				$timezone = date_default_timezone_get();
+			}
+			$this->calendarTimezone = new \DateTimeZone($timezone);
+		}
+
+		return (new \DateTimeImmutable('@' . ($timestamp ?? time())))->setTimezone($this->calendarTimezone);
 	}
 
 	private function fetchEntryRows(
@@ -1527,10 +1542,10 @@ class EntryController extends Controller {
 	}
 
 	private function monthSpanInclusive(int $minDate, int $maxDate): int {
-		$minParts = getdate($minDate);
-		$maxParts = getdate($maxDate);
+		$minParts = $this->calendarDate($minDate);
+		$maxParts = $this->calendarDate($maxDate);
 
-		return (($maxParts['year'] - $minParts['year']) * 12) + ($maxParts['mon'] - $minParts['mon']) + 1;
+		return (((int)$maxParts->format('Y') - (int)$minParts->format('Y')) * 12) + (int)$maxParts->format('n') - (int)$minParts->format('n') + 1;
 	}
 
 	private function divideDashboardMetrics(array $metrics, int $months): array {

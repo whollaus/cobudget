@@ -36,6 +36,17 @@ axios.interceptors.request.use(config => {
 		setHeader(config.headers, 'X-Workspace-Id', workspaceId);
 	}
 
+	// Server-side calendar totals must use the same timezone as displayed dates.
+	removeHeader(config.headers, 'X-CoBudget-Timezone');
+	try {
+		const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		if (timezone) {
+			setHeader(config.headers, 'X-CoBudget-Timezone', timezone);
+		}
+	} catch {
+		// Clients without timezone support retain the server's default timezone.
+	}
+
 	return config;
 });
 

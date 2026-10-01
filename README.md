@@ -35,6 +35,7 @@ The screenshots below show the current alpha UI and may change during the test p
 ## Features
 
 - Track income and expenses
+- Calculate dashboard month/year totals and payment table subtotals in the browser timezone, matching the displayed payment dates
 - Switch between finances, areas and analytics through a persistent app-style mobile bottom navigation
 - Keep page titles and primary actions visible in a sticky mobile header while scrolling
 - Create and edit income and expenses in a responsive sidebar with mode-specific titles, guarded unsaved changes, support for consecutive desktop entries, and a new-payment action that remains available while reviewing existing payments

@@ -40,7 +40,7 @@ chmod 600 ~/.nextcloud/certificates/cobudget.key
 ## Recommended: Interactive Release Assistant
 
 For the private local development workspace containing both CoBudget and
-CoCalculator, `../release-private/create-signed-release.sh` provides a shared
+CoCalculator, `../scripts/create-signed-release.sh` provides a shared
 Herd/Nextcloud 35 signing and GitHub publication flow. Its optional `--appstore`
 mode submits the verified public GitHub asset to the Nextcloud App Store after
 checking for an existing version. Store credentials stay in the macOS Keychain.

@@ -2,6 +2,16 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.4.2] - 2026-10-01
+
+### Fixed
+
+- Use the browser timezone for dashboard month/year totals and payment table subtotals. Payments near midnight at a month or year boundary now count in the same period as their displayed date, including existing payments that previously appeared in October but were included in September totals on UTC servers.
+
+### Changed
+
+- Balanced the mobile New Payment button's right text inset with the plus icon's left inset.
+
 ## [0.4.1] - 2026-09-18
 
 ### Fixed

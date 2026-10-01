@@ -2107,7 +2107,7 @@ assertContains(projectSettings, 'const name = this.editProjectData.name.trim();'
 assertContains(projectSettings, ':disabled="!canSaveProject"', 'Project settings disables unchanged or invalid saves')
 
 const packageJson = JSON.parse(read('package.json'))
-if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/fetch-json.mjs') {
+if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs') {
 	failures.push('package.json is missing test:frontend-smoke script')
 }
 if (!/^\^7\./.test(packageJson.dependencies?.['@nextcloud/dialogs'] || '')) {
