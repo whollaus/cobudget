@@ -47,7 +47,7 @@ class BackupController extends Controller {
 				'backups' => $this->backupService->listBackups((string)$this->userId),
 			]);
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Persönliche Exporte konnten nicht geladen werden.', Http::STATUS_INTERNAL_SERVER_ERROR, 'Failed to list personal exports');
+			return $this->loggedErrorResponse($e, 'Personal exports could not be loaded.', Http::STATUS_INTERNAL_SERVER_ERROR, 'Failed to list personal exports');
 		}
 	}
 
@@ -66,9 +66,9 @@ class BackupController extends Controller {
 				'backups' => $this->backupService->listBackups((string)$this->userId),
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht erstellt werden.', Http::STATUS_BAD_REQUEST, 'Failed to create personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be created.', Http::STATUS_BAD_REQUEST, 'Failed to create personal export');
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht erstellt werden.', Http::STATUS_INTERNAL_SERVER_ERROR, 'Failed to create personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be created.', Http::STATUS_INTERNAL_SERVER_ERROR, 'Failed to create personal export');
 		}
 	}
 
@@ -84,9 +84,9 @@ class BackupController extends Controller {
 				'backup' => $this->backupService->inspectBackup((string)$this->userId, $fileName),
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht geprüft werden.', Http::STATUS_BAD_REQUEST, 'Failed to inspect personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be checked.', Http::STATUS_BAD_REQUEST, 'Failed to inspect personal export');
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht geprüft werden.', Http::STATUS_INTERNAL_SERVER_ERROR, 'Failed to inspect personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be checked.', Http::STATUS_INTERNAL_SERVER_ERROR, 'Failed to inspect personal export');
 		}
 	}
 
@@ -99,7 +99,7 @@ class BackupController extends Controller {
 
 		$confirmation = (string)$this->request->getParam('confirmation', '');
 		if ($confirmation !== 'RESTORE') {
-			return $this->errorResponse('Bitte Wiederherstellung mit RESTORE bestätigen.', Http::STATUS_BAD_REQUEST);
+			return $this->errorResponse('Please confirm the restore by typing RESTORE.', Http::STATUS_BAD_REQUEST);
 		}
 
 		try {
@@ -110,11 +110,11 @@ class BackupController extends Controller {
 				'backups' => $this->backupService->listBackups((string)$this->userId),
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht wiederhergestellt werden.', Http::STATUS_BAD_REQUEST, 'Failed to restore personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be restored.', Http::STATUS_BAD_REQUEST, 'Failed to restore personal export');
 		} catch (\RuntimeException $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht wiederhergestellt werden.', Http::STATUS_CONFLICT, 'Failed to restore personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be restored.', Http::STATUS_CONFLICT, 'Failed to restore personal export');
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht wiederhergestellt werden.', Http::STATUS_INTERNAL_SERVER_ERROR, 'Failed to restore personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be restored.', Http::STATUS_INTERNAL_SERVER_ERROR, 'Failed to restore personal export');
 		}
 	}
 
@@ -132,9 +132,9 @@ class BackupController extends Controller {
 				'backups' => $this->backupService->listBackups((string)$this->userId),
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht gelöscht werden.', Http::STATUS_BAD_REQUEST, 'Failed to delete personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be deleted.', Http::STATUS_BAD_REQUEST, 'Failed to delete personal export');
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export wurde nicht gefunden.', Http::STATUS_NOT_FOUND, 'Failed to delete personal export');
+			return $this->loggedErrorResponse($e, 'Personal export not found.', Http::STATUS_NOT_FOUND, 'Failed to delete personal export');
 		}
 	}
 
@@ -152,9 +152,9 @@ class BackupController extends Controller {
 				'Content-Disposition' => 'attachment; filename="' . addslashes($file->getName()) . '"',
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export konnte nicht heruntergeladen werden.', Http::STATUS_BAD_REQUEST, 'Failed to download personal export');
+			return $this->loggedErrorResponse($e, 'Personal export could not be downloaded.', Http::STATUS_BAD_REQUEST, 'Failed to download personal export');
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Persönlicher Export wurde nicht gefunden.', Http::STATUS_NOT_FOUND, 'Failed to download personal export');
+			return $this->loggedErrorResponse($e, 'Personal export not found.', Http::STATUS_NOT_FOUND, 'Failed to download personal export');
 		}
 	}
 

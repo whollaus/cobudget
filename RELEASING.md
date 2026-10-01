@@ -47,9 +47,10 @@ checking for an existing version. Store credentials stay in the macOS Keychain.
 See that workspace's private README for setup and recovery. These private tools
 are not distributed in this repository or the installable app archive.
 
-The App Store derives the release channel from the app version: `0.4.0` is stable,
-while `0.4.0-beta.1` is a prerelease. GitHub's prerelease flag does not select the
-App Store channel.
+The App Store derives the release channel from the app version: `0.5.0` is stable,
+while `0.5.0-beta.1` is a prerelease. GitHub's prerelease flag does not select the
+App Store channel. The 0.5 release line uses beta descriptions with the numeric
+version `0.5.0`, so it remains in the App Store stable channel.
 
 The release assistant reads the version from `appinfo/info.xml`, verifies it
 against `package.json`, `package-lock.json`, and `CHANGELOG.md`, runs the test
@@ -102,7 +103,7 @@ npm ci
 npm run test
 git status
 git add .
-git commit -m "Prepare CoBudget $VERSION alpha release"
+git commit -m "Prepare CoBudget $VERSION beta release"
 git push origin main
 git tag -a "$TAG" -m "CoBudget $VERSION"
 git push origin "$TAG"
@@ -154,7 +155,7 @@ gh release upload "$TAG" \
   --clobber
 ```
 
-Inspect the draft on GitHub. Confirm that the installable archive contains the top-level `cobudget/` directory and `cobudget/appinfo/signature.json`. Then publish it as an alpha prerelease:
+Inspect the draft on GitHub. Confirm that the installable archive contains the top-level `cobudget/` directory and `cobudget/appinfo/signature.json`. Then publish it as a beta prerelease:
 
 ```sh
 gh release edit "$TAG" --draft=false --prerelease

@@ -12,6 +12,7 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\IGroupManager;
 use OCP\IRequest;
+use OCP\IL10N;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
@@ -25,6 +26,7 @@ class AdminBackupController extends Controller {
 		private LoggerInterface $logger,
 		private IUserSession $userSession,
 		private IGroupManager $groupManager,
+		private IL10N $l10n,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -40,7 +42,7 @@ class AdminBackupController extends Controller {
 				'backups' => $this->backupService->listConfiguredFullBackups(),
 			]);
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup-Einstellungen konnten nicht geladen werden.', 'Failed to load full backup settings');
+			return $this->loggedErrorResponse($e, 'Full backup settings could not be loaded.', 'Failed to load full backup settings');
 		}
 	}
 
@@ -63,9 +65,9 @@ class AdminBackupController extends Controller {
 				'backups' => $this->backupService->listConfiguredFullBackups(),
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup-Einstellungen konnten nicht gespeichert werden.', 'Invalid full backup settings', Http::STATUS_BAD_REQUEST);
+			return $this->loggedErrorResponse($e, 'Full backup settings could not be saved.', 'Invalid full backup settings', Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup-Einstellungen konnten nicht gespeichert werden.', 'Failed to save full backup settings');
+			return $this->loggedErrorResponse($e, 'Full backup settings could not be saved.', 'Failed to save full backup settings');
 		}
 	}
 
@@ -81,9 +83,9 @@ class AdminBackupController extends Controller {
 				'backups' => $this->backupService->listConfiguredFullBackups(),
 			], Http::STATUS_CREATED);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup konnte nicht erstellt werden.', 'Invalid full backup create request', Http::STATUS_BAD_REQUEST);
+			return $this->loggedErrorResponse($e, 'Full backup could not be created.', 'Invalid full backup create request', Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup konnte nicht erstellt werden.', 'Failed to create full backup');
+			return $this->loggedErrorResponse($e, 'Full backup could not be created.', 'Failed to create full backup');
 		}
 	}
 
@@ -100,9 +102,9 @@ class AdminBackupController extends Controller {
 				'backups' => $this->backupService->listConfiguredFullBackups(),
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup konnte nicht gelöscht werden.', 'Invalid full backup delete request', Http::STATUS_BAD_REQUEST);
+			return $this->loggedErrorResponse($e, 'Full backup could not be deleted.', 'Invalid full backup delete request', Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup konnte nicht gelöscht werden.', 'Failed to delete full backup');
+			return $this->loggedErrorResponse($e, 'Full backup could not be deleted.', 'Failed to delete full backup');
 		}
 	}
 
@@ -120,9 +122,9 @@ class AdminBackupController extends Controller {
 				'Content-Disposition' => 'attachment; filename="' . addslashes($file->getName()) . '"',
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup konnte nicht heruntergeladen werden.', 'Invalid full backup download request', Http::STATUS_BAD_REQUEST);
+			return $this->loggedErrorResponse($e, 'Full backup could not be downloaded.', 'Invalid full backup download request', Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup konnte nicht heruntergeladen werden.', 'Failed to download full backup');
+			return $this->loggedErrorResponse($e, 'Full backup could not be downloaded.', 'Failed to download full backup');
 		}
 	}
 
@@ -143,9 +145,9 @@ class AdminBackupController extends Controller {
 				'backups' => $this->backupService->listConfiguredFullBackups(),
 			]);
 		} catch (\InvalidArgumentException $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup konnte nicht wiederhergestellt werden.', 'Invalid full backup restore request', Http::STATUS_BAD_REQUEST);
+			return $this->loggedErrorResponse($e, 'Full backup could not be restored.', 'Invalid full backup restore request', Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Vollbackup konnte nicht wiederhergestellt werden.', 'Failed to restore full backup');
+			return $this->loggedErrorResponse($e, 'Full backup could not be restored.', 'Failed to restore full backup');
 		}
 	}
 
@@ -163,7 +165,7 @@ class AdminBackupController extends Controller {
 	}
 
 	private function errorResponse(string $message, int $status): DataResponse {
-		return new DataResponse(['error' => $message], $status);
+		return new DataResponse(['error' => $this->l10n->t($message)], $status);
 	}
 
 	private function loggedErrorResponse(\Throwable $e, string $message, string $logMessage, int $status = Http::STATUS_INTERNAL_SERVER_ERROR): DataResponse {

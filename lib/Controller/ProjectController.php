@@ -179,7 +179,7 @@ class ProjectController extends Controller {
 
 	private function requireProjectOwner(int $id): ?DataResponse {
 		if (!$this->projectOwnerInActiveWorkspace($id)) {
-			return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+			return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
 		}
 
 		return null;
@@ -506,7 +506,7 @@ class ProjectController extends Controller {
 			}
 			$project = $this->projectOwnerForCurrentUser($id);
 			if (!$project) {
-				return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+				return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
 			}
 			$workspaceId = (int)$project['workspace_id'];
 
@@ -622,7 +622,7 @@ class ProjectController extends Controller {
 
 				$project = $this->projectOwnerForCurrentUser($id);
 				if (!$project) {
-					return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+					return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
 				}
 				$workspaceId = (int)$project['workspace_id'];
 			if ($this->projectHasOpenSharedPayments($id, $workspaceId)) {
@@ -659,7 +659,7 @@ class ProjectController extends Controller {
 
 				$project = $this->projectOwnerForCurrentUser($id);
 				if (!$project) {
-					return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+					return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
 				}
 				$workspaceId = (int)$project['workspace_id'];
 			$qb = $this->db->getQueryBuilder();
@@ -689,7 +689,7 @@ class ProjectController extends Controller {
 
 			$project = $this->projectVisibleForCurrentUser($id);
 			if (!$project) {
-				return new DataResponse(['error' => 'Forbidden'], Http::STATUS_FORBIDDEN);
+				return $this->errorResponse('Forbidden', Http::STATUS_FORBIDDEN);
 			}
 			$workspaceId = (int)$project['workspace_id'];
 
@@ -734,13 +734,13 @@ class ProjectController extends Controller {
 
 			$project = $this->projectVisibleForCurrentUser($id);
 			if (!$project) {
-				return new DataResponse(['error' => 'Forbidden'], Http::STATUS_FORBIDDEN);
+				return $this->errorResponse('Forbidden', Http::STATUS_FORBIDDEN);
 			}
 			$workspaceId = (int)$project['workspace_id'];
 
 			$project = $this->projectHeader($id, $workspaceId);
 			if (!$project) {
-				return new DataResponse(['error' => 'Project not found'], Http::STATUS_NOT_FOUND);
+				return $this->errorResponse('Project not found', Http::STATUS_NOT_FOUND);
 			}
 			$project['members'] = $this->projectMembers($id);
 			[$limit, $offset] = $this->normalizeSettlementPagination($limit, $offset);
@@ -779,11 +779,11 @@ class ProjectController extends Controller {
 
 			$project = $this->projectVisibleForCurrentUser($id);
 			if (!$project) {
-				return new DataResponse(['error' => 'Forbidden'], Http::STATUS_FORBIDDEN);
+				return $this->errorResponse('Forbidden', Http::STATUS_FORBIDDEN);
 			}
 			$workspaceId = (int)$project['workspace_id'];
 			if (!$this->settlementBelongsToProject($settlementId, $id, $workspaceId)) {
-				return new DataResponse(['error' => 'Settlement not found'], Http::STATUS_NOT_FOUND);
+				return $this->errorResponse('Settlement not found', Http::STATUS_NOT_FOUND);
 			}
 
 			[$limit, $offset] = $this->normalizeSettlementEntryPagination($limit, $offset);
@@ -816,7 +816,7 @@ class ProjectController extends Controller {
 				}
 
 			if (!$this->sharedProjectsEnabled()) {
-				return new DataResponse(['error' => 'Gemeinsame Bereiche sind deaktiviert.'], Http::STATUS_BAD_REQUEST);
+				return $this->errorResponse('Shared areas are disabled.', Http::STATUS_BAD_REQUEST);
 			}
 
 			if ($ownerError = $this->requireProjectOwner($id)) {
@@ -858,7 +858,7 @@ class ProjectController extends Controller {
 			$resultCheck->closeCursor();
 
 			if ($alreadyMember) {
-				return new DataResponse(['error' => 'User is already a member'], Http::STATUS_CONFLICT);
+				return $this->errorResponse('User is already a member', Http::STATUS_CONFLICT);
 			}
 
 			$existingMembers = $this->projectMembers($id);
@@ -931,12 +931,12 @@ class ProjectController extends Controller {
 
 			$project = $this->projectOwnerForCurrentUser($id);
 			if (!$project) {
-				return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+				return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
 			}
 
 			// Cannot remove the owner
 			if ($userId === $project['owner_id']) {
-				return new DataResponse(['error' => 'Cannot remove the project owner'], Http::STATUS_BAD_REQUEST);
+				return $this->errorResponse('Cannot remove the project owner', Http::STATUS_BAD_REQUEST);
 			}
 			$memberUserIds = [];
 			$this->db->beginTransaction();
@@ -1128,7 +1128,7 @@ class ProjectController extends Controller {
 
 			$project = $this->projectOwnerForCurrentUser($id);
 			if (!$project) {
-				return $this->errorResponse('Nur der Ersteller des Bereichs darf diese Aktion ausführen.', Http::STATUS_FORBIDDEN);
+				return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
 			}
 			$workspaceId = (int)$project['workspace_id'];
 			$members = $this->projectMembers($id);

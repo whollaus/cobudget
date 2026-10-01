@@ -575,6 +575,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
 import CategoryIcon from './CategoryIcon.vue'
@@ -1007,8 +1008,8 @@ export default {
 				return null; // Stop if past end date
 			}
 			
-			const dateStr = d.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' });
-			const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+			const dateStr = d.toLocaleDateString(getAppLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
+			const timeStr = d.toLocaleTimeString(getAppLocale(), { hour: '2-digit', minute: '2-digit' });
 			return this.$texts.entry.nextRecurrenceAt(dateStr, timeStr);
 		},
 		dateString: {

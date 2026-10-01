@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const failures = []
@@ -108,7 +109,7 @@ for (const match of sharedTexts.matchAll(/\bnx\(\s*'([^']*)'\s*,\s*'([^']*)'/g))
 const germanJsMatch = germanJsSource.match(/OC\.L10N\.register\(\s*"cobudget",\s*(\{[\s\S]*\}),\s*"nplurals/)
 if (!germanJsMatch) {
 	failures.push('German JavaScript translation catalog could not be parsed')
-} else if (JSON.stringify(JSON.parse(germanJsMatch[1])) !== JSON.stringify(germanTranslations)) {
+} else if (!isDeepStrictEqual(JSON.parse(germanJsMatch[1]), germanTranslations)) {
 	failures.push('German JSON and JavaScript translation catalogs differ')
 }
 
@@ -522,7 +523,7 @@ assertContains(analyticsPeriodSwitch, '.period-select {\n\t\tdisplay: block;', '
 assertContains(analyticsView, '<AnalyticsSummaryGrid', 'Analytics delegates key figures to a focused component')
 assertContains(analyticsView, '<AnalyticsInsightsSection', 'Analytics delegates insights to a focused component')
 assertContains(analyticsView, '<AnalyticsDevelopmentChart', 'Analytics delegates the development chart to a focused component')
-assertContains(analyticsSource, "new Intl.DateTimeFormat(undefined, { month: 'short' })", 'Analytics shortens monthly chart-axis labels to localized month names')
+assertContains(analyticsSource, "new Intl.DateTimeFormat(getAppLocale(), { month: 'short' })", 'Analytics shortens monthly chart-axis labels to localized month names')
 assertContains(analyticsSource, "showSeriesLabel(index) ? seriesAxisLabel(item) : ''", 'Analytics uses compact labels on both main and drilldown development charts')
 assertContains(analyticsView, '<AnalyticsDrilldownDevelopment', 'Analytics renders a focused development chart after selecting a breakdown row')
 assertContains(analyticsView, '<AnalyticsForecastCard', 'Analytics delegates the forecast card to a focused component')
@@ -1682,7 +1683,7 @@ assertContains(entryTable, '$texts.entry.tablePaymentPartner()', 'EntryTable neu
 assertContains(entryTable, '<EntryAmountCell', 'EntryTable shared amount cell')
 assertContains(entryTable, '<EntryDescriptionCell', 'EntryTable shared description cell')
 assertContains(entryTable, "type: 'mobile-date-group'", 'EntryTable inserts mobile day sections while preserving desktop totals')
-assertContains(entryTable, 'new Intl.RelativeTimeFormat(undefined, { numeric: \'auto\' })', 'EntryTable localizes Today and Yesterday mobile section labels')
+assertContains(entryTable, 'new Intl.RelativeTimeFormat(getAppLanguage(), { numeric: \'auto\' })', 'EntryTable localizes Today and Yesterday mobile section labels')
 assertContains(entryTable, ':show-mobile-date="!shouldGroupEntries"', 'EntryTable avoids repeating dates inside grouped mobile payments')
 assertContains(entryTable, '.data-table tr.date-group-row {\n\t\tdisplay: none;', 'Mobile payment lists replace desktop month totals with daily sections')
 assertContains(entryTable, 'grid-template-areas: "desc amount actions";', 'Mobile payment rows keep description, amount and actions on one compact line')
@@ -2107,7 +2108,7 @@ assertContains(projectSettings, 'const name = this.editProjectData.name.trim();'
 assertContains(projectSettings, ':disabled="!canSaveProject"', 'Project settings disables unchanged or invalid saves')
 
 const packageJson = JSON.parse(read('package.json'))
-if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs') {
+if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs && node tests/localization.mjs') {
 	failures.push('package.json is missing test:frontend-smoke script')
 }
 if (!/^\^7\./.test(packageJson.dependencies?.['@nextcloud/dialogs'] || '')) {

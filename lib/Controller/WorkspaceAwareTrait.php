@@ -78,7 +78,7 @@ trait WorkspaceAwareTrait {
 
 	protected function loggedErrorResponse(
 		\Throwable $e,
-		string $message = 'Ein interner Fehler ist aufgetreten.',
+		string $message = 'An internal error occurred.',
 		int $status = Http::STATUS_INTERNAL_SERVER_ERROR,
 		?string $logMessage = null
 	): DataResponse {
@@ -167,7 +167,7 @@ trait WorkspaceAwareTrait {
 		return $type === 'expense' || $type === 'income';
 	}
 
-	protected function validateEntryType(string $type, string $message = 'Ungültiger Typ'): ?DataResponse {
+	protected function validateEntryType(string $type, string $message = 'Invalid type'): ?DataResponse {
 		if (!$this->isValidEntryType($type)) {
 			return $this->errorResponse($message, Http::STATUS_BAD_REQUEST);
 		}
@@ -184,7 +184,7 @@ trait WorkspaceAwareTrait {
 		return is_finite($normalizedAmount) && $normalizedAmount >= 0 && $normalizedAmount <= 99999999.99;
 	}
 
-	protected function validateAmountCents($amount, ?int &$amountCents, bool $allowNull = false, string $message = 'Ungültiger Betrag'): ?DataResponse {
+	protected function validateAmountCents($amount, ?int &$amountCents, bool $allowNull = false, string $message = 'Invalid amount'): ?DataResponse {
 		$amountCents = null;
 		if ($allowNull && $amount === null) {
 			return null;
@@ -367,7 +367,7 @@ trait WorkspaceAwareTrait {
 	protected function validateSplitMode(?string &$splitMode): ?DataResponse {
 		$rawSplitMode = trim((string)$splitMode);
 		if ($rawSplitMode !== '' && !in_array($rawSplitMode, ['project_shares', 'single_user'], true)) {
-			return $this->errorResponse('Ungültige Aufteilung', Http::STATUS_BAD_REQUEST);
+			return $this->errorResponse('Invalid split', Http::STATUS_BAD_REQUEST);
 		}
 
 		$splitMode = $this->normalizeSplitMode($rawSplitMode);
@@ -396,7 +396,7 @@ trait WorkspaceAwareTrait {
 		}
 
 		if ($recurrenceParentId !== null && $this->entryVisibleInActiveWorkspace($recurrenceParentId) === null) {
-			return $this->errorResponse('Ursprungseintrag nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_BAD_REQUEST);
+			return $this->errorResponse('Source payment not found or not in the active workspace', Http::STATUS_BAD_REQUEST);
 		}
 
 		return null;

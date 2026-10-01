@@ -4,7 +4,7 @@
     <id>cobudget</id>
     <name>CoBudget</name>
 	<summary>Personal budgeting and shared expenses for Nextcloud</summary>
-	<description lang="en"><![CDATA[[Early alpha version]
+	<description lang="en"><![CDATA[[Beta version]
 
 **CoBudget brings personal budgeting and shared expense management into Nextcloud.** Keep track of everyday finances on your own or organize costs together with partners, families, travel groups and project teams.
 
@@ -25,10 +25,11 @@
 
 ### Built for Nextcloud
 
+- Use CoBudget in English, German, French or Spanish
 - Keep your financial data in your own Nextcloud
 - Receive notifications about activity in shared areas
 - Create full administrator backups for disaster recovery]]></description>
-	<description lang="de"><![CDATA[[Frühe Alpha-Version]
+	<description lang="de"><![CDATA[[Beta-Version]
 
 **CoBudget bringt persönliches Haushaltsbuch und gemeinsame Kostenverwaltung direkt in Nextcloud zusammen.** Behalte deine alltäglichen Finanzen alleine im Blick oder organisiere Kosten gemeinsam mit Partnern, Familie, Reisegruppen und Projektteams.
 
@@ -49,10 +50,11 @@
 
 ### Für Nextcloud gemacht
 
+- Nutze CoBudget auf Deutsch, Englisch, Französisch oder Spanisch
 - Deine Finanzdaten bleiben in deiner eigenen Nextcloud
 - Erhalte Benachrichtigungen über Aktivitäten in gemeinsamen Bereichen
 - Erstelle vollständige Admin-Backups für den Wiederherstellungsfall]]></description>
-	<version>0.4.2</version>
+	<version>0.5.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>

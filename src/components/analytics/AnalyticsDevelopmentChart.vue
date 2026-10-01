@@ -40,8 +40,8 @@
 						:style="{ height: barHeight(item.incomeCents) }"
 						tabindex="0"
 						@blur="hideTooltip"
-						@focus="showBarTooltip($event, item.label, $texts.analytics.income(), item.incomeCents)"
-						@mouseenter="showBarTooltip($event, item.label, $texts.analytics.income(), item.incomeCents)"
+						@focus="showBarTooltip($event, seriesPeriodLabel(item), $texts.analytics.income(), item.incomeCents)"
+						@mouseenter="showBarTooltip($event, seriesPeriodLabel(item), $texts.analytics.income(), item.incomeCents)"
 						@mouseleave="hideTooltip"></span>
 					<span
 						v-if="showExpenseSeries"
@@ -50,8 +50,8 @@
 						:style="{ height: barHeight(item.expenseCents) }"
 						tabindex="0"
 						@blur="hideTooltip"
-						@focus="showBarTooltip($event, item.label, $texts.analytics.expenses(), item.expenseCents)"
-						@mouseenter="showBarTooltip($event, item.label, $texts.analytics.expenses(), item.expenseCents)"
+						@focus="showBarTooltip($event, seriesPeriodLabel(item), $texts.analytics.expenses(), item.expenseCents)"
+						@mouseenter="showBarTooltip($event, seriesPeriodLabel(item), $texts.analytics.expenses(), item.expenseCents)"
 						@mouseleave="hideTooltip"></span>
 				</div>
 				<small :class="{ muted: !showSeriesLabel(index) }">
@@ -73,6 +73,8 @@
 </template>
 
 <script>
+import { getAppLocale } from '../../utils/formatMoney'
+import { formatPeriodLabel } from '../../utils/formatDate'
 export default {
 	name: 'AnalyticsDevelopmentChart',
 	data() {
@@ -169,10 +171,13 @@ export default {
 		}
 	},
 	methods: {
+		seriesPeriodLabel(item) {
+			return formatPeriodLabel(item?.key, item?.label || '')
+		},
 		seriesAxisLabel(item) {
 			const monthKey = /^(\d{4})-(\d{2})$/.exec(String(item?.key || ''))
 			if (!monthKey) {
-				return item?.label || ''
+				return this.seriesPeriodLabel(item)
 			}
 
 			const monthIndex = Number(monthKey[2]) - 1
@@ -180,7 +185,7 @@ export default {
 				return item?.label || ''
 			}
 
-			return new Intl.DateTimeFormat(undefined, { month: 'short' })
+			return new Intl.DateTimeFormat(getAppLocale(), { month: 'short' })
 				.format(new Date(Number(monthKey[1]), monthIndex, 1))
 		},
 		barTooltip(label, cents) {

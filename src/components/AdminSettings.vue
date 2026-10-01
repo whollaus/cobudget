@@ -447,6 +447,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 import { defineAsyncComponent } from 'vue'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
@@ -845,7 +846,7 @@ export default {
 			if (!numericTimestamp) {
 				return this.$texts.common.unknownDate();
 			}
-			return new Intl.DateTimeFormat(undefined, {
+			return new Intl.DateTimeFormat(getAppLocale(), {
 				dateStyle: 'medium',
 				timeStyle: 'short'
 			}).format(new Date(numericTimestamp * 1000));

@@ -15,6 +15,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IConfig;
 use OCP\IUserSession;
+use OCP\IL10N;
 
 class WorkspaceController extends Controller {
 	use WorkspaceAwareTrait;
@@ -36,7 +37,8 @@ class WorkspaceController extends Controller {
 		HashtagService $hashtagService,
 		EntryShareService $entryShareService,
 		EntryProjectionService $entryProjectionService,
-		DataIntegrityService $dataIntegrityService
+		DataIntegrityService $dataIntegrityService,
+		private IL10N $l10n,
 	) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
@@ -76,7 +78,7 @@ class WorkspaceController extends Controller {
 			}
 
 			if ($this->workspaceNameExists($name)) {
-				return new DataResponse(['error' => 'Ein Workspace mit diesem Namen existiert bereits.'], Http::STATUS_CONFLICT);
+				return $this->errorResponse('A workspace with this name already exists.', Http::STATUS_CONFLICT);
 			}
 
 			$now = time();
@@ -132,11 +134,11 @@ class WorkspaceController extends Controller {
 			$existing = $qb->executeQuery()->fetch();
 
 			if (!$existing) {
-				return new DataResponse(['error' => 'Workspace not found'], Http::STATUS_NOT_FOUND);
+				return $this->errorResponse('Workspace not found', Http::STATUS_NOT_FOUND);
 			}
 
 			if ($this->workspaceNameExists($name, $id)) {
-				return new DataResponse(['error' => 'Ein Workspace mit diesem Namen existiert bereits.'], Http::STATUS_CONFLICT);
+				return $this->errorResponse('A workspace with this name already exists.', Http::STATUS_CONFLICT);
 			}
 
 			$qb = $this->db->getQueryBuilder();
@@ -171,11 +173,11 @@ class WorkspaceController extends Controller {
 			$existing = $qb->executeQuery()->fetch();
 
 			if (!$existing) {
-				return new DataResponse(['error' => 'Workspace not found'], Http::STATUS_NOT_FOUND);
+				return $this->errorResponse('Workspace not found', Http::STATUS_NOT_FOUND);
 			}
 
 			if ($existing['is_default']) {
-				return new DataResponse(['error' => 'Cannot delete the default workspace'], Http::STATUS_BAD_REQUEST);
+				return $this->errorResponse('Cannot delete the default workspace', Http::STATUS_BAD_REQUEST);
 			}
 
 			$this->db->beginTransaction();
@@ -187,7 +189,7 @@ class WorkspaceController extends Controller {
 					|| $this->workspaceHasExternalMemberReferences($id, $projectIds)
 				) {
 					$this->db->rollBack();
-					return new DataResponse(['error' => 'Workspace is still used by shared areas or personal payment projections and cannot be deleted.'], Http::STATUS_CONFLICT);
+					return $this->errorResponse('Workspace is still used by shared areas or personal payment projections and cannot be deleted.', Http::STATUS_CONFLICT);
 				}
 				$entryIds = $this->entryProjectionService->prepareEntryDeletion(
 					$this->entryIdsForWorkspaceDelete($id, $projectIds)
@@ -417,7 +419,7 @@ class WorkspaceController extends Controller {
 			}
 
 			if (!$this->workspaceExistsForUser($id)) {
-				return new DataResponse(['error' => 'Workspace not found'], Http::STATUS_NOT_FOUND);
+				return $this->errorResponse('Workspace not found', Http::STATUS_NOT_FOUND);
 			}
 
 			$hiddenIds = $this->hiddenWorkspaceIds();
@@ -444,7 +446,7 @@ class WorkspaceController extends Controller {
 			}
 
 			if (!$this->workspaceExistsForUser($id)) {
-				return new DataResponse(['error' => 'Workspace not found'], Http::STATUS_NOT_FOUND);
+				return $this->errorResponse('Workspace not found', Http::STATUS_NOT_FOUND);
 			}
 
 			$this->saveHiddenWorkspaceIds(array_values(array_filter(

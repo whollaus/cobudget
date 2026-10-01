@@ -1,6 +1,6 @@
 {
   "name": "cobudget",
-	"version": "0.4.2",
+	"version": "0.5.0",
   "description": "Personal and shared budgeting for Nextcloud",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "watch": "webpack --node-env development --progress --watch",
     "test": "npm run test:php && npm run test:static-security && npm run test:frontend-smoke",
     "test:php": "php tests/php/run.php",
-    "test:frontend-smoke": "node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs",
+    "test:frontend-smoke": "node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs && node tests/localization.mjs",
     "test:static-security": "php tests/static-security.php",
     "release:tar": "cd .. && ./cobudget/scripts/tar-create.sh --exclude='*.map' --exclude='._*' --exclude='*/._*' --exclude='.DS_Store' --exclude='*/.DS_Store' -czf cobudget.tar.gz cobudget/appinfo cobudget/img cobudget/js cobudget/lib cobudget/l10n cobudget/templates cobudget/composer.json cobudget/CHANGELOG.md cobudget/LICENSE",
     "release:verify": "./scripts/verify-release-archive.sh",

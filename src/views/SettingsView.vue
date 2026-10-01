@@ -632,6 +632,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 import { defineAsyncComponent } from 'vue'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
@@ -955,7 +956,7 @@ export default {
 			if (Number.isNaN(date.getTime())) {
 				return this.$texts.common.unknownDate();
 			}
-			return date.toLocaleString('de-AT', {
+			return date.toLocaleString(getAppLocale(), {
 				day: '2-digit',
 				month: '2-digit',
 				year: 'numeric',

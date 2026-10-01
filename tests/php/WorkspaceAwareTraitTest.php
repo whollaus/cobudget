@@ -268,7 +268,7 @@ namespace CoBudget\Tests {
 			$t->assertTrue($probe->validEntryType('income'), 'income should be a valid entry type');
 			$t->assertFalse($probe->validEntryType('transfer'), 'unknown entry types should be rejected');
 			$t->assertNull($probe->entryTypeError('expense'), 'Valid entry type should not produce an error response');
-			$t->assertSame(['error' => 'Ungültiger Typ'], $probe->entryTypeError('transfer')?->getData(), 'Invalid entry type should use shared JSON error');
+			$t->assertSame(['error' => 'Invalid type'], $probe->entryTypeError('transfer')?->getData(), 'Invalid entry type should use shared JSON error');
 
 			$t->assertTrue($probe->validAmount('0'), 'Zero amount should be valid');
 			$t->assertTrue($probe->validAmount('99999999.99'), 'Configured max amount should be valid');
@@ -279,7 +279,7 @@ namespace CoBudget\Tests {
 			$amountCents = null;
 			$t->assertNull($probe->amountCentsError('12.30', $amountCents), 'Valid amount should not produce an error response');
 			$t->assertSame(1230, $amountCents, 'Amount validation should return integer cents by reference');
-			$t->assertSame(['error' => 'Ungültiger Betrag'], $probe->amountCentsError('-1', $amountCents)?->getData(), 'Invalid amount should use shared JSON error');
+			$t->assertSame(['error' => 'Invalid amount'], $probe->amountCentsError('-1', $amountCents)?->getData(), 'Invalid amount should use shared JSON error');
 			$t->assertNull($probe->amountCentsError(null, $amountCents, true), 'Optional amount should allow null');
 			$t->assertNull($amountCents, 'Optional null amount should produce null cents');
 		},
@@ -296,7 +296,7 @@ namespace CoBudget\Tests {
 			$t->assertNull($probe->splitModeError($mode), 'single_user split mode should validate');
 			$t->assertSame('single_user', $mode, 'single_user split mode should remain unchanged');
 			$mode = 'everyone';
-			$t->assertSame(['error' => 'Ungültige Aufteilung'], $probe->splitModeError($mode)?->getData(), 'Unknown split modes should return a shared JSON error');
+			$t->assertSame(['error' => 'Invalid split'], $probe->splitModeError($mode)?->getData(), 'Unknown split modes should return a shared JSON error');
 
 			$t->assertSame(
 				['user-a' => 3400, 'user-b' => 3300, 'user-c' => 3300],
@@ -360,7 +360,7 @@ namespace CoBudget\Tests {
 			$t->assertNull($probe->typedNameError($name, 'expense'), 'Typed name payload should validate name and type');
 			$t->assertSame('Kategorie', $name, 'Typed name payload should normalize the name');
 			$invalidName = 'Kategorie';
-			$t->assertSame(['error' => 'Ungültiger Typ'], $probe->typedNameError($invalidName, 'transfer')?->getData(), 'Typed name payload should reject invalid type');
+			$t->assertSame(['error' => 'Invalid type'], $probe->typedNameError($invalidName, 'transfer')?->getData(), 'Typed name payload should reject invalid type');
 
 			$currency = '  EUR  ';
 			$t->assertNull($probe->currencyError($currency), 'Short currency setting should be valid');

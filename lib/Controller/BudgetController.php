@@ -221,7 +221,7 @@ class BudgetController extends Controller {
 		}
 
 		$amountCents = null;
-		if ($error = $this->validateAmountCents($amount, $amountCents, false, 'Ungültiges Budget')) {
+		if ($error = $this->validateAmountCents($amount, $amountCents, false, 'Invalid budget')) {
 			return $error;
 		}
 		if ($amountCents === null || $amountCents <= 0) {

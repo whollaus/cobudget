@@ -187,7 +187,7 @@ class EntryController extends Controller {
 			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
 			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
 			if ($workspaceId === null) {
-				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
+				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 			}
 			$payload = $this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, null, true);
 			unset($payload['_aggregate']);
@@ -1954,7 +1954,7 @@ class EntryController extends Controller {
 				: ($isReleasedPersonal ? 'personal' : ($this->projectUsesSharedEntries($projectId) ? 'shared' : 'personal'));
 			$targetWorkspaceId = $targetEntryKind === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $currentWorkspaceId;
 			if ($targetWorkspaceId === null) {
-				return $this->errorResponse('Bereich nicht gefunden oder nicht im aktiven Workspace', Http::STATUS_FORBIDDEN);
+				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 			}
 			if ($targetWorkspaceId !== $currentWorkspaceId) {
 				return $this->errorResponse('The workspace of an existing payment cannot be changed', Http::STATUS_CONFLICT);
@@ -2085,7 +2085,7 @@ class EntryController extends Controller {
 				$entry = $this->entryVisibleInActiveWorkspace($id);
 
 			if (!$entry) {
-				return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+				return $this->errorResponse('Not found', Http::STATUS_NOT_FOUND);
 			}
 			$workspaceId = (int)$entry['workspace_id'];
 

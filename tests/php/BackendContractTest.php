@@ -869,11 +869,11 @@ return [
 
 		$resolvePeriod = $t->methodBody('lib/Controller/AnalyticsController.php', 'resolvePeriod');
 		$t->assertContains("\$period = 'current-year'", $resolvePeriod, 'Analytics should fall back to current year');
-		$t->assertContains("'label' => 'Aktuelles Jahr'", $resolvePeriod, 'Analytics current year period should use a clear label');
+		$t->assertContains("'label' => \$this->l10n->t('Current year')", $resolvePeriod, 'Analytics current year period should use a clear label');
 		$t->assertContains("if (\$period === 'last-month')", $resolvePeriod, 'Analytics should resolve the previous calendar month');
-		$t->assertContains("'label' => 'Letzter Monat'", $resolvePeriod, 'Analytics previous month should use a clear label');
+		$t->assertContains("'label' => \$this->l10n->t('Last month')", $resolvePeriod, 'Analytics previous month should use a clear label');
 		$t->assertContains("if (\$period === 'last-year')", $resolvePeriod, 'Analytics should resolve the previous calendar year');
-		$t->assertContains("'label' => 'Letztes Jahr'", $resolvePeriod, 'Analytics previous year should use a clear label');
+		$t->assertContains("'label' => \$this->l10n->t('Last year')", $resolvePeriod, 'Analytics previous year should use a clear label');
 
 		$summarize = $t->methodBody('lib/Controller/AnalyticsController.php', 'summarizeEntries');
 		$t->assertContains('completedMonthsForAverage($period)', $summarize, 'Analytics monthly averages should use completed months only');
@@ -1499,7 +1499,7 @@ return [
 			$t->assertContains("'report' => \$this->buildRestoreReport('user'", $service, 'Personal export restore should return an import protocol');
 			$t->assertContains('assertProjectMemberConsistency($tables)', $service, 'Full restore should reject manipulated shared-area user assignments before deleting current data');
 			$t->assertContains("'report' => \$this->buildRestoreReport('system'", $service, 'Full restore response should include the restore report');
-			$t->assertContains("'cobudget_entry_attachments' => 'Beleg-Pfade'", $service, 'Restore report should identify attachment rows as receipt paths');
+			$t->assertContains("'cobudget_entry_attachments' => \$this->l10n->t('Receipt paths')", $service, 'Restore report should identify attachment rows as receipt paths');
 			$t->assertContains("'files_copied' => false", $service, 'Restore report should clarify that receipt files are not copied');
 			$t->assertContains("'workspaces' => [", $service, 'Restore report should expose imported workspace counts');
 			$t->assertContains('assertReferencedUsersExist(', $service, 'Restore should fail clearly when referenced users are missing');
@@ -1608,17 +1608,17 @@ return [
 			$t->assertContains('#[NoCSRFRequired]', $backupController, 'Backup download may be opened directly by the browser');
 			$t->assertContains('authErrorResponse()', $backupDownload, 'Backup download should still require an authenticated user');
 			$t->assertContains('getBackupFile((string)$this->userId, $fileName)', $backupDownload, 'Backup download should be scoped to the current user backup folder');
-			$t->assertContains('Persönlicher Export konnte nicht heruntergeladen werden.', $backupDownload, 'Personal export download should return a generic validation error');
-			$t->assertContains('Persönlicher Export wurde nicht gefunden.', $backupDownload, 'Personal export download should return a generic not-found error');
+			$t->assertContains('Personal export could not be downloaded.', $backupDownload, 'Personal export download should return a generic validation error');
+			$t->assertContains('Personal export not found.', $backupDownload, 'Personal export download should return a generic not-found error');
 			$t->assertContains("getParam('confirmation', '')", $backupController, 'Personal export restore API should require explicit RESTORE confirmation');
 			$t->assertContains("!== 'RESTORE'", $backupController, 'Personal export restore API should validate the RESTORE confirmation');
 			$t->assertContains('restoreBackup((string)$this->userId, $fileName)', $backupController, 'Personal export restore API should call the guarded restore service');
-			$t->assertContains('Persönlicher Export konnte nicht wiederhergestellt werden.', $backupController, 'Personal export restore API should return generic restore errors');
+			$t->assertContains('Personal export could not be restored.', $backupController, 'Personal export restore API should return generic restore errors');
 			$t->assertContains('use Psr\\Log\\LoggerInterface;', $backupController, 'Backup controller should use the Nextcloud logger abstraction');
 			$t->assertContains('private LoggerInterface $logger', $backupController, 'Backup controller should inject a logger for internal exception details');
 			$t->assertContains('loggedErrorResponse(', $backupController, 'Backup controller should centralize logged generic API errors');
 			$t->assertContains('$this->logger->error(', $backupController, 'Backup controller should log internal exception details');
-			$t->assertContains('Persönlicher Export konnte nicht erstellt werden.', $backupController, 'Personal export create errors should return a generic client message');
+			$t->assertContains('Personal export could not be created.', $backupController, 'Personal export create errors should return a generic client message');
 			$t->assertNotContains('errorResponse($e->getMessage()', $backupController, 'Backup controller should not expose raw exception messages to clients');
 			$t->assertNotContains("['error' => \$e->getMessage()", $backupController, 'Backup controller should not expose raw exception messages in JSON responses');
 
@@ -1769,7 +1769,7 @@ return [
 			$t->assertContains('dataIntegrityService->inspect()', $controller, 'Integrity controller should expose inspect without modifying data');
 			$t->assertContains('dataIntegrityService->repair($report)', $controller, 'Integrity controller should repair from a fresh report');
 			$t->assertContains('dataIntegrityService->mergeDuplicate($type, $keepId, $mergeIds)', $controller, 'Integrity controller should expose explicit duplicate merges');
-			$t->assertContains("['error' => \$message]", $controller, 'Integrity controller should return JSON errors');
+			$t->assertContains("['error' => \$this->l10n->t(\$message)]", $controller, 'Integrity controller should return JSON errors');
 
 			$adminSettings = $t->read('src/components/AdminSettings.vue');
 			$texts = $t->read('src/l10n/texts.js');
@@ -1827,7 +1827,7 @@ return [
 
 			$validation = $t->methodBody('lib/Controller/BudgetController.php', 'validateBudgetPayload');
 			$t->assertContains('validateRequiredName($name', $validation, 'Budget validation should reject empty names');
-			$t->assertContains("validateAmountCents(\$amount, \$amountCents, false, 'Ungültiges Budget')", $validation, 'Budget validation should use the shared cents validator');
+			$t->assertContains("validateAmountCents(\$amount, \$amountCents, false, 'Invalid budget')", $validation, 'Budget validation should use the shared cents validator');
 			$t->assertContains("in_array(\$period, ['month', 'year'], true)", $validation, 'Budget validation should allow only supported periods');
 			$t->assertContains("in_array(\$mode, ['flexible', 'hard'], true)", $validation, 'Budget validation should allow only supported modes');
 			$t->assertContains('normalizeCriteria($criteria)', $validation, 'Budget validation should normalize criteria');
@@ -1981,7 +1981,7 @@ return [
 			$projectAddMember = $t->methodBody('lib/Controller/ProjectController.php', 'addMember');
 			$t->assertContains('sharedProjectsEnabled()', $projectCreate, 'Project creation should honor the shared areas setting');
 			$t->assertContains("'share_basis_points'", $projectCreate, 'Project creation should persist member shares');
-			$t->assertContains('Gemeinsame Bereiche sind deaktiviert.', $projectAddMember, 'Adding members should be blocked when shared areas are disabled');
+			$t->assertContains('Shared areas are disabled.', $projectAddMember, 'Adding members should be blocked when shared areas are disabled');
 			$t->assertContains('userSearchAllowed()', $projectAddMember, 'Adding members should honor the Nextcloud user enumeration policy');
 			$t->assertNotContains("'User not found'", $projectAddMember, 'Adding members should not disclose guessed account existence');
 		},

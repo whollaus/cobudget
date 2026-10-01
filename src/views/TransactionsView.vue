@@ -500,6 +500,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
@@ -1588,7 +1589,7 @@ export default {
 		},
 		formatDate(timestamp) {
 			if (!timestamp) return '-'
-			return new Date(timestamp * 1000).toLocaleDateString()
+			return new Date(timestamp * 1000).toLocaleDateString(getAppLocale())
 		},
 		formatAmount(amount) {
 			return this.$formatMoney(amount)

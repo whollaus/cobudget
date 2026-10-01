@@ -9,6 +9,7 @@ use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\IConfig;
+use OCP\IL10N;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\IUserManager;
@@ -429,6 +430,7 @@ class BackupService {
 		private IGroupManager $groupManager,
 		private ParticipantService $participantService,
 		private DataIntegrityService $dataIntegrityService,
+		private IL10N $l10n,
 	) {
 	}
 
@@ -2803,7 +2805,7 @@ class BackupService {
 				'count' => $attachmentCount,
 				'files_copied' => false,
 				'message' => $attachmentCount > 0
-					? 'Beleg-Dateien werden nicht kopiert; importiert werden nur die gespeicherten Dateipfade.'
+					? $this->l10n->t('Receipt files were not copied; the stored file paths were imported.')
 					: '',
 			],
 			'workspaces' => [
@@ -2870,22 +2872,22 @@ class BackupService {
 
 	private function backupTableLabel(string $table): string {
 		return match ($table) {
-			'cobudget_workspaces' => 'Workspaces',
-			'cobudget_projects' => 'Bereiche',
-			'cobudget_members' => 'Bereichsmitglieder',
-			'cobudget_categories' => 'Kategorien',
-			'cobudget_payment_partners' => 'Zahlungspartner',
-			'cobudget_entries' => 'Zahlungen',
-			'cobudget_entry_shares' => 'Gespeicherte Zahlungsanteile',
-			'cobudget_entry_history' => 'Zahlungshistorie',
-			'cobudget_hashtags' => 'Hashtags',
-			'cobudget_entry_hashtags' => 'Hashtag-Zuordnungen',
-			'cobudget_entry_attachments' => 'Beleg-Pfade',
-			'cobudget_settlements' => 'Abrechnungen',
-			'cobudget_settlement_balances' => 'Abrechnungssalden',
-			'cobudget_settlement_transfers' => 'Rückzahlungen',
-			'cobudget_budget_goals' => 'Budgetziele',
-			'cobudget_budget_snapshots' => 'Budget-Historie',
+			'cobudget_workspaces' => $this->l10n->t('Workspaces'),
+			'cobudget_projects' => $this->l10n->t('Areas'),
+			'cobudget_members' => $this->l10n->t('Area members'),
+			'cobudget_categories' => $this->l10n->t('Categories'),
+			'cobudget_payment_partners' => $this->l10n->t('Payment partners'),
+			'cobudget_entries' => $this->l10n->t('Payments'),
+			'cobudget_entry_shares' => $this->l10n->t('Stored payment shares'),
+			'cobudget_entry_history' => $this->l10n->t('Payment history'),
+			'cobudget_hashtags' => $this->l10n->t('Hashtags'),
+			'cobudget_entry_hashtags' => $this->l10n->t('Hashtag assignments'),
+			'cobudget_entry_attachments' => $this->l10n->t('Receipt paths'),
+			'cobudget_settlements' => $this->l10n->t('Settlements'),
+			'cobudget_settlement_balances' => $this->l10n->t('Settlement balances'),
+			'cobudget_settlement_transfers' => $this->l10n->t('Repayments'),
+			'cobudget_budget_goals' => $this->l10n->t('Budget goals'),
+			'cobudget_budget_snapshots' => $this->l10n->t('Budget history'),
 			default => $table,
 		};
 	}

@@ -2,6 +2,23 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.5.0] - 2026-10-01
+
+### Added
+
+- Complete French translation of interface text, notifications, analytics, administration and server messages, including French plural forms.
+- Complete Spanish translation of interface text, notifications, analytics, administration and server messages, including Spanish plural forms and calendar headings.
+
+### Changed
+
+- Move CoBudget to the beta phase with the 0.5 release line and update App Store descriptions, project documentation, security policy and release guidance accordingly.
+
+### Fixed
+
+- Localize analytics periods, forecasts, fallback names, budget history, workspace validation and export/administration errors instead of returning German text to English users.
+- Use the configured Nextcloud locale for numeric dates, times and amounts; calendar headings and chart month labels follow the interface language, avoiding mixed labels such as "Total Oktober" in English or French.
+- Correct inconsistent English income labels and forecast wording while retaining German translations.
+
 ## [0.4.2] - 2026-10-01
 
 ### Fixed
@@ -269,7 +286,7 @@ All notable changes to CoBudget are documented in this file.
 
 ### Changed
 
-- Reworked the English and German App Store descriptions into clearer Markdown sections with a shorter early-alpha notice.
+- Reworked the English and German App Store descriptions into clearer Markdown sections with a shorter early-development notice.
 - Replaced the legacy App Store thumbnails with dedicated, proxy-friendly preview assets while retaining the full-size screenshots for project documentation.
 - Split the app icon treatment into a dark App Store icon and a dedicated navigation icon for reliable contrast across Nextcloud surfaces.
 
@@ -282,9 +299,9 @@ All notable changes to CoBudget are documented in this file.
 ### Changed
 
 - Renamed the optional payment text field to "Payment reference or note" and removed its dated example placeholder for a calmer, future-proof payment form.
-- Refined the English and German App Store descriptions to better explain personal budgeting, shared expenses, flexible areas and the early alpha status.
+- Refined the English and German App Store descriptions to better explain personal budgeting, shared expenses, flexible areas and the early development status.
 - Added optimized App Store thumbnails while retaining the full-size screenshots for the detailed app listing.
-- Updated the public project documentation to reflect the official App Store availability, supported Nextcloud versions, signed release workflow and current alpha support policy.
+- Updated the public project documentation to reflect the official App Store availability, supported Nextcloud versions, signed release workflow and current development support policy.
 
 ## [0.2.7] - 2026-07-18
 
@@ -356,7 +373,7 @@ All notable changes to CoBudget are documented in this file.
 
 ## [0.2.0] - 2026-07-13
 
-### Initial Alpha Baseline
+### Initial Development Baseline
 
 - Track personal income and expenses across isolated workspaces.
 - Organize payments with categories, payment partners, labels, hashtags, templates, reminders, recurrences and receipts stored in Nextcloud Files.

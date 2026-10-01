@@ -363,7 +363,7 @@ try {
 	$assertContains($routes, "'budget#update'", 'Routes expose budget update API');
 	$assertContains($routes, "'budget#destroy'", 'Routes expose budget delete API');
 	$assertContains($budget, 'validateBudgetPayload', 'BudgetController centralizes budget validation');
-	$assertContains($budget, "validateAmountCents(\$amount, \$amountCents, false, 'Ungültiges Budget')", 'BudgetController validates budgets as integer cents');
+	$assertContains($budget, "validateAmountCents(\$amount, \$amountCents, false, 'Invalid budget')", 'BudgetController validates budgets as integer cents');
 	$assertContains($budget, 'validateCriteria($criteria, $workspaceId)', 'BudgetController validates criteria references');
 	$assertContains($budget, 'BudgetSnapshotService', 'BudgetController injects budget snapshot service');
 	$assertContains($budget, "snapshotGoalForCurrentPeriod((string)\$this->userId, \$currentGoal, 'changed')", 'BudgetController snapshots previous state before update');

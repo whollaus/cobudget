@@ -81,7 +81,7 @@
 									<span>{{ budgetHistoryPeriodLabel(item) }} · {{ budgetHistoryReasonLabel(item.reason) }}</span>
 								</td>
 								<td class="progress-cell">{{ Math.round(item.progressPercent || 0) }} %</td>
-								<td>{{ formatCents(item.spentCents) }} von {{ formatCents(item.amountCents) }}</td>
+								<td>{{ $texts.analytics.usedOfBudget(formatCents(item.spentCents), formatCents(item.amountCents)) }}</td>
 								<td :class="['amount-cell', amountClass(item.bufferCents)]">{{ formatSignedCents(item.bufferCents) }}</td>
 								<td>
 									<span :class="['budget-history-status', `status-${item.status || 'ok'}`]">
@@ -478,6 +478,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
@@ -2604,7 +2605,7 @@ export default {
 			if (Number.isNaN(date.getTime())) {
 				return ''
 			}
-			return new Intl.DateTimeFormat(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date)
+			return new Intl.DateTimeFormat(getAppLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date)
 		},
 		summaryAverageCents(type, unit) {
 			const summary = this.analytics.summary || {}

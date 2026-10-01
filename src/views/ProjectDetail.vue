@@ -332,6 +332,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { REMOTE_DATA_CHANGED_EVENT, changeAffectsProject, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
@@ -1031,11 +1032,11 @@ export default {
 		},
 		formatDate(timestamp) {
 			if (!timestamp) return '-'
-			return new Date(timestamp * 1000).toLocaleDateString()
+			return new Date(timestamp * 1000).toLocaleDateString(getAppLocale())
 		},
 		formatDateTime(timestamp) {
 			if (!timestamp) return '-'
-			return new Date(timestamp * 1000).toLocaleString(undefined, {
+			return new Date(timestamp * 1000).toLocaleString(getAppLocale(), {
 				day: '2-digit',
 				month: '2-digit',
 				year: 'numeric',
@@ -1048,7 +1049,7 @@ export default {
 		},
 		formatSharePercent(shareBasisPoints) {
 			const value = Math.round((parseInt(shareBasisPoints, 10) || 0) / 100)
-			return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
+			return value.toLocaleString(getAppLocale(), { maximumFractionDigits: 0 })
 		},
 		settlementEntryCountLabel(count) {
 			const normalizedCount = parseInt(count || 0, 10)

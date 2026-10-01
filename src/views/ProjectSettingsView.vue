@@ -246,6 +246,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -517,7 +518,7 @@ export default {
 			},
 			formatSharePercent(basisPoints) {
 				const value = this.basisPointsToPercent(basisPoints);
-				return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+				return value.toLocaleString(getAppLocale(), { maximumFractionDigits: 0 });
 			},
 			normalizeShareInput(member) {
 				member.sharePercent = this.normalizeSharePercent(member.sharePercent);

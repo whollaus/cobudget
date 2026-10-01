@@ -10,6 +10,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IGroupManager;
 use OCP\IRequest;
+use OCP\IL10N;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
@@ -23,6 +24,7 @@ class IntegrityController extends Controller {
 		private LoggerInterface $logger,
 		private IUserSession $userSession,
 		private IGroupManager $groupManager,
+		private IL10N $l10n,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -35,7 +37,7 @@ class IntegrityController extends Controller {
 
 			return new DataResponse($this->dataIntegrityService->inspect());
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Datenqualitaet konnte nicht geprueft werden.', 'Failed to inspect data integrity');
+			return $this->loggedErrorResponse($e, 'Data quality could not be checked.', 'Failed to inspect data integrity');
 		}
 	}
 
@@ -48,7 +50,7 @@ class IntegrityController extends Controller {
 			$report = $this->dataIntegrityService->inspect();
 			return new DataResponse($this->dataIntegrityService->repair($report));
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Datenqualitaet konnte nicht repariert werden.', 'Failed to repair data integrity');
+			return $this->loggedErrorResponse($e, 'Data quality could not be repaired.', 'Failed to repair data integrity');
 		}
 	}
 
@@ -71,7 +73,7 @@ class IntegrityController extends Controller {
 		} catch (\InvalidArgumentException $e) {
 			return $this->errorResponse($e->getMessage(), Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
-			return $this->loggedErrorResponse($e, 'Dubletten konnten nicht zusammengefuehrt werden.', 'Failed to merge duplicate data');
+			return $this->loggedErrorResponse($e, 'Duplicates could not be merged.', 'Failed to merge duplicate data');
 		}
 	}
 
@@ -103,7 +105,7 @@ class IntegrityController extends Controller {
 	}
 
 	private function errorResponse(string $message, int $status): DataResponse {
-		return new DataResponse(['error' => $message], $status);
+		return new DataResponse(['error' => $this->l10n->t($message)], $status);
 	}
 
 	private function loggedErrorResponse(\Throwable $e, string $message, string $logMessage): DataResponse {

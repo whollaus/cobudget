@@ -144,7 +144,8 @@ import EntryDescriptionCell from './EntryDescriptionCell.vue'
 import TableTooltip from './TableTooltip.vue'
 import { texts } from '../l10n/texts'
 import { isAreaSettled } from '../utils/areaSettlementStatus'
-import { formatMoney, formatSignedMoney } from '../utils/formatMoney'
+import { getAppLocale, formatMoney, formatSignedMoney } from '../utils/formatMoney'
+import { formatCalendarLabel, getAppLanguage } from '../utils/formatDate'
 
 const amountResolver = entry => entry?.amount
 const falseResolver = () => false
@@ -454,7 +455,7 @@ export default {
 			if (!timestamp) {
 				return '-'
 			}
-			return new Date(timestamp * 1000).toLocaleDateString()
+			return new Date(timestamp * 1000).toLocaleDateString(getAppLocale())
 		},
 		formatAmount(amount) {
 			return formatMoney(amount, this.currency)
@@ -500,10 +501,10 @@ export default {
 			return [this.yearGroupKey(date), this.monthGroupKey(date)]
 		},
 		formatYearGroup(date) {
-			return date.toLocaleDateString(undefined, { year: 'numeric' })
+			return date.toLocaleDateString(getAppLocale(), { year: 'numeric' })
 		},
 		formatMonthGroup(date) {
-			return date.toLocaleDateString(undefined, { month: 'long' })
+			return formatCalendarLabel(date, { month: 'long' })
 		},
 		formatMobileDayGroup(timestamp) {
 			const date = this.dateFromTimestamp(timestamp)
@@ -517,11 +518,11 @@ export default {
 			const dayDifference = Math.round((dateStart.getTime() - todayStart.getTime()) / 86400000)
 
 			if (dayDifference >= -1 && dayDifference <= 1) {
-				const relativeLabel = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(dayDifference, 'day')
+				const relativeLabel = new Intl.RelativeTimeFormat(getAppLanguage(), { numeric: 'auto' }).format(dayDifference, 'day')
 				return relativeLabel.charAt(0).toLocaleUpperCase() + relativeLabel.slice(1)
 			}
 
-			return date.toLocaleDateString(undefined, {
+			return formatCalendarLabel(date, {
 				weekday: 'long',
 				day: '2-digit',
 				month: 'short',

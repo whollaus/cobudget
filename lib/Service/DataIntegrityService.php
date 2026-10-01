@@ -5,84 +5,85 @@ declare(strict_types=1);
 namespace OCA\CoBudget\Service;
 
 use OCP\IDBConnection;
+use OCP\IL10N;
 
 class DataIntegrityService {
 	private const REFERENCE_CHECKS = [
 		[
 			'sourceTable' => 'cobudget_categories',
-			'sourceLabel' => 'Unterkategorien',
+			'sourceLabel' => 'Subcategories',
 			'column' => 'parent_category_id',
 			'targetTable' => 'cobudget_categories',
-			'targetLabel' => 'Hauptkategorie',
+			'targetLabel' => 'Main category',
 			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_entries',
-			'sourceLabel' => 'Eintraege',
+			'sourceLabel' => 'Payments',
 			'column' => 'category_id',
 			'targetTable' => 'cobudget_categories',
-			'targetLabel' => 'Kategorie',
+			'targetLabel' => 'Category',
 			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_entries',
-			'sourceLabel' => 'Eintraege',
+			'sourceLabel' => 'Payments',
 			'column' => 'payment_partner_id',
 			'targetTable' => 'cobudget_payment_partners',
-			'targetLabel' => 'Zahlungspartner',
+			'targetLabel' => 'Payment partner',
 			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_entries',
-			'sourceLabel' => 'Eintraege',
+			'sourceLabel' => 'Payments',
 			'column' => 'project_id',
 			'targetTable' => 'cobudget_projects',
-			'targetLabel' => 'Bereich',
+			'targetLabel' => 'Area',
 			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_entries',
-			'sourceLabel' => 'Eintraege',
+			'sourceLabel' => 'Payments',
 			'column' => 'source_entry_id',
 			'targetTable' => 'cobudget_entries',
-			'targetLabel' => 'Gemeinsame Quellzahlung',
+			'targetLabel' => 'Shared source payment',
 			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_entries',
-			'sourceLabel' => 'Eintraege',
+			'sourceLabel' => 'Payments',
 			'column' => 'settlement_id',
 			'targetTable' => 'cobudget_settlements',
-			'targetLabel' => 'Abrechnung',
+			'targetLabel' => 'Settlement',
 			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_entry_shares',
-			'sourceLabel' => 'Gespeicherte Zahlungsanteile',
+			'sourceLabel' => 'Stored payment shares',
 			'column' => 'entry_id',
 			'targetTable' => 'cobudget_entries',
-			'targetLabel' => 'Zahlung',
+			'targetLabel' => 'Payment',
 			'repairAction' => 'delete',
 		],
 		[
 			'sourceTable' => 'cobudget_entry_shares',
-			'sourceLabel' => 'Gespeicherte Zahlungsanteile',
+			'sourceLabel' => 'Stored payment shares',
 			'column' => 'personal_entry_id',
 			'targetTable' => 'cobudget_entries',
-			'targetLabel' => 'Persoenliche Projektion',
+			'targetLabel' => 'Personal payment projection',
 			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_entry_attachments',
-			'sourceLabel' => 'Beleg-Pfade',
+			'sourceLabel' => 'Receipt paths',
 			'column' => 'entry_id',
 			'targetTable' => 'cobudget_entries',
-			'targetLabel' => 'Zahlung',
+			'targetLabel' => 'Payment',
 			'repairAction' => 'delete',
 		],
 		[
 			'sourceTable' => 'cobudget_entry_attachments',
-			'sourceLabel' => 'Beleg-Pfade',
+			'sourceLabel' => 'Receipt paths',
 			'column' => 'workspace_id',
 			'targetTable' => 'cobudget_workspaces',
 			'targetLabel' => 'Workspace',
@@ -90,15 +91,15 @@ class DataIntegrityService {
 		],
 		[
 			'sourceTable' => 'cobudget_entry_history',
-			'sourceLabel' => 'Zahlungshistorie',
+			'sourceLabel' => 'Payment history',
 			'column' => 'entry_id',
 			'targetTable' => 'cobudget_entries',
-			'targetLabel' => 'Zahlung',
+			'targetLabel' => 'Payment',
 			'repairAction' => 'delete',
 		],
 		[
 			'sourceTable' => 'cobudget_entry_history',
-			'sourceLabel' => 'Zahlungshistorie',
+			'sourceLabel' => 'Payment history',
 			'column' => 'workspace_id',
 			'targetTable' => 'cobudget_workspaces',
 			'targetLabel' => 'Workspace',
@@ -106,10 +107,10 @@ class DataIntegrityService {
 		],
 		[
 			'sourceTable' => 'cobudget_entry_history',
-			'sourceLabel' => 'Zahlungshistorie',
+			'sourceLabel' => 'Payment history',
 			'column' => 'project_id',
 			'targetTable' => 'cobudget_projects',
-			'targetLabel' => 'Bereich',
+			'targetLabel' => 'Area',
 			'repairAction' => 'delete',
 		],
 		[
@@ -122,15 +123,15 @@ class DataIntegrityService {
 		],
 		[
 			'sourceTable' => 'cobudget_entry_hashtags',
-			'sourceLabel' => 'Hashtag-Zuordnungen',
+			'sourceLabel' => 'Hashtag assignments',
 			'column' => 'entry_id',
 			'targetTable' => 'cobudget_entries',
-			'targetLabel' => 'Zahlung',
+			'targetLabel' => 'Payment',
 			'repairAction' => 'delete',
 		],
 		[
 			'sourceTable' => 'cobudget_entry_hashtags',
-			'sourceLabel' => 'Hashtag-Zuordnungen',
+			'sourceLabel' => 'Hashtag assignments',
 			'column' => 'hashtag_id',
 			'targetTable' => 'cobudget_hashtags',
 			'targetLabel' => 'Hashtag',
@@ -138,7 +139,7 @@ class DataIntegrityService {
 		],
 		[
 			'sourceTable' => 'cobudget_entry_hashtags',
-			'sourceLabel' => 'Hashtag-Zuordnungen',
+			'sourceLabel' => 'Hashtag assignments',
 			'column' => 'workspace_id',
 			'targetTable' => 'cobudget_workspaces',
 			'targetLabel' => 'Workspace',
@@ -146,31 +147,31 @@ class DataIntegrityService {
 		],
 		[
 			'sourceTable' => 'cobudget_members',
-			'sourceLabel' => 'Bereichsmitglieder',
+			'sourceLabel' => 'Area members',
 			'column' => 'project_id',
 			'targetTable' => 'cobudget_projects',
-			'targetLabel' => 'Bereich',
+			'targetLabel' => 'Area',
 			'repairAction' => 'delete',
 		],
 		[
 			'sourceTable' => 'cobudget_members',
-			'sourceLabel' => 'Bereichsmitglieder',
+			'sourceLabel' => 'Area members',
 			'column' => 'personal_workspace_id',
 			'targetTable' => 'cobudget_workspaces',
-			'targetLabel' => 'Persoenlicher Workspace',
+			'targetLabel' => 'Personal workspace',
 			'repairAction' => 'clear',
 		],
 		[
 			'sourceTable' => 'cobudget_settlements',
-			'sourceLabel' => 'Abrechnungen',
+			'sourceLabel' => 'Settlements',
 			'column' => 'project_id',
 			'targetTable' => 'cobudget_projects',
-			'targetLabel' => 'Bereich',
+			'targetLabel' => 'Area',
 			'repairAction' => 'deleteSettlement',
 		],
 		[
 			'sourceTable' => 'cobudget_settlements',
-			'sourceLabel' => 'Abrechnungen',
+			'sourceLabel' => 'Settlements',
 			'column' => 'workspace_id',
 			'targetTable' => 'cobudget_workspaces',
 			'targetLabel' => 'Workspace',
@@ -178,23 +179,23 @@ class DataIntegrityService {
 		],
 		[
 			'sourceTable' => 'cobudget_settlement_balances',
-			'sourceLabel' => 'Abrechnungssalden',
+			'sourceLabel' => 'Settlement balances',
 			'column' => 'settlement_id',
 			'targetTable' => 'cobudget_settlements',
-			'targetLabel' => 'Abrechnung',
+			'targetLabel' => 'Settlement',
 			'repairAction' => 'delete',
 		],
 		[
 			'sourceTable' => 'cobudget_settlement_transfers',
-			'sourceLabel' => 'Rueckzahlungen',
+			'sourceLabel' => 'Repayments',
 			'column' => 'settlement_id',
 			'targetTable' => 'cobudget_settlements',
-			'targetLabel' => 'Abrechnung',
+			'targetLabel' => 'Settlement',
 			'repairAction' => 'delete',
 		],
 		[
 			'sourceTable' => 'cobudget_budget_goals',
-			'sourceLabel' => 'Budgetziele',
+			'sourceLabel' => 'Budget goals',
 			'column' => 'workspace_id',
 			'targetTable' => 'cobudget_workspaces',
 			'targetLabel' => 'Workspace',
@@ -202,15 +203,15 @@ class DataIntegrityService {
 		],
 		[
 			'sourceTable' => 'cobudget_budget_snapshots',
-			'sourceLabel' => 'Budget-Historie',
+			'sourceLabel' => 'Budget history',
 			'column' => 'budget_goal_id',
 			'targetTable' => 'cobudget_budget_goals',
-			'targetLabel' => 'Budgetziel',
+			'targetLabel' => 'Budget goal',
 			'repairAction' => 'delete',
 		],
 		[
 			'sourceTable' => 'cobudget_budget_snapshots',
-			'sourceLabel' => 'Budget-Historie',
+			'sourceLabel' => 'Budget history',
 			'column' => 'workspace_id',
 			'targetTable' => 'cobudget_workspaces',
 			'targetLabel' => 'Workspace',
@@ -221,24 +222,24 @@ class DataIntegrityService {
 	private const DUPLICATE_NAME_CHECKS = [
 		[
 			'table' => 'cobudget_categories',
-			'label' => 'Kategorie',
+			'label' => 'Category',
 		],
 		[
 			'table' => 'cobudget_payment_partners',
-			'label' => 'Zahlungspartner',
+			'label' => 'Payment partner',
 		],
 	];
 
 	private const MERGE_TARGETS = [
 		'category' => [
 			'table' => 'cobudget_categories',
-			'label' => 'Kategorie',
+			'label' => 'Category',
 			'referenceColumn' => 'category_id',
 			'criteriaField' => 'categoryId',
 		],
 		'payment_partner' => [
 			'table' => 'cobudget_payment_partners',
-			'label' => 'Zahlungspartner',
+			'label' => 'Payment partner',
 			'referenceColumn' => 'payment_partner_id',
 			'criteriaField' => null,
 		],
@@ -249,6 +250,7 @@ class DataIntegrityService {
 
 	public function __construct(
 		private IDBConnection $db,
+		private IL10N $l10n,
 	) {
 	}
 
@@ -319,15 +321,15 @@ class DataIntegrityService {
 
 	public function mergeDuplicate(string $kind, int $keepId, array $mergeIds): array {
 		if (!isset(self::MERGE_TARGETS[$kind])) {
-			throw new \InvalidArgumentException('Unbekannter Dubletten-Typ.');
+			throw new \InvalidArgumentException('Unknown duplicate type.');
 		}
 
 		$mergeIds = array_values(array_unique(array_filter(array_map('intval', $mergeIds), static fn (int $id): bool => $id > 0)));
 		if ($keepId <= 0 || $mergeIds === []) {
-			throw new \InvalidArgumentException('Bitte eine Ziel-ID und mindestens eine Dubletten-ID angeben.');
+			throw new \InvalidArgumentException('Please specify a target ID and at least one duplicate ID.');
 		}
 		if (in_array($keepId, $mergeIds, true)) {
-			throw new \InvalidArgumentException('Die Ziel-ID darf nicht gleichzeitig entfernt werden.');
+			throw new \InvalidArgumentException('The target ID cannot also be removed.');
 		}
 
 		$target = self::MERGE_TARGETS[$kind];
@@ -335,14 +337,14 @@ class DataIntegrityService {
 		$referenceColumn = (string)$target['referenceColumn'];
 		$keepRow = $this->nameRowById($table, $keepId);
 		if ($keepRow === null) {
-			throw new \InvalidArgumentException('Ziel-Datensatz wurde nicht gefunden.');
+			throw new \InvalidArgumentException('Target record not found.');
 		}
 
 		$removedRows = [];
 		foreach ($mergeIds as $mergeId) {
 			$mergeRow = $this->nameRowById($table, $mergeId);
 			if ($mergeRow === null) {
-				throw new \InvalidArgumentException('Dubletten-Datensatz ' . $mergeId . ' wurde nicht gefunden.');
+				throw new \InvalidArgumentException($this->l10n->t('Duplicate record %s not found.', [$mergeId]));
 			}
 			$this->assertRowsCanBeMerged($keepRow, $mergeRow);
 			$removedRows[] = $mergeRow;
@@ -350,7 +352,7 @@ class DataIntegrityService {
 
 		$result = [
 			'kind' => $kind,
-			'label' => (string)$target['label'],
+			'label' => $this->l10n->t((string)$target['label']),
 			'name' => trim((string)$keepRow['name']),
 			'type' => (string)($keepRow['type'] ?? ''),
 			'keepId' => $keepId,
@@ -393,10 +395,10 @@ class DataIntegrityService {
 
 			$issues[] = [
 				'sourceTable' => (string)$check['sourceTable'],
-				'sourceLabel' => (string)$check['sourceLabel'],
+				'sourceLabel' => $this->l10n->t((string)$check['sourceLabel']),
 				'column' => (string)$check['column'],
 				'targetTable' => (string)$check['targetTable'],
-				'targetLabel' => (string)$check['targetLabel'],
+				'targetLabel' => $this->l10n->t((string)$check['targetLabel']),
 				'ids' => $ids,
 				'count' => count($ids),
 				'repairable' => true,
@@ -456,7 +458,7 @@ class DataIntegrityService {
 				if (!isset($groups[$key])) {
 					$groups[$key] = [
 						'table' => $table,
-						'label' => (string)$check['label'],
+						'label' => $this->l10n->t((string)$check['label']),
 						'name' => $name,
 						'type' => (string)($row['type'] ?? ''),
 						'scope' => $this->duplicateScopeDescription($row),
@@ -526,23 +528,23 @@ class DataIntegrityService {
 
 	private function assertRowsCanBeMerged(array $keepRow, array $mergeRow): void {
 		if ((string)($keepRow['type'] ?? '') !== (string)($mergeRow['type'] ?? '')) {
-			throw new \InvalidArgumentException('Dubletten koennen nur mit gleichem Typ zusammengefuehrt werden.');
+			throw new \InvalidArgumentException('Duplicates can only be merged if they have the same type.');
 		}
 
 		$keepName = $this->normalizeVisibleName((string)($keepRow['name'] ?? ''));
 		$mergeName = $this->normalizeVisibleName((string)($mergeRow['name'] ?? ''));
 		if ($keepName === '' || $keepName !== $mergeName) {
-			throw new \InvalidArgumentException('Dubletten koennen nur mit gleichem sichtbaren Namen zusammengefuehrt werden.');
+			throw new \InvalidArgumentException('Duplicates can only be merged if they have the same display name.');
 		}
 
 		if (!$this->rowsHaveSameDuplicateScope($keepRow, $mergeRow)) {
-			throw new \InvalidArgumentException('Dubletten koennen nur im gleichen Benutzer-/Workspace-/Bereichs-Scope zusammengefuehrt werden.');
+			throw new \InvalidArgumentException('Duplicates can only be merged within the same user, workspace and area.');
 		}
 		$hasCategoryHierarchy = array_key_exists('parent_category_id', $keepRow)
 			|| array_key_exists('parent_category_id', $mergeRow);
 		if ($hasCategoryHierarchy
 			&& $this->nullableId($keepRow['parent_category_id'] ?? null) !== $this->nullableId($mergeRow['parent_category_id'] ?? null)) {
-			throw new \InvalidArgumentException('Kategorie-Dubletten koennen nur innerhalb derselben Hauptkategorie zusammengefuehrt werden.');
+			throw new \InvalidArgumentException('Duplicate categories can only be merged within the same main category.');
 		}
 	}
 
@@ -582,10 +584,10 @@ class DataIntegrityService {
 			$parts[] = 'workspace=' . (int)$row['workspace_id'];
 		}
 		if (($row['project_id'] ?? null) !== null && $row['project_id'] !== '') {
-			$parts[] = 'bereich=' . (int)$row['project_id'];
+			$parts[] = 'area=' . (int)$row['project_id'];
 		}
 
-		return $parts === [] ? 'persoenlich' : implode(', ', $parts);
+		return $parts === [] ? 'personal' : implode(', ', $parts);
 	}
 
 	private function scopeValue(mixed $value): string {

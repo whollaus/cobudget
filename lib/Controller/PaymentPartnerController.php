@@ -132,7 +132,7 @@ class PaymentPartnerController extends Controller {
 
 	private function requireProjectOwnerForScopedMutation(?int $projectId): ?DataResponse {
 		if ($projectId !== null && !$this->projectOwnerInActiveWorkspace($projectId)) {
-			return $this->errorResponse('Nur der Ersteller des Bereichs darf Bereich-Einstellungen ändern.', Http::STATUS_FORBIDDEN);
+			return $this->errorResponse('Only the area owner may change area settings.', Http::STATUS_FORBIDDEN);
 		}
 
 		return null;

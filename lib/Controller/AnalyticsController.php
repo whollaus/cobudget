@@ -520,7 +520,7 @@ class AnalyticsController extends Controller {
 			'paymentPartnerId' => $paymentPartnerId,
 			'paymentPartnerName' => $paymentPartnerName,
 			'projectId' => $projectId,
-			'projectName' => $projectId === null ? 'Persönlich' : $projectName,
+			'projectName' => $projectId === null ? $this->l10n->t('Personal') : $projectName,
 			'tags' => $this->entryTags($row),
 		];
 	}
@@ -591,11 +591,11 @@ class AnalyticsController extends Controller {
 		$currentYear = (int)date('Y');
 		$lastYear = $currentYear - 1;
 		$options = [
-			['key' => 'current-year', 'label' => 'Aktuelles Jahr'],
-			['key' => 'current-month', 'label' => 'Aktueller Monat'],
-			['key' => 'last-month', 'label' => 'Letzter Monat'],
-			['key' => 'last-12-months', 'label' => 'Letzte 12 Monate'],
-			['key' => 'last-year', 'label' => 'Letztes Jahr'],
+			['key' => 'current-year', 'label' => $this->l10n->t('Current year')],
+			['key' => 'current-month', 'label' => $this->l10n->t('Current month')],
+			['key' => 'last-month', 'label' => $this->l10n->t('Last month')],
+			['key' => 'last-12-months', 'label' => $this->l10n->t('Last 12 months')],
+			['key' => 'last-year', 'label' => $this->l10n->t('Last year')],
 		];
 
 		$years = [];
@@ -630,7 +630,7 @@ class AnalyticsController extends Controller {
 			return [
 				'key' => 'current-year',
 				'kind' => 'year',
-				'label' => 'Aktuelles Jahr',
+				'label' => $this->l10n->t('Current year'),
 				'start' => $start,
 				'end' => $end,
 				'startDate' => date('Y-m-d', $start),
@@ -647,7 +647,7 @@ class AnalyticsController extends Controller {
 			return [
 				'key' => 'last-year',
 				'kind' => 'year',
-				'label' => 'Letztes Jahr',
+				'label' => $this->l10n->t('Last year'),
 				'start' => $start,
 				'end' => $end,
 				'startDate' => date('Y-m-d', $start),
@@ -683,7 +683,7 @@ class AnalyticsController extends Controller {
 			return [
 				'key' => 'last-12-months',
 				'kind' => 'last-12-months',
-				'label' => 'Letzte 12 Monate',
+				'label' => $this->l10n->t('Last 12 months'),
 				'start' => $start,
 				'end' => $end,
 				'startDate' => date('Y-m-d', $start),
@@ -700,7 +700,7 @@ class AnalyticsController extends Controller {
 			return [
 				'key' => 'last-month',
 				'kind' => 'month',
-				'label' => 'Letzter Monat',
+				'label' => $this->l10n->t('Last month'),
 				'start' => $start,
 				'end' => $end,
 				'startDate' => date('Y-m-d', $start),
@@ -717,7 +717,7 @@ class AnalyticsController extends Controller {
 		return [
 			'key' => 'current-month',
 			'kind' => 'current-month',
-			'label' => 'Aktueller Monat',
+			'label' => $this->l10n->t('Current month'),
 			'start' => $start,
 			'end' => $end,
 			'startDate' => date('Y-m-d', $start),
@@ -970,7 +970,7 @@ class AnalyticsController extends Controller {
 		$previousSummary = $this->summarizeEntries($previousEntries, $previousPeriod);
 
 		return [
-			'label' => 'Zum Vormonat',
+			'label' => $this->l10n->t('Compared with the previous month'),
 			'previousLabel' => date('m.Y', (int)$previousPeriod['start']),
 			'previous' => $previousSummary,
 			'deltaIncomeCents' => $currentSummary['incomeCents'] - $previousSummary['incomeCents'],
@@ -986,8 +986,8 @@ class AnalyticsController extends Controller {
 
 		if ((string)$period['kind'] === 'last-12-months') {
 			return [
-				'label' => 'Monatlicher Durchschnitt',
-				'basisLabel' => 'berechnet aus den letzten 12 Monaten',
+				'label' => $this->l10n->t('Monthly average'),
+				'basisLabel' => $this->l10n->t('Calculated from the last 12 months'),
 				'incomeCents' => $summary['averageIncomePerMonthCents'],
 				'expenseCents' => $summary['averageExpensePerMonthCents'],
 				'balanceCents' => $summary['averageBalancePerMonthCents'],
@@ -1003,8 +1003,8 @@ class AnalyticsController extends Controller {
 		$factor = $totalSeconds / $elapsedSeconds;
 
 		return [
-			'label' => (string)$period['kind'] === 'year' ? 'Prognose bis Jahresende' : 'Prognose bis Monatsende',
-			'basisLabel' => 'hochgerechnet aus dem bisherigen Zeitraum',
+			'label' => (string)$period['kind'] === 'year' ? $this->l10n->t('Year-end forecast') : $this->l10n->t('Month-end forecast'),
+			'basisLabel' => $this->l10n->t('Projected from the period so far'),
 			'incomeCents' => (int)round($summary['incomeCents'] * $factor),
 			'expenseCents' => (int)round($summary['expenseCents'] * $factor),
 			'balanceCents' => (int)round($summary['balanceCents'] * $factor),
@@ -1053,10 +1053,10 @@ class AnalyticsController extends Controller {
 		$currentBalanceCents = (int)($summary['balanceCents'] ?? 0);
 
 		return [
-			'label' => $kind === 'current-month' ? 'Zum Monatsende voraussichtlich' : 'Zum Jahresende voraussichtlich',
+			'label' => $kind === 'current-month' ? $this->l10n->t('Expected balance at month end') : $this->l10n->t('Expected balance at year end'),
 			'basisLabel' => $kind === 'current-month'
-				? 'hochgerechnet aus dem bisherigen Monat'
-				: 'hochgerechnet aus dem bisherigen Jahr',
+				? $this->l10n->t('Projected from the month so far')
+				: $this->l10n->t('Projected from the year so far'),
 			'forecastCents' => $forecastCents,
 			'currentBalanceCents' => $currentBalanceCents,
 			'remainingChangeCents' => $forecastCents - $currentBalanceCents,
@@ -1067,9 +1067,9 @@ class AnalyticsController extends Controller {
 			'remainingDays' => max(0, (int)ceil(($end - min($now + 1, $end)) / 86400)),
 			'confidence' => $confidence,
 			'confidenceLabel' => [
-				'high' => 'stabile Datenbasis',
-				'medium' => 'mittlere Datenbasis',
-				'low' => 'frühe Schätzung',
+				'high' => $this->l10n->t('Reliable data'),
+				'medium' => $this->l10n->t('Moderate data availability'),
+				'low' => $this->l10n->t('Early estimate'),
 			][$confidence],
 		];
 	}
@@ -1149,12 +1149,12 @@ class AnalyticsController extends Controller {
 	private function buildBreakdowns(array $entries, array $comparisonEntries = [], array $directionRecentEntries = [], array $directionBaselineEntries = []): array {
 		return [
 			'categories' => [
-				'expense' => $this->buildBreakdown($entries, 'categoryId', 'categoryName', 'Ohne Kategorie', 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
-				'income' => $this->buildBreakdown($entries, 'categoryId', 'categoryName', 'Ohne Kategorie', 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'expense' => $this->buildBreakdown($entries, 'categoryId', 'categoryName', $this->l10n->t('No category'), 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'income' => $this->buildBreakdown($entries, 'categoryId', 'categoryName', $this->l10n->t('No category'), 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 			],
 			'paymentPartners' => [
-				'expense' => $this->buildBreakdown($entries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
-				'income' => $this->buildBreakdown($entries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'expense' => $this->buildBreakdown($entries, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'income' => $this->buildBreakdown($entries, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 			],
 			'tags' => [
 				'expense' => $this->buildTagBreakdown($entries, 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
@@ -1165,8 +1165,8 @@ class AnalyticsController extends Controller {
 				'income' => $this->buildHashtagBreakdown($entries, 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 			],
 			'projects' => [
-				'expense' => $this->buildBreakdown($entries, 'projectId', 'projectName', 'Persönlich', 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
-				'income' => $this->buildBreakdown($entries, 'projectId', 'projectName', 'Persönlich', 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'expense' => $this->buildBreakdown($entries, 'projectId', 'projectName', $this->l10n->t('Personal'), 'expense', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
+				'income' => $this->buildBreakdown($entries, 'projectId', 'projectName', $this->l10n->t('Personal'), 'income', $comparisonEntries, $directionRecentEntries, $directionBaselineEntries),
 			],
 		];
 	}
@@ -1178,33 +1178,33 @@ class AnalyticsController extends Controller {
 		];
 
 		foreach (['expense', 'income'] as $type) {
-			$categories = $this->buildBreakdown($entries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type);
+			$categories = $this->buildBreakdown($entries, 'categoryId', 'categoryName', $this->l10n->t('No category'), $type);
 			foreach ($categories as $category) {
 				$key = (string)($category['key'] ?? ($category['id'] === null ? 'none' : $category['id']));
 				if ($key === 'rest') {
 					continue;
 				}
 
-				$categoryEntries = $this->filterBreakdownEntries($entries, $type, 'categoryId', 'categoryName', 'Ohne Kategorie', $key);
+				$categoryEntries = $this->filterBreakdownEntries($entries, $type, 'categoryId', 'categoryName', $this->l10n->t('No category'), $key);
 				if ($categoryEntries === []) {
 					continue;
 				}
 
-				$comparisonCategoryEntries = $this->filterBreakdownEntries($comparisonEntries, $type, 'categoryId', 'categoryName', 'Ohne Kategorie', $key);
-				$directionRecentCategoryEntries = $this->filterBreakdownEntries($directionRecentEntries, $type, 'categoryId', 'categoryName', 'Ohne Kategorie', $key);
-				$directionBaselineCategoryEntries = $this->filterBreakdownEntries($directionBaselineEntries, $type, 'categoryId', 'categoryName', 'Ohne Kategorie', $key);
+				$comparisonCategoryEntries = $this->filterBreakdownEntries($comparisonEntries, $type, 'categoryId', 'categoryName', $this->l10n->t('No category'), $key);
+				$directionRecentCategoryEntries = $this->filterBreakdownEntries($directionRecentEntries, $type, 'categoryId', 'categoryName', $this->l10n->t('No category'), $key);
+				$directionBaselineCategoryEntries = $this->filterBreakdownEntries($directionBaselineEntries, $type, 'categoryId', 'categoryName', $this->l10n->t('No category'), $key);
 
 				$result[$type][$key] = [
 					'id' => $category['id'] ?? null,
 					'key' => $key,
-					'label' => (string)($category['name'] ?? 'Kategorie'),
+					'label' => (string)($category['name'] ?? $this->l10n->t('Category')),
 					'rowType' => (string)($category['rowType'] ?? ''),
 					'parentName' => (string)($category['parentName'] ?? ''),
 					'series' => $this->buildSeries($categoryEntries, $period),
-					'paymentPartners' => $this->buildBreakdown($categoryEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
+					'paymentPartners' => $this->buildBreakdown($categoryEntries, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 					'tags' => $this->buildTagBreakdown($categoryEntries, $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 					'hashtags' => $this->buildHashtagBreakdown($categoryEntries, $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
-					'projects' => $this->buildBreakdown($categoryEntries, 'projectId', 'projectName', 'Persönlich', $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
+					'projects' => $this->buildBreakdown($categoryEntries, 'projectId', 'projectName', $this->l10n->t('Personal'), $type, $comparisonCategoryEntries, $directionRecentCategoryEntries, $directionBaselineCategoryEntries),
 				];
 			}
 		}
@@ -1219,31 +1219,31 @@ class AnalyticsController extends Controller {
 		];
 
 		foreach (['expense', 'income'] as $type) {
-			$paymentPartners = $this->buildBreakdown($entries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type);
+			$paymentPartners = $this->buildBreakdown($entries, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $type);
 			foreach ($paymentPartners as $paymentPartner) {
 				$key = (string)($paymentPartner['key'] ?? ($paymentPartner['id'] === null ? 'none' : $paymentPartner['id']));
 				if ($key === 'rest') {
 					continue;
 				}
 
-				$paymentPartnerEntries = $this->filterBreakdownEntries($entries, $type, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $key);
+				$paymentPartnerEntries = $this->filterBreakdownEntries($entries, $type, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $key);
 				if ($paymentPartnerEntries === []) {
 					continue;
 				}
 
-				$comparisonPaymentPartnerEntries = $this->filterBreakdownEntries($comparisonEntries, $type, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $key);
-				$directionRecentPaymentPartnerEntries = $this->filterBreakdownEntries($directionRecentEntries, $type, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $key);
-				$directionBaselinePaymentPartnerEntries = $this->filterBreakdownEntries($directionBaselineEntries, $type, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $key);
+				$comparisonPaymentPartnerEntries = $this->filterBreakdownEntries($comparisonEntries, $type, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $key);
+				$directionRecentPaymentPartnerEntries = $this->filterBreakdownEntries($directionRecentEntries, $type, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $key);
+				$directionBaselinePaymentPartnerEntries = $this->filterBreakdownEntries($directionBaselineEntries, $type, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $key);
 
 				$result[$type][$key] = [
 					'id' => $paymentPartner['id'] ?? null,
 					'key' => $key,
-					'label' => (string)($paymentPartner['name'] ?? 'Zahlungspartner'),
+					'label' => (string)($paymentPartner['name'] ?? $this->l10n->t('Payment partner')),
 					'series' => $this->buildSeries($paymentPartnerEntries, $period),
-					'categories' => $this->buildBreakdown($paymentPartnerEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
+					'categories' => $this->buildBreakdown($paymentPartnerEntries, 'categoryId', 'categoryName', $this->l10n->t('No category'), $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
 					'tags' => $this->buildTagBreakdown($paymentPartnerEntries, $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
 					'hashtags' => $this->buildHashtagBreakdown($paymentPartnerEntries, $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
-					'projects' => $this->buildBreakdown($paymentPartnerEntries, 'projectId', 'projectName', 'Persönlich', $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
+					'projects' => $this->buildBreakdown($paymentPartnerEntries, 'projectId', 'projectName', $this->l10n->t('Personal'), $type, $comparisonPaymentPartnerEntries, $directionRecentPaymentPartnerEntries, $directionBaselinePaymentPartnerEntries),
 				];
 			}
 		}
@@ -1280,10 +1280,10 @@ class AnalyticsController extends Controller {
 					'id' => $tag,
 					'label' => $this->l10n->t($label),
 					'series' => $this->buildSeries($tagEntries, $period),
-					'categories' => $this->buildBreakdown($tagEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
-					'paymentPartners' => $this->buildBreakdown($tagEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
+					'categories' => $this->buildBreakdown($tagEntries, 'categoryId', 'categoryName', $this->l10n->t('No category'), $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
+					'paymentPartners' => $this->buildBreakdown($tagEntries, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
 					'hashtags' => $this->buildHashtagBreakdown($tagEntries, $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
-					'projects' => $this->buildBreakdown($tagEntries, 'projectId', 'projectName', 'Persönlich', $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
+					'projects' => $this->buildBreakdown($tagEntries, 'projectId', 'projectName', $this->l10n->t('Personal'), $type, $comparisonTagEntries, $directionRecentTagEntries, $directionBaselineTagEntries),
 				];
 			}
 		}
@@ -1319,10 +1319,10 @@ class AnalyticsController extends Controller {
 					'key' => $key,
 					'label' => (string)($hashtag['name'] ?? '#Tag'),
 					'series' => $this->buildSeries($hashtagEntries, $period),
-					'categories' => $this->buildBreakdown($hashtagEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
-					'paymentPartners' => $this->buildBreakdown($hashtagEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
+					'categories' => $this->buildBreakdown($hashtagEntries, 'categoryId', 'categoryName', $this->l10n->t('No category'), $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
+					'paymentPartners' => $this->buildBreakdown($hashtagEntries, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
 					'tags' => $this->buildTagBreakdown($hashtagEntries, $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
-					'projects' => $this->buildBreakdown($hashtagEntries, 'projectId', 'projectName', 'Persönlich', $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
+					'projects' => $this->buildBreakdown($hashtagEntries, 'projectId', 'projectName', $this->l10n->t('Personal'), $type, $comparisonHashtagEntries, $directionRecentHashtagEntries, $directionBaselineHashtagEntries),
 				];
 			}
 		}
@@ -1337,29 +1337,29 @@ class AnalyticsController extends Controller {
 		];
 
 		foreach (['expense', 'income'] as $type) {
-			$projects = $this->buildBreakdown($entries, 'projectId', 'projectName', 'Persönlich', $type);
+			$projects = $this->buildBreakdown($entries, 'projectId', 'projectName', $this->l10n->t('Personal'), $type);
 			foreach ($projects as $project) {
 				$key = (string)($project['key'] ?? ($project['id'] === null ? 'none' : $project['id']));
 				if ($key === 'rest') {
 					continue;
 				}
 
-				$projectEntries = $this->filterBreakdownEntries($entries, $type, 'projectId', 'projectName', 'Persönlich', $key);
+				$projectEntries = $this->filterBreakdownEntries($entries, $type, 'projectId', 'projectName', $this->l10n->t('Personal'), $key);
 				if ($projectEntries === []) {
 					continue;
 				}
 
-				$comparisonProjectEntries = $this->filterBreakdownEntries($comparisonEntries, $type, 'projectId', 'projectName', 'Persönlich', $key);
-				$directionRecentProjectEntries = $this->filterBreakdownEntries($directionRecentEntries, $type, 'projectId', 'projectName', 'Persönlich', $key);
-				$directionBaselineProjectEntries = $this->filterBreakdownEntries($directionBaselineEntries, $type, 'projectId', 'projectName', 'Persönlich', $key);
+				$comparisonProjectEntries = $this->filterBreakdownEntries($comparisonEntries, $type, 'projectId', 'projectName', $this->l10n->t('Personal'), $key);
+				$directionRecentProjectEntries = $this->filterBreakdownEntries($directionRecentEntries, $type, 'projectId', 'projectName', $this->l10n->t('Personal'), $key);
+				$directionBaselineProjectEntries = $this->filterBreakdownEntries($directionBaselineEntries, $type, 'projectId', 'projectName', $this->l10n->t('Personal'), $key);
 
 				$result[$type][$key] = [
 					'id' => $project['id'] ?? null,
 					'key' => $key,
-					'label' => (string)($project['name'] ?? 'Bereich'),
+					'label' => (string)($project['name'] ?? $this->l10n->t('Area')),
 					'series' => $this->buildSeries($projectEntries, $period),
-					'categories' => $this->buildBreakdown($projectEntries, 'categoryId', 'categoryName', 'Ohne Kategorie', $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
-					'paymentPartners' => $this->buildBreakdown($projectEntries, 'paymentPartnerId', 'paymentPartnerName', 'Ohne Zahlungspartner', $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
+					'categories' => $this->buildBreakdown($projectEntries, 'categoryId', 'categoryName', $this->l10n->t('No category'), $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
+					'paymentPartners' => $this->buildBreakdown($projectEntries, 'paymentPartnerId', 'paymentPartnerName', $this->l10n->t('No payment partner'), $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
 					'tags' => $this->buildTagBreakdown($projectEntries, $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
 					'hashtags' => $this->buildHashtagBreakdown($projectEntries, $type, $comparisonProjectEntries, $directionRecentProjectEntries, $directionBaselineProjectEntries),
 				];
@@ -1887,7 +1887,7 @@ class AnalyticsController extends Controller {
 		$visible[] = [
 			'id' => null,
 			'key' => 'rest',
-			'name' => 'Sonstige',
+			'name' => $this->l10n->t('Other'),
 			'amountCents' => $restAmount,
 			'count' => $restCount,
 		];
@@ -1948,7 +1948,7 @@ class AnalyticsController extends Controller {
 			}
 
 			if (!isset($projects[$projectId])) {
-				$projects[$projectId] = $this->emptySharedProjectSummary($projectId, (string)($entry['projectName'] ?? 'Bereich'), $sharesByProject[$projectId] ?? []);
+				$projects[$projectId] = $this->emptySharedProjectSummary($projectId, (string)($entry['projectName'] ?? $this->l10n->t('Area')), $sharesByProject[$projectId] ?? []);
 			}
 
 			$projects[$projectId]['totalPaidCents'] += $amountCents;
@@ -2021,7 +2021,7 @@ class AnalyticsController extends Controller {
 
 		return [
 			'id' => $projectId,
-			'name' => $projectName !== '' ? $projectName : 'Bereich',
+			'name' => $projectName !== '' ? $projectName : $this->l10n->t('Area'),
 			'totalPaidCents' => 0,
 			'personalShareCents' => 0,
 			'currentUserPaidCents' => 0,

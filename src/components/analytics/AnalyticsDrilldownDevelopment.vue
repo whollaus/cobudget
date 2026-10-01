@@ -38,7 +38,7 @@
 				</thead>
 				<tbody>
 					<tr v-for="item in series" :key="item.key">
-						<td>{{ item.label }}</td>
+						<td>{{ seriesPeriodLabel(item) }}</td>
 						<td class="count-cell">{{ Number(item.count || 0) }}</td>
 						<td class="amount-cell">{{ formatCents(seriesValue(item)) }}</td>
 					</tr>
@@ -57,6 +57,7 @@
 
 <script>
 import AnalyticsDevelopmentChart from './AnalyticsDevelopmentChart.vue'
+import { formatPeriodLabel } from '../../utils/formatDate'
 
 let valuesTableSequence = 0
 
@@ -113,6 +114,9 @@ export default {
 		}
 	},
 	methods: {
+		seriesPeriodLabel(item) {
+			return formatPeriodLabel(item?.key, item?.label || '')
+		},
 		seriesValue(item) {
 			const key = this.type === 'income' ? 'incomeCents' : 'expenseCents'
 			return Math.abs(Number(item?.[key] || 0))

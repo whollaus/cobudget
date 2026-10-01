@@ -1,6 +1,6 @@
 # Contributing To CoBudget
 
-CoBudget is an App Store-published Nextcloud app under active early-alpha development.
+CoBudget is an App Store-published Nextcloud app under active beta development.
 
 ## Development Setup
 

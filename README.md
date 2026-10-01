@@ -1,9 +1,9 @@
 # CoBudget
 
 > [!WARNING]
-> CoBudget is an early alpha version. Features, data structures and workflows may still change at any time.
+> CoBudget is a beta version. Features, data structures and workflows may still change at any time.
 > Development is AI-assisted. The app has automated and targeted security and integrity tests, but it has not been independently audited or fully reviewed line by line. Use it only with regular backups and do not rely on it as the only source for critical financial records.
-> During the alpha phase, updates or test data resets may require manual database corrections.
+> During the beta phase, updates or test data resets may require manual database corrections.
 
 CoBudget is a Nextcloud app for personal and shared household budgeting.
 
@@ -11,10 +11,11 @@ It helps you track income, expenses, budgets, receipts and shared areas directly
 
 ## Project Status
 
-CoBudget is available in the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and remains under active early-alpha development.
+CoBudget is available in the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and remains under active beta development.
 
-- The supported release line is `0.4.x`; see the [changelog](CHANGELOG.md) for the latest changes.
+- The supported release line is `0.5.x`; see the [changelog](CHANGELOG.md) for the latest changes.
 - Nextcloud 33, 34 and 35 are supported.
+- The interface is available in English, German, French and Spanish. Calendar headings follow the interface language; numeric dates and amounts follow your Nextcloud locale.
 - App Store releases are signed and mirrored as installable assets on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
 - Features, data structures and upgrade behavior may still change before `1.0.0`.
 - Backups are strongly recommended before every update, especially for shared areas and restore workflows.
@@ -22,7 +23,7 @@ CoBudget is available in the official [Nextcloud App Store](https://apps.nextclo
 
 ## Screenshots
 
-The screenshots below show the current alpha UI and may change during the test phase.
+The screenshots below illustrate the app UI and may differ from the current beta release.
 
 ![CoBudget payment overview](screenshots/screenshot-v0.2.10-1.jpg)
 
@@ -221,11 +222,11 @@ npm run test
 
 ## Release Notes
 
-This project follows semantic versioning as far as practical during the alpha phase.
+This project follows semantic versioning as far as practical during the beta phase.
 
 - Patch releases should contain fixes.
 - Minor releases may add or change features.
-- Breaking changes are possible during alpha and will be documented in the changelog.
+- Breaking changes are possible during beta and will be documented in the changelog.
 
 See [CHANGELOG.md](CHANGELOG.md).
 

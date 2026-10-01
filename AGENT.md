@@ -129,7 +129,7 @@ Do not bump `appinfo/info.xml` for ordinary frontend, PHP controller, CSS, docum
 
 Bump the app version only when a database migration, install schema, repair step, or upgrade behavior changes.
 
-The clean alpha baseline starts at `0.2.0`. All unpublished `0.1.x` migration history was consolidated into `Version000001Date20260713000000`; old alpha test installations must be reset/reinstalled instead of upgraded through removed migrations.
+The clean installation baseline starts at `0.2.0`. All unpublished `0.1.x` migration history was consolidated into `Version000001Date20260713000000`; old development test installations must be reset/reinstalled instead of upgraded through removed migrations.
 
 After `0.2.0` is published, never edit or replace that initial migration. Every later schema change must use a new additive migration and preserve the supported upgrade path.
 

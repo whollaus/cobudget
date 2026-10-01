@@ -168,6 +168,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { REMOTE_DATA_CHANGED_EVENT, changeAffectsProject, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
@@ -546,7 +547,7 @@ export default {
 		},
 		formatDateTime(timestamp) {
 			if (!timestamp) return '-'
-			return new Date(timestamp * 1000).toLocaleString(undefined, {
+			return new Date(timestamp * 1000).toLocaleString(getAppLocale(), {
 				day: '2-digit',
 				month: '2-digit',
 				year: 'numeric',

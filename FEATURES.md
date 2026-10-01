@@ -1,14 +1,15 @@
 # CoBudget Features
 
-CoBudget alpha releases are available through the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and as signed packages on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
+CoBudget beta releases are available through the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and as signed packages on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
 
 > [!WARNING]
-> CoBudget is an early alpha version. Features, data structures and workflows may still change at any time.
-> During the alpha phase, updates or test data resets may require manual database corrections.
+> CoBudget is a beta version. Features, data structures and workflows may still change at any time.
+> During the beta phase, updates or test data resets may require manual database corrections.
 
 CoBudget is a Nextcloud app for personal and shared household budgeting.
 
 - Compatible with Nextcloud 33, 34 and 35.
+- English, German, French and Spanish interface text, including analytics, notifications and administration messages. Calendar headings follow the interface language; numeric dates and amounts follow your Nextcloud locale.
 
 ## Navigation
 

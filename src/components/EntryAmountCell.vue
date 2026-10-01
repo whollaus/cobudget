@@ -63,7 +63,7 @@ import HistoryIcon from 'vue-material-design-icons/History.vue'
 import PaperclipIcon from 'vue-material-design-icons/Paperclip.vue'
 import SyncIcon from 'vue-material-design-icons/Sync.vue'
 import TableTooltip from './TableTooltip.vue'
-import { formatMoney } from '../utils/formatMoney'
+import { getAppLocale, formatMoney } from '../utils/formatMoney'
 
 export default {
 	name: 'EntryAmountCell',
@@ -143,12 +143,12 @@ export default {
 				return '-'
 			}
 			const date = new Date(timestamp * 1000)
-			const dateText = date.toLocaleDateString(undefined, {
+			const dateText = date.toLocaleDateString(getAppLocale(), {
 				day: '2-digit',
 				month: '2-digit',
 				year: 'numeric',
 			})
-			const timeText = date.toLocaleTimeString(undefined, {
+			const timeText = date.toLocaleTimeString(getAppLocale(), {
 				hour: '2-digit',
 				minute: '2-digit',
 			})
@@ -159,7 +159,7 @@ export default {
 			if (!timestamp) {
 				return '-'
 			}
-			return new Date(timestamp * 1000).toLocaleDateString()
+			return new Date(timestamp * 1000).toLocaleDateString(getAppLocale())
 		},
 	}
 }

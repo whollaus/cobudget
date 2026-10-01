@@ -57,7 +57,7 @@ jobs:
           >
           > The maintainer must sign the app locally with the Nextcloud certificate and the matching private key, upload `cobudget.tar.gz`, `cobudget.tar.gz.signature` and `SHA256SUMS`, and only then publish this release.
 
-          CoBudget is currently an early alpha release. Please test carefully and keep backups before using it with important data.
+          CoBudget is currently a beta release. Please test carefully and keep backups before using it with important data.
           EOF
 
       - name: Create draft GitHub release if missing
