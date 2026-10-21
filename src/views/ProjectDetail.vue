@@ -9,8 +9,8 @@
 					<NcButton
 						variant="tertiary"
 						class="cobudget-header-back-button"
-						:aria-label="$texts.areaSettings.backToArea()"
-						:title="$texts.areaSettings.backToArea()"
+						:aria-label="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.areaSettings.backToArea())"
+						:title="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.areaSettings.backToArea())"
 						@click="goBackToProjectOverview">
 						<template #icon>
 							<ArrowLeftIcon :size="20" />
@@ -225,6 +225,7 @@
 				:enable-important-payments="$enableImportantPayments"
 				:enable-review-payments="$enableReviewPayments"
 				:enable-tax-relevant="$enableTaxRelevant"
+				:enable-insurance="$enableInsurance"
 				:selected-entry-id="selectedEntryId"
 				:actions-enabled="project.status !== 'archived'"
 				:archived="project.status === 'archived'"
@@ -240,6 +241,7 @@
 				@history="openEntryHistory">
 				<template #pagination>
 						<div
+							v-if="!isProjectPaymentsView || totalActivePages > 1"
 							class="pagination-footer"
 							:class="{
 								'pagination-footer--single': activePagination.total <= activePagination.limit,
@@ -332,6 +334,7 @@
 </template>
 
 <script>
+import { annualReturnRoute } from '../services/annualOverview'
 import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { REMOTE_DATA_CHANGED_EVENT, changeAffectsProject, changeTouches } from '../services/dataSync'
@@ -361,6 +364,7 @@ import StarIcon from 'vue-material-design-icons/Star.vue'
 import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
 import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
+import ShieldCheckOutlineIcon from 'vue-material-design-icons/ShieldCheckOutline.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import ChevronUpIcon from 'vue-material-design-icons/ChevronUp.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
@@ -374,6 +378,7 @@ import DraggableScroller from '../components/DraggableScroller.vue'
 import { normalizeEntryPageSize, shouldIgnorePaginationKeydown } from '../services/pagination'
 import {
 	createProjectEntryFilters,
+	entryNarrowingQueryParams,
 	entryOffsetFromPage,
 	entryPageFromOffset,
 	parseProjectEntryListRouteQuery,
@@ -462,7 +467,13 @@ export default {
 				   this.filters.recurring !== 'all' ||
 				   this.filters.tags !== 'all' ||
 				   this.filters.hasReminder !== 'all' ||
-				   this.filters.hasAttachment !== 'all';
+				   this.filters.hasAttachment !== 'all' ||
+				   Boolean(this.filters.narrowCategories) ||
+				   Boolean(this.filters.narrowPartners) ||
+				   Boolean(this.filters.narrowLabels) ||
+				   Boolean(this.filters.narrowHashtags) ||
+				   Boolean(this.filters.amountMin) ||
+				   Boolean(this.filters.amountMax);
 		},
 		projectId() {
 			return this.id;
@@ -516,6 +527,7 @@ export default {
 				{ key: 'childRelated', label: this.$texts.labels.children(), icon: AccountChildIcon, iconColor: '#0f766e', mode: 'signed', cardClass: 'child-card', enabled: this.$enableChildRelated },
 				{ key: 'subscriptions', label: this.$texts.labels.subscription(), icon: SyncIcon, iconColor: '#8e44ad', mode: 'negative', cardClass: 'abos-card', enabled: this.$enableSubscriptions },
 				{ key: 'taxRelevant', label: this.$texts.labels.taxRelevant(), icon: ReceiptTextCheckOutlineIcon, iconColor: '#0082c9', mode: 'signed', cardClass: 'tax-card', enabled: this.$enableTaxRelevant },
+				{ key: 'insurance', label: this.$texts.labels.insurance(), icon: ShieldCheckOutlineIcon, iconColor: 'var(--color-primary-element)', mode: 'signed', cardClass: 'insurance-card', enabled: this.$enableInsurance },
 			];
 
 			return definitions
@@ -556,6 +568,7 @@ export default {
 		activeEntries: 'notifySelectedEntryVisibility'
 	},
 	methods: {
+		annualReturnRoute,
 		async openEntryHistory(entry) {
 			this.entryHistoryOpen = true
 			this.entryHistoryLoading = true
@@ -764,6 +777,7 @@ export default {
 			this.fetchProjectData()
 		},
 		updateDateRangeFilters() {
+			if (this.filters.timeRange === 'custom') return
 			const now = new Date();
 			if (this.filters.timeRange === 'currentMonth') {
 				const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -808,12 +822,14 @@ export default {
 			let isImportant = null;
 			let needsReview = null;
 			let isTaxRelevant = null;
+			let isInsurance = null;
 			let hasReminder = this.filters.hasReminder === 'true' ? true : null;
 			let hasAttachment = null;
 			if (this.filters.hasAttachment === 'true') hasAttachment = true;
 			if (this.filters.hasAttachment === 'false') hasAttachment = false;
 			if (this.filters.tags === 'subscription') isSubscription = true;
 			if (this.filters.tags === 'taxRelevant') isTaxRelevant = true;
+			if (this.filters.tags === 'insurance') isInsurance = true;
 			if (this.filters.tags === 'fixedCost') isFixedCost = true;
 			if (this.filters.tags === 'childRelated') isChildRelated = true;
 			if (this.filters.tags === 'important') isImportant = true;
@@ -831,6 +847,7 @@ export default {
 				isImportant: isImportant,
 				needsReview: needsReview,
 				isTaxRelevant: isTaxRelevant,
+				isInsurance: isInsurance,
 				isFuturePayments: this.filters.tags === 'future',
 				hasReminder: hasReminder,
 				hasAttachment: hasAttachment,
@@ -839,10 +856,13 @@ export default {
 				type: this.filters.type,
 				categoryId: this.filters.categoryId,
 				paymentPartnerId: this.filters.paymentPartnerId,
+				includeFuturePayments: this.filters.includeFuturePayments,
+				includeSubcategories: this.filters.includeSubcategories,
 				dateFrom: this.filters.dateFrom,
 				dateTo: this.filters.dateTo,
 				sortBy: this.sortBy,
-				sortDir: this.sortDir
+				sortDir: this.sortDir,
+				...entryNarrowingQueryParams(this.filters),
 			};
 
 			if (includePagination) {
@@ -904,7 +924,7 @@ export default {
 			this.replaceProjectEntryListRoute({ page: 1 })
 		},
 		resetFilters() {
-			this.onFiltersUpdate(createProjectEntryFilters())
+			this.onFiltersUpdate({ ...createProjectEntryFilters(), annualReturn: this.filters.annualReturn })
 		},
 		toggleSort(col) {
 			if (this.sortBy === col) {
@@ -980,6 +1000,11 @@ export default {
 			}).then(() => this.$nextTick(this.scrollProjectPageToTop))
 		},
 		goBackToProjectOverview() {
+			const annual = annualReturnRoute(this.$route.query.annualReturn)
+			if (annual) {
+				this.$router.push(annual)
+				return
+			}
 			const query = serializeProjectEntryListRouteQuery({
 				filters: this.filters,
 				sortBy: this.sortBy,

@@ -18,6 +18,7 @@
 				</div>
 			</template>
 		</AppPageHeader>
+		<MobileReportSwitch />
 
 		<div class="analytics-section">
 			<AnalyticsPeriodSwitch
@@ -486,6 +487,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import PrinterIcon from 'vue-material-design-icons/Printer.vue'
 import TableTooltip from '../components/TableTooltip.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
+import MobileReportSwitch from '../components/MobileReportSwitch.vue'
 import AnalyticsDevelopmentChart from '../components/analytics/AnalyticsDevelopmentChart.vue'
 import AnalyticsDrilldownDevelopment from '../components/analytics/AnalyticsDrilldownDevelopment.vue'
 import AnalyticsForecastCard from '../components/analytics/AnalyticsForecastCard.vue'
@@ -561,6 +563,7 @@ export default {
 		AnalyticsPeriodSwitch,
 		AnalyticsSummaryGrid,
 		AppPageHeader,
+		MobileReportSwitch,
 		NcButton,
 		PrinterIcon,
 		TableTooltip

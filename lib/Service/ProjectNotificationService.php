@@ -28,7 +28,8 @@ class ProjectNotificationService {
 		IURLGenerator $urlGenerator,
 		EntryShareService $entryShareService,
 		ParticipantService $participantService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
+		private TalkNotificationService $talkNotifications
 	) {
 		$this->db = $db;
 		$this->notificationManager = $notificationManager;
@@ -74,30 +75,45 @@ class ProjectNotificationService {
 				if (
 					$recipientUserId === $actorUserId
 					|| !$this->participantService->isActive($recipientUserId)
-					|| !$this->userWants($recipientUserId, self::SETTING_NOTIFY_ENTRIES)
+					|| !$this->projectNotificationsEnabled($recipientUserId)
 				) {
 					continue;
 				}
 
-				$notification = $this->notificationManager->createNotification();
-				$notification->setApp(self::APP_ID)
-					->setUser($recipientUserId)
-					->setDateTime(new \DateTime())
-					->setObject('project', (string)$projectId)
-					->setSubject('project_entry_created', [
-						'projectId' => (string)$projectId,
-						'projectName' => (string)$project['name'],
-						'actorName' => $actorName,
-						'entryUserName' => $entryUserName,
-						'entryType' => $entryType,
-						'type' => $type,
-						'amount' => $this->formatAmount($amountCents),
-						'currency' => $currency !== '' ? $currency : 'EUR',
-						'description' => $description,
-					])
-					->setLink($link);
+				// Talk has its own opt-in and failures must not suppress either channel.
+				$this->talkNotifications->notifyEntryCreated($recipientUserId, [
+					'actorName' => $actorName,
+					'projectName' => (string)$project['name'],
+					'type' => $type,
+					'amount' => $this->formatAmount($amountCents),
+					'currency' => $currency !== '' ? $currency : 'EUR',
+				], $link);
+				if (!$this->userWants($recipientUserId, self::SETTING_NOTIFY_ENTRIES)) {
+					continue;
+				}
+				try {
+					$notification = $this->notificationManager->createNotification();
+					$notification->setApp(self::APP_ID)
+						->setUser($recipientUserId)
+						->setDateTime(new \DateTime())
+						->setObject('project', (string)$projectId)
+						->setSubject('project_entry_created', [
+							'projectId' => (string)$projectId,
+							'projectName' => (string)$project['name'],
+							'actorName' => $actorName,
+							'entryUserName' => $entryUserName,
+							'entryType' => $entryType,
+							'type' => $type,
+							'amount' => $this->formatAmount($amountCents),
+							'currency' => $currency !== '' ? $currency : 'EUR',
+							'description' => $description,
+						])
+						->setLink($link);
 
-				$this->notificationManager->notify($notification);
+					$this->notificationManager->notify($notification);
+				} catch (\Throwable $e) {
+					$this->logger->warning('Failed to send CoBudget project entry notification', ['app' => self::APP_ID, 'exceptionType' => get_class($e)]);
+				}
 			}
 		} catch (\Throwable $e) {
 			$this->logger->error('Failed to send CoBudget project entry notification: ' . $e->getMessage(), ['app' => self::APP_ID]);

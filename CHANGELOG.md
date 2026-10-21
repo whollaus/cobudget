@@ -2,6 +2,40 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.6.0] - 2026-10-21
+
+### Added
+
+- Add a dedicated annual overview for My finances and individual areas, with exact-cent income, expense and balance totals. Switch between yearly month columns, quarterly and ISO-week columns, the days of a selected month, or every day of a year. The daily view can also be limited to one month; ISO week-year totals follow week boundaries and can differ from calendar-year totals.
+- Group reports by categories with expandable subcategories, payment partners, or enabled labels and description tags. Payments can appear in several label or tag rows, while totals count each qualifying payment once. Unassigned categories and payment partners remain included.
+- Filter reports by category, payment partner, amount range, label and description tag before grouping. Values within a filter match any selection; different filters apply together. Filter choices follow the selected financial view and period, and report links preserve the selected context.
+- Open amounts in detail dialogs with payment counts, shares, averages and available comparisons with the previous period and the same period last year. Ongoing periods compare elapsed dates; differences use exact cents and trend arrows appear only beyond ±5%. Open the matching saved payments from the dialog, or use row labels for matching payments without a date restriction.
+- Include upcoming recurring occurrences in future-payment reports before they are saved. My finances uses personal and solo-area amounts plus the stored personal shares of shared series; area reports retain full shared amounts.
+- Print reports in an isolated A4 landscape layout or save them as PDF through the browser. Wide reports continue in blocks of at most 12 period columns with repeated labels and totals; whole-year daily reports print month by month. Printing follows filters, sorting, expanded categories and open sections.
+- Export reports as CSV, either as a download or into a selected Nextcloud Files folder. Exports retain the period, grouping, payment filters and recurring forecast, use semicolons and decimal commas, and preserve existing files by adding a numbered filename suffix.
+- Add optional personal Talk notifications for new payments created by other shared-area members, independently of Nextcloud bell notifications. Opting in creates a private, read-only CoBudget conversation. Delivery checks the recipient, privacy and bot binding; descriptions and receipts are omitted, and changed or deleted conversations require reconnection.
+
+### Changed
+
+- Combine Annual overview and Statistics under mobile Analytics, starting with Annual overview and remembering the last report per account in this browser. Keep separate desktop entries and place Budget goals directly after Analytics.
+- Move area and shared-area switches into Settings → Features and give notification preferences their own section.
+- Give overview tables compact rows, fixed-width amount columns, pinned labels and totals, title/amount sorting and collapsible income, expense and total sections. Respect disabled income/area features and limit year choices to years with visible saved payments.
+- Align overview terminology and translations across English, German, French and Spanish, including consistent payment-partner names and Main category labels.
+- Show My finances and up to five areas in a compact two-column payment picker; use a dropdown for six or more areas.
+- Consolidate the changelog and feature documentation around the implemented report behavior and document the limits of recurring forecasts and exports.
+
+### Fixed
+
+- Include the stored exact-cent personal share of upcoming shared-area recurrences in My finances. Apply amount filters to that share, resolve tags in the personal workspace and avoid counting saved occurrences again. Forecasts leave payments, allocation snapshots and rounding balances unchanged.
+- Preserve annual-overview filters when opening matching payments through the app router and when returning to the report.
+- Hide unnecessary pagination controls on single-page personal and area payment lists, and improve empty overview messages and detail-dialog amount formatting.
+
+## [0.5.1] - 2026-10-19
+
+### Added
+
+- Add the Insurance payment label with an optional sidebar filter, a user settings toggle, payment summaries and filtering. Preserve it in recurring payments, shared personal copies, CSV exports and backups. An additive migration initializes existing payments without the new label.
+
 ## [0.5.0] - 2026-10-01
 
 ### Added

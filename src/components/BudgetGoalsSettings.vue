@@ -185,6 +185,10 @@ export default {
 			type: Boolean,
 			default: true,
 		},
+		enableInsurance: {
+			type: Boolean,
+			default: true,
+		},
 	},
 	data() {
 		return {
@@ -220,6 +224,7 @@ export default {
 				this.enableChildRelated ? { value: 'childRelated', label: this.$texts.budgetGoals.children() } : null,
 				this.enableSubscriptions ? { value: 'subscriptions', label: this.$texts.budgetGoals.subscriptions() } : null,
 				this.enableTaxRelevant ? { value: 'taxRelevant', label: this.$texts.budgetGoals.taxRelevant() } : null,
+				this.enableInsurance ? { value: 'insurance', label: this.$texts.budgetGoals.insurance() } : null,
 			].filter(Boolean)
 		},
 	},

@@ -32,6 +32,7 @@
 				<span v-if="entry.is_child_related && enableChildRelated" class="entry-badge badge-child">{{ $texts.labels.children() }}</span>
 				<span v-if="entry.is_subscription && enableSubscriptions" class="entry-badge badge-abo">{{ $texts.labels.subscription() }}</span>
 				<span v-if="entry.is_tax_relevant && enableTaxRelevant" class="entry-badge badge-tax">{{ $texts.labels.taxRelevant() }}</span>
+				<span v-if="entry.is_insurance && enableInsurance" class="entry-badge badge-insurance">{{ $texts.labels.insurance() }}</span>
 			</div>
 		</div>
 		<div
@@ -44,6 +45,7 @@
 			<span v-if="entry.is_child_related && enableChildRelated" class="entry-badge badge-child">{{ $texts.labels.children() }}</span>
 			<span v-if="entry.is_subscription && enableSubscriptions" class="entry-badge badge-abo">{{ $texts.labels.subscription() }}</span>
 			<span v-if="entry.is_tax_relevant && enableTaxRelevant" class="entry-badge badge-tax">{{ $texts.labels.taxRelevant() }}</span>
+			<span v-if="entry.is_insurance && enableInsurance" class="entry-badge badge-insurance">{{ $texts.labels.insurance() }}</span>
 			<span
 				v-if="showProjectChip"
 				class="project-chip desktop-only entry-badge"
@@ -107,6 +109,10 @@ export default {
 			type: Boolean,
 			default: true
 		},
+		enableInsurance: {
+			type: Boolean,
+			default: true
+		},
 		projectName: {
 			type: String,
 			default: ''
@@ -133,6 +139,7 @@ export default {
 				|| (this.entry.is_child_related && this.enableChildRelated)
 				|| (this.entry.is_subscription && this.enableSubscriptions)
 				|| (this.entry.is_tax_relevant && this.enableTaxRelevant)
+				|| (this.entry.is_insurance && this.enableInsurance)
 			)
 		},
 		hasDescriptionContent() {
@@ -261,6 +268,11 @@ export default {
 	background: var(--cobudget-primary-light, var(--color-primary-light, #e0f2fe));
 	color: var(--cobudget-primary, var(--color-primary, #0082c9));
 	border: 1px solid var(--cobudget-primary, var(--color-primary, #0082c9));
+}
+
+.badge-insurance {
+	background: var(--color-primary-element-light);
+	color: var(--color-primary-element-light-text);
 }
 
 .badge-tax {

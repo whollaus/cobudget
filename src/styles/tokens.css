@@ -954,7 +954,8 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 }
 
 .cobudget-toolbar-icon-button,
-.cobudget-toolbar-icon-button.button-vue {
+.cobudget-toolbar-icon-button.button-vue,
+.annual-export-menu .action-item__menutoggle {
 	min-width: var(--cobudget-icon-button-size) !important;
 	width: var(--cobudget-icon-button-size) !important;
 	min-height: var(--cobudget-icon-button-size) !important;
@@ -969,7 +970,9 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 .cobudget-toolbar-icon-button:hover:not(:disabled),
 .cobudget-toolbar-icon-button:focus-visible:not(:disabled),
 .cobudget-toolbar-icon-button.button-vue:hover:not(:disabled),
-.cobudget-toolbar-icon-button.button-vue:focus-visible:not(:disabled) {
+.cobudget-toolbar-icon-button.button-vue:focus-visible:not(:disabled),
+.annual-export-menu .action-item__menutoggle:hover:not(:disabled),
+.annual-export-menu .action-item__menutoggle:focus-visible:not(:disabled) {
 	border-color: transparent !important;
 	background-color: var(--cobudget-surface-muted) !important;
 	box-shadow: none !important;
@@ -982,7 +985,8 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 	background-color: var(--cobudget-surface-muted) !important;
 }
 
-.cobudget-toolbar-icon-button .button-vue__icon {
+.cobudget-toolbar-icon-button .button-vue__icon,
+.annual-export-menu .action-item__menutoggle .button-vue__icon {
 	margin: 0 !important;
 }
 

@@ -1667,7 +1667,7 @@ class ProjectController extends Controller {
 
 	private function normalizeProjectEntryRow(array $entry): array {
 		$entry = $this->normalizeAmountRow($entry);
-		foreach (['is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant', 'is_settled', 'reminder_notified'] as $key) {
+		foreach (['is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant', 'is_insurance', 'is_settled', 'reminder_notified'] as $key) {
 			if (array_key_exists($key, $entry)) {
 				$entry[$key] = $this->projectDashboardBool($entry[$key]);
 			}
@@ -1693,7 +1693,7 @@ class ProjectController extends Controller {
 		$isSharedArea = count($members) > 1;
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'user_id', 'project_id', 'entry_kind', 'type', 'amount', 'amount_cents', 'split_mode', 'split_user_id', 'is_settled', 'is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant')
+		$qb->select('id', 'user_id', 'project_id', 'entry_kind', 'type', 'amount', 'amount_cents', 'split_mode', 'split_user_id', 'is_settled', 'is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant', 'is_insurance')
 			->from('cobudget_entries')
 			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
@@ -1753,6 +1753,9 @@ class ProjectController extends Controller {
 			if ($this->projectDashboardBool($entry['is_tax_relevant'] ?? false)) {
 				$this->addProjectDashboardMetric($metrics, 'taxRelevant', $signedAmountCents, $signedPersonalCents, $isActive);
 			}
+			if ($this->projectDashboardBool($entry['is_insurance'] ?? false)) {
+				$this->addProjectDashboardMetric($metrics, 'insurance', $signedAmountCents, $signedPersonalCents, $isActive);
+			}
 		}
 
 		return $this->normalizeProjectDashboard($metrics);
@@ -1760,7 +1763,7 @@ class ProjectController extends Controller {
 
 	private function emptyProjectDashboard(): array {
 		$metrics = [];
-		foreach (['income', 'expense', 'balance', 'important', 'review', 'fixedCosts', 'childRelated', 'subscriptions', 'taxRelevant'] as $key) {
+		foreach (['income', 'expense', 'balance', 'important', 'review', 'fixedCosts', 'childRelated', 'subscriptions', 'taxRelevant', 'insurance'] as $key) {
 			$metrics[$key] = [
 				'activeTotalCents' => 0.0,
 				'activePersonalCents' => 0.0,

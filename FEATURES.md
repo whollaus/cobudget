@@ -14,6 +14,7 @@ CoBudget is a Nextcloud app for personal and shared household budgeting.
 ## Navigation
 
 - Switch quickly between finances, areas and analytics through an always-visible mobile bottom navigation with active-section highlighting and device safe-area support.
+- Mobile Analytics opens Annual overview by default and offers an Annual overview / Statistics switch in both reports. The last mobile report is remembered per account in the current browser. Both reports highlight Analytics in the bottom navigation, and tapping the active item preserves its filters. Desktop sidebar entries stay separate.
 - Keep the current page title and its primary actions visible in a sticky mobile header while scrolling.
 
 ## Payments
@@ -24,7 +25,7 @@ CoBudget is a Nextcloud app for personal and shared household budgeting.
 - Create and edit income and expenses in a responsive right sidebar with mode-specific titles, guarded unsaved changes, and support for consecutive desktop entries. The main new-payment action remains available while reviewing existing payments and is hidden only while creating a new payment.
 - Suggest a category from safe, repeated payment-partner habits without overwriting a manual selection.
 - Review change history for edited payments, including changed fields and previous values.
-- Mark entries with labels for important payments, payments to review, fixed costs, subscriptions, children and tax relevant payments.
+- Mark entries with labels for important payments, payments to review, fixed costs, subscriptions, children, insurance and tax relevant payments.
 - Add free-form `#tags` directly in the payment note field.
 - Copy an existing personal or area payment while retaining its area and defaulting the new payment to today's date.
 - Attach receipts and invoices.
@@ -48,6 +49,10 @@ CoBudget is a Nextcloud app for personal and shared household budgeting.
 
 ## Shared Areas
 
+- Enable areas and shared areas under Settings → Features, directly above Budget goals. Shared-area notification preferences have their own Notifications section, visible only when both area features are enabled.
+- Optional personal Talk messages for new payments created by other members, independently of Nextcloud bell notifications. Off by default; opting in creates a private, read-only CoBudget conversation automatically when Talk is available.
+- Notifications include the creator, area, amount, currency and area link, excluding descriptions and receipts. Delivery validates conversation privacy and stops if its participants, visibility or bot configuration change.
+
 Areas are used for shared spending such as household costs, trips or family budgets.
 
 - Create personal or shared areas.
@@ -60,6 +65,7 @@ Areas are used for shared spending such as household costs, trips or family budg
 - Define the default percentage split for each member.
 - Distribute indivisible remainder cents fairly over time, including unequal splits and areas with more than two members.
 - Assign payments to an area.
+- Choose an area when creating or editing payments: up to five areas and My finances use two columns with at most three rows; six or more areas use a dropdown.
 - Keep the member allocation of every payment as an exact historical snapshot, independent of later area-default changes.
 - Create one exact personal payment for every member with a positive share and store it in that member's Basis workspace.
 - Keep personal payments locked and synchronized while the shared payment is open.
@@ -93,6 +99,49 @@ Workspaces separate data into isolated pools, for example private and business d
 - Track personal share only.
 - Review progress, forecast and buffer.
 - Use budget insights in analytics.
+
+## Annual Overview
+
+Open the dedicated sidebar page to compare income, expenses and balance in My finances or an individual area. The page title switches between five views:
+
+| View | Columns and total |
+| --- | --- |
+| Annual | Twelve calendar months and the calendar-year total. |
+| Quarterly | Four quarters and the calendar-year total. |
+| Weekly | All ISO weeks of the selected week-year and their total. Days around New Year follow the ISO week-year, so this total can differ from the calendar-year total. |
+| Monthly | Each day of the selected month and that month's total. Choosing All returns to the annual view. |
+| Daily | Every calendar day of the selected year and the year total, or just the days and total of a selected month. All retains the whole year. |
+
+Changing the view retains the selected year. The year dropdown offers only years with visible saved payments in the selected financial view, including future-dated payments. If necessary, it selects the latest available year up to the current year, or the nearest future year. Empty financial views have no selectable year; empty months remain selectable. Calendar boundaries use the browser timezone, matching displayed payment dates.
+
+### Financial scope and grouping
+
+- My finances counts only the user's personal payments and saved personal area shares. A shared area shows its full source amounts; a solo area shows its personal payments. Settled payments remain included, without counting shared sources and personal copies together.
+- Group by categories, payment partners, or labels and description tags. Category rows expand into subcategories and a Main category row for payments assigned directly to the parent. Payments without a category or payment partner have their own row.
+- Labels & tags includes only enabled labels and `#tags` used in the period. A payment appears in every matching row, while income, expense and balance totals count each qualifying payment once. Untagged payments and payments carrying only disabled labels stay out of these totals.
+- Filter by category, payment partner, inclusive amount range, label and description tag before grouping. Several values in one filter match any of them; different filters apply together. The filter duplicating the grouping is hidden, while description tags remain available. Choices come from saved payments in the selected period and financial view, including unassigned values. Category and payment-partner choices distinguish expenses and income when income management is enabled.
+- Filters remain in the address, detail comparisons, print header and matching payment list. Changing filters does not remove years from the year dropdown.
+
+### Future payments
+
+Periods containing today default to Payments up to today. Include future payments adds saved future payments and upcoming occurrences of visible recurring series through the period end. Past periods are complete; future periods include future payments automatically.
+
+Recurring forecasts follow the recurring job's schedule and series end date. My finances includes personal and solo-area series, plus the series head's stored exact-cent personal allocation of shared payments, matching Statistics. Shared forecasts belong to the member's persisted personal workspace and require a positive stored share. Amount filters use that personal share; tag rows and filters use the personal workspace's tag IDs. Area reports retain full shared source amounts. Areas with former participants have no new shared forecasts, matching the recurring job. Forecast reads do not create payments or change snapshots or rounding balances. Once an occurrence is generated and the series advances, its saved personal payment replaces the forecast. The payment list opened from a report contains saved payments only. Year and filter choices also come from saved payments, so a forecast alone does not make a new year or filter choice selectable.
+
+### Tables and payment details
+
+- Income and expense tables each end with a clickable total row. A separate Total section shows income, expenses and balance. Disabling income management leaves only expenses and their total; disabling areas selects My finances and clears saved area filters. The overall Total section is hidden when no payments match.
+- Sort income and expense rows by title (A–Z initially) or total amount. Subcategories stay with their parent. Collapse income, expense and total sections independently; all start open and their state is remembered per account in this browser.
+- Fixed-width amount columns scroll between pinned labels and totals on narrow screens. Headings and truncated values expose their full text as tooltips; day headings show short dates and week headings provide their Monday-to-Sunday range.
+- Click an amount for a detail dialog with the financial view, period, exact payment count, share and average payment amount. Total columns show an average per calendar month, quarter, week or day, including empty buckets and using elapsed buckets for a partial current period. Balance details show income and expenses separately.
+- Detail dialogs compare months, quarters, weeks or days with the previous period and the corresponding period last year, where history exists. Ongoing periods use matching elapsed dates. Differences show the percentage and exact euro amount; arrows and trend colors appear only beyond ±5%. A zero baseline has no percentage, and unmatched leap days or ISO week 53 have no prior-year comparison.
+- Show payments opens the exact saved payments, retaining filters and including all subcategories for a parent total. Balance opens both payment types. Row labels open matching payments without a date range. Returning restores the report selection. Close a detail dialog with its Close action, Escape or a click outside.
+
+### Printing and CSV export
+
+The printer action opens an isolated A4 landscape report; the browser print dialog also supports saving as PDF. The report includes the period, financial view, grouping, filters and applicable cutoff. Sorting, expanded categories, enabled features and open sections follow the displayed tables; collapsed sections are omitted. Long tables repeat headings. Wide views use blocks of at most 12 period columns, repeating the label column and total on each new block. Whole-year daily reports print month by month, with each month split into those blocks as needed.
+
+The download menu offers CSV export to this device or a selected Nextcloud Files folder. The CSV uses the selected period, financial view, grouping, payment filters and recurring forecast. It lists all subcategories in title order, including collapsed rows and sections; it does not follow the on-screen amount sort. Semicolons separate columns, amounts use a decimal comma, and empty payment cells stay blank. Existing Files exports are preserved by adding `-1`, `-2`, and further numbered suffixes to the new filename.
 
 ## Analytics
 

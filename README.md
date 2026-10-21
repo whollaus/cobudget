@@ -13,13 +13,23 @@ It helps you track income, expenses, budgets, receipts and shared areas directly
 
 CoBudget is available in the official [Nextcloud App Store](https://apps.nextcloud.com/apps/cobudget) and remains under active beta development.
 
-- The supported release line is `0.5.x`; see the [changelog](CHANGELOG.md) for the latest changes.
+- The supported release line is `0.6.x`; see the [changelog](CHANGELOG.md) for the latest changes.
 - Nextcloud 33, 34 and 35 are supported.
 - The interface is available in English, German, French and Spanish. Calendar headings follow the interface language; numeric dates and amounts follow your Nextcloud locale.
 - App Store releases are signed and mirrored as installable assets on [GitHub Releases](https://github.com/whollaus/cobudget/releases).
 - Features, data structures and upgrade behavior may still change before `1.0.0`.
 - Backups are strongly recommended before every update, especially for shared areas and restore workflows.
 - Bugs and feature requests are tracked through [GitHub Issues](https://github.com/whollaus/cobudget/issues).
+
+## Personal Talk Notifications
+
+In **Settings → Notifications**, enable **Personal Talk notifications** to receive new payments created by other shared-area members in a private **CoBudget** conversation. The section appears when areas and shared areas are enabled under **Settings → Features**, directly above Budget goals. The Talk option is off by default and independent of the existing Nextcloud bell notifications. Disabling it stops future messages and retains the Talk history.
+
+Nextcloud Talk must be installed and enabled for your account, including permission to create conversations. CoBudget creates the read-only conversation and registers its native bot on opt-in; no app password, external webhook, manual room token or separate bot command is required. The conversation contains only its recipient, who cannot add participants. The adapter targets Talk 23–25 on Nextcloud 33–35.
+
+Messages contain the creator, area, amount, currency and area link. Descriptions and receipts are omitted. Chat history remains in Talk after payments are changed or deleted; Talk/device settings control push notifications. Only newly created shared payments use this channel; settlements, edits, reminders and automatically generated recurring payments are not included.
+
+If you leave/delete the chat or its access settings change, delivery stops. Use **Reconnect personal chat** in CoBudget to create a replacement. A disabled bot must first be re-enabled by an administrator. Delivery failures are logged without financial contents and never prevent saving a payment; messages are not queued or retried. Backups preserve the opt-in but do not export Talk history or conversation tokens; reconnect after moving to another server. Resetting CoBudget disables the integration without deleting Talk history.
 
 ## Screenshots
 
@@ -35,18 +45,22 @@ The screenshots below illustrate the app UI and may differ from the current beta
 
 ## Features
 
+- **Annual overview:** Compare personal finances or individual areas by calendar month, quarter, ISO week or day, including a daily view of the whole year. Group by categories and subcategories, payment partners, or enabled labels and description tags; narrow payments with combined filters. Click amounts for counts, shares, averages and available previous-period/prior-year comparisons, then open the matching saved payments. Reports support recurring forecasts, including stored personal shares of shared series in My finances, collapsible sections, sorting, A4 landscape printing/PDF and CSV download or saving to Nextcloud Files. See the [annual overview details](FEATURES.md#annual-overview) for period boundaries, forecast limits and export behavior.
+
 - Track income and expenses
 - Calculate dashboard month/year totals and payment table subtotals in the browser timezone, matching the displayed payment dates
 - Switch between finances, areas and analytics through a persistent app-style mobile bottom navigation
+- Open Annual overview or Statistics from the shared mobile Analytics entry; start with Annual overview and remember the last mobile report per account in this browser
 - Keep page titles and primary actions visible in a sticky mobile header while scrolling
 - Create and edit income and expenses in a responsive sidebar with mode-specific titles, guarded unsaved changes, support for consecutive desktop entries, and a new-payment action that remains available while reviewing existing payments
 - Review payment change history with changed fields, previous values and new values
 - Organize payments by categories and payment partners, with searchable category and payment-partner numbers, one level of main categories and subcategories, and opt-in advanced personal address, validated contact and bank master-data editing for payment partners
 - Combine area-specific categories with global categories that area owners can hide or show for the entire area
-- Add labels such as important, review, fixed costs, subscriptions, children and tax relevant
+- Add labels such as important, review, fixed costs, subscriptions, children, insurance and tax relevant
 - Add free-form `#tags` directly in the payment note
 - Copy an existing personal or area payment while retaining its area and starting the new payment with today's date
 - Create shared areas for household costs, trips or other shared budgets
+- Choose payment areas in two columns with My finances for up to five areas (at most three rows), and a dropdown from six areas onward
 - Use one-member areas as simple personal groupings without balances or settlements
 - Add the first additional member only while an area has no personal payments, avoiding ambiguous retroactive splits
 - Split shared area payments by configurable member percentages

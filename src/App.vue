@@ -69,6 +69,12 @@
 								<ReceiptTextCheckOutlineIcon :size="20" />
 							</template>
 						</NcAppNavigationItem>
+						<NcAppNavigationItem v-if="hasInsurancePayments" :name="$texts.labels.insurancePayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'insurance'"
+							@click.prevent="navigateTo('/?filter=insurance')">
+							<template #icon>
+								<ShieldCheckOutlineIcon :size="20" />
+							</template>
+						</NcAppNavigationItem>
 					</template>
 				</NcAppNavigationItem>
 
@@ -95,18 +101,23 @@
 					</template>
 				</NcAppNavigationItem>
 
-				<NcAppNavigationItem v-if="$enableBudgetGoals" :name="$texts.budgetGoals.title()"
-					:active="['budgets', 'budget-new', 'budget-edit'].includes($route.name)"
-					@click.prevent="navigateTo('/budgets')">
-					<template #icon>
-						<WalletIcon :size="20" />
-					</template>
+				<NcAppNavigationItem :name="$texts.annual.title()" :active="$route.name === 'annual-overview'"
+					@click.prevent="navigateTo('/annual-overview')">
+					<template #icon><CalendarIcon :size="20" /></template>
 				</NcAppNavigationItem>
 
 				<NcAppNavigationItem :name="$texts.analytics.title()" :active="$route.name === 'analytics'"
 					@click.prevent="navigateTo('/analytics')">
 					<template #icon>
 						<ChartLineIcon :size="20" />
+					</template>
+				</NcAppNavigationItem>
+
+				<NcAppNavigationItem v-if="$enableBudgetGoals" :name="$texts.budgetGoals.title()"
+					:active="['budgets', 'budget-new', 'budget-edit'].includes($route.name)"
+					@click.prevent="navigateTo('/budgets')">
+					<template #icon>
+						<WalletIcon :size="20" />
 					</template>
 				</NcAppNavigationItem>
 
@@ -181,7 +192,7 @@
 				<span class="mobile-bottom-navigation__label">{{ $texts.mobileNavigation.areas() }}</span>
 			</router-link>
 			<router-link
-				:to="{ name: 'analytics' }"
+				:to="mobileReportsRoute"
 				class="mobile-bottom-navigation__item"
 				:class="{ 'mobile-bottom-navigation__item--active': mobileAnalyticsActive }"
 				:aria-current="mobileAnalyticsActive ? 'page' : undefined"
@@ -208,6 +219,7 @@ import { defineAsyncComponent } from 'vue'
 import axios from './services/http'
 import { REMOTE_DATA_CHANGED_EVENT, startDataSync } from './services/dataSync'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
+import { isReportView, mobileReportLocation, readMobileReportView, rememberMobileReportView } from './services/mobileReports'
 import { shouldCloseEntrySidebarForRequest } from './utils/entrySidebarToggle'
 import { hasPersonalEntryListRouteState, hasProjectEntryListRouteState } from './services/entryListRoute'
 import { generateUrl } from '@nextcloud/router'
@@ -226,6 +238,7 @@ import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
 import StarIcon from 'vue-material-design-icons/Star.vue'
 import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
+import ShieldCheckOutlineIcon from 'vue-material-design-icons/ShieldCheckOutline.vue'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
 import CalendarIcon from 'vue-material-design-icons/Calendar.vue'
 import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'
@@ -253,6 +266,7 @@ export default {
 		StarIcon,
 		ClipboardCheckIcon,
 		ReceiptTextCheckOutlineIcon,
+		ShieldCheckOutlineIcon,
 		CalendarSyncIcon,
 		CalendarIcon,
 		TrendingUpIcon,
@@ -272,9 +286,11 @@ export default {
 				fixedCosts: 0,
 				childRelated: 0,
 				subscriptions: 0,
-				taxRelevant: 0
+				taxRelevant: 0,
+				insurance: 0
 			},
 			activeWorkspaceId: readWorkspaceId(),
+			mobileReportView: readMobileReportView(),
 			showWorkspaceMenu: false,
 			entrySidebarReady: false,
 			entrySidebarWideMedia: null,
@@ -317,7 +333,10 @@ export default {
 			return ['projects', 'project-detail', 'project-payments', 'project-settings', 'project-settlements'].includes(this.$route?.name);
 		},
 		mobileAnalyticsActive() {
-			return this.$route?.name === 'analytics';
+			return isReportView(this.$route?.name);
+		},
+		mobileReportsRoute() {
+			return mobileReportLocation(this.$route, this.mobileReportView);
 		},
 		hasIncomes() {
 			return this.$enableIncomes && this.tagCounts.income > 0;
@@ -342,9 +361,19 @@ export default {
 		},
 		hasTaxRelevantPayments() {
 			return this.$enableTaxRelevant && this.tagCounts.taxRelevant > 0;
+		},
+		hasInsurancePayments() {
+			return this.$enableInsurance && this.tagCounts.insurance > 0;
 		}
 	},
 	watch: {
+		'$route.name': {
+			immediate: true,
+			handler(name) {
+				const remembered = rememberMobileReportView(name);
+				if (remembered) this.mobileReportView = remembered;
+			}
+		},
 		async $route() {
 			this.showWorkspaceMenu = false;
 			await this.syncEntrySidebarForRoute();
@@ -393,7 +422,8 @@ export default {
 				fixedCosts: parseInt(counts.fixedCosts || 0, 10),
 				childRelated: parseInt(counts.childRelated || 0, 10),
 				subscriptions: parseInt(counts.subscriptions || 0, 10),
-				taxRelevant: parseInt(counts.taxRelevant || 0, 10)
+				taxRelevant: parseInt(counts.taxRelevant || 0, 10),
+				insurance: parseInt(counts.insurance || 0, 10)
 			};
 		},
 		async fetchNavigationSummary() {

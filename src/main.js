@@ -19,6 +19,7 @@ const ProjectSettingsView = () => import(/* webpackChunkName: "cobudget-view-pro
 const ProjectSettlementsView = () => import(/* webpackChunkName: "cobudget-view-project-settlements" */ './views/ProjectSettlementsView.vue')
 const BudgetGoalsView = () => import(/* webpackChunkName: "cobudget-view-budgets" */ './views/BudgetGoalsView.vue')
 const BudgetGoalFormView = () => import(/* webpackChunkName: "cobudget-view-budget-form" */ './views/BudgetGoalFormView.vue')
+const AnnualOverviewView = () => import(/* webpackChunkName: "cobudget-view-annual-overview" */ './views/AnnualOverviewView.vue')
 const AnalyticsView = () => import(/* webpackChunkName: "cobudget-view-analytics" */ './views/AnalyticsView.vue')
 const SettingsView = () => import(/* webpackChunkName: "cobudget-view-settings" */ './views/SettingsView.vue')
 
@@ -33,6 +34,7 @@ const routes = [
 	{ path: '/budgets', name: 'budgets', component: BudgetGoalsView },
 	{ path: '/budgets/new', name: 'budget-new', component: BudgetGoalFormView },
 	{ path: '/budgets/:id', name: 'budget-edit', component: BudgetGoalFormView, props: true },
+	{ path: '/annual-overview', name: 'annual-overview', component: AnnualOverviewView },
 	{ path: '/analytics', name: 'analytics', component: AnalyticsView },
 	{ path: '/settings', name: 'settings', component: SettingsView },
 	{ path: '/workspaces', redirect: '/settings' }
@@ -171,6 +173,7 @@ async function init() {
 		app.config.globalProperties.$enableImportantPayments = res.data.enable_important_payments ?? true
 		app.config.globalProperties.$enableReviewPayments = res.data.enable_review_payments ?? true
 		app.config.globalProperties.$enableTaxRelevant = res.data.enable_tax_relevant ?? true
+		app.config.globalProperties.$enableInsurance = res.data.enable_insurance ?? true
 		app.config.globalProperties.$enableFuturePayments = res.data.enable_future_payments ?? true
 		app.config.globalProperties.$enableBudgetGoals = res.data.enable_budget_goals ?? true
 		app.config.globalProperties.$enableIncomes = res.data.enable_incomes ?? true
@@ -214,6 +217,7 @@ async function init() {
 		app.config.globalProperties.$enableImportantPayments = true
 		app.config.globalProperties.$enableReviewPayments = true
 		app.config.globalProperties.$enableTaxRelevant = true
+		app.config.globalProperties.$enableInsurance = true
 		app.config.globalProperties.$enableFuturePayments = true
 		app.config.globalProperties.$enableBudgetGoals = true
 		app.config.globalProperties.$enableIncomes = true

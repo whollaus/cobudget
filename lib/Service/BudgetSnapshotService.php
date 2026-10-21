@@ -17,6 +17,7 @@ class BudgetSnapshotService {
 		'childRelated' => 'is_child_related',
 		'subscriptions' => 'is_subscription',
 		'taxRelevant' => 'is_tax_relevant',
+		'insurance' => 'is_insurance',
 	];
 
 	public function __construct(
@@ -237,7 +238,8 @@ class BudgetSnapshotService {
 			'e.is_child_related',
 			'e.is_important',
 			'e.needs_review',
-			'e.is_tax_relevant'
+			'e.is_tax_relevant',
+			'e.is_insurance'
 		)
 			->from('cobudget_entries', 'e')
 			->where($qb->expr()->eq('e.type', $qb->createNamedParameter('expense')))

@@ -28,6 +28,7 @@ class AnalyticsController extends Controller {
 		'childRelated' => 'is_child_related',
 		'subscriptions' => 'is_subscription',
 		'taxRelevant' => 'is_tax_relevant',
+		'insurance' => 'is_insurance',
 	];
 
 	private const TAG_LABELS = [
@@ -37,6 +38,7 @@ class AnalyticsController extends Controller {
 		'childRelated' => 'Children',
 		'subscriptions' => 'Subscription',
 		'taxRelevant' => 'Tax-relevant',
+		'insurance' => 'Insurance',
 	];
 
 	private const ATTACHMENT_LOOKUP_CHUNK_SIZE = 500;
@@ -178,6 +180,7 @@ class AnalyticsController extends Controller {
 			'e.is_important',
 			'e.needs_review',
 			'e.is_tax_relevant',
+			'e.is_insurance',
 			'c.name AS category_name',
 			'c.parent_category_id AS category_parent_id',
 			'parent_category.name AS category_parent_name',
@@ -391,6 +394,7 @@ class AnalyticsController extends Controller {
 			'e.is_important',
 			'e.needs_review',
 			'e.is_tax_relevant',
+			'e.is_insurance',
 			'e.recurrence_interval',
 			'e.recurrence_next_date',
 			'e.reminder_date',

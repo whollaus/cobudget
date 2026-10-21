@@ -241,7 +241,8 @@ export default {
 				this.$enableFixedCosts ? { value: 'fixedCosts', label: this.$texts.labels.fixedCosts() } : null,
 				this.$enableChildRelated ? { value: 'childRelated', label: this.$texts.labels.children() } : null,
 				this.$enableSubscriptions ? { value: 'subscriptions', label: this.$texts.labels.subscription() } : null,
-				this.$enableTaxRelevant ? { value: 'taxRelevant', label: this.$texts.labels.taxRelevant() } : null
+				this.$enableTaxRelevant ? { value: 'taxRelevant', label: this.$texts.labels.taxRelevant() } : null,
+				this.$enableInsurance ? { value: 'insurance', label: this.$texts.labels.insurance() } : null
 			].filter(Boolean)
 		},
 		canSave() {

@@ -431,6 +431,7 @@ final class EntryProjectionService {
 			'is_important' => $qb->createNamedParameter($this->boolValue($source['is_important'] ?? false), \PDO::PARAM_BOOL),
 			'needs_review' => $qb->createNamedParameter($this->boolValue($source['needs_review'] ?? false), \PDO::PARAM_BOOL),
 			'is_tax_relevant' => $qb->createNamedParameter($this->boolValue($source['is_tax_relevant'] ?? false), \PDO::PARAM_BOOL),
+			'is_insurance' => $qb->createNamedParameter($this->boolValue($source['is_insurance'] ?? false), \PDO::PARAM_BOOL),
 			'reminder_date' => $nullableInt(null),
 			'reminder_notified' => $qb->createNamedParameter(false, \PDO::PARAM_BOOL),
 			'reminder_text' => $nullableString(null),

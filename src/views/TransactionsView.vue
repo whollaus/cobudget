@@ -8,8 +8,8 @@
 					<NcButton
 						variant="tertiary"
 						class="cobudget-header-back-button"
-						:aria-label="$texts.payments.backToFinances()"
-						:title="$texts.payments.backToFinances()"
+						:aria-label="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.payments.backToFinances())"
+						:title="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.payments.backToFinances())"
 						@click="goBackToFinances">
 						<template #icon>
 							<ArrowLeftIcon :size="20" />
@@ -380,6 +380,25 @@
 					</div>
 				</div>
 			</div>
+			<div class="stat-card insurance-card" v-if="showInsuranceCard">
+				<div class="stat-header">
+					<div class="stat-title-group">
+						<div class="stat-icon"><ShieldCheckOutlineIcon :size="20" fillColor="var(--color-primary-element)" /></div>
+						<span class="stat-label">{{ $texts.labels.insurance() }}</span>
+					</div>
+					<span class="stat-value" :class="signedMetricClass(totalInsurance)">{{ formatSignedMetric(totalInsurance) }}</span>
+				</div>
+				<div class="stat-sub-info">
+					<div class="stat-sub-line">
+						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
+						<span>{{ formatSignedMetric(averageInsurance) }}</span>
+					</div>
+					<div class="stat-sub-line">
+						<span>{{ $texts.dashboard.currentMonth() }}</span>
+						<span>{{ formatSignedMetric(currentMonthInsurance) }}</span>
+					</div>
+				</div>
+			</div>
 
 			<div class="stat-card future-card" v-if="showFutureCard">
 				<div class="stat-header">
@@ -422,6 +441,7 @@
 				:enable-important-payments="$enableImportantPayments"
 				:enable-review-payments="$enableReviewPayments"
 				:enable-tax-relevant="$enableTaxRelevant"
+				:enable-insurance="$enableInsurance"
 				:selected-entry-id="selectedEntryId"
 				:amount-resolver="getEntryPersonalAmount"
 				:project-name-resolver="getProjectName"
@@ -435,6 +455,7 @@
 				@delete="deleteEntry">
 					<template #pagination>
 						<div
+							v-if="!isPaymentsView || totalPages > 1"
 							class="pagination-footer"
 							:class="{
 								'pagination-footer--single': pagination.total <= pagination.limit,
@@ -500,6 +521,7 @@
 </template>
 
 <script>
+import { annualReturnRoute } from '../services/annualOverview'
 import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
@@ -515,6 +537,7 @@ import StarIcon from 'vue-material-design-icons/Star.vue'
 import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
 import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
+import ShieldCheckOutlineIcon from 'vue-material-design-icons/ShieldCheckOutline.vue'
 import CalendarIcon from 'vue-material-design-icons/Calendar.vue'
 import CalendarMonthIcon from 'vue-material-design-icons/CalendarMonth.vue'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
@@ -535,6 +558,7 @@ import MobileFinanceSummary from '../components/MobileFinanceSummary.vue'
 import { normalizeEntryPageSize, shouldIgnorePaginationKeydown } from '../services/pagination'
 import {
 	createPersonalEntryFilters,
+	entryNarrowingQueryParams,
 	entryOffsetFromPage,
 	entryPageFromOffset,
 	parsePersonalEntryListRouteQuery,
@@ -570,6 +594,7 @@ const emptyMetricGroup = () => ({
 	fixedCosts: 0,
 	childRelated: 0,
 	taxRelevant: 0,
+	insurance: 0,
 })
 
 const emptyDashboardMetrics = () => ({
@@ -590,6 +615,7 @@ const emptyTagCounts = () => ({
 	childRelated: 0,
 	subscriptions: 0,
 	taxRelevant: 0,
+	insurance: 0,
 })
 
 const normalizeMetricGroup = group => ({
@@ -617,6 +643,7 @@ const normalizeTagCounts = counts => {
 		childRelated: parseInt(values.childRelated || 0, 10),
 		subscriptions: parseInt(values.subscriptions || 0, 10),
 		taxRelevant: parseInt(values.taxRelevant || 0, 10),
+		insurance: parseInt(values.insurance || 0, 10),
 	}
 }
 
@@ -648,6 +675,7 @@ export default {
 		ClipboardCheckIcon,
 		AccountChildIcon,
 		ReceiptTextCheckOutlineIcon,
+		ShieldCheckOutlineIcon,
 		CalendarIcon,
 		CalendarMonthIcon,
 		CalendarSyncIcon,
@@ -727,7 +755,13 @@ export default {
 				   this.filters.timeRange !== 'all' ||
 				   this.filters.tags !== 'all' ||
 				   this.filters.hasReminder !== 'all' ||
-				   this.filters.hasAttachment !== 'all';
+				   this.filters.hasAttachment !== 'all' ||
+				   Boolean(this.filters.narrowCategories) ||
+				   Boolean(this.filters.narrowPartners) ||
+				   Boolean(this.filters.narrowLabels) ||
+				   Boolean(this.filters.narrowHashtags) ||
+				   Boolean(this.filters.amountMin) ||
+				   Boolean(this.filters.amountMax);
 		},
 		dashboardTotalMetrics() {
 			return normalizeMetricGroup(this.dashboardMetrics.total)
@@ -774,6 +808,9 @@ export default {
 		totalTaxRelevant() {
 			return this.dashboardTotalMetrics.taxRelevant
 		},
+		totalInsurance() {
+			return this.dashboardTotalMetrics.insurance
+		},
 		totalFutureIncome() {
 			return this.dashboardFutureMetrics.income
 		},
@@ -816,6 +853,9 @@ export default {
 		},
 		currentMonthTaxRelevant() {
 			return this.dashboardCurrentMonthMetrics.taxRelevant
+		},
+		currentMonthInsurance() {
+			return this.dashboardCurrentMonthMetrics.insurance
 		},
 		currentYearIncome() {
 			return this.dashboardCurrentYearMetrics.income
@@ -1003,6 +1043,17 @@ export default {
 					details: monthlyDetails(this.averageTaxRelevant, this.currentMonthTaxRelevant, this.formatSignedMetric, this.signedMetricClass),
 				})
 			}
+			if (this.showInsuranceCard) {
+				metrics.push({
+					key: 'insurance',
+					icon: ShieldCheckOutlineIcon,
+					iconColor: 'var(--cobudget-primary, var(--color-primary-element))',
+					label: this.$texts.labels.insurance(),
+					value: this.formatSignedMetric(this.totalInsurance),
+					valueClass: this.signedMetricClass(this.totalInsurance),
+					details: monthlyDetails(this.averageInsurance, this.currentMonthInsurance, this.formatSignedMetric, this.signedMetricClass),
+				})
+			}
 
 			if (this.showFutureCard) {
 				metrics.push({
@@ -1061,6 +1112,9 @@ export default {
 		averageTaxRelevant() {
 			return this.averageStats.taxRelevant;
 		},
+		averageInsurance() {
+			return this.averageStats.insurance;
+		},
 		showIncomeCard() {
 			return this.$enableIncomes && this.tagCounts.income > 0;
 		},
@@ -1084,6 +1138,9 @@ export default {
 		},
 		showTaxRelevantCard() {
 			return this.$enableTaxRelevant && this.tagCounts.taxRelevant > 0;
+		},
+		showInsuranceCard() {
+			return this.$enableInsurance && this.tagCounts.insurance > 0;
 		},
 		showBudgetCard() {
 			return this.$enableBudgetGoals && this.budgetGoals.length > 0;
@@ -1117,6 +1174,7 @@ export default {
 			if (this.filters.tags === 'subscription') return this.$texts.labels.subscriptionPayments();
 			if (this.filters.tags === 'taxRelevant' && this.filters.hasAttachment === 'false') return this.$texts.labels.taxRelevantWithoutReceipt();
 			if (this.filters.tags === 'taxRelevant') return this.$texts.labels.taxRelevantPayments();
+			if (this.filters.tags === 'insurance') return this.$texts.labels.insurancePayments();
 			if (this.filters.tags === 'fixedCost') return this.$texts.labels.fixedCostPayments();
 			if (this.filters.tags === 'childRelated') return this.$texts.labels.childPayments();
 			if (this.filters.tags === 'important') return this.$texts.labels.importantPayments();
@@ -1166,6 +1224,7 @@ export default {
 		entries: 'notifySelectedEntryVisibility'
 	},
 	methods: {
+		annualReturnRoute,
 		currentPeriodKey(date) {
 			const year = String(date.getFullYear()).padStart(4, '0')
 			const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -1298,6 +1357,7 @@ export default {
 			this.fetchData()
 		},
 		updateDateRangeFilters() {
+			if (this.filters.timeRange === 'custom') return
 			const now = new Date();
 			if (this.filters.timeRange === 'currentMonth') {
 				const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -1339,12 +1399,14 @@ export default {
 			let isImportant = null;
 			let needsReview = null;
 			let isTaxRelevant = null;
+			let isInsurance = null;
 			let hasReminder = this.filters.hasReminder === 'true' ? true : null;
 			let hasAttachment = null;
 			if (this.filters.hasAttachment === 'true') hasAttachment = true;
 			if (this.filters.hasAttachment === 'false') hasAttachment = false;
 			if (this.filters.tags === 'subscription') isSubscription = true;
 			if (this.filters.tags === 'taxRelevant') isTaxRelevant = true;
+			if (this.filters.tags === 'insurance') isInsurance = true;
 			if (this.filters.tags === 'fixedCost') isFixedCost = true;
 			if (this.filters.tags === 'childRelated') isChildRelated = true;
 			if (this.filters.tags === 'important') isImportant = true;
@@ -1357,6 +1419,8 @@ export default {
 				categoryId: this.filters.categoryId,
 				projectId: this.filters.projectId,
 				paymentPartnerId: this.filters.paymentPartnerId,
+				includeFuturePayments: this.filters.includeFuturePayments,
+				includeSubcategories: this.filters.includeSubcategories,
 				dateFrom: this.filters.dateFrom,
 				dateTo: this.filters.dateTo,
 				sortBy: this.sortBy,
@@ -1368,10 +1432,12 @@ export default {
 				isImportant: isImportant,
 				needsReview: needsReview,
 				isTaxRelevant: isTaxRelevant,
+				isInsurance: isInsurance,
 				hasReminder: hasReminder,
 				hasAttachment: hasAttachment,
 				hashtagId: this.filters.hashtagId,
-				isFuturePayments: this.filters.tags === 'future'
+				isFuturePayments: this.filters.tags === 'future',
+				...entryNarrowingQueryParams(this.filters),
 			};
 
 			if (includePagination) {
@@ -1474,7 +1540,7 @@ export default {
 			this.replaceEntryListRoute({ page: 1 })
 		},
 		resetFilters() {
-			this.onFiltersUpdate(createPersonalEntryFilters())
+			this.onFiltersUpdate({ ...createPersonalEntryFilters(), annualReturn: this.filters.annualReturn })
 		},
 		toggleSort(col) {
 			if (this.sortBy === col) {
@@ -1547,6 +1613,11 @@ export default {
 				.then(() => this.$nextTick(this.scrollPageToTop))
 		},
 		goBackToFinances() {
+			const annual = annualReturnRoute(this.$route.query.annualReturn)
+			if (annual) {
+				this.$router.push(annual)
+				return
+			}
 			const query = serializePersonalEntryListRouteQuery({
 				filters: this.filters,
 				sortBy: this.sortBy,

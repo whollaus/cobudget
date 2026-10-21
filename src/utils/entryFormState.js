@@ -36,6 +36,7 @@ export const snapshotEntryForm = (entry = {}) => JSON.stringify({
 	isImportant: Boolean(entry.isImportant),
 	needsReview: Boolean(entry.needsReview),
 	isTaxRelevant: Boolean(entry.isTaxRelevant),
+	isInsurance: Boolean(entry.isInsurance),
 	hasReminder: Boolean(entry.hasReminder),
 	reminderDate: normalizedDateTime(entry.reminderDate),
 	reminderText: normalizedText(entry.reminderText),

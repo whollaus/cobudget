@@ -136,50 +136,46 @@
 				</div>
 
 				<div class="settings-column">
-					<div class="settings-mini-section settings-areas-section">
-						<h4>{{ $texts.settings.areas() }}</h4>
+					<div v-if="enableProjects && enableSharedProjects" class="settings-mini-section settings-notification-options">
+						<h4>{{ $texts.settings.notifications() }}</h4>
+						<div class="setting-toggle-row" style="margin-bottom: 12px;">
+							<div>
+								<label for="cobudget-talk-notifications" style="margin-bottom: 4px; display: block;">{{ $texts.settings.personalTalkNotifications() }}</label>
+								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.personalTalkDescription() }}</p>
+								<p v-if="!talkLoaded" class="setting-desc">{{ $texts.common.loading() }}</p>
+								<p v-else-if="!talk.available" class="setting-desc">{{ $texts.settings.talkUnavailable() }}</p>
+								<template v-else>
+									<a v-if="talk.ready && talk.url" :href="talk.url">{{ $texts.settings.openPersonalTalk() }}</a>
+									<template v-if="talk.enabled && !talk.ready">
+										<p class="setting-desc">{{ $texts.settings.talkReconnectDescription() }}</p>
+										<button type="button" :disabled="talkBusy" @click="saveTalkSettings(true)">{{ $texts.settings.reconnectPersonalTalk() }}</button>
+									</template>
+								</template>
+							</div>
+							<label class="toggle-switch">
+								<input id="cobudget-talk-notifications" type="checkbox" :checked="talk.enabled" :disabled="talkBusy || !talkLoaded || (!talk.available && !talk.enabled)" @change="saveTalkSettings($event.target.checked)">
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
 						<div class="setting-toggle-row">
 							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.enableAreas() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.enableAreasDescription() }}</p>
+								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.newPaymentsInSharedAreas() }}</label>
+								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.newPaymentsInSharedAreasDescription() }}</p>
 							</div>
 							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableProjects" @change="saveGeneralSettings">
+								<input type="checkbox" v-model="notifyProjectEntries" @change="saveGeneralSettings">
 								<span class="toggle-slider"></span>
 							</label>
 						</div>
-						<div v-if="enableProjects" class="setting-toggle-row" style="margin-top: 12px;">
+						<div class="setting-toggle-row" style="margin-top: 12px;">
 							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.enableSharedAreas() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.enableSharedAreasDescription() }}</p>
+								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.settledAreas() }}</label>
+								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.settledAreasDescription() }}</p>
 							</div>
 							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableSharedProjects" @change="saveGeneralSettings">
+								<input type="checkbox" v-model="notifyProjectSettlements" @change="saveGeneralSettings">
 								<span class="toggle-slider"></span>
 							</label>
-						</div>
-						<div v-if="enableProjects && enableSharedProjects" class="settings-notification-options">
-							<h5>{{ $texts.settings.notifications() }}</h5>
-							<div class="setting-toggle-row">
-								<div>
-									<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.newPaymentsInSharedAreas() }}</label>
-									<p class="setting-desc" style="margin: 0;">{{ $texts.settings.newPaymentsInSharedAreasDescription() }}</p>
-								</div>
-								<label class="toggle-switch">
-									<input type="checkbox" v-model="notifyProjectEntries" @change="saveGeneralSettings">
-									<span class="toggle-slider"></span>
-								</label>
-							</div>
-							<div class="setting-toggle-row" style="margin-top: 12px;">
-								<div>
-									<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.settledAreas() }}</label>
-									<p class="setting-desc" style="margin: 0;">{{ $texts.settings.settledAreasDescription() }}</p>
-								</div>
-								<label class="toggle-switch">
-									<input type="checkbox" v-model="notifyProjectSettlements" @change="saveGeneralSettings">
-									<span class="toggle-slider"></span>
-								</label>
-							</div>
 						</div>
 					</div>
 
@@ -248,6 +244,16 @@
 					</div>
 					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
 						<div>
+							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.insurance() }}</label>
+							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.insuranceDescription() }}</p>
+						</div>
+						<label class="toggle-switch">
+							<input type="checkbox" v-model="enableInsurance" @change="saveGeneralSettings">
+							<span class="toggle-slider"></span>
+						</label>
+					</div>
+					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
+						<div>
 							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.incomes() }}</label>
 							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.incomesDescription() }}</p>
 						</div>
@@ -263,6 +269,26 @@
 							</div>
 							<label class="toggle-switch">
 								<input type="checkbox" v-model="enableFuturePayments" @change="saveGeneralSettings">
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<div class="setting-toggle-row" style="margin-top: 12px;">
+							<div>
+								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.enableAreas() }}</label>
+								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.enableAreasDescription() }}</p>
+							</div>
+							<label class="toggle-switch">
+								<input type="checkbox" v-model="enableProjects" @change="saveGeneralSettings">
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<div v-if="enableProjects" class="setting-toggle-row" style="margin-top: 12px;">
+							<div>
+								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.enableSharedAreas() }}</label>
+								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.enableSharedAreasDescription() }}</p>
+							</div>
+							<label class="toggle-switch">
+								<input type="checkbox" v-model="enableSharedProjects" @change="saveGeneralSettings">
 								<span class="toggle-slider"></span>
 							</label>
 						</div>
@@ -696,6 +722,7 @@ export default {
 			enableImportantPayments: true,
 			enableReviewPayments: true,
 			enableTaxRelevant: true,
+			enableInsurance: true,
 			enableFuturePayments: true,
 			enableBudgetGoals: true,
 			enableAdvancedMasterData: false,
@@ -703,6 +730,9 @@ export default {
 			enableProjects: true,
 			enableSharedProjects: true,
 			notifyProjectEntries: true,
+			talk: { available: false, enabled: false, ready: false, url: null },
+			talkBusy: false,
+			talkLoaded: false,
 			notifyProjectSettlements: true,
 			enableWorkspaces: false,
 			showWorkspaceSwitcher: true,
@@ -830,8 +860,31 @@ export default {
 	},
 	mounted() {
 		this.fetchData()
+		this.fetchTalkSettings()
 	},
 	methods: {
+		async fetchTalkSettings() {
+			try {
+				const response = await axios.get(generateUrl('/apps/cobudget/api/settings/talk'), { skipWorkspaceHeader: true });
+				this.talk = response.data;
+			} catch (error) {
+				this.showError(this.$texts.settings.talkSettingsError());
+			} finally {
+				this.talkLoaded = true;
+			}
+		},
+		async saveTalkSettings(enabled) {
+			this.talkBusy = true;
+			try {
+				const response = await axios.post(generateUrl('/apps/cobudget/api/settings/talk'), { enabled }, { skipWorkspaceHeader: true });
+				this.talk = response.data;
+			} catch (error) {
+				this.showError(this.extractError(error, this.$texts.settings.talkSettingsError()));
+				await this.fetchTalkSettings();
+			} finally {
+				this.talkBusy = false;
+			}
+		},
 		openConfirm({
 			title,
 			message,
@@ -1227,6 +1280,7 @@ export default {
 				this.enableImportantPayments = settingsRes.data.enable_important_payments ?? true;
 				this.enableReviewPayments = settingsRes.data.enable_review_payments ?? true;
 				this.enableTaxRelevant = settingsRes.data.enable_tax_relevant ?? true;
+				this.enableInsurance = settingsRes.data.enable_insurance ?? true;
 				this.enableFuturePayments = settingsRes.data.enable_future_payments ?? true;
 				this.enableBudgetGoals = settingsRes.data.enable_budget_goals ?? true;
 				this.enableAdvancedMasterData = settingsRes.data.enable_advanced_master_data ?? false;
@@ -1549,6 +1603,7 @@ export default {
 					enable_important_payments: this.enableImportantPayments,
 					enable_review_payments: this.enableReviewPayments,
 					enable_tax_relevant: this.enableTaxRelevant,
+					enable_insurance: this.enableInsurance,
 					enable_future_payments: this.enableFuturePayments,
 					enable_budget_goals: this.enableBudgetGoals,
 					enable_advanced_master_data: this.enableAdvancedMasterData,
@@ -1577,6 +1632,8 @@ export default {
 
 
 				if (!this.enableSubscriptions && this.$route && this.$route.query.filter === 'subscription') {
+					window.location.hash = '#/';
+				} else if (!this.enableInsurance && this.$route && this.$route.query.filter === 'insurance') {
 					window.location.hash = '#/';
 				} else if (!this.enableTaxRelevant && this.$route && this.$route.query.filter === 'taxRelevant') {
 					window.location.hash = '#/';
@@ -1658,7 +1715,7 @@ export default {
 	border-top: 1px solid var(--cobudget-border, #ddd);
 }
 
-.settings-areas-section {
+.settings-column > .settings-mini-section:first-child {
 	margin-top: 0;
 	padding-top: 0;
 	border-top: 0;
@@ -1668,18 +1725,6 @@ export default {
 	font-size: var(--cobudget-font-md);
 	font-weight: 700;
 	margin: 0 0 14px 0;
-}
-
-.settings-notification-options {
-	margin-top: 18px;
-	padding-top: 14px;
-	border-top: 1px solid var(--cobudget-border, #ddd);
-}
-
-.settings-notification-options h5 {
-	font-size: var(--cobudget-font-base);
-	font-weight: 700;
-	margin: 0 0 12px 0;
 }
 
 .backup-settings-grid {

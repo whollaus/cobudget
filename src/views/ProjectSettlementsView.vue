@@ -95,6 +95,7 @@
 									:enable-important-payments="$enableImportantPayments"
 									:enable-review-payments="$enableReviewPayments"
 									:enable-tax-relevant="$enableTaxRelevant"
+									:enable-insurance="$enableInsurance"
 									:actions-enabled="false"
 									:archived="false"
 									:group-by-date="false"

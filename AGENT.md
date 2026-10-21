@@ -1,3 +1,7 @@
+---
+uid: bff3f13b-fc81-42a4-97eb-9d6be7193ccb
+modified: 2026-10-18T18:22:03+02:00
+---
 # CoBudget Agent Notes
 
 ## App

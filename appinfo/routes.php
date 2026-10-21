@@ -21,6 +21,8 @@ return [
 		['name' => 'entry#downloadAttachment', 'url' => '/api/entries/{id}/attachments/{attachmentId}/download', 'verb' => 'GET'],
 		['name' => 'entry#destroyAttachment', 'url' => '/api/entries/{id}/attachments/{attachmentId}', 'verb' => 'DELETE'],
 
+		['name' => 'entry#annualOverview', 'url' => '/api/annual-overview', 'verb' => 'GET'],
+
 		// API routes for Analytics
 		['name' => 'analytics#summary', 'url' => '/api/analytics/summary', 'verb' => 'GET'],
 
@@ -100,6 +102,8 @@ return [
 		['name' => 'payment_partner#destroy', 'url' => '/api/payment-partners/{id}', 'verb' => 'DELETE'],
 
 		// API routes for Users and Settings
+		['name' => 'talk#state', 'url' => '/api/settings/talk', 'verb' => 'GET'],
+		['name' => 'talk#update', 'url' => '/api/settings/talk', 'verb' => 'POST'],
 		['name' => 'user#search', 'url' => '/api/users/search', 'verb' => 'GET'],
 		['name' => 'user#getSettings', 'url' => '/api/settings', 'verb' => 'GET'],
 		['name' => 'user#saveSettings', 'url' => '/api/settings', 'verb' => 'POST'],

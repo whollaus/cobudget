@@ -71,6 +71,12 @@ Filtered payment totals and date-group summaries are streamed from the database 
 
 Each Nextcloud user can occur only once in an area. The `0.2.0` install schema contains a database-level unique index on `(project_id, user_id)` that protects concurrent member-add requests.
 
+## Optional Talk Delivery
+
+Personal Talk delivery is opt-in per authenticated account. Setup endpoints never accept another user ID or an arbitrary destination token. The native Talk adapter creates a private, unlisted, read-only conversation with one regular user participant and the CoBudget bot. Before every send it checks the room ownership marker, visibility, federation/SIP settings, all attendees (including dormant guests) and bot bindings. Talk's account/group restrictions are respected. Missing or changed destinations are not recreated during payment creation.
+
+Only active shared-area members other than the creator receive messages. Talk and bell notification preferences are independent. Descriptions and receipts are excluded; user-controlled names are escaped to avoid chat mentions/Markdown injection. No external webhook or user app password is used. The app-owned bot has no receive/webhook feature. Talk messages are separate retained copies; turning off notifications, resetting CoBudget or deleting a payment does not remove existing Talk history. Transport failures do not roll back financial writes and logs omit payment contents.
+
 ## Current Status
 
 The App Store publication does not imply a completed independent security audit. CoBudget is not yet recommended as the only system of record for critical financial data; use regular backups and keep Nextcloud and CoBudget updated.

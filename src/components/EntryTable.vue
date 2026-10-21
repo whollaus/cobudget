@@ -86,6 +86,7 @@
 							:enable-important-payments="enableImportantPayments"
 							:enable-review-payments="enableReviewPayments"
 							:enable-tax-relevant="enableTaxRelevant"
+							:enable-insurance="enableInsurance"
 							:show-project-chip="showProjectChip(row.entry)"
 							:project-name="projectName(row.entry.project_id)"
 							:project-style="projectStyle(row.entry.project_id)"
@@ -210,6 +211,10 @@ export default {
 			default: true
 		},
 		enableTaxRelevant: {
+			type: Boolean,
+			default: true
+		},
+		enableInsurance: {
 			type: Boolean,
 			default: true
 		},

@@ -24,6 +24,45 @@ const catalog = JSON.parse(read('l10n/de.json')).translations
 const frenchCatalog = JSON.parse(read('l10n/fr.json')).translations
 const spanishCatalog = JSON.parse(read('l10n/es.json')).translations
 
+// Validate the new annual table's actual translation helper references, not only catalog keys.
+const annualTextHelpers = new Set()
+for (const file of ['src/views/AnnualOverviewView.vue', 'src/components/AnnualOverviewTable.vue', 'src/components/AnnualOverviewDetails.vue', 'src/components/AnnualOverviewFilters.vue', 'src/components/AnnualComparison.vue', 'src/components/MobileReportSwitch.vue', 'src/components/TableFilters.vue']) {
+	for (const [, section, key] of read(file).matchAll(/\$texts\.(\w+)\.(\w+)\(/g)) {
+		assert.equal(typeof texts[section]?.[key], 'function', `Missing text helper ${section}.${key} in ${file}`)
+		if (file !== 'src/components/TableFilters.vue' || section === 'annual') annualTextHelpers.add(`${section}.${key}`)
+	}
+}
+annualTextHelpers.add('annual.back')
+for (const [language, translations, incomeHeading] of [
+	['en', {}, 'Income payments'], ['de', catalog, 'Einnahmen'],
+	['fr', frenchCatalog, 'Revenus'], ['es', spanishCatalog, 'Ingresos'],
+]) {
+	setLanguage(language)
+	setLocale('de_AT')
+	unregister('cobudget')
+	register('cobudget', translations)
+	for (const helperPath of annualTextHelpers) {
+		const [section, key] = helperPath.split('.')
+		const helper = texts[section][key]
+		const sourceText = helper.toString().match(/tx\('([^']+)'/)?.[1]
+		assert.ok(sourceText, `${helperPath}: expected a translation key`)
+		if (language !== 'en') assert.ok(Object.hasOwn(translations, sourceText), `${language}: missing annual overview translation for ${helperPath}`)
+		const values = { label: 'Test category', date: 'Test category', period: 'Test month', amount: '123,45 €', number: 'Test category' }
+		const expected = (translations[sourceText] ?? sourceText).replace(/\{(\w+)\}/g, (_, name) => values[name])
+		assert.equal(helper(values.label, values.period, values.amount), expected, `${language}: ${helperPath} uses its translation, including placeholders`)
+	}
+	assert.equal(texts.annual.income(), incomeHeading, `${language}: annual income heading refers to the whole group`)
+	assert.ok(texts.annual.showPayments('Home & family', 'October', '123 €').includes('Home & family'), 'Payment labels must not double-escape user-provided names')
+	for (let month = 0; month < 12; month++) {
+		for (const length of ['long', 'short']) {
+			const date = new Date(2026, month, 1)
+			assert.equal(formatCalendarLabel(date, { month: length }), new Intl.DateTimeFormat(language, { month: length }).format(date), `${language}: month ${month + 1} in the table and print report`)
+		}
+	}
+	const date = new Date(2026, 9, 18)
+	assert.equal(formatCalendarLabel(date, { dateStyle: 'medium' }), new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(date), `${language}: print cutoff date`)
+}
+
 // Run the actual Nextcloud translation library, including fallback, plural and interpolation paths.
 setLanguage('en')
 unregister('cobudget')

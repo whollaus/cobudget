@@ -275,6 +275,13 @@ return [
 
 			[$controller, $method] = explode('#', $route['name'], 2);
 			$body = $t->methodBody('lib/Controller/' . $controllerClassName($controller) . 'Controller.php', $method);
+			if ($controller === 'talk') {
+				$t->assertContains('$this->userSession->getUser()', $body, 'Personal Talk settings use only the authenticated account');
+				$t->assertContains('$user === null', $body, 'Personal Talk settings reject unauthenticated requests');
+				$t->assertContains('401', $body, 'Personal Talk settings return unauthorized');
+				$t->assertFalse(str_contains($body, 'workspace'), 'Personal Talk settings are independent of workspace selection');
+				continue;
+			}
 			$t->assertContains('authErrorResponse()', $body, 'User-data route should check auth/workspace errors: ' . $route['name']);
 			$t->assertTrue(
 				strpos($body, "['error' =>") !== false || strpos($body, 'errorResponse(') !== false || strpos($body, 'loggedErrorResponse(') !== false,
@@ -2058,7 +2065,7 @@ return [
 			$entryListPayload = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryListPayload');
 			$t->assertContains('$projectShareBasisPoints === null', $entryListPayload, 'Entry list payload should resolve current-user project shares when not preloaded');
 			$t->assertContains('$this->fetchEntryRows($workspaceId', $entryListPayload, 'Entry list payload should fetch table rows through the row helper');
-			$t->assertContains('$projectShareBasisPoints);', $entryListPayload, 'Entry list payload should pass current-user shares to table rows');
+			$t->assertContains('$projectShareBasisPoints, $isInsurance);', $entryListPayload, 'Entry list payload should pass current-user shares to table rows');
 
 			$entryRows = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryRows');
 			$t->assertContains('entryPersonalAmountCents($entry, $projectShareBasisPoints)', $entryRows, 'Entry table rows should expose personal amount using split rules');

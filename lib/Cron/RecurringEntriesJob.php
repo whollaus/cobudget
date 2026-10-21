@@ -103,6 +103,7 @@ class RecurringEntriesJob extends TimedJob {
 						'is_important' => $insertQb->createNamedParameter($this->dbBool($entry['is_important'] ?? false), \PDO::PARAM_BOOL),
 						'needs_review' => $insertQb->createNamedParameter($this->dbBool($entry['needs_review'] ?? false), \PDO::PARAM_BOOL),
 						'is_tax_relevant' => $insertQb->createNamedParameter($this->dbBool($entry['is_tax_relevant'] ?? false), \PDO::PARAM_BOOL),
+						'is_insurance' => $insertQb->createNamedParameter($this->dbBool($entry['is_insurance'] ?? false), \PDO::PARAM_BOOL),
 						'recurrence_interval' => $insertQb->createNamedParameter($hasNextRun ? $entry['recurrence_interval'] : null, $hasNextRun ? \PDO::PARAM_STR : \PDO::PARAM_NULL),
 						'recurrence_multiplier' => $insertQb->createNamedParameter($hasNextRun ? (int)$entry['recurrence_multiplier'] : null, $hasNextRun ? \PDO::PARAM_INT : \PDO::PARAM_NULL),
 						'recurrence_next_date' => $insertQb->createNamedParameter($hasNextRun ? $nextDate : null, $hasNextRun ? \PDO::PARAM_INT : \PDO::PARAM_NULL),

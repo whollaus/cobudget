@@ -374,6 +374,10 @@
 									<input type="checkbox" v-model="entry.isTaxRelevant">
 									<span class="tag-btn">{{ $texts.labels.taxRelevant() }}</span>
 								</label>
+								<label class="tag-toggle" v-if="$enableInsurance">
+									<input type="checkbox" v-model="entry.isInsurance">
+									<span class="tag-btn">{{ $texts.labels.insurance() }}</span>
+								</label>
 							</div>
 						</div>
 
@@ -386,7 +390,7 @@
 									<div
 										v-if="useDirectAreaSelection"
 										class="area-choice-grid"
-										:style="{ '--area-choice-count': areaSelectionOptions.length }"
+										:style="{ '--area-choice-columns': activeProjects.length > 0 ? 2 : 1 }"
 										role="radiogroup"
 										:aria-label="$texts.entry.area()">
 										<button
@@ -647,6 +651,7 @@ export default {
 				isImportant: false,
 				needsReview: false,
 				isTaxRelevant: false,
+				isInsurance: false,
 				hasReminder: false,
 				reminderDate: null,
 				reminderText: ''
@@ -746,7 +751,8 @@ export default {
 			const hasGeneralTags = this.$enableChildRelated
 				|| this.$enableImportantPayments
 				|| this.$enableReviewPayments
-				|| this.$enableTaxRelevant;
+				|| this.$enableTaxRelevant
+				|| this.$enableInsurance;
 
 			if (this.entry.type === 'expense') {
 				return hasGeneralTags
@@ -895,7 +901,7 @@ export default {
 			return this.projects.filter(p => !p.is_archived);
 		},
 		useDirectAreaSelection() {
-			return this.activeProjects.length <= 3;
+			return this.activeProjects.length <= 5;
 		},
 		areaSelectionOptions() {
 			return [
@@ -2107,6 +2113,7 @@ export default {
 					isImportant: !!entryToEdit.is_important,
 					needsReview: !!entryToEdit.needs_review,
 					isTaxRelevant: !!entryToEdit.is_tax_relevant,
+					isInsurance: !!entryToEdit.is_insurance,
 					hasReminder: !!entryToEdit.reminder_date,
 					reminderDate: entryToEdit.reminder_date ? new Date(entryToEdit.reminder_date * 1000) : null,
 					reminderText: entryToEdit.reminder_text || ''
@@ -2138,6 +2145,7 @@ export default {
 					isImportant: !!entryToDuplicate.is_important,
 					needsReview: !!entryToDuplicate.needs_review,
 					isTaxRelevant: !!entryToDuplicate.is_tax_relevant,
+					isInsurance: !!entryToDuplicate.is_insurance,
 					hasReminder: !!entryToDuplicate.reminder_date,
 					reminderDate: entryToDuplicate.reminder_date ? openedAt : null, // Assuming user will reset it if needed
 					reminderText: entryToDuplicate.reminder_text || ''
@@ -2152,6 +2160,7 @@ export default {
 				let defaultIsImportant = false;
 				let defaultNeedsReview = false;
 				let defaultIsTaxRelevant = false;
+				let defaultIsInsurance = false;
 				if (this.$route && this.$route.query.filter === 'subscription') {
 					defaultIsSubscription = true;
 				} else if (this.$route && this.$route.query.filter === 'fixedCost') {
@@ -2164,6 +2173,8 @@ export default {
 					defaultNeedsReview = true;
 				} else if (this.$route && this.$route.query.filter === 'taxRelevant') {
 					defaultIsTaxRelevant = true;
+				} else if (this.$route && this.$route.query.filter === 'insurance') {
+					defaultIsInsurance = true;
 				}
 
 				this.entry = {
@@ -2187,6 +2198,7 @@ export default {
 					isImportant: defaultIsImportant,
 					needsReview: defaultNeedsReview,
 					isTaxRelevant: defaultIsTaxRelevant,
+					isInsurance: defaultIsInsurance,
 					hasReminder: false,
 					reminderDate: null,
 					reminderText: ''
@@ -2630,6 +2642,7 @@ export default {
 					isImportant: this.entry.isImportant,
 					needsReview: this.entry.needsReview,
 					isTaxRelevant: this.entry.isTaxRelevant,
+					isInsurance: this.entry.isInsurance,
 					reminderDate: this.entry.hasReminder && this.entry.reminderDate ? (() => {
 						const rd = new Date(this.entry.reminderDate);
 						rd.setHours(9, 0, 0, 0);
@@ -3002,7 +3015,7 @@ export default {
 
 .area-choice-grid {
 	display: grid;
-	grid-template-columns: repeat(var(--area-choice-count), minmax(0, 1fr));
+	grid-template-columns: repeat(var(--area-choice-columns), minmax(0, 1fr));
 	gap: 10px;
 }
 
@@ -4100,10 +4113,6 @@ button.lookup-trigger:focus-visible {
 	.project-assignment-row.has-project-payer,
 	.project-assignment-row.has-split-mode {
 		grid-template-columns: 1fr;
-	}
-
-	.area-choice-grid {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
 	.area-choice {

@@ -220,6 +220,8 @@ const executableEntryListRouteSource = entryListRouteSource.replace(
 	"const normalizeEntryPageSize = value => [10, 25, 50, 100, 250].includes(Number.parseInt(value, 10)) ? Number.parseInt(value, 10) : 25",
 )
 const entryListRouteModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(executableEntryListRouteSource)}`)
+assertEqual(entryListRouteModule.parsePersonalEntryListRouteQuery({ filter: 'insurance' }).filters.tags, 'insurance', 'Sidebar shortcut activates insurance filtering')
+assertEqual(entryListRouteModule.parsePersonalEntryListRouteQuery({ tags: 'insurance' }).filters.tags, 'insurance', 'Payment routes retain the insurance filter')
 const parsedEntryListRoute = entryListRouteModule.parsePersonalEntryListRouteQuery({
 	filter: 'reminder',
 	search: 'Miete',
@@ -321,6 +323,7 @@ const shouldCloseEntrySidebarForRequest = entrySidebarToggleModule.shouldCloseEn
 const entryFormStateSource = read('src/utils/entryFormState.js')
 const entryFormStateModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(entryFormStateSource)}`)
 const { hasEntryFormChanges, snapshotEntryForm } = entryFormStateModule
+assertEqual(hasEntryFormChanges(snapshotEntryForm({ isInsurance: false }), { isInsurance: true }), true, 'Changing insurance alone marks the payment form as unsaved')
 const entryDefaultDateSource = read('src/utils/entryDefaultDate.js')
 const entryDefaultDateModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(entryDefaultDateSource)}`)
 const { localDateKey, millisecondsUntilNextLocalDay, shouldRefreshDefaultEntryDate } = entryDefaultDateModule
@@ -488,7 +491,7 @@ assertContains(app, ':name="$texts.analytics.title()"', 'App sidebar shows analy
 assertContains(app, "$route.name === 'analytics'", 'App highlights analytics route in the sidebar')
 assertContains(app, "navigateTo('/analytics')", 'App sidebar opens Auswertungen')
 assertBefore(app, ':name="$texts.settings.areas()"', ':name="$texts.budgetGoals.title()"', 'App places Budgetziele below the Bereiche section')
-assertBefore(app, ':name="$texts.budgetGoals.title()"', ':name="$texts.analytics.title()"', 'App places Auswertungen below Budgetziele')
+assertBefore(app, ':name="$texts.analytics.title()"', ':name="$texts.budgetGoals.title()"', 'App places Budgetziele below Auswertungen')
 assertContains(app, "import ViewGridIcon from 'vue-material-design-icons/ViewGrid.vue'", 'App sidebar uses a neutral Bereiche icon')
 assertContains(app, "import ChartLineIcon from 'vue-material-design-icons/ChartLine.vue'", 'App sidebar uses a chart icon for Auswertungen')
 assertNotContains(app, 'name="Projekte"', 'App sidebar no longer uses project wording')
@@ -1019,7 +1022,7 @@ assertContains(addEntryModal, ':aria-label="$texts.entry.area()"', 'AddEntryModa
 assertContains(addEntryModal, '$texts.entry.personalAssignment()', 'AddEntryModal project select explains the personal option')
 assertContains(sharedTexts, "personalAssignment: () => tx('My finances')", 'AddEntryModal names the personal destination My finances')
 assertContains(addEntryModal, 'v-if="useDirectAreaSelection"', 'AddEntryModal uses direct area choices for small area sets')
-assertContains(addEntryModal, 'return this.activeProjects.length <= 3;', 'AddEntryModal keeps the direct area choice intentionally bounded')
+assertContains(addEntryModal, 'return this.activeProjects.length <= 5;', 'AddEntryModal switches to the area dropdown at six areas')
 assertContains(addEntryModal, 'class="area-choice"', 'AddEntryModal renders area choices as finger-friendly buttons')
 assertContains(addEntryModal, ":aria-checked=\"isAreaSelected(option.id) ? 'true' : 'false'\"", 'AddEntryModal exposes the selected area as its single visual and accessible state')
 assertContains(addEntryModal, ".area-choice[aria-checked='true']", 'AddEntryModal styles area selection directly from its radio state')
@@ -1830,10 +1833,9 @@ assertContains(settings, 'enable_receipts: this.enableReceipts', 'Settings saves
 assertContains(settings, 'receipt_storage_folder: this.receiptStorageFolder.trim() || \'CoBudget/Belege\'', 'Settings saves normalized receipt folder fallback')
 assertContains(settings, 'receipt_folder_grouping: this.receiptFolderGrouping', 'Settings saves receipt folder grouping')
 assertContains(settings, 'delete_receipts_with_entry: this.deleteReceiptsWithEntry', 'Settings saves receipt deletion behavior')
-assertContains(settings, '{{ $texts.settings.areas() }}', 'Settings has a dedicated areas subsection')
 assertContains(settings, '{{ $texts.settings.enableAreas() }}', 'Settings areas toggle')
 assertContains(settings, '{{ $texts.settings.enableSharedAreas() }}', 'Settings shared areas toggle')
-assertContains(settings, 'v-if="enableProjects && enableSharedProjects" class="settings-notification-options"', 'Settings shows shared area notification options only when shared areas are active')
+assertContains(settings, 'v-if="enableProjects && enableSharedProjects" class="settings-mini-section settings-notification-options"', 'Settings shows shared area notification options only when shared areas are active')
 assertContains(settings, '{{ $texts.settings.notifications() }}', 'Settings labels shared area notification options')
 assertContains(settings, '{{ $texts.settings.newPaymentsInSharedAreas() }}', 'Settings entry notification toggle label')
 assertContains(settings, '{{ $texts.settings.settledAreas() }}', 'Settings settlement notification toggle label')
@@ -2108,7 +2110,7 @@ assertContains(projectSettings, 'const name = this.editProjectData.name.trim();'
 assertContains(projectSettings, ':disabled="!canSaveProject"', 'Project settings disables unchanged or invalid saves')
 
 const packageJson = JSON.parse(read('package.json'))
-if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs && node tests/localization.mjs') {
+if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs && node tests/annual-overview.mjs && node tests/mobile-reports.mjs && node tests/localization.mjs') {
 	failures.push('package.json is missing test:frontend-smoke script')
 }
 if (!/^\^7\./.test(packageJson.dependencies?.['@nextcloud/dialogs'] || '')) {

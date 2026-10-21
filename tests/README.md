@@ -14,6 +14,60 @@ npm test
 
 ## Nextcloud 33–35 compatibility
 
+### Annual overview integration
+
+Run against a local Nextcloud with CoBudget and an existing test account:
+
+```sh
+php tests/integration/annual-overview.php --nextcloud=/path/to/local/server --user=admin
+```
+
+The test creates isolated fixtures inside a transaction and always rolls them
+back. It exercises actual controller/database queries for personal shares,
+shared and solo areas, settlements, more than one page of payments, category
+hierarchies, unassigned payments, future dates, scope-specific year choices and unauthorized access. No
+notifications are sent. Forecast checks cover saved future payments plus
+scheduled recurring occurrences, monthly placement, counts, grouping and amount
+filters. Shared personal forecasts additionally cover stored residual cents,
+workspace isolation, personal tag IDs, zero shares, former participants,
+read-only access and replacing a forecast with a saved occurrence without
+double counting. Payment-list drilldowns deliberately include saved payments only.
+The fast suites additionally cover timezone boundaries,
+cent arithmetic and filter/pagination/return-route round trips.
+
+Annual detail tests cover counts across SQL groups, personal/shared scopes and
+category hierarchies; empty-period shares, calendar-month averages, signed balance
+rounding and exact modal drilldowns. On desktop and mobile, check that amount
+buttons open the detail modal without navigating, Escape/close restores table
+focus, and Show payments opens the matching filtered list. Row labels must keep
+their direct undated links. Also check printed amounts after the button change.
+
+For annual overview printing, verify the top-right printer action with a narrow
+viewport and a horizontally scrolled table. Check A4 landscape/PDF output for all
+12 months and the yearly total, long labels, complete amounts, repeated headings
+on multiple pages and a single final total row. Wider views print in blocks of at
+most 12 amount columns. Each later block starts on a new page and repeats the
+label column and the total. The whole-year daily overview prints one calendar
+month at a time. Amounts stay on one line. The print header must match the
+year, scope, grouping and current-year cutoff. Sorting, expanded children and
+disabled-income settings should match the visible tables. Printing or cancelling
+must leave the original table and its navigation links unchanged.
+
+### Personal Talk integration
+
+Run the real Talk delivery tests on a local/disposable server with CoBudget and
+Talk enabled (Talk 23–25). The explicit flag allows creation of temporary
+accounts, shared-area payments and chats; the test removes its fixtures afterward.
+
+```sh
+php tests/integration/talk.php --nextcloud=/path/to/nextcloud --create-test-users
+```
+
+This covers default opt-out, idempotent setup, actual payment creation and bot
+delivery, independent bell/Talk preferences, actor exclusion, foreign tokens,
+extra participants, explicit reconnection, deleted chats and unauthenticated
+settings endpoints. No messages are sent to existing accounts.
+
 CI additionally installs Nextcloud 33/PHP 8.2, 34/PHP 8.2 and 35/PHP 8.3
 in isolated SQLite instances. Each job enables CoBudget (running all app
 migrations), loads its OCC commands, checks background-job registration and
@@ -69,3 +123,35 @@ Der Frontend-Smoke-Test prueft ohne Browser-Setup, ob die Vue-Routen lazy gelade
 - Zu Workspace B wechseln und pruefen, dass A-Daten nicht sichtbar oder nutzbar sind.
 - Projektmitgliedschaft und Abrechnung testen.
 - Einen nicht-default Workspace loeschen und pruefen, dass der andere Workspace unveraendert bleibt.
+
+### Annual month comparisons
+
+`npm test` covers modal-only prior-month/prior-year comparison rows, localized difference rows,
+exact ±5% arrow thresholds, missing history versus known empty months, zero
+baselines, elapsed-day cutoffs and leap-month boundaries. The rollback-only
+`tests/integration/annual-overview.php` also checks comparison queries across year
+boundaries and isolation between personal, shared, solo and foreign scopes.
+
+Browser verification: open a monthly amount in Annual overview, check both available
+comparison rows and their dates and amounts in the modal,
+and use Tab/Shift+Tab, Enter/Space and Escape for its actions. Check first-history months and annual
+totals show no month-comparison rows. Check 390px and desktop layouts in light and
+dark themes; tooltips must remain within the viewport and months scroll inside
+the table while category and annual-total columns remain fixed.
+
+### Insurance label
+
+`tests/integration/insurance.php` checks payment creation and editing, boolean
+filters, dashboard/sidebar counts, CSV column alignment, settings toggles,
+workspace isolation, authentication and compatibility with older backup rows.
+All fixture database writes are rolled back, including on failure. Run against
+an updated local instance with an existing local test account:
+
+```sh
+php tests/integration/insurance.php --nextcloud=/path/to/nextcloud/server --user=admin
+```
+
+The frontend smoke checks cover the insurance route shortcut, retained filter
+and unsaved changes when only the insurance checkbox changes. In the browser,
+verify the payment badge and sidebar entry appear after labelling a payment;
+disabling Insurance in Settings hides the controls without erasing labels.

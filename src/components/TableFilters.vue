@@ -28,6 +28,7 @@
 			<div class="filter-group" v-if="localFilters.tags !== 'future'">
 				<select v-model="localFilters.timeRange" @change="emitFilters" class="form-control">
 					<option value="all">{{ $texts.filters.allTime() }}</option>
+					<option v-if="localFilters.timeRange === 'custom'" value="custom">{{ $texts.annual.selectedPeriod() }}</option>
 					<option value="currentMonth">{{ $texts.filters.currentMonth() }}</option>
 					<option value="lastMonth">{{ $texts.filters.lastMonth() }}</option>
 					<option value="last30Days">{{ $texts.filters.last30Days() }}</option>
@@ -36,18 +37,31 @@
 				</select>
 			</div>
 
+			<p v-if="localFilters.timeRange === 'custom'" class="custom-period">{{ customPeriodLabel }}</p>
+			<label v-if="localFilters.annualReturn || localFilters.includeFuturePayments" class="annual-filter-option">
+				<input v-model="localFilters.includeFuturePayments" type="checkbox" @change="emitFilters">
+				{{ $texts.annual.includeFuture() }}
+			</label>
+
 			<!-- 3. Kategorie Dropdown -->
 			<div class="filter-group">
-				<select v-model="localFilters.categoryId" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.categoryId" @change="localFilters.includeSubcategories = false; emitFilters()" class="form-control">
 					<option :value="null">{{ $texts.filters.allCategories() }}</option>
+					<option :value="0">{{ $texts.annual.noCategory() }}</option>
 					<option v-for="cat in filteredCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
 				</select>
 			</div>
 
+			<label v-if="localFilters.categoryId > 0" class="annual-filter-option">
+				<input v-model="localFilters.includeSubcategories" type="checkbox" @change="emitFilters">
+				{{ $texts.annual.includeSubcategories() }}
+			</label>
+
 			<!-- 3. Von / An Dropdown -->
-			<div class="filter-group" v-if="paymentPartners && paymentPartners.length > 0">
+			<div class="filter-group" v-if="paymentPartners && (paymentPartners.length > 0 || localFilters.paymentPartnerId === 0)">
 				<select v-model="localFilters.paymentPartnerId" @change="emitFilters" class="form-control">
 					<option :value="null">{{ $texts.filters.allPaymentPartners() }}</option>
+					<option :value="0">{{ $texts.annual.noPartner() }}</option>
 					<option v-for="p in filteredPaymentPartners" :key="p.id" :value="p.id">{{ p.name }}</option>
 				</select>
 			</div>
@@ -87,6 +101,7 @@
 					<option v-if="$enableChildRelated" value="childRelated">{{ $texts.filters.onlyChildren() }}</option>
 					<option v-if="$enableSubscriptions" value="subscription">{{ $texts.filters.onlySubscriptions() }}</option>
 					<option v-if="$enableTaxRelevant" value="taxRelevant">{{ $texts.filters.onlyTaxRelevant() }}</option>
+					<option v-if="$enableInsurance" value="insurance">{{ $texts.filters.onlyInsurance() }}</option>
 					<option value="future">{{ $texts.filters.futurePayments() }}</option>
 				</select>
 			</div>
@@ -118,6 +133,7 @@
 </template>
 
 <script>
+import { getAppLocale } from '../utils/formatMoney'
 export default {
 	name: 'TableFilters',
 	props: {
@@ -168,6 +184,10 @@ export default {
 		}
 	},
 	computed: {
+		customPeriodLabel() {
+			const format = value => value === null ? '' : new Date(value * 1000).toLocaleDateString(getAppLocale())
+			return `${format(this.localFilters.dateFrom)} – ${format(this.localFilters.dateTo)}`
+		},
 		hasActiveFilters() {
 			return this.localFilters.search !== '' ||
 				   this.localFilters.type !== 'all' ||
@@ -179,7 +199,13 @@ export default {
 				   this.localFilters.timeRange !== 'all' ||
 				   this.localFilters.tags !== 'all' ||
 				   this.localFilters.hasReminder !== 'all' ||
-				   this.localFilters.hasAttachment !== 'all';
+				   this.localFilters.hasAttachment !== 'all' ||
+				   Boolean(this.localFilters.narrowCategories) ||
+				   Boolean(this.localFilters.narrowPartners) ||
+				   Boolean(this.localFilters.narrowLabels) ||
+				   Boolean(this.localFilters.narrowHashtags) ||
+				   Boolean(this.localFilters.amountMin) ||
+				   Boolean(this.localFilters.amountMax);
 		},
 		filteredCategories() {
 			if (this.localFilters.type === 'all' || !this.localFilters.type) return this.categories;
@@ -210,6 +236,9 @@ export default {
 		},
 		clearFilters() {
 			this.localFilters = {
+				annualReturn: this.initialFilters.annualReturn || '',
+				includeFuturePayments: false,
+				includeSubcategories: false,
 				search: '',
 				type: 'all',
 				status: this.initialFilters.status !== undefined ? this.initialFilters.status : 'active',
@@ -223,7 +252,13 @@ export default {
 				hashtagId: null,
 				recurring: this.initialFilters.recurring !== undefined ? this.initialFilters.recurring : 'all',
 				hasReminder: 'all',
-				hasAttachment: 'all'
+				hasAttachment: 'all',
+				narrowCategories: '',
+				narrowPartners: '',
+				narrowLabels: '',
+				narrowHashtags: '',
+				amountMin: '',
+				amountMax: '',
 			};
 			this.emitFilters();
 		}
@@ -232,6 +267,8 @@ export default {
 </script>
 
 <style scoped>
+.annual-filter-option { display: flex; align-items: center; gap: 8px; }
+.custom-period { margin: 0; font-variant-numeric: tabular-nums; }
 .table-filters {
 	background: var(--cobudget-surface-muted, #f9f9f9);
 	border: none;
