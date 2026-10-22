@@ -2,6 +2,25 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [Unreleased]
+
+## [0.6.1] - 2026-10-22
+
+### Added
+
+- Add a collapsible Development chart below the annual-overview controls. Compare income, expenses and balance, or expenses alone when income management is disabled, using the report's exact-cent totals, filters, recurring forecasts and cutoff.
+- Start charts in Running total mode, with Individual amounts as an alternative. Toggle curves through an accessible legend that rescales to visible values, keeps at least one curve visible and retains the selection across report controls.
+- Inspect every monthly, quarterly, weekly and daily value with mouse, touch or keyboard. Adapt centered axis labels to the available width, including space at both edges, without dropping financial data.
+
+### Changed
+
+- Keep Annual overview as the page title and offer Months, Quarters, Weeks and Days as its breakdowns. Order the controls by breakdown, year and month. Combine the former monthly view with Days, start newly selected daily views in January and use All days for the whole year. Preserve explicit month choices and old monthly report links, including filters and return navigation.
+- Match the chart heading's typography, alignment and collapse behavior to the report sections. Use a borderless layout and the CoCalculator income, expense and balance colors.
+
+### Fixed
+
+- Keep category and payment-partner menus within the visible payment sidebar on short screens and open them upward when needed. Show a normal-weight creation action after the existing entries in the same scrollable list, and keep the creation input and confirmation in view while typing.
+
 ## [0.6.0] - 2026-10-21
 
 ### Added

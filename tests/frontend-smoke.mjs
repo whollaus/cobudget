@@ -324,6 +324,35 @@ const entryFormStateSource = read('src/utils/entryFormState.js')
 const entryFormStateModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(entryFormStateSource)}`)
 const { hasEntryFormChanges, snapshotEntryForm } = entryFormStateModule
 assertEqual(hasEntryFormChanges(snapshotEntryForm({ isInsurance: false }), { isInsurance: true }), true, 'Changing insurance alone marks the payment form as unsaved')
+const lookupMenuLayoutSource = read('src/utils/lookupMenuLayout.js')
+const { getLookupMenuLayout } = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(lookupMenuLayoutSource)}`)
+const shortSidebar = { top: 86, bottom: 532 }
+const categoryAnchor = { top: 334, bottom: 378 }
+const lookupLayoutOptions = { viewportBottom: 600, preferredHeight: 323, minimumHeight: 71 }
+const shortCategoryMenu = getLookupMenuLayout(categoryAnchor, shortSidebar, lookupLayoutOptions)
+assertEqual(shortCategoryMenu.opensAbove, true, 'The category menu opens upward in the reported 600px-high window')
+assertEqual(shortCategoryMenu.maxHeight, 236, 'The category menu fits above the field within the sidebar body')
+const shortPartnerMenu = getLookupMenuLayout({ top: 254, bottom: 298 }, shortSidebar, lookupLayoutOptions)
+assertEqual(shortPartnerMenu.opensAbove, false, 'The higher payment-partner field uses the larger space below it')
+assertEqual(shortPartnerMenu.maxHeight, 222, 'The payment-partner menu stops before the fixed payment actions')
+assertEqual(getLookupMenuLayout(categoryAnchor, { top: 86, bottom: 932 }, {
+	...lookupLayoutOptions, viewportBottom: 1000,
+}).opensAbove, false, 'A tall payment form retains the usual downward menu')
+assertEqual(getLookupMenuLayout(categoryAnchor, shortSidebar, {
+	...lookupLayoutOptions, preferredHeight: 100,
+}).opensAbove, false, 'A short result list stays below the field when it fits')
+const keyboardMenu = getLookupMenuLayout(categoryAnchor, shortSidebar, {
+	...lookupLayoutOptions, viewportBottom: 330,
+})
+assertEqual(categoryAnchor.top - 6 - keyboardMenu.offset, 324, 'The creation footer moves above an on-screen keyboard even when its trigger is obscured')
+const compactMenu = getLookupMenuLayout({ top: 130, bottom: 174 }, { top: 86, bottom: 232 }, lookupLayoutOptions)
+assertEqual(compactMenu.maxHeight, 134, 'A very short form uses its visible body when neither side fits the creation controls')
+assertEqual(174 + 6 + compactMenu.offset, 92, 'The compact menu starts within the visible form instead of clipping its footer')
+const pannedMenu = getLookupMenuLayout({ top: 150, bottom: 194 }, { top: 86, bottom: 532 }, {
+	...lookupLayoutOptions, viewportTop: 220, viewportBottom: 420,
+})
+assertEqual(194 + 6 + pannedMenu.offset, 226, 'Menu placement respects a panned visual viewport')
+assertEqual(pannedMenu.maxHeight, 188, 'Menu height uses the visible viewport rather than the layout viewport')
 const entryDefaultDateSource = read('src/utils/entryDefaultDate.js')
 const entryDefaultDateModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(entryDefaultDateSource)}`)
 const { localDateKey, millisecondsUntilNextLocalDay, shouldRefreshDefaultEntryDate } = entryDefaultDateModule
@@ -984,8 +1013,8 @@ assertContains(addEntryModal, '.slice(0, 5)', 'AddEntryModal limits the frequent
 assertNotContains(addEntryModal, '.slice(0, 8)', 'AddEntryModal no longer truncates the whole lookup list')
 assertContains(addEntryModal, 'lookup-group-label', 'AddEntryModal lookup groups are visibly separated')
 assertContains(addEntryModal, '.lookup-field.has-leading-icon > .lookup-trigger', 'AddEntryModal reserves room for the category icon')
-assertContains(addEntryModal, 'max-height: min(320px, 42vh);', 'AddEntryModal lookup options use a bounded internal scroll area')
-assertContains(addEntryModal, 'overflow-y: auto;', 'AddEntryModal lookup options scroll independently')
+assertContains(addEntryModal, 'max-height: min(320px, 42vh);', 'AddEntryModal bounds the combined suggestion and creation scroll area')
+assertContains(addEntryModal, 'overflow-y: auto;', 'AddEntryModal scrolls the lookup list within the visible menu')
 assertContains(addEntryModal, 'overflow-x: hidden;', 'AddEntryModal lookup menu avoids horizontal scrollbars')
 assertContains(addEntryModal, 'box-sizing: border-box;', 'AddEntryModal lookup options include padding in their width')
 assertContains(addEntryModal, 'overflow-wrap: anywhere;', 'AddEntryModal lookup entries wrap long names instead of overflowing')
@@ -2110,7 +2139,7 @@ assertContains(projectSettings, 'const name = this.editProjectData.name.trim();'
 assertContains(projectSettings, ':disabled="!canSaveProject"', 'Project settings disables unchanged or invalid saves')
 
 const packageJson = JSON.parse(read('package.json'))
-if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs && node tests/annual-overview.mjs && node tests/mobile-reports.mjs && node tests/localization.mjs') {
+if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs && node tests/annual-chart.mjs && node tests/annual-overview.mjs && node tests/mobile-reports.mjs && node tests/localization.mjs') {
 	failures.push('package.json is missing test:frontend-smoke script')
 }
 if (!/^\^7\./.test(packageJson.dependencies?.['@nextcloud/dialogs'] || '')) {

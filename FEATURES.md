@@ -35,6 +35,7 @@ CoBudget is a Nextcloud app for personal and shared household budgeting.
 ## Categories And Payment Partners
 
 - Manage personal categories and payment partners.
+- Create categories and payment partners directly in the payment form using a quiet action after the existing suggestions. Scroll within the menu on short screens; the creation input and confirmation stay in view while typing.
 - Use global categories and payment partners provided by an admin.
 - Hide global entries that are not relevant for your own workflow.
 - Use area-specific categories and payment partners for shared areas.
@@ -102,17 +103,29 @@ Workspaces separate data into isolated pools, for example private and business d
 
 ## Annual Overview
 
-Open the dedicated sidebar page to compare income, expenses and balance in My finances or an individual area. The page title switches between five views:
+Open the dedicated sidebar page to compare income, expenses and balance in My finances or an individual area. The page title remains Annual overview. Choose the breakdown first, followed by the year and, for Days, the month:
 
-| View | Columns and total |
+| Breakdown | Columns and total |
 | --- | --- |
-| Annual | Twelve calendar months and the calendar-year total. |
-| Quarterly | Four quarters and the calendar-year total. |
-| Weekly | All ISO weeks of the selected week-year and their total. Days around New Year follow the ISO week-year, so this total can differ from the calendar-year total. |
-| Monthly | Each day of the selected month and that month's total. Choosing All returns to the annual view. |
-| Daily | Every calendar day of the selected year and the year total, or just the days and total of a selected month. All retains the whole year. |
+| Months | Twelve calendar months and the calendar-year total. |
+| Quarters | Four quarters and the calendar-year total. |
+| Weeks | All ISO weeks of the selected week-year and their total. Days around New Year follow the ISO week-year, so this total can differ from the calendar-year total. |
+| Days | Each day of the selected month and that month's total. Starts in January; select another month or All days for every calendar day and the year total. |
 
-Changing the view retains the selected year. The year dropdown offers only years with visible saved payments in the selected financial view, including future-dated payments. If necessary, it selects the latest available year up to the current year, or the nearest future year. Empty financial views have no selectable year; empty months remain selectable. Calendar boundaries use the browser timezone, matching displayed payment dates.
+Changing the breakdown retains the selected year. Days starts in January when selected from another breakdown. Explicit month and All days choices survive reloads and payment drilldowns; old monthly report links open Days with the corresponding month. The year dropdown offers only years with visible saved payments in the selected financial view, including future-dated payments. If necessary, it selects the latest available year up to the current year, or the nearest future year. Empty financial views have no selectable year; empty months remain selectable. Calendar boundaries use the browser timezone, matching displayed payment dates.
+
+### Development chart
+
+The chart below the report controls follows the selected months, quarters, weeks or days and the same financial scope, filters and future-payment setting as the tables. Income, expenses and balance share one plot when income management is enabled; otherwise it shows expenses alone.
+
+- Individual amounts shows each column's amount independently.
+- Running total is the default and adds each time unit to the preceding ones, starting at the beginning of the selected year or selected month. Calculations retain integer cents and use the report totals, so overlapping label and tag rows do not duplicate payments.
+- All weekly and daily values remain plotted. Centered axis labels adapt to the available width, with space at both ends, rather than dropping or combining values. Use the month selection to inspect a daily report in more detail.
+- Inspect exact values with a mouse or touch. The chart has one keyboard focus stop; Left/Right, Home and End inspect time units, and Escape dismisses the values. Income, expenses and balance have distinct line patterns as well as colors.
+- Toggle income, expenses and balance using the legend with mouse, touch, Enter or Space. The scale and value inspection follow the visible curves. Hidden curves remain listed with crossed-out labels so they can be restored; at least one curve stays visible.
+- Periods after the report cutoff have no plotted value. Enabling future payments includes the same saved and projected amounts as the tables.
+
+The chart can be collapsed using its Development heading, and remembers this choice per account in the browser. The chart mode and curve selection remain selected while changing the report controls. Printing and CSV export use the report tables described below.
 
 ### Financial scope and grouping
 

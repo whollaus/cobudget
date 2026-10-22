@@ -45,7 +45,7 @@ The screenshots below illustrate the app UI and may differ from the current beta
 
 ## Features
 
-- **Annual overview:** Compare personal finances or individual areas by calendar month, quarter, ISO week or day, including a daily view of the whole year. Group by categories and subcategories, payment partners, or enabled labels and description tags; narrow payments with combined filters. Click amounts for counts, shares, averages and available previous-period/prior-year comparisons, then open the matching saved payments. Reports support recurring forecasts, including stored personal shares of shared series in My finances, collapsible sections, sorting, A4 landscape printing/PDF and CSV download or saving to Nextcloud Files. See the [annual overview details](FEATURES.md#annual-overview) for period boundaries, forecast limits and export behavior.
+- **Annual overview:** Compare personal finances or individual areas using Months, Quarters, Weeks or Days. Days starts in January; choose another month or All days for the whole year. A development chart below the controls shows income, expenses and balance together, or expenses alone when income management is disabled. Toggle curves through the legend to scale the chart to the visible amounts. Start with Running total or switch to Individual amounts, with exact values available by mouse, touch or keyboard even for a full year of daily data. Group by categories and subcategories, payment partners, or enabled labels and description tags; narrow payments with combined filters. Click amounts for counts, shares, averages and available previous-period/prior-year comparisons, then open the matching saved payments. Reports support recurring forecasts, including stored personal shares of shared series in My finances, collapsible sections, sorting, A4 landscape printing/PDF and CSV download or saving to Nextcloud Files. See the [annual overview details](FEATURES.md#annual-overview) for period boundaries, forecast limits and export behavior.
 
 - Track income and expenses
 - Calculate dashboard month/year totals and payment table subtotals in the browser timezone, matching the displayed payment dates
@@ -54,7 +54,7 @@ The screenshots below illustrate the app UI and may differ from the current beta
 - Keep page titles and primary actions visible in a sticky mobile header while scrolling
 - Create and edit income and expenses in a responsive sidebar with mode-specific titles, guarded unsaved changes, support for consecutive desktop entries, and a new-payment action that remains available while reviewing existing payments
 - Review payment change history with changed fields, previous values and new values
-- Organize payments by categories and payment partners, with searchable category and payment-partner numbers, one level of main categories and subcategories, and opt-in advanced personal address, validated contact and bank master-data editing for payment partners
+- Organize payments by categories and payment partners, with searchable numbers and creation directly in the payment form, including on short screens. Use one level of main categories and subcategories, and opt-in advanced personal address, validated contact and bank master-data editing for payment partners
 - Combine area-specific categories with global categories that area owners can hide or show for the entire area
 - Add labels such as important, review, fixed costs, subscriptions, children, insurance and tax relevant
 - Add free-form `#tags` directly in the payment note

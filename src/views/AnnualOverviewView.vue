@@ -1,18 +1,6 @@
 <template>
 	<div class="annual-overview">
-		<AppPageHeader>
-			<template #title>
-				<label class="annual-select annual-select--title" :title="$texts.annual.selectedPeriod()">
-					<span aria-hidden="true"><span class="annual-select-label">{{ periodTitle }}</span><ChevronDownIcon :size="20" /></span>
-					<select :value="selection.period" :aria-label="$texts.annual.selectedPeriod()" @change="selectPeriod">
-						<option value="year">{{ $texts.annual.title() }}</option>
-						<option value="quarter">{{ $texts.annual.quarterlyTitle() }}</option>
-						<option value="week">{{ $texts.annual.weeklyTitle() }}</option>
-						<option value="month">{{ $texts.annual.monthlyTitle() }}</option>
-						<option value="day">{{ $texts.annual.dailyTitle() }}</option>
-					</select>
-				</label>
-			</template>
+		<AppPageHeader :title="$texts.annual.title()">
 			<template #actions>
 				<span class="annual-export-wrap" :title="exporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv()">
 					<NcActions class="annual-export-menu" variant="tertiary" force-menu placement="bottom-end"
@@ -37,16 +25,25 @@
 		</AppPageHeader>
 		<MobileReportSwitch />
 		<div class="annual-controls">
+			<label class="annual-select" :title="$texts.annual.breakdown()">
+				<span aria-hidden="true"><span class="annual-select-label">{{ breakdownLabel }}</span><ChevronDownIcon :size="18" /></span>
+				<select :value="selection.period" :aria-label="$texts.annual.breakdown()" @change="selectPeriod">
+					<option value="year">{{ $texts.annual.months() }}</option>
+					<option value="quarter">{{ $texts.annual.quarters() }}</option>
+					<option value="week">{{ $texts.annual.weeks() }}</option>
+					<option value="day">{{ $texts.annual.days() }}</option>
+				</select>
+			</label>
 			<label class="annual-select" :title="$texts.annual.year()">
 				<span aria-hidden="true">{{ selection.year }}<ChevronDownIcon :size="18" /></span>
 				<select :value="selection.year" :disabled="loading || !yearOptions.length" :aria-label="$texts.annual.year()" @change="selectYear">
 					<option v-for="year in yearOptions" :key="year" :value="year">{{ year }}</option>
 				</select>
 			</label>
-			<label v-if="selection.period === 'month' || selection.period === 'day'" class="annual-select" :title="$texts.budgetGoals.month()">
+			<label v-if="selection.period === 'day'" class="annual-select" :title="$texts.budgetGoals.month()">
 				<span aria-hidden="true"><span class="annual-select-label">{{ selectedMonthLabel }}</span><ChevronDownIcon :size="18" /></span>
 				<select :value="Number(selection.month) >= 1 ? selection.month : 'all'" :aria-label="$texts.budgetGoals.month()" @change="selectMonth">
-					<option value="all">{{ $texts.annual.all() }}</option>
+					<option value="all">{{ $texts.annual.allDays() }}</option>
 					<option v-for="month in monthOptions" :key="month.value" :value="month.value">{{ month.label }}</option>
 				</select>
 			</label>
@@ -73,6 +70,15 @@
 			</label>
 			<AnnualOverviewFilters :selection="selection" :categories="categoryChoices" :partners="partnerChoices" :hashtags="hashtagChoices" :category-ids="filterChoices.categoryIds" :partner-ids="filterChoices.partnerIds" :label-keys="filterChoices.labels" @change="onFilterChange" @clear="clearFilter" />
 		</div>
+		<AnnualOverviewChart v-if="report && !loading && !error"
+			v-model:mode="chartMode"
+			v-model:hidden-series="chartHiddenSeries"
+			:report="report"
+			:labels="columns.slice(0, -1)"
+			:label-titles="columnTitles.slice(0, -1)"
+			:axis-labels="chartAxisLabels"
+			:income-enabled="$enableIncomes"
+			:format-cents="$formatMoneyFromCents" />
 		<div v-if="error" class="annual-error" role="alert"><p>{{ $texts.annual.loadError() }}</p><NcButton @click="load">{{ $texts.annual.retry() }}</NcButton></div>
 		<p v-else-if="loading" role="status">{{ $texts.common.loading() }}</p>
 		<div v-else-if="report" ref="printSource" class="annual-scroll" tabindex="0" role="region" :aria-label="periodTitle" :style="bucketStyle">
@@ -98,6 +104,7 @@ import MobileReportSwitch from '../components/MobileReportSwitch.vue'
 import AnnualOverviewTable from '../components/AnnualOverviewTable.vue'
 import AnnualOverviewDetails from '../components/AnnualOverviewDetails.vue'
 import AnnualOverviewFilters from '../components/AnnualOverviewFilters.vue'
+import AnnualOverviewChart from '../components/AnnualOverviewChart.vue'
 import axios from '../services/http'
 import { getCurrentUser } from '@nextcloud/auth'
 import { getFilePickerBuilder } from '@nextcloud/dialogs'
@@ -110,8 +117,8 @@ import { REMOTE_DATA_CHANGED_EVENT } from '../services/dataSync'
 
 export default {
 	name: 'AnnualOverviewView',
-	components: { NcButton, NcActions, NcActionButton, ChevronDownIcon, CloudUploadOutlineIcon, DownloadIcon, PrinterIcon, AppPageHeader, MobileReportSwitch, AnnualOverviewTable, AnnualOverviewDetails, AnnualOverviewFilters },
-	data() { return { selection: annualSelection(this.$route.query), projects: [], categoryChoices: [], partnerChoices: [], hashtagChoices: [], filterChoices: { categoryIds: [], partnerIds: [], labels: [] }, report: null, detail: null, loading: true, printing: false, exporting: false, error: false, requestId: 0, filterChoiceRequest: 0 } },
+	components: { NcButton, NcActions, NcActionButton, ChevronDownIcon, CloudUploadOutlineIcon, DownloadIcon, PrinterIcon, AppPageHeader, MobileReportSwitch, AnnualOverviewTable, AnnualOverviewDetails, AnnualOverviewFilters, AnnualOverviewChart },
+	data() { return { selection: annualSelection(this.$route.query), chartMode: 'cumulative', chartHiddenSeries: [], projects: [], categoryChoices: [], partnerChoices: [], hashtagChoices: [], filterChoices: { categoryIds: [], partnerIds: [], labels: [] }, report: null, detail: null, loading: true, printing: false, exporting: false, error: false, requestId: 0, filterChoiceRequest: 0 } },
 	computed: {
 		currentYear() { return new Date().getFullYear() },
 		paymentTypes() { return this.$enableIncomes ? ['income', 'expense'] : ['expense'] },
@@ -128,6 +135,12 @@ export default {
 			if (this.selection.period === 'quarter') return this.$texts.annual.quarterlyTitle()
 			return this.$texts.annual.title()
 		},
+		breakdownLabel() {
+			if (this.selection.period === 'day') return this.$texts.annual.days()
+			if (this.selection.period === 'week') return this.$texts.annual.weeks()
+			if (this.selection.period === 'quarter') return this.$texts.annual.quarters()
+			return this.$texts.annual.months()
+		},
 		showsCutoff() {
 			return annualPeriodContainsToday(this.selection.year, this.selection.period, this.selection.month)
 		},
@@ -135,7 +148,7 @@ export default {
 		monthOptions() { return Array.from({ length: 12 }, (_, month) => ({ value: month + 1, label: formatCalendarLabel(new Date(this.selection.year, month, 1), { month: 'long' }) })) },
 		selectedMonthLabel() {
 			const month = Number(this.selection.month)
-			if (!Number.isInteger(month) || month < 1 || month > 12) return this.$texts.annual.all()
+			if (!Number.isInteger(month) || month < 1 || month > 12) return this.$texts.annual.allDays()
 			return formatCalendarLabel(new Date(this.selection.year, month - 1, 1), { month: 'long' })
 		},
 		columns() {
@@ -166,6 +179,10 @@ export default {
 		},
 		bucketStyle() {
 			return { '--annual-bucket-count': String(Math.max(this.columns.length - 1, 1)), '--annual-bucket-width': '108px' }
+		},
+		chartAxisLabels() {
+			if (this.selection.period === 'year') return Array.from({ length: 12 }, (_, month) => formatCalendarLabel(new Date(this.selection.year, month, 1), { month: 'short' }))
+			return this.columns.slice(0, -1)
 		},
 		groupingLabel() {
 			if (this.selection.grouping === 'paymentPartners') return this.$texts.annual.partners()
@@ -298,16 +315,12 @@ export default {
 		},
 		selectPeriod(event) {
 			const requested = event.target.value
-			this.selection.period = requested === 'month' || requested === 'quarter' || requested === 'week' || requested === 'day' ? requested : 'year'
+			if (requested === 'day' && this.selection.period !== 'day') this.selection.month = 1
+			this.selection.period = requested === 'quarter' || requested === 'week' || requested === 'day' ? requested : 'year'
 			return this.updateSelection(event)
 		},
 		selectMonth(event) {
 			if (event.target.value === 'all') {
-				if (this.selection.period === 'day') {
-					this.selection.month = 0
-					return this.updateSelection(event)
-				}
-				this.selection.period = 'year'
 				this.selection.month = 0
 				return this.updateSelection(event)
 			}
@@ -542,8 +555,6 @@ export default {
 .annual-export-menu { display: inline-flex; }
 .annual-controls { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin-block: 12px 4px; }
 .annual-select { position: relative; display: inline-flex; min-width: 0; max-width: 100%; border-radius: var(--border-radius-element, 8px); color: var(--cobudget-text-muted); font-weight: 400; }
-.annual-select--title { color: inherit; font: inherit; font-weight: inherit; letter-spacing: inherit; }
-.annual-select--title > span { min-height: 0; padding-inline: 2px 4px; }
 .annual-select > span { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 36px; padding-inline: 8px; }
 .annual-select-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .annual-select :deep(.material-design-icon) { flex-shrink: 0; }

@@ -1,6 +1,6 @@
 const LABEL_KEYS = ['important', 'review', 'fixedCost', 'childRelated', 'subscription', 'taxRelevant', 'insurance']
 const FILTER_LIMIT = 50
-const ANNUAL_SECTIONS = ['income', 'expense', 'total']
+const ANNUAL_SECTIONS = ['income', 'expense', 'total', 'chart']
 
 function annualSectionStorageKey() {
 	let userId = ''
@@ -206,23 +206,18 @@ export function annualPeriodIsFuture(year, period, subperiod, now = new Date()) 
 	return false
 }
 
-function defaultOverviewMonth(year, now = new Date()) {
-	const today = calendarToday(now)
-	return year === today.year ? today.month : 1
-}
-
 export function annualSelection(query = {}) {
 	const year = Number(query.year)
 	const currentYear = new Date().getFullYear()
 	const selectedYear = Number.isInteger(year) && year >= 1970 && year <= 9999 ? year : currentYear
 	const projectId = Number(query.projectId)
 	const grouping = ['paymentPartners', 'labelsAndTags'].includes(query.grouping) ? query.grouping : 'categories'
-	const period = query.period === 'month' ? 'month' : query.period === 'quarter' ? 'quarter' : query.period === 'week' ? 'week' : query.period === 'day' ? 'day' : 'year'
+	// Old month links represent the same daily report with a selected month.
+	const period = query.period === 'month' || query.period === 'day' ? 'day' : query.period === 'quarter' ? 'quarter' : query.period === 'week' ? 'week' : 'year'
 	const requestedMonth = Number(query.month)
 	const validMonth = Number.isInteger(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12
-	const month = period === 'month'
-		? (validMonth ? requestedMonth : defaultOverviewMonth(selectedYear))
-		: (period === 'day' && validMonth ? requestedMonth : 0)
+	const allDays = query.month === 'all' || query.month === 0 || query.month === '0'
+	const month = period === 'day' ? (validMonth ? requestedMonth : allDays ? 0 : 1) : 0
 	const quarter = 0
 	let amountMin = storedAmountCents(query.amountMin)
 	let amountMax = storedAmountCents(query.amountMax)
@@ -266,10 +261,9 @@ export function annualRouteQuery(selection) {
 	return {
 		year: String(value.year),
 		grouping: value.grouping,
-		...(value.period === 'month' ? { period: 'month', month: String(value.month) } : {}),
 		...(value.period === 'quarter' ? { period: 'quarter' } : {}),
 		...(value.period === 'week' ? { period: 'week' } : {}),
-		...(value.period === 'day' ? { period: 'day', ...(value.month >= 1 ? { month: String(value.month) } : {}) } : {}),
+		...(value.period === 'day' ? { period: 'day', month: value.month >= 1 ? String(value.month) : 'all' } : {}),
 		...(value.projectId ? { projectId: String(value.projectId) } : {}),
 		...(value.includeFuturePayments ? { includeFuturePayments: 'true' } : {}),
 		...filterQuery(value),
@@ -281,7 +275,6 @@ export function annualRequestParams(selection, extra = {}) {
 	return {
 		year: value.year,
 		grouping: value.grouping,
-		...(value.period === 'month' ? { period: 'month', month: value.month } : {}),
 		...(value.period === 'quarter' ? { period: 'quarter' } : {}),
 		...(value.period === 'week' ? { period: 'week' } : {}),
 		...(value.period === 'day' ? { period: 'day', ...(value.month >= 1 ? { month: value.month } : {}) } : {}),

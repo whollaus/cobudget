@@ -9,6 +9,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 const source = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const moduleUrl = text => `data:text/javascript;charset=utf-8,${encodeURIComponent(text)}`
 const annual = await import(moduleUrl(source('src/services/annualOverview.js')))
+const annualChart = await import(moduleUrl(source('src/services/annualOverviewChart.js')))
 const { planAnnualPrintPieces, annualPrintCellIndexes } = await import(moduleUrl(source('src/services/annualOverviewPrint.js')))
 const { annualCellDetails, annualDetailComparison } = await import(moduleUrl(source('src/services/annualOverviewDetails.js')))
 const routes = await import(moduleUrl(source('src/services/entryListRoute.js').replace("'./pagination'", JSON.stringify(moduleUrl(source('src/services/pagination.js'))))))
@@ -21,11 +22,12 @@ assert.equal(annual.annualSelection({ year: currentYear }).period, 'year')
 assert.equal(annual.annualRouteQuery({ year: currentYear }).period, undefined, 'Year links stay free of a period parameter')
 assert.equal(annual.annualRequestParams({ year: currentYear, period: 'month', month: 2 }).month, 2)
 assert.equal(annual.annualSelection({ year: currentYear - 1, period: 'month' }).month, 1, 'A past year opens on January')
-assert.equal(annual.annualSelection({ year: currentYear, period: 'month' }).month, new Date().getMonth() + 1, 'The current year opens on the current month')
+assert.equal(annual.annualSelection({ year: currentYear, period: 'month' }).month, 1, 'A legacy month link without a selected month opens January')
+assert.equal(annual.annualSelection({ year: currentYear, period: 'month', month: 10 }).period, 'day', 'Legacy month links open the daily breakdown')
 assert.equal(annual.annualSelection({ year: currentYear, period: 'month', month: 1, includeFuturePayments: true }).includeFuturePayments, new Date().getMonth() === 0, 'A past month shows the whole month')
 assert.equal(annual.annualSelection({ year: currentYear, period: 'month', month: new Date().getMonth() + 1, includeFuturePayments: true }).includeFuturePayments, true)
 if (new Date().getMonth() < 11) assert.equal(annual.annualSelection({ year: currentYear, period: 'month', month: new Date().getMonth() + 2 }).includeFuturePayments, true, 'A later month includes entered payments')
-assert.deepEqual(annual.annualRouteQuery({ year: 2020, period: 'month', month: 2, grouping: 'categories' }), { year: '2020', grouping: 'categories', period: 'month', month: '2' })
+assert.deepEqual(annual.annualRouteQuery({ year: 2020, period: 'month', month: 2, grouping: 'categories' }), { year: '2020', grouping: 'categories', period: 'day', month: '2' })
 assert.equal(annual.annualSelection({ year: currentYear }).quarter, 0, 'The yearly overview has no quarter')
 assert.equal(annual.annualSelection({ year: currentYear, period: 'quarter' }).quarter, 0, 'The quarterly overview has no selected quarter')
 assert.equal(annual.annualSelection({ year: currentYear, period: 'quarter' }).includeFuturePayments, false, 'The current year still defaults to payments up to today')
@@ -75,9 +77,12 @@ assert.equal(annual.annualPeriodIsFuture(2026, 'day', 11, new Date(2026, 9, 21, 
 assert.equal(annual.annualPeriodIsFuture(2026, 'day', 10, new Date(2026, 9, 21, 12)), false, 'The current month of the daily overview is not a future period')
 assert.equal(annual.annualPeriodIsFuture(2026, 'day', 3, new Date(2026, 9, 21, 12)), false, 'A past month of the daily overview is not a future period')
 assert.equal(annual.annualSelection({ year: currentYear, period: 'day' }).period, 'day')
-assert.equal(annual.annualSelection({ year: currentYear, period: 'day' }).month, 0, 'All keeps every calendar day')
+assert.equal(annual.annualSelection({ year: currentYear, period: 'day' }).month, 1, 'The daily breakdown defaults to January')
 assert.equal(annual.annualSelection({ year: currentYear, period: 'day', month: 3 }).month, 3, 'A chosen month stays on the daily overview')
-assert.equal(annual.annualSelection({ year: currentYear, period: 'day', month: 13 }).month, 0, 'An invalid daily month falls back to All')
+assert.equal(annual.annualSelection({ year: currentYear, period: 'day', month: 13 }).month, 1, 'An invalid daily month falls back to January')
+for (const month of [0, '0', 'all']) {
+	assert.equal(annual.annualSelection({ year: currentYear, period: 'day', month }).month, 0, 'An explicit All days choice keeps every calendar day')
+}
 assert.equal(annual.annualSelection({ year: currentYear, period: 'day' }).quarter, 0)
 assert.equal(annual.annualSelection({ year: currentYear, period: 'day' }).includeFuturePayments, false, 'The current year defaults to payments up to today')
 assert.equal(annual.annualSelection({ year: currentYear - 1, period: 'day', includeFuturePayments: true }).includeFuturePayments, false, 'A past year stays complete')
@@ -91,12 +96,18 @@ if (new Date().getMonth() < 11) {
 	assert.equal(annual.annualPeriodIsFuture(currentYear, 'day', new Date().getMonth() + 2), true, 'A later month of the current daily overview is in the future')
 	assert.equal(annual.annualSelection({ year: currentYear, period: 'day', month: new Date().getMonth() + 2 }).includeFuturePayments, true, 'A later month includes entered payments')
 }
-assert.deepEqual(annual.annualRouteQuery({ year: 2020, period: 'day', day: 12, grouping: 'categories' }), { year: '2020', grouping: 'categories', period: 'day' })
+assert.deepEqual(annual.annualRouteQuery({ year: 2020, period: 'day', day: 12, grouping: 'categories' }), { year: '2020', grouping: 'categories', period: 'day', month: '1' })
 assert.deepEqual(annual.annualRouteQuery({ year: 2020, period: 'day', month: 3, grouping: 'categories' }), { year: '2020', grouping: 'categories', period: 'day', month: '3' })
 assert.equal(annual.annualRequestParams({ year: 2020, period: 'day', day: 3 }).period, 'day')
 assert.equal(annual.annualRequestParams({ year: 2020, period: 'day', day: 3 }).day, undefined, 'Day links omit the day number')
 assert.equal(annual.annualRequestParams({ year: 2020, period: 'day', month: 3 }).month, 3, 'A chosen month is requested with the daily overview')
-assert.equal(annual.annualRequestParams({ year: 2020, period: 'day' }).month, undefined, 'All omits the month')
+assert.equal(annual.annualRequestParams({ year: 2020, period: 'day' }).month, 1, 'The default request loads January')
+assert.equal(annual.annualRequestParams({ year: 2020, period: 'day', month: 'all' }).month, undefined, 'All days requests the whole year')
+assert.deepEqual(annual.annualRouteQuery({ year: 2020, period: 'day', month: 0 }), { year: '2020', grouping: 'categories', period: 'day', month: 'all' }, 'All days is explicit in the address')
+const allDayFilters = annual.annualSelection({ year: currentYear, period: 'day', month: 'all', projectId: 12, grouping: 'labelsAndTags', categories: '7', partners: '2', hashtags: '9', amountMin: '10', includeFuturePayments: true })
+assert.deepEqual(annual.annualSelection(annual.annualRouteQuery(allDayFilters)), allDayFilters, 'All days and combined filters survive reloading the address')
+const allDayPayments = annual.annualPaymentRoute(allDayFilters, null, 'expense', { id: 'tag:9', kind: 'hashtag', filter: '9' })
+assert.deepEqual(annual.annualReturnRoute(allDayPayments.query.annualReturn), { name: 'annual-overview', query: annual.annualRouteQuery(allDayFilters) }, 'Returning from matching payments preserves All days and its filters')
 assert.equal(annual.annualRouteQuery({ year: 2020, day: 2 }).period, undefined, 'Year links omit the day')
 
 for (const projectId of [null, 12]) {
@@ -264,6 +275,7 @@ const nextcloudPicker = { folder: '/Dokumente', error: null }
 const nextcloudUser = { uid: 'ada' }
 const bindings = {
 	...annual,
+	...annualChart,
 	downloadTextFile: (filename, contents) => { csvDownloads.push({ filename, contents }) },
 	showToast: message => { exportToasts.push(message) },
 	showRequestError: (_error, fallback) => { exportErrors.push(fallback) },
@@ -289,7 +301,7 @@ const bindings = {
 	NcModal: slotComponent('section'), annualCellDetails, annualDetailComparison, getAppLocale: () => 'de-AT',
 	ChevronLeftIcon: slotComponent('span'), ChevronRightIcon: slotComponent('span'), ChevronDownIcon: slotComponent('span'),
 	PrinterIcon: slotComponent('span'), printAnnualOverview: (...args) => { printCalls.push(args) },
-	AppPageHeader: slotComponent('header', 'title'),
+	AppPageHeader: { props: ['title'], setup: (props, { slots }) => () => Vue.h('header', [Vue.h('h2', slots.title?.() || props.title), slots.actions?.()]) },
 	MobileReportSwitch: slotComponent('nav'),
 	axios: {}, generateUrl: value => value, REMOTE_DATA_CHANGED_EVENT: 'change',
 	formatCalendarLabel: (date, options) => new Intl.DateTimeFormat('de-AT', options).format(date),
@@ -312,6 +324,7 @@ bindings.AnnualComparison = component('src/components/AnnualComparison.vue')
 bindings.AnnualOverviewTable = component('src/components/AnnualOverviewTable.vue')
 bindings.AnnualOverviewDetails = component('src/components/AnnualOverviewDetails.vue')
 bindings.AnnualOverviewFilters = component('src/components/AnnualOverviewFilters.vue')
+bindings.AnnualOverviewChart = component('src/components/AnnualOverviewChart.vue')
 const table = bindings.AnnualOverviewTable
 const sortRows = [
 	{ key: 'z', label: 'Zebra', total: 20, children: [{ name: 'Zoo', total: 1 }, { name: 'Äpfel', total: 5 }, { name: 'Direct', total: 0, direct: true }] },
@@ -359,117 +372,55 @@ assert.equal(yearState.selection.year, currentYear + 1, 'Years without entries c
 view.methods.updateSelection.call(yearState, yearEvent('categories'))
 assert.equal(blurCount, 1, 'Only invalid year selection releases focus; ordinary changes remain keyboard accessible')
 const periodState = {
-	selection: { year: 2019, period: 'year', month: 0, grouping: 'categories', includeFuturePayments: false },
+	selection: {},
 	$enableProjects: true,
 	$router: { replace(route) { periodState.route = route; return Promise.resolve() } },
 	updateSelection: view.methods.updateSelection,
 }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'month' } })
-assert.equal(periodState.selection.year, 2019, 'Switching to the monthly overview keeps the selected year')
-assert.equal(periodState.selection.period, 'month')
-assert.equal(periodState.route.query.year, '2019')
-assert.equal(periodState.route.query.period, 'month')
+for (const year of [2019, currentYear, currentYear + 1]) {
+	periodState.selection = annual.annualSelection({ year, grouping: 'paymentPartners', projectId: 12, categories: '7', hashtags: '9' })
+	await view.methods.selectPeriod.call(periodState, { target: { value: 'day' } })
+	assert.equal(periodState.selection.year, year, 'Choosing Days retains the selected year')
+	assert.equal(periodState.selection.month, 1, 'Choosing Days starts in January for past, current and future years')
+	assert.equal(periodState.route.query.period, 'day')
+	assert.equal(periodState.route.query.month, '1')
+	assert.equal(periodState.route.query.projectId, '12', 'The financial view survives a breakdown change')
+	assert.equal(periodState.route.query.categories, '7', 'Payment filters survive a breakdown change')
+	assert.equal(periodState.route.query.hashtags, '9')
+}
+periodState.selection = annual.annualSelection({ year: 2019, period: 'day', month: 3 })
 await view.methods.selectMonth.call(periodState, { target: { value: 'all', blur() {} } })
-assert.equal(periodState.selection.year, 2019, 'All returns to the yearly overview of the selected year')
-assert.equal(periodState.selection.period, 'year')
-assert.equal(periodState.route.query.year, '2019')
-assert.equal(periodState.route.query.period, undefined)
-assert.equal(periodState.route.query.month, undefined)
-periodState.selection = { year: 2019, period: 'year', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'quarter' } })
-assert.equal(periodState.selection.year, 2019, 'Switching to the quarterly overview keeps the selected year')
-assert.equal(periodState.selection.period, 'quarter')
-assert.equal(periodState.selection.quarter, 0)
-assert.equal(periodState.route.query.year, '2019')
-assert.equal(periodState.route.query.period, 'quarter')
-assert.equal(periodState.route.query.quarter, undefined)
-assert.equal(periodState.route.query.month, undefined)
-periodState.selection = { year: 2019, period: 'month', month: 10, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'quarter' } })
-assert.equal(periodState.selection.year, 2019, 'Switching from a month keeps the selected year')
-assert.equal(periodState.selection.quarter, 0)
-assert.equal(periodState.route.query.month, undefined)
-periodState.selection = { year: 2019, period: 'quarter', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'month' } })
-assert.equal(periodState.selection.year, 2019)
-assert.equal(periodState.selection.month, 1, 'A past year opens on January')
-assert.equal(periodState.route.query.quarter, undefined)
-periodState.selection = { year: currentYear, period: 'quarter', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'month' } })
-assert.equal(periodState.selection.month, new Date().getMonth() + 1, 'The current year opens on the current month')
-periodState.selection = { year: 2019, period: 'quarter', month: 11, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'month' } })
-assert.equal(periodState.selection.month, 11, 'A remembered month stays selected')
-periodState.selection = { year: 2019, period: 'year', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'week' } })
-assert.equal(periodState.selection.year, 2019, 'Switching to the weekly overview keeps the selected year')
-assert.equal(periodState.selection.period, 'week')
+assert.equal(periodState.selection.period, 'day', 'All days stays on the daily breakdown')
 assert.equal(periodState.selection.month, 0)
-assert.equal(periodState.route.query.year, '2019')
-assert.equal(periodState.route.query.period, 'week')
-assert.equal(periodState.route.query.week, undefined)
-assert.equal(periodState.route.query.month, undefined)
-periodState.selection = { year: 2019, period: 'week', month: 11, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'month' } })
-assert.equal(periodState.selection.month, 11, 'A remembered month stays selected after the weekly overview')
-const quarterYearState = {
-	selection: { year: 2019, period: 'quarter', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false },
-	yearOptions: [2019, 2020],
-	$router: { replace(route) { quarterYearState.route = route; return Promise.resolve() } },
-	updateSelection: view.methods.updateSelection,
-}
-view.methods.selectYear.call(quarterYearState, { target: { value: '2020', blur() {} } })
-assert.equal(quarterYearState.selection.year, 2020, 'Changing the year keeps the quarterly overview')
-assert.equal(quarterYearState.selection.period, 'quarter')
-assert.equal(quarterYearState.route.query.period, 'quarter')
-assert.equal(quarterYearState.route.query.quarter, undefined)
-const weekYearState = {
-	selection: { year: 2019, period: 'week', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false },
-	yearOptions: [2019, 2020],
-	$router: { replace(route) { weekYearState.route = route; return Promise.resolve() } },
-	updateSelection: view.methods.updateSelection,
-}
-view.methods.selectYear.call(weekYearState, { target: { value: '2020', blur() {} } })
-assert.equal(weekYearState.selection.year, 2020, 'Changing the year keeps the weekly overview')
-assert.equal(weekYearState.selection.period, 'week')
-assert.equal(weekYearState.route.query.period, 'week')
-assert.equal(weekYearState.route.query.week, undefined)
-periodState.selection = { year: 2019, period: 'year', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false }
+assert.equal(periodState.route.query.month, 'all', 'All days survives the next route normalization')
+assert.equal(annual.annualSelection(periodState.route.query).month, 0)
+await view.methods.selectMonth.call(periodState, { target: { value: '10', blur() {} } })
+assert.equal(periodState.selection.month, 10, 'A different month replaces All days')
+assert.equal(periodState.route.query.month, '10')
 await view.methods.selectPeriod.call(periodState, { target: { value: 'day' } })
-assert.equal(periodState.selection.year, 2019, 'Switching to the daily overview keeps the selected year')
-assert.equal(periodState.selection.period, 'day')
-assert.equal(periodState.selection.month, 0)
-assert.equal(periodState.route.query.year, '2019')
-assert.equal(periodState.route.query.period, 'day')
-assert.equal(periodState.route.query.day, undefined)
-assert.equal(periodState.route.query.month, undefined)
-periodState.selection = { year: 2019, period: 'day', month: 3, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectMonth.call(periodState, { target: { value: 'all', blur() {} } })
-assert.equal(periodState.selection.period, 'day', 'All stays on the daily overview')
-assert.equal(periodState.selection.month, 0)
-assert.equal(periodState.route.query.period, 'day')
-assert.equal(periodState.route.query.month, undefined)
-periodState.selection = { year: 2019, period: 'day', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectMonth.call(periodState, { target: { value: '3', blur() {} } })
-assert.equal(periodState.selection.period, 'day', 'Choosing a month stays on the daily overview')
-assert.equal(periodState.selection.month, 3)
-assert.equal(periodState.selection.year, 2019)
-assert.equal(periodState.route.query.period, 'day')
-assert.equal(periodState.route.query.month, '3')
-periodState.selection = { year: 2019, period: 'day', month: 11, quarter: 0, grouping: 'categories', includeFuturePayments: false }
-await view.methods.selectPeriod.call(periodState, { target: { value: 'month' } })
-assert.equal(periodState.selection.month, 11, 'A remembered month stays selected after the daily overview')
+assert.equal(periodState.selection.month, 10, 'Reselecting the active daily breakdown keeps the chosen month')
+for (const period of ['year', 'quarter', 'week']) {
+	await view.methods.selectPeriod.call(periodState, { target: { value: period } })
+	assert.equal(periodState.selection.year, 2019, 'Changing breakdown keeps the selected year')
+	assert.equal(periodState.selection.period, period)
+	assert.equal(periodState.route.query.month, undefined, 'Whole-year breakdowns have no month restriction')
+	assert.equal(periodState.route.query.period, period === 'year' ? undefined : period)
+	await view.methods.selectPeriod.call(periodState, { target: { value: 'day' } })
+	assert.equal(periodState.selection.month, 1, 'Returning to Days starts in January')
+}
 const dayYearState = {
-	selection: { year: 2019, period: 'day', month: 0, quarter: 0, grouping: 'categories', includeFuturePayments: false },
+	selection: annual.annualSelection({ year: 2019, period: 'day', month: 'all' }),
 	yearOptions: [2019, 2020],
 	$router: { replace(route) { dayYearState.route = route; return Promise.resolve() } },
 	updateSelection: view.methods.updateSelection,
 }
 view.methods.selectYear.call(dayYearState, { target: { value: '2020', blur() {} } })
-assert.equal(dayYearState.selection.year, 2020, 'Changing the year keeps the daily overview')
+assert.equal(dayYearState.selection.year, 2020, 'Changing the year keeps the daily breakdown')
 assert.equal(dayYearState.selection.period, 'day')
-assert.equal(dayYearState.route.query.period, 'day')
-assert.equal(dayYearState.route.query.day, undefined)
+assert.equal(dayYearState.route.query.month, 'all', 'Changing the year keeps an explicit All days choice')
+dayYearState.selection = annual.annualSelection({ year: 2019, period: 'day', month: 2 })
+view.methods.selectYear.call(dayYearState, { target: { value: '2020', blur() {} } })
+assert.equal(dayYearState.route.query.month, '2', 'Changing the year keeps the selected month, including leap-year February')
 assert.deepEqual(view.computed.yearOptions.call({ report: { years: [currentYear, currentYear - 2] } }), [currentYear, currentYear - 2], 'Year dropdown lists only reported years, without filling gaps')
 assert.deepEqual(view.computed.yearOptions.call({ report: null }), [], 'No invented years while data is unavailable')
 const selection = { year: currentYear, grouping: 'categories', projectId: null, includeFuturePayments: false }
@@ -520,7 +471,7 @@ assert.equal(printCalls[4][1].months.length, annual.isoWeekCount(currentYear - 1
 assert.equal(printCalls[4][1].months[0], 'KW 1')
 assert.equal(printCalls[4][1].months.at(-1), `KW ${annual.isoWeekCount(currentYear - 1)}`)
 assert.equal(printCalls[4][1].details.length, 2, 'A past week-year has no cutoff in the print header')
-printState.selection = { ...selection, year: currentYear - 1, period: 'day' }
+printState.selection = { ...selection, year: currentYear - 1, period: 'day', month: 0 }
 printState.$texts.annual.dailyTitle = () => 'Tagesübersicht'
 await view.methods.printReport.call(printState)
 assert.equal(printCalls[5][1].title, `CoBudget – Tagesübersicht ${currentYear - 1}`)
@@ -740,8 +691,12 @@ for (const [years, selectedYear, expectedYear] of [
 	assert.equal(replacements, selectedYear === expectedYear ? 0 : 1, 'Empty scopes do not cause redirect loops')
 	assert.equal(state.error, false)
 }
-function createReportApp(selection, reportData = report, { incomes = true, projects = true } = {}) {
-	const app = Vue.createSSRApp({ ...view, data: () => ({ selection, projects: [], categoryChoices: [{ id: 1, name: 'Groceries', type: 'expense' }, { id: 2, name: 'Rent', parent_category_id: 1, type: 'expense' }, { id: 3, name: 'Salary', type: 'income' }, { id: 9, name: 'Archive', type: 'expense' }], partnerChoices: [{ id: 4, name: 'Amazon', type: 'expense' }, { id: 6, name: 'Client', type: 'income' }, { id: 8, name: 'OldShop', type: 'expense' }], hashtagChoices: [{ id: 9, displayName: 'Alpen' }], filterChoices: { categoryIds: [1, 2, 3, 0], partnerIds: [4, 6, 0], labels: ['important', 'childRelated'] }, loading: false, error: false, detail: null, report: reportData, printing: false, requestId: 0, filterChoiceRequest: 0 }) })
+function reportControlCount(markup) {
+	const controls = markup.slice(markup.indexOf('class="annual-controls"'), markup.indexOf('class="annual-chart"'))
+	return (controls.match(/<select /g) || []).length
+}
+function createReportApp(selection, reportData = report, { incomes = true, projects = true, chartHiddenSeries = [] } = {}) {
+	const app = Vue.createSSRApp({ ...view, data: () => ({ selection: annual.annualSelection(selection), chartMode: 'cumulative', chartHiddenSeries, projects: [], categoryChoices: [{ id: 1, name: 'Groceries', type: 'expense' }, { id: 2, name: 'Rent', parent_category_id: 1, type: 'expense' }, { id: 3, name: 'Salary', type: 'income' }, { id: 9, name: 'Archive', type: 'expense' }], partnerChoices: [{ id: 4, name: 'Amazon', type: 'expense' }, { id: 6, name: 'Client', type: 'income' }, { id: 8, name: 'OldShop', type: 'expense' }], hashtagChoices: [{ id: 9, displayName: 'Alpen' }], filterChoices: { categoryIds: [1, 2, 3, 0], partnerIds: [4, 6, 0], labels: ['important', 'childRelated'] }, loading: false, error: false, detail: null, report: reportData, printing: false, exporting: false, requestId: 0, filterChoiceRequest: 0 }) })
 	app.component('RouterLink', { props: ['to'], setup: (props, { slots }) => () => Vue.h('a', { href: JSON.stringify(props.to) }, slots.default?.()) })
 	app.config.globalProperties.$texts = new Proxy({}, { get: () => new Proxy({}, { get: (_, key) => (...args) => args.length ? args.join(', ') : key }) })
 	app.config.globalProperties.$route = { query: {} }
@@ -752,13 +707,21 @@ function createReportApp(selection, reportData = report, { incomes = true, proje
 	return app
 }
 const markup = await renderToString(createReportApp(selection))
+assert.ok(markup.indexOf('class="annual-controls"') < markup.indexOf('class="annual-chart"'), 'The chart follows the report controls')
+assert.ok(markup.indexOf('class="annual-chart"') < markup.indexOf('class="annual-scroll"'), 'The chart precedes the report tables')
+assert.equal((markup.match(/class="annual-chart-line"/g) || []).length, 3, 'The annual view shows all enabled financial series')
+const focusedChartMarkup = await renderToString(createReportApp(selection, report, { chartHiddenSeries: ['income', 'balance'] }))
+assert.equal((focusedChartMarkup.match(/class="annual-chart-line"/g) || []).length, 1, 'The annual view passes its retained curve selection into the chart')
+assert.equal((focusedChartMarkup.match(/<table /g) || []).length, 3, 'Hiding chart curves does not hide or change the report tables')
+
 for (const incomes of [false, true]) {
 	for (const projects of [false, true]) {
 		const settingsMarkup = await renderToString(createReportApp(selection, report, { incomes, projects }))
 		assert.equal((settingsMarkup.match(/<table /g) || []).length, incomes ? 3 : 1, 'Disabled incomes leave only the expense table and its total')
+		assert.equal((settingsMarkup.match(/class="annual-chart-line"/g) || []).length, incomes ? 3 : 1, 'Chart series follow the income feature setting')
 		assert.equal((settingsMarkup.match(/annual-section-toggle/g) || []).length, incomes ? 3 : 1, 'Income, expenses and the total collapse on their own')
 		assert.equal((settingsMarkup.match(/annual-filter-kind/g) || []).length, incomes ? 2 : 0, 'Income and expense marks disappear when income is disabled')
-		assert.equal((settingsMarkup.match(/<select /g) || []).length, projects ? 5 : 4, 'Disabled areas remove the scope dropdown')
+		assert.equal(reportControlCount(settingsMarkup), projects ? 5 : 4, 'Disabled areas remove the scope dropdown')
 		const links = [...settingsMarkup.matchAll(/href="([^"]+)"/g)].map(match => JSON.parse(match[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&')))
 		assert.ok(links.length > 0)
 		if (!incomes) assert.ok(links.every(link => link.query.type === 'expense'), 'No hidden income or balance drilldowns remain')
@@ -849,9 +812,11 @@ assert.ok(chipMarkup.includes('2 or 5'), 'Several values of one filter are shown
 assert.ok(chipMarkup.includes('important or children'))
 assert.equal(chipMarkup.includes('anyOfThese'), false, 'A multi-value filter does not add an extra hint')
 assert.ok(chipMarkup.includes('annual-filter-remove'))
-assert.equal((markup.match(/<select /g) || []).length, 5, 'Current year keeps the title, year, scope, grouping and cutoff dropdowns')
-assert.ok(markup.includes('value="year"') && markup.includes('value="quarter"') && markup.includes('value="week"') && markup.includes('value="month"') && markup.includes('value="day"'), 'The title switches between the year, quarter, week, month and day overview')
-assert.ok(markup.indexOf('value="year"') < markup.indexOf('value="quarter"') && markup.indexOf('value="quarter"') < markup.indexOf('value="week"') && markup.indexOf('value="week"') < markup.indexOf('value="month"') && markup.indexOf('value="month"') < markup.indexOf('value="day"'), 'The title lists the year, then the quarter, then the week, then the month, then the day')
+assert.equal(reportControlCount(markup), 5, 'Current year keeps the title, year, scope, grouping and cutoff dropdowns')
+const breakdownOptions = markup.match(/<select[^>]*aria-label="breakdown"[^>]*>(.*?)<\/select>/s)?.[1]
+assert.deepEqual([...breakdownOptions.matchAll(/<option value="([^"]+)"[^>]*>(.*?)<\/option>/g)].map(match => [match[1], match[2]]), [['year', 'months'], ['quarter', 'quarters'], ['week', 'weeks'], ['day', 'days']], 'The breakdown offers four consistent column groupings')
+assert.ok(markup.includes('<h2>title</h2>'), 'Annual overview remains the page title')
+assert.equal(breakdownOptions.includes('value="month"'), false, 'The duplicate monthly overview is absent')
 assert.equal(markup.includes('value="2"'), false, 'The year overview has no month dropdown')
 assert.equal(markup.includes('value="all"'), false, 'The year overview has no All choice')
 assert.ok(markup.includes('paymentsUntilToday'), 'Payment cutoff is visible in the toolbar')
@@ -859,74 +824,78 @@ assert.ok(!markup.includes('annual-hint'), 'Explanatory paragraphs are removed')
 assert.ok(!markup.includes('annual-year-buttons'), 'Year navigation arrows are removed')
 assert.ok(!markup.includes('value="other"'), 'Arbitrary year selection is removed')
 assert.ok(!markup.includes(`value="${currentYear - 1}"`), 'Empty years are not offered')
-assert.equal(((await renderToString(createReportApp({ ...selection, year: currentYear - 1 }))).match(/<select /g) || []).length, 4, 'Past years hide the cutoff dropdown')
-assert.equal(((await renderToString(createReportApp({ ...selection, year: currentYear + 1 }))).match(/<select /g) || []).length, 4, 'Future years hide the cutoff dropdown')
+assert.equal(reportControlCount((await renderToString(createReportApp({ ...selection, year: currentYear - 1 })))), 4, 'Past years hide the cutoff dropdown')
+assert.equal(reportControlCount((await renderToString(createReportApp({ ...selection, year: currentYear + 1 })))), 4, 'Future years hide the cutoff dropdown')
 const viewedMonth = new Date().getMonth() + 1
 const monthMarkup = await renderToString(createReportApp({ ...selection, period: 'month', month: viewedMonth }))
-assert.equal((monthMarkup.match(/<select /g) || []).length, 6, 'The current month adds the month dropdown beside the year and keeps the cutoff')
-assert.ok(monthMarkup.includes('monthlyTitle') && monthMarkup.includes('>Februar<'), 'February is offered with the other months of the selected year')
-assert.ok(monthMarkup.includes('value="all"') && monthMarkup.indexOf('value="all"') < monthMarkup.indexOf('>Februar<'), 'All is the first month choice and opens the year overview')
+assert.equal(reportControlCount(monthMarkup), 6, 'The current month adds the month dropdown beside the year and keeps the cutoff')
+assert.ok(monthMarkup.includes('<h2>title</h2>') && monthMarkup.includes('>Februar<'), 'February is offered with the other months of the selected year')
+assert.ok(monthMarkup.includes('value="all"') && monthMarkup.indexOf('value="all"') < monthMarkup.indexOf('>Februar<'), 'All days is the first month choice and retains the daily breakdown')
 assert.ok(monthMarkup.includes(new Intl.DateTimeFormat('de-AT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(currentYear, viewedMonth - 1, 1))), 'Day headings expose the weekday and full date')
 const monthDayHeading = (day) => new Intl.DateTimeFormat('de-AT', { day: 'numeric', month: 'short' }).format(new Date(currentYear, viewedMonth - 1, day)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const viewedMonthLength = new Date(currentYear, viewedMonth, 0).getDate()
 assert.equal((monthMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${monthDayHeading(1)}`, 'g')) || []).length, 3, 'Income, expenses and the total list the short date of day 1')
 assert.equal((monthMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${monthDayHeading(viewedMonthLength)}`, 'g')) || []).length, 3, 'Income, expenses and the total list the short date of the last day')
 const pastMonthMarkup = await renderToString(createReportApp({ ...selection, period: 'month', month: 1 }))
-assert.equal((pastMonthMarkup.match(/<select /g) || []).length, new Date().getMonth() === 0 ? 6 : 5, 'A past month hides payments up to today')
+assert.equal(reportControlCount(pastMonthMarkup), new Date().getMonth() === 0 ? 6 : 5, 'A past month hides payments up to today')
 if (new Date().getMonth() < 11) {
 	const laterMonthMarkup = await renderToString(createReportApp({ ...selection, period: 'month', month: new Date().getMonth() + 2 }))
-	assert.equal((laterMonthMarkup.match(/<select /g) || []).length, 5, 'A future month hides the cutoff dropdown')
+	assert.equal(reportControlCount(laterMonthMarkup), 5, 'A future month hides the cutoff dropdown')
 }
 const quarterMarkup = await renderToString(createReportApp({ ...selection, period: 'quarter' }))
-assert.equal((quarterMarkup.match(/<select /g) || []).length, 5, 'The current year keeps the cutoff and adds no quarter dropdown')
-assert.ok(quarterMarkup.includes('quarterlyTitle'), 'The title shows the quarterly overview')
+assert.equal(reportControlCount(quarterMarkup), 5, 'The current year keeps the cutoff and adds no quarter dropdown')
+assert.ok(quarterMarkup.includes('<h2>title</h2>'), 'Quarters retains the annual page title')
 assert.equal(quarterMarkup.includes('aria-label="quarterLabel"'), false, 'The quarterly overview has no quarter dropdown')
 assert.equal(quarterMarkup.includes('aria-label="month"'), false, 'The month dropdown stays hidden in the quarterly overview')
 assert.equal(quarterMarkup.includes('value="all"'), false, 'The quarterly overview has no All choice')
 assert.equal((quarterMarkup.match(/<th\b[^>]*>\s*1\D/g) || []).length, 3, 'Income, expenses and the total list the first quarter')
 assert.equal(quarterMarkup.includes('Jänner'), false, 'The quarterly overview lists quarters')
 const pastQuarterMarkup = await renderToString(createReportApp({ ...selection, year: currentYear - 1, period: 'quarter' }))
-assert.equal((pastQuarterMarkup.match(/<select /g) || []).length, 4, 'A past year hides payments up to today')
+assert.equal(reportControlCount(pastQuarterMarkup), 4, 'A past year hides payments up to today')
 const futureQuarterMarkup = await renderToString(createReportApp({ ...selection, year: currentYear + 1, period: 'quarter' }))
-assert.equal((futureQuarterMarkup.match(/<select /g) || []).length, 4, 'A future year hides the cutoff dropdown')
+assert.equal(reportControlCount(futureQuarterMarkup), 4, 'A future year hides the cutoff dropdown')
 const weekCountForYear = annual.isoWeekCount(currentYear)
 const weekMarkup = await renderToString(createReportApp({ ...selection, period: 'week' }))
-assert.equal((weekMarkup.match(/<select /g) || []).length, 5, 'The current week-year keeps the cutoff and adds no week dropdown')
-assert.ok(weekMarkup.includes('weeklyTitle'), 'The title shows the weekly overview')
+assert.equal(reportControlCount(weekMarkup), 5, 'The current week-year keeps the cutoff and adds no week dropdown')
+assert.ok(weekMarkup.includes('<h2>title</h2>'), 'Weeks retains the annual page title')
 assert.equal(weekMarkup.includes('aria-label="month"'), false, 'The month dropdown stays hidden in the weekly overview')
 assert.equal(weekMarkup.includes('value="all"'), false, 'The weekly overview has no All choice')
 assert.equal((weekMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${weekCountForYear}\\D`, 'g')) || []).length, 3, 'Income, expenses and the total list the last calendar week')
 assert.equal(weekMarkup.includes('Jänner'), false, 'The weekly overview lists calendar weeks')
 const pastWeekMarkup = await renderToString(createReportApp({ ...selection, year: currentYear - 1, period: 'week' }))
-assert.equal((pastWeekMarkup.match(/<select /g) || []).length, 4, 'A past week-year hides payments up to today')
+assert.equal(reportControlCount(pastWeekMarkup), 4, 'A past week-year hides payments up to today')
 const futureWeekMarkup = await renderToString(createReportApp({ ...selection, year: currentYear + 1, period: 'week' }))
-assert.equal((futureWeekMarkup.match(/<select /g) || []).length, 4, 'A future week-year hides the cutoff dropdown')
+assert.equal(reportControlCount(futureWeekMarkup), 4, 'A future week-year hides the cutoff dropdown')
 const escapePattern = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const dayHeading = (year, month, day) => new Intl.DateTimeFormat('de-AT', { day: 'numeric', month: 'short' }).format(new Date(year, month, day))
-const dayMarkup = await renderToString(createReportApp({ ...selection, period: 'day' }))
-assert.equal((dayMarkup.match(/<select /g) || []).length, 6, 'The current daily overview adds the month dropdown and keeps the cutoff')
-assert.ok(dayMarkup.includes('dailyTitle'), 'The title shows the daily overview')
+const defaultDayMarkup = await renderToString(createReportApp({ ...selection, period: 'day' }))
+assert.ok(defaultDayMarkup.includes('<h2>title</h2>'), 'The default daily breakdown keeps the annual page title')
+assert.equal((defaultDayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 0, 31))}`, 'g')) || []).length, 3, 'The default daily report includes all 31 January days')
+assert.equal((defaultDayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 1, 1))}`, 'g')) || []).length, 0, 'The default daily report does not include February')
+const dayMarkup = await renderToString(createReportApp({ ...selection, period: 'day', month: 'all' }))
+assert.equal(reportControlCount(dayMarkup), 6, 'The current daily overview adds the month dropdown and keeps the cutoff')
+assert.ok(dayMarkup.includes('<h2>title</h2>'), 'Days retains the annual page title')
 assert.ok(dayMarkup.includes('aria-label="month"'), 'The daily overview shows the month dropdown beside the year')
-assert.ok(dayMarkup.includes('value="all"') && dayMarkup.indexOf('value="all"') < dayMarkup.indexOf('>Februar<'), 'All is the first month choice and keeps every calendar day')
+assert.equal(dayMarkup.match(/<option value="all"[^>]*>(.*?)<\/option>/)?.[1], 'allDays', 'The whole-year choice is explicitly labelled All days')
 assert.equal((dayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 0, 1))}`, 'g')) || []).length, 3, 'Income, expenses and the total list 1 January')
 assert.equal((dayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 3, 'Income, expenses and the total list 31 December')
 assert.ok(dayMarkup.includes(new Intl.DateTimeFormat('de-AT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(currentYear, 0, 1))), 'Day headings expose the weekday and full date')
 const currentDayMonthMarkup = await renderToString(createReportApp({ ...selection, period: 'day', month: viewedMonth }))
-assert.equal((currentDayMonthMarkup.match(/<select /g) || []).length, 6, 'The current month of the daily overview keeps the cutoff')
+assert.equal(reportControlCount(currentDayMonthMarkup), 6, 'The current month of the daily overview keeps the cutoff')
 assert.equal((currentDayMonthMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, viewedMonth - 1, 1))}`, 'g')) || []).length, 3, 'Income, expenses and the total list the first day of the selected month')
 if (viewedMonth !== 12) assert.equal((currentDayMonthMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 0, 'A selected month hides the other days of the year')
 const februaryDayMarkup = await renderToString(createReportApp({ ...selection, period: 'day', month: 2 }))
-assert.equal((februaryDayMarkup.match(/<select /g) || []).length, new Date().getMonth() === 1 ? 6 : 5, 'A past month of the daily overview hides payments up to today')
+assert.equal(reportControlCount(februaryDayMarkup), new Date().getMonth() === 1 ? 6 : 5, 'A past month of the daily overview hides payments up to today')
 assert.equal((februaryDayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 1, 1))}`, 'g')) || []).length, 3, 'February lists its first day')
 assert.equal((februaryDayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 0, 'February hides 31 December')
 if (new Date().getMonth() < 11) {
 	const laterDayMarkup = await renderToString(createReportApp({ ...selection, period: 'day', month: new Date().getMonth() + 2 }))
-	assert.equal((laterDayMarkup.match(/<select /g) || []).length, 5, 'A later month of the daily overview hides the cutoff dropdown')
+	assert.equal(reportControlCount(laterDayMarkup), 5, 'A later month of the daily overview hides the cutoff dropdown')
 }
-const pastDayMarkup = await renderToString(createReportApp({ ...selection, year: currentYear - 1, period: 'day' }))
-assert.equal((pastDayMarkup.match(/<select /g) || []).length, 5, 'A past year hides payments up to today')
+const pastDayMarkup = await renderToString(createReportApp({ ...selection, year: currentYear - 1, period: 'day', month: 0 }))
+assert.equal(reportControlCount(pastDayMarkup), 5, 'A past year hides payments up to today')
 const futureDayMarkup = await renderToString(createReportApp({ ...selection, year: currentYear + 1, period: 'day' }))
-assert.equal((futureDayMarkup.match(/<select /g) || []).length, 5, 'A future year hides the cutoff dropdown')
+assert.equal(reportControlCount(futureDayMarkup), 5, 'A future year hides the cutoff dropdown')
 assert.equal((markup.match(/<table /g) || []).length, 3, 'Income, expenses and summary all render')
 const sectionToggles = markup => [...markup.matchAll(/<button[^>]*annual-section-toggle[^>]*>/g)].map(match => match[0])
 assert.equal(sectionToggles(markup).filter(button => button.includes('aria-expanded="true"')).length, 3, 'Income, expenses and the total start open')
@@ -1116,7 +1085,7 @@ const dayYearReport = {
 	periods: [...dayYearPeriods, { dateFrom: dayYearPeriods[0].dateFrom, dateTo: Math.floor(new Date(2027, 0, 1).getTime() / 1000) - 1 }],
 	totals: { income: { months: Array(countedDays).fill(0), total: 18000 }, expense: { months: [24000, ...Array(countedDays - 1).fill(0)], total: 24000 } },
 }
-const dayYearSelection = { ...statsSelection, period: 'day' }
+const dayYearSelection = { ...statsSelection, period: 'day', month: 0 }
 const dayYearRow = { ...statsRow, months: [12000, ...Array(countedDays - 1).fill(0)], total: 12000, counts: [3, ...Array(countedDays - 1).fill(0)], totalCount: 3 }
 const dayYearTotal = annualCellDetails({ row: dayYearRow, index: countedDays }, dayYearReport, dayYearSelection)
 assert.equal(dayYearTotal.yearly, true, 'The last daily column is the calendar-year total')
