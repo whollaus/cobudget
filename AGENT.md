@@ -25,6 +25,7 @@ modified: 2026-10-18T18:22:03+02:00
 
 ## Documentation Sources
 
+- CoBudget design contract: [docs/design-system.md](docs/design-system.md). Read it before UI changes; it defines shared components, tokens, intentional variants and verification requirements.
 - Local Codex skill: `/Users/wolfgang/.codex/skills/nextcloud-plugin/skills/nextcloud-development/SKILL.md`
 - Official docs: `https://docs.nextcloud.com/server/latest/developer_manual/`
 - Nextcloud design docs: `https://docs.nextcloud.com/server/latest/developer_manual/design/index.html`

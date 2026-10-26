@@ -3,6 +3,14 @@ uid: ec7a6a11-fa20-4aef-ae2c-01261e9d18ca
 ---
 # CoBudget agent instructions
 
+## UI and design changes
+
+Before changing UI or adding a module, read [docs/design-system.md](docs/design-system.md).
+Reuse its shared components and role tokens, preserve its documented CoBudget
+variants, and follow its verification checklist. Record new shared rules or
+intentional exceptions there in the same change; do not treat incidental local
+CSS differences as approved variants.
+
 ## Default release handoff
 
 The user prefers to run the shared publishing script personally. For future

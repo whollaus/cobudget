@@ -120,7 +120,7 @@
 			:metrics="mobileAdditionalMetrics" />
 
 		<DraggableScroller v-if="!isPaymentsView" class="stats-row desktop-summary-cards">
-			<div class="stat-card current-month-card">
+			<div class="stat-card current-month-card" data-cobudget-card="compact">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><CalendarMonthIcon :size="20" class="period-card-icon" /></div>
@@ -145,7 +145,7 @@
 				</div>
 			</div>
 
-			<div class="stat-card current-year-card">
+			<div class="stat-card current-year-card" data-cobudget-card="compact">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><CalendarIcon :size="20" class="period-card-icon" /></div>
@@ -172,7 +172,7 @@
 
 			<div
 				v-if="showBudgetCard"
-				class="stat-card budget-card clickable-budget-card"
+				class="stat-card budget-card clickable-budget-card cobudget-interactive-card cobudget-focusable" data-cobudget-card="compact"
 				role="link"
 				tabindex="0"
 				:aria-label="$texts.budgetGoals.title()"
@@ -199,10 +199,10 @@
 				</div>
 			</div>
 
-			<div class="stat-card income-card" v-if="showIncomeCard">
+			<div class="stat-card income-card" data-cobudget-card="compact" v-if="showIncomeCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
-						<div class="stat-icon"><TrendingUpIcon :size="20" fillColor="#107C41" /></div>
+						<div class="stat-icon"><TrendingUpIcon :size="20" fillColor="var(--cobudget-success)" /></div>
 						<span class="stat-label">{{ $texts.dashboard.income() }}</span>
 					</div>
 					<span class="stat-value positive">{{ formatPositiveMetric(totalIncome) }}</span>
@@ -219,7 +219,7 @@
 				</div>
 			</div>
 			
-			<div class="stat-card expense-card">
+			<div class="stat-card expense-card" data-cobudget-card="compact">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><TrendingDownIcon :size="20" fillColor="var(--cobudget-error)" /></div>
@@ -239,7 +239,7 @@
 				</div>
 			</div>
 			
-			<div class="stat-card total-card" v-if="$enableIncomes">
+			<div class="stat-card total-card" data-cobudget-card="compact" v-if="$enableIncomes">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><WalletIcon :size="20" fillColor="#0082c9" /></div>
@@ -261,7 +261,7 @@
 				</div>
 			</div>
 
-			<div class="stat-card important-card" v-if="showImportantCard">
+			<div class="stat-card important-card" data-cobudget-card="compact" v-if="showImportantCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><StarIcon :size="20" fillColor="#ffc92b" /></div>
@@ -281,7 +281,7 @@
 				</div>
 			</div>
 
-			<div class="stat-card review-card" v-if="showReviewCard">
+			<div class="stat-card review-card" data-cobudget-card="compact" v-if="showReviewCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><ClipboardCheckIcon :size="20" fillColor="var(--cobudget-error)" /></div>
@@ -301,7 +301,7 @@
 				</div>
 			</div>
 			
-			<div class="stat-card fixed-costs-card" v-if="showFixedCostsCard">
+			<div class="stat-card fixed-costs-card" data-cobudget-card="compact" v-if="showFixedCostsCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><LockIcon :size="20" fillColor="#e67e22" /></div>
@@ -321,7 +321,7 @@
 				</div>
 			</div>
 
-			<div class="stat-card child-card" v-if="showChildRelatedCard">
+			<div class="stat-card child-card" data-cobudget-card="compact" v-if="showChildRelatedCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><AccountChildIcon :size="20" fillColor="#0f766e" /></div>
@@ -341,7 +341,7 @@
 				</div>
 			</div>
 
-			<div class="stat-card abos-card" v-if="showSubscriptionsCard">
+			<div class="stat-card abos-card" data-cobudget-card="compact" v-if="showSubscriptionsCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><SyncIcon :size="20" fillColor="#8e44ad" /></div>
@@ -361,7 +361,7 @@
 				</div>
 			</div>
 
-			<div class="stat-card tax-card" v-if="showTaxRelevantCard">
+			<div class="stat-card tax-card" data-cobudget-card="compact" v-if="showTaxRelevantCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><ReceiptTextCheckOutlineIcon :size="20" fillColor="#0082c9" /></div>
@@ -380,7 +380,7 @@
 					</div>
 				</div>
 			</div>
-			<div class="stat-card insurance-card" v-if="showInsuranceCard">
+			<div class="stat-card insurance-card" data-cobudget-card="compact" v-if="showInsuranceCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><ShieldCheckOutlineIcon :size="20" fillColor="var(--color-primary-element)" /></div>
@@ -400,7 +400,7 @@
 				</div>
 			</div>
 
-			<div class="stat-card future-card" v-if="showFutureCard">
+			<div class="stat-card future-card" data-cobudget-card="compact" v-if="showFutureCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><CalendarSyncIcon :size="20" fillColor="#2563eb" /></div>
@@ -1897,10 +1897,6 @@ export default {
 	margin-right: 4px;
 }
 
-.filter-popover-content {
-	padding: 8px;
-}
-
 .mobile-header-action {
 	display: none !important;
 }
@@ -1955,39 +1951,24 @@ export default {
 
 .stats-row {
 	display: flex;
-	gap: 10px;
-	margin-bottom: 20px;
+	gap: var(--cobudget-card-gap);
+	margin-bottom: var(--cobudget-section-gap);
 	flex-wrap: nowrap;
 	padding: 2px 2px 12px;
 }
 
 .stat-card {
-	box-sizing: border-box;
 	flex: 0 0 300px;
 	width: 300px;
 	min-width: 300px;
-	background: var(--cobudget-page-background, #fff);
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	padding: 16px;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: var(--cobudget-content-gap);
 }
 
 .clickable-budget-card {
 	cursor: pointer;
 	transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
-}
-
-.clickable-budget-card:hover,
-.clickable-budget-card:focus-visible {
-  background-color: #F5F9FB;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .08);
-  border: 1px solid var(--color-primary-element, #0082c9);
-  background: var(--cobudget-page-background, #fff);
-  //background: var(--color-background-hover, #f5f5f5);
-	outline: none;
 }
 
 .stat-header {
@@ -2033,7 +2014,7 @@ export default {
 }
 
 .stat-label {
-	font-size: var(--cobudget-font-sm);
+	font-size: var(--cobudget-font-caption);
 	color: var(--color-text-maxcontrast, #888);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
@@ -2041,7 +2022,7 @@ export default {
 }
 
 .stat-value {
-	font-size: var(--cobudget-font-lg);
+	font-size: var(--cobudget-font-metric-compact);
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
 	text-align: right;
@@ -2049,7 +2030,7 @@ export default {
 }
 
 .stat-value.positive {
-	color: #107C41;
+	color: var(--cobudget-success);
 }
 
 .stat-value.negative {
@@ -2068,7 +2049,7 @@ export default {
 	display: flex;
 	justify-content: space-between;
 	gap: 12px;
-	font-size: var(--cobudget-font-sm);
+	font-size: var(--cobudget-font-caption);
 	color: var(--cobudget-text, var(--color-main-text));
 }
 
@@ -2415,8 +2396,6 @@ th.col-desc {
 	background: #eeffee;
 	color: #008800;
 }
-
-
 
 .empty-state {
 	padding: 40px;

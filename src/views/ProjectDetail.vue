@@ -136,7 +136,7 @@
 
 		<div class="project-detail-scroll">
 			<DraggableScroller v-if="!isProjectPaymentsView && projectDashboardCards.length > 0" class="stats-row project-stats-row">
-			<div v-for="card in projectDashboardCards" :key="card.key" class="stat-card" :class="card.cardClass">
+			<div v-for="card in projectDashboardCards" :key="card.key" class="stat-card" data-cobudget-card="compact" :class="card.cardClass">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon">
@@ -166,7 +166,7 @@
 			</div>
 
 			<DraggableScroller class="balances-grid">
-				<div v-for="b in project.balances" :key="b.userId" class="balance-card"
+				<div v-for="b in project.balances" :key="b.userId" class="balance-card" data-cobudget-card="compact"
 					:class="{ 'positive': b.balance > 0, 'negative': b.balance < 0, 'neutral': b.balance === 0 }">
 					<div class="balance-card-header">
 						<div class="balance-name">
@@ -518,7 +518,7 @@ export default {
 		},
 		projectDashboardCards() {
 			const definitions = [
-				{ key: 'income', label: this.$texts.common.income(), icon: TrendingUpIcon, iconColor: '#107C41', mode: 'positive', cardClass: 'income-card', enabled: this.$enableIncomes },
+				{ key: 'income', label: this.$texts.common.income(), icon: TrendingUpIcon, iconColor: 'var(--cobudget-success)', mode: 'positive', cardClass: 'income-card', enabled: this.$enableIncomes },
 				{ key: 'expense', label: this.$texts.common.expense(), icon: TrendingDownIcon, iconColor: 'var(--cobudget-error)', mode: 'negative', cardClass: 'expense-card', enabled: true },
 				{ key: 'balance', label: 'Saldo', icon: WalletIcon, iconColor: '#0082c9', mode: 'signed', cardClass: 'total-card', enabled: this.$enableIncomes },
 				{ key: 'important', label: this.$texts.labels.important(), icon: StarIcon, iconColor: '#ffc92b', mode: 'signed', cardClass: 'important-card', enabled: this.$enableImportantPayments },
@@ -1304,10 +1304,6 @@ export default {
 	margin-right: 4px;
 }
 
-.filter-popover-content {
-	padding: 8px;
-}
-
 :deep(.v-popper__arrow-container),
 :deep(.v-popper__arrow),
 :deep(.popover__arrow) {
@@ -1340,25 +1336,19 @@ export default {
 /* Dashboard cards */
 .stats-row {
 	display: flex;
-	gap: 20px;
-	margin-bottom: 24px;
+	gap: var(--cobudget-card-gap);
+	margin-bottom: var(--cobudget-section-gap);
 	flex-wrap: nowrap;
 	padding: 2px 2px 12px;
 }
 
 .stat-card {
-	box-sizing: border-box;
 	flex: 0 0 300px;
 	width: 300px;
 	min-width: 300px;
-	background: var(--cobudget-page-background, #fff);
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	padding: 16px;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+	gap: var(--cobudget-content-gap);
 }
 
 .stat-header {
@@ -1386,7 +1376,7 @@ export default {
 }
 
 .stat-label {
-	font-size: var(--cobudget-font-sm);
+	font-size: var(--cobudget-font-caption);
 	color: var(--color-text-maxcontrast, #888);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
@@ -1394,7 +1384,7 @@ export default {
 }
 
 .stat-value {
-	font-size: var(--cobudget-font-lg);
+	font-size: var(--cobudget-font-metric-compact);
 	font-weight: 700;
 	text-align: right;
 	white-space: nowrap;
@@ -1402,7 +1392,7 @@ export default {
 }
 
 .stat-value.positive {
-	color: #107C41;
+	color: var(--cobudget-success);
 }
 
 .stat-value.negative {
@@ -1421,7 +1411,7 @@ export default {
 	display: flex;
 	justify-content: space-between;
 	gap: 12px;
-	font-size: var(--cobudget-font-sm);
+	font-size: var(--cobudget-font-caption);
 	color: var(--color-text-maxcontrast, #777);
 }
 
@@ -1433,19 +1423,14 @@ export default {
 .balances-grid {
 	display: flex;
 	flex-wrap: nowrap;
-	gap: 12px;
+	gap: var(--cobudget-card-gap);
 	padding: 2px 2px 12px;
 }
 
 .balance-card {
-	box-sizing: border-box;
 	flex: 0 0 280px;
 	width: 280px;
 	min-width: 280px;
-	padding: 14px;
-	border-radius: var(--border-radius-large, 8px);
-	border: 1px solid var(--cobudget-border, #ddd);
-	background: var(--cobudget-page-background, #fff);
 }
 
 .balance-card-header {
@@ -1500,7 +1485,7 @@ export default {
 }
 
 .positive .balance-amount {
-	color: #107C41;
+	color: var(--cobudget-success);
 }
 
 .negative .balance-amount {
@@ -1998,9 +1983,9 @@ th.col-desc {
 @media (max-width: 768px) {
 
   .stats-row {
-    gap: 10px;
+    gap: var(--cobudget-card-gap);
     padding-bottom: 12px;
-    margin-bottom: 20px;
+    margin-bottom: var(--cobudget-section-gap);
     margin-top: 20px;
   }
 
@@ -2031,13 +2016,13 @@ th.col-desc {
 	}
 
 	.balances-grid {
-		gap: 10px;
+		gap: var(--cobudget-card-gap);
 		padding-bottom: 12px;
 	}
 
 	.balance-card {
 		flex-basis: 280px;
-		padding: 10px;
+		padding: var(--cobudget-content-gap);
 	}
 
 	.balance-name {
@@ -2290,8 +2275,8 @@ th.col-desc {
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
+  font-size: var(--cobudget-font-label);
+  letter-spacing: normal;
 }
 
 .form-control {

@@ -628,7 +628,7 @@ try {
 	$texts = $read('src/l10n/texts.js');
 	$assertContains($app, 'skipWorkspaceHeader: true', 'App workspace list is user-global');
 	$assertContains($workspaceSettings, 'skipWorkspaceHeader: true', 'WorkspaceSettings APIs are user-global');
-	$assertContains($workspaceSettings, '<span class="default-badge">{{ $texts.workspaces.base() }}</span>', 'WorkspaceSettings labels the base workspace through shared texts');
+	$assertMatches($workspaceSettings, '/<span\b[^>]*\bclass="[^"\n]*\bdefault-badge\b[^"\n]*"[^>]*>\s*\{\{\s*\$texts\.workspaces\.base\(\)\s*\}\}\s*<\/span>/', 'WorkspaceSettings labels the base workspace through shared texts');
 	$assertContains($texts, "base: () => tx('Base')", 'Workspace base label is centralized in texts');
 	$assertContains($l10nDe, '"Base": "Basis"', 'German l10n translates the workspace base label');
 	$assertContains($texts, "baseTooltip: () => tx('The base workspace is created automatically and cannot be deleted.')", 'Workspace base tooltip is centralized in texts');

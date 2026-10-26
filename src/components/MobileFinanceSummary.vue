@@ -139,7 +139,8 @@ export default {
 
 	.mobile-finance-summary__cards:focus-visible {
 		border-radius: var(--cobudget-radius-lg, var(--border-radius-large, 8px));
-		box-shadow: var(--cobudget-focus-ring, 0 0 0 2px var(--cobudget-primary));
+		outline: var(--cobudget-focus-outline);
+		outline-offset: -2px;
 	}
 
 	.mobile-summary-card {
@@ -170,8 +171,8 @@ export default {
 	}
 
 	.mobile-summary-card--link:focus-visible {
-		outline: none;
-		box-shadow: var(--cobudget-focus-ring, 0 0 0 2px var(--cobudget-primary));
+		outline: var(--cobudget-focus-outline);
+		outline-offset: -2px;
 	}
 
 	.mobile-summary-card__header {

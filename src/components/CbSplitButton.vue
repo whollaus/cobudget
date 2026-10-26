@@ -7,7 +7,8 @@
 			'is-open': menuOpen,
 			'is-disabled': disabled || busy
 		}"
-		@keydown.esc.stop.prevent="closeMenu">
+		@keydown.esc.stop.prevent="closeMenu(true)"
+		@focusout="handleFocusOut">
 		<button
 			:type="type"
 			class="cobudget-split-button__main"
@@ -18,7 +19,11 @@
 		</button>
 		<button
 			type="button"
+			ref="toggle"
 			class="cobudget-split-button__toggle"
+			aria-haspopup="menu"
+			@keydown.down.stop.prevent="openMenu(false)"
+			@keydown.up.stop.prevent="openMenu(true)"
 			:class="`cobudget-split-button__toggle--${variant}`"
 			:disabled="disabled || busy"
 			:aria-expanded="menuOpen ? 'true' : 'false'"
@@ -30,7 +35,9 @@
 			v-if="menuOpen"
 			class="cobudget-split-button__menu"
 			:class="`cobudget-split-button__menu--${direction}`"
-			role="menu">
+			role="menu"
+			:aria-label="menuAriaLabel"
+			@keydown="handleMenuKeydown">
 			<template v-for="(item, index) in items" :key="item.key || index">
 				<div v-if="item.separator" class="cobudget-split-button__separator" role="separator"></div>
 				<button
@@ -114,10 +121,37 @@ export default {
 	},
 	methods: {
 		toggleMenu() {
-			this.menuOpen = !this.menuOpen
+			if (this.menuOpen) this.closeMenu()
+			else this.openMenu(false)
 		},
-		closeMenu() {
+		async openMenu(last = false) {
+			if (this.disabled || this.busy) return
+			this.menuOpen = true
+			await this.$nextTick()
+			const items = this.menuButtons()
+			items[last ? items.length - 1 : 0]?.focus()
+		},
+		menuButtons() {
+			return Array.from(this.$refs.root?.querySelectorAll('[role="menuitem"]:not(:disabled)') || [])
+		},
+		closeMenu(restoreFocus = false) {
 			this.menuOpen = false
+			if (restoreFocus) this.$refs.toggle?.focus()
+		},
+		async handleFocusOut() {
+			await this.$nextTick()
+			if (!this.$refs.root?.contains(document.activeElement)) this.closeMenu()
+		},
+		handleMenuKeydown(event) {
+			if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+			event.preventDefault()
+			event.stopPropagation()
+			const items = this.menuButtons()
+			if (!items.length) return
+			const index = items.indexOf(document.activeElement)
+			const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+				: (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
+			items[next].focus()
 		},
 		handleDocumentPointerDown(event) {
 			if (!this.menuOpen) {
@@ -136,7 +170,7 @@ export default {
 				return
 			}
 
-			this.menuOpen = false
+			this.closeMenu(true)
 			this.$emit('select', item)
 		}
 	}
@@ -170,7 +204,7 @@ export default {
 	background-color: var(--cobudget-primary);
 	color: var(--cobudget-primary-text) !important;
 	cursor: pointer;
-	font-size: var(--cobudget-font-md);
+	font-size: var(--cobudget-font-base);
 	font-weight: var(--cobudget-font-weight-action);
 	line-height: 1.2;
 	letter-spacing: 0;
@@ -213,6 +247,7 @@ export default {
 .cobudget-split-button__toggle--danger {
 	background: var(--cobudget-error);
 	background-color: var(--cobudget-error);
+	color: var(--cobudget-danger-text) !important;
 }
 
 .cobudget-split-button:hover .cobudget-split-button__main--primary:not(:disabled),
@@ -233,8 +268,9 @@ export default {
 
 .cobudget-split-button__main:focus-visible,
 .cobudget-split-button__toggle:focus-visible {
-	outline: 0;
-	box-shadow: var(--cobudget-focus-ring);
+	outline: var(--cobudget-focus-outline) !important;
+	outline-offset: var(--cobudget-focus-offset);
+	box-shadow: none;
 	z-index: 1;
 }
 
@@ -242,6 +278,8 @@ export default {
 .cobudget-split-button__toggle:disabled {
 	cursor: not-allowed;
 	opacity: 0.55;
+	background: var(--cobudget-surface-muted) !important;
+	color: var(--cobudget-text-muted) !important;
 }
 
 .cobudget-split-button.is-block .cobudget-split-button__main {
@@ -269,7 +307,7 @@ export default {
 	z-index: 10001;
 	min-width: min(280px, calc(100vw - 32px));
 	max-width: min(360px, calc(100vw - 32px));
-	padding: 6px;
+	padding: var(--cobudget-menu-padding);
 	border: 1px solid var(--cobudget-border);
 	border-radius: var(--cobudget-radius-lg);
 	background: var(--cobudget-surface);
@@ -285,17 +323,19 @@ export default {
 }
 
 .cobudget-split-button__item {
+	min-height: var(--cobudget-menu-item-height);
+	margin: 0;
 	display: block;
 	width: 100%;
 	border: 0;
-	border-radius: var(--cobudget-radius-sm);
+	border-radius: var(--cobudget-menu-item-radius);
 	background: transparent;
 	color: var(--cobudget-text);
 	cursor: pointer;
 	font: inherit;
 	font-size: var(--cobudget-font-base);
-	font-weight: 600;
-	padding: 9px 10px;
+	font-weight: 400;
+	padding: 8px 12px;
 	text-align: left;
 	white-space: nowrap;
 	overflow: hidden;
@@ -311,6 +351,11 @@ export default {
 .cobudget-split-button__item:disabled {
 	color: var(--cobudget-text-muted);
 	cursor: not-allowed;
+}
+
+.cobudget-split-button__item:focus-visible {
+	outline: var(--cobudget-focus-outline);
+	outline-offset: -2px;
 }
 
 .cobudget-split-button__separator {

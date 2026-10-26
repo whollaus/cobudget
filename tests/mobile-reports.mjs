@@ -1,72 +1,76 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import * as Vue from 'vue'
-import { parse } from '@vue/compiler-sfc'
-import { compile } from '@vue/compiler-dom'
-import { renderToString } from '@vue/server-renderer'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
 const read = file => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
-let userId = 'alice'
-let mobile = true
-const storage = new Map()
-const window = {
-	matchMedia: () => ({ matches: mobile }),
-	localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
-}
-const service = new Function('getCurrentUser', 'window', `${read('src/services/mobileReports.js').replace(/^import .*$/gm, '').replaceAll('export function', 'function')}
-	return { isReportView, mobileReportLocation, readMobileReportView, rememberMobileReportView }`)(() => userId ? { uid: userId } : null, window)
-const { isReportView, mobileReportLocation, readMobileReportView, rememberMobileReportView } = service
-assert.equal(readMobileReportView(), 'annual-overview', 'First visit defaults to annual overview')
-assert.deepEqual(mobileReportLocation({ name: 'personal' }, readMobileReportView()), { name: 'annual-overview' })
-assert.equal(rememberMobileReportView('analytics'), 'analytics')
-assert.equal(readMobileReportView(), 'analytics', 'The next visit restores statistics from browser storage')
-assert.deepEqual(mobileReportLocation({ name: 'projects' }, readMobileReportView()), { name: 'analytics' })
-userId = 'bob'
-assert.equal(readMobileReportView(), 'annual-overview', 'Another account starts with its own preference')
-rememberMobileReportView('annual-overview')
-userId = 'alice'
-assert.equal(readMobileReportView(), 'analytics')
-mobile = false
-assert.equal(rememberMobileReportView('annual-overview'), null)
-assert.equal(readMobileReportView(), 'analytics', 'Desktop navigation does not overwrite the mobile choice')
-mobile = true
-assert.equal(rememberMobileReportView('payments'), null)
-assert.equal(readMobileReportView(), 'analytics', 'Drilldowns do not replace the preferred report')
-for (const name of ['annual-overview', 'analytics']) {
-	const query = { year: '2025', projectId: '12', grouping: 'paymentPartners' }
-	assert.equal(isReportView(name), true, 'Both reports activate the mobile navigation item')
-	assert.deepEqual(mobileReportLocation({ name, query }, 'annual-overview'), { name, query }, 'Active report navigation preserves filters')
-}
-assert.equal(isReportView('payments'), false)
-storage.set('cobudget_mobile_report_view:alice', 'https://example.test')
-assert.equal(readMobileReportView(), 'annual-overview', 'Unrecognized stored destinations are ignored')
-userId = null
-const count = storage.size
-rememberMobileReportView('analytics')
-assert.equal(storage.size, count, 'No preference is written without an authenticated user')
-userId = 'alice'
-Object.defineProperty(window, 'localStorage', { get() { throw Error('Storage blocked') } })
-assert.equal(readMobileReportView(), 'annual-overview')
-assert.equal(rememberMobileReportView('analytics'), 'analytics', 'Blocked storage still allows remembering the view in App state')
+const load = file => import(`data:text/javascript;charset=utf-8,${encodeURIComponent(read(file))}`)
+const { isReportView, reportLocation, legacyAnalyticsLocation } = await load('src/services/reportNavigation.js')
+const { annualReportSelection } = await load('src/services/annualOverview.js')
 
-const { descriptor } = parse(read('src/components/MobileReportSwitch.vue'))
-const component = new Function(descriptor.script.content.replace('export default', 'return'))()
-component.render = new Function('Vue', compile(descriptor.template.content, { mode: 'function', prefixIdentifiers: true }).code)(Vue)
-for (const selected of ['annual-overview', 'analytics']) {
-	const router = createRouter({ history: createMemoryHistory(), routes: [
-		{ path: '/annual-overview', name: 'annual-overview', component: {} },
-		{ path: '/analytics', name: 'analytics', component: {} },
-	] })
-	const app = Vue.createSSRApp(component)
-	app.use(router)
-	app.config.globalProperties.$texts = { annual: { title: () => 'Jahresübersicht' }, mobileNavigation: { analytics: () => 'Auswertungen', statistics: () => 'Statistik' } }
-	await router.push({ name: selected, query: { year: '2025' } })
-	await router.isReady()
-	const html = await renderToString(app)
-	assert.equal((html.match(/aria-current="page"/g) || []).length, 1, 'Only the current report is marked active')
-	assert.ok(html.includes(`href="/${selected}?year=2025"`), 'The active switch preserves its route query')
-	assert.ok(html.includes(`href="/${selected === 'analytics' ? 'annual-overview' : 'analytics'}"`), 'The other switch opens the other report')
-	assert.ok(html.includes('Jahresübersicht') && html.includes('Statistik'))
+assert.deepEqual(reportLocation({ name: 'personal' }), { name: 'annual-overview' })
+assert.equal(isReportView('annual-overview'), true)
+assert.equal(isReportView('analytics'), false, 'Statistics is now a redirect, not a second report view')
+assert.equal(isReportView('payments'), false)
+const query = Object.freeze({ year: '2025', projectId: '12', grouping: 'paymentPartners', detailId: '9', detailType: 'expense' })
+assert.deepEqual(reportLocation({ name: 'annual-overview', query, hash: '#detail' }), { name: 'annual-overview', query, hash: '#detail' }, 'Active mobile navigation retains the open detail, filters and hash')
+assert.deepEqual(reportLocation(), { name: 'annual-overview' })
+globalThis.window = { localStorage: { getItem: () => 'analytics' } }
+assert.deepEqual(reportLocation({ name: 'payments' }), { name: 'annual-overview' }, 'An old stored Statistics preference cannot restore the retired page')
+Object.defineProperty(globalThis.window, 'localStorage', { get() { throw Error('Storage blocked') } })
+assert.deepEqual(reportLocation({ name: 'projects' }), { name: 'annual-overview' }, 'Unified navigation does not require browser storage')
+delete globalThis.window
+
+// Use the production route table, rather than a separate test-only redirect.
+const main = read('src/main.js')
+const componentNames = [...main.matchAll(/^const (\w+) = \(\) => import/gm)].map(match => match[1])
+const routeSource = main.match(/const routes = (\[[\s\S]*?\n\])/)[1]
+const routes = new Function('legacyAnalyticsLocation', ...componentNames, `return ${routeSource}`)(legacyAnalyticsLocation, ...componentNames.map(() => ({ render: () => null })))
+const router = createRouter({ history: createMemoryHistory(), routes })
+await router.push('/analytics')
+assert.equal(router.currentRoute.value.name, 'annual-overview')
+assert.equal(router.currentRoute.value.redirectedFrom.path, '/analytics')
+assert.equal(annualReportSelection(router.currentRoute.value.query).timeRange, 'current-year', 'A plain Statistics bookmark opens the default current-year report')
+
+for (const period of ['current-year', 'last-year', 'current-month', 'last-month', 'last-12-months']) {
+	const oldQuery = Object.freeze({ period, projectId: '7', entryScope: 'shared', categories: '4,5', labels: 'important', amountMin: '10,50', includeFuturePayments: 'true' })
+	await router.push({ name: 'analytics', query: oldQuery })
+	const route = router.currentRoute.value
+	const { period: oldPeriod, ...filters } = oldQuery
+	assert.equal(route.name, 'annual-overview', `${period}: redirects to Reports`)
+	assert.deepEqual(route.query, { ...filters, timeRange: oldPeriod }, `${period}: translates the period while keeping all payment filters`)
+	const selection = annualReportSelection(route.query)
+	assert.equal(selection.timeRange, period)
+	assert.equal(selection.period, ['current-month', 'last-month'].includes(period) ? 'day' : 'year', `${period}: retains the appropriate default breakdown`)
+	assert.equal(oldQuery.period, period, 'Redirect never mutates the original route query')
 }
-console.log('Mobile report navigation passed: default view, remembered choice, account isolation, desktop behavior, blocked storage, filter preservation and both switch routes.')
+
+await router.push('/analytics?period=year%3A2024&grouping=paymentPartners&projectId=7')
+assert.deepEqual(router.currentRoute.value.query, { year: '2024', timeRange: 'year', grouping: 'paymentPartners', projectId: '7' })
+const selection = annualReportSelection(router.currentRoute.value.query)
+assert.equal(selection.dateFrom, '2024-01-01')
+assert.equal(selection.dateTo, '2024-12-31')
+for (const period of ['year:1969', 'year:10000', 'year:no', ['last-month', 'last-year'], 'https://example.test']) {
+	const target = legacyAnalyticsLocation({ query: { period } })
+	assert.equal(target.name, 'annual-overview', 'Unknown period input cannot choose another destination')
+	assert.equal(annualReportSelection(target.query).timeRange, 'current-year', 'Invalid old periods use the current-year default')
+}
+
+const detailQuery = { timeRange: 'custom', dateFrom: '2025-10-04', dateTo: '2025-10-13', period: 'day', projectId: '7', entryScope: 'shared', detailType: 'expense', detailId: '4', reportFilters: '[{"dimension":"partner","id":8}]' }
+await router.push({ name: 'analytics', query: detailQuery, hash: '#payments' })
+assert.deepEqual(router.currentRoute.value.query, detailQuery, 'New report query syntax survives an old Statistics bookmark unchanged')
+assert.equal(router.currentRoute.value.hash, '#payments')
+assert.deepEqual(reportLocation({ name: 'analytics', query: detailQuery }), { name: 'annual-overview', query: detailQuery, hash: '' })
+const explicitRange = { timeRange: 'custom', dateFrom: '2025-01-03', dateTo: '2025-01-12', period: 'last-month' }
+assert.deepEqual(legacyAnalyticsLocation({ query: explicitRange }).query, { timeRange: 'custom', dateFrom: '2025-01-03', dateTo: '2025-01-12' }, 'An explicit modern date range takes precedence over a legacy period')
+
+await router.push('/payments')
+await router.push('/analytics?period=last-month')
+const back = new Promise(resolve => { const remove = router.afterEach(() => { remove(); resolve() }) })
+router.back()
+await back
+assert.equal(router.currentRoute.value.name, 'payments', 'Back skips the retired page after its redirect')
+await router.push('/annual-overview?year=2020&period=week&projectId=7')
+assert.equal(router.currentRoute.value.name, 'annual-overview', 'Existing annual report bookmarks stay on their original route')
+assert.deepEqual(router.currentRoute.value.query, { year: '2020', period: 'week', projectId: '7' })
+
+console.log('Unified report navigation passed: legacy links and periods, exact dates, filters, detail queries, mobile navigation, retired preferences and browser Back.')

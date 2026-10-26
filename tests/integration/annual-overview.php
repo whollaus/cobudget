@@ -109,11 +109,11 @@ try {
 	$report = $data($fresh($workspace)->annualOverview(2020));
 	$check($report['years'] === [$futureYear, 2020], 'Year list is local-time aware, unique, unpaginated and excludes foreign users/workspaces');
 	$check($data($fresh($workspace)->annualOverview(2020, 'paymentPartners'))['years'] === $report['years'], 'Grouping does not change year choices');
-	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project))['years'] === [2020], 'Shared area year choices exclude other personal payments');
+	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project, entryScope: 'shared'))['years'] === [2020], 'Shared area year choices exclude other personal payments');
 	$personalChoices = $report['filterChoices'];
 	$check(in_array($parent, $personalChoices['categoryIds'], true) && in_array($child, $personalChoices['categoryIds'], true) && in_array(0, $personalChoices['categoryIds'], true), 'Category choices are the categories used in that year, including payments without one');
 	$check(in_array($partner, $personalChoices['partnerIds'], true) && in_array(0, $personalChoices['partnerIds'], true), 'Payment-partner choices are the partners used in that year, including payments without one');
-	$sharedChoices = $data($fresh($workspace)->annualOverview(2020, projectId: $project))['filterChoices'];
+	$sharedChoices = $data($fresh($workspace)->annualOverview(2020, projectId: $project, entryScope: 'shared'))['filterChoices'];
 	$check($sharedChoices['categoryIds'] === [0] && !in_array($parent, $sharedChoices['categoryIds'], true), 'Area filter choices stay inside that area');
 	$check($data($fresh($workspace)->annualOverview(2020, projectId: $solo))['years'] === [2020], 'Solo area year choices are scoped to that area');
 	$check($data($fresh($emptyWorkspace)->annualOverview(2020))['years'] === [], 'Empty workspace has no year choices');
@@ -122,7 +122,7 @@ try {
 	$check($report['totals']['expense']['totalCount'] === 305, 'Payment counts include every row even when SQL groups identical dates and categories');
 	$check($report['totals']['balance']['totalCount'] === 306, 'Balance count includes income and expenses exactly once');
 	$check($report['totals']['expense']['counts'][0] === 305 && $report['totals']['expense']['counts'][1] === 0, 'Monthly counts follow the same local dates as amounts');
-	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project))['totals']['expense']['totalCount'] === 2, 'Shared payment counts exclude personal projections');
+	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project, entryScope: 'shared'))['totals']['expense']['totalCount'] === 2, 'Shared payment counts exclude personal projections');
 	$check($report['totals']['balance']['months'][0] === -306, 'Local January includes midnight payments and exact cents');
 	$check(array_sum(array_column($report['groups']['expense'], 'total')) === 5306, 'Parent totals never double count');
 	$check($report['periods'][0]['dateFrom'] === strtotime('2020-01-01 Europe/Vienna'), 'Response preserves browser timezone boundaries');
@@ -131,11 +131,35 @@ try {
 	$check($untagged['groups']['expense'] === [] && $untagged['groups']['income'] === [], 'Payments without an enabled label or tag have no rows');
 	$check($untagged['totals']['expense']['total'] === 0 && $untagged['totals']['expense']['totalCount'] === 0, 'Payments without an enabled label or tag stay out of the expense total');
 	$check($untagged['totals']['income']['total'] === 0 && $untagged['totals']['income']['totalCount'] === 0, 'Payments without an enabled label or tag stay out of the income total');
-	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project))['totals']['expense']['total'] === 11000, 'Shared view uses complete source amounts including settlements');
+	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project, entryScope: 'shared'))['totals']['expense']['total'] === 11000, 'Shared view uses complete source amounts including settlements');
 	$check($data($fresh($workspace)->annualOverview(2020, projectId: $solo))['totals']['expense']['total'] === 303, 'Solo area uses personal entries');
 	$check($data($fresh($workspace)->annualOverview($futureYear))['totals']['expense']['total'] === 0, 'Future payments are opt-in');
 	$futureReport = $data($fresh($workspace)->annualOverview($futureYear, includeFuturePayments: true));
 	$check($futureReport['totals']['expense']['total'] === 777 + 11 * 101, 'Future overview includes the saved payment and February-to-December recurring occurrences');
+
+	// Nested report choices are extra AND predicates and never replace grouping/global filters.
+	$detailFilters = json_encode([['dimension' => 'type', 'id' => 'expense'], ['dimension' => 'categories', 'id' => (string)$parent, 'direct' => false], ['dimension' => 'paymentPartners', 'id' => (string)$partner]]);
+	$nestedReport = $data($fresh($workspace)->annualOverview(2020, reportFilters: $detailFilters));
+	$check($nestedReport['totals']['expense']['total'] === 202 && $nestedReport['totals']['expense']['totalCount'] === 1, 'Category-parent plus partner selects exactly the combination, including matching subcategories');
+	$nestedList = $data($fresh($workspace)->index(dateFrom: $date - 10000, dateTo: $date + 10000, reportFilters: $detailFilters));
+	$check($nestedList['total'] === 1 && $listCents($nestedList) === 202, 'Saved payments use the exact same combined subject');
+	$nestedComposition = $data($fresh($workspace)->reportBreakdown('2020-01-01', '2020-01-31', reportFilters: $detailFilters));
+	$check($nestedComposition['totals']['expense']['amountCents'] === 202 && $nestedComposition['groups']['categories']['expense'][0]['id'] === $child, 'Composition resolves authorized names from the combined population');
+	$directFilters = json_encode([['dimension' => 'categories', 'id' => (string)$parent, 'direct' => true], ['dimension' => 'paymentPartners', 'id' => (string)$partner]]);
+	$check($data($fresh($workspace)->annualOverview(2020, reportFilters: $directFilters))['totals']['expense']['total'] === 0, 'Direct category rows cannot include a child merely because its partner matches');
+	$unassignedFilters = json_encode([['dimension' => 'type', 'id' => 'expense'], ['dimension' => 'categories', 'id' => '0'], ['dimension' => 'paymentPartners', 'id' => '0'], ['dimension' => 'projects', 'id' => '0'], ['dimension' => 'hashtags', 'id' => '0'], ['dimension' => 'labels', 'id' => '']]);
+	$check($data($fresh($workspace)->annualOverview(2020, reportFilters: $unassignedFilters))['totals']['expense']['total'] === 300, 'Unassigned category, partner, area, labels and tags remain exact selectable rows');
+	$check($data($fresh($workspace)->annualOverview(2020, partners: '0', reportFilters: $detailFilters))['totals']['expense']['total'] === 0, 'Contradicting global and nested choices intersect rather than broadening to an OR');
+	$plannedFilters = json_encode([['dimension' => 'categories', 'id' => (string)$parent, 'direct' => false], ['dimension' => 'paymentPartners', 'id' => '0']]);
+	$check($data($fresh($workspace)->annualOverview($futureYear, includeFuturePayments: true, reportFilters: $plannedFilters))['totals']['expense']['total'] === 11 * 101, 'Known future recurrence occurrences obey the same combined scope');
+	$foreignFilter = json_encode([['dimension' => 'categories', 'id' => '2147483647']]);
+	$check($data($fresh($workspace)->annualOverview(2020, reportFilters: $foreignFilter))['totals']['expense']['total'] === 0, 'Unknown or foreign detail identities never expose another financial scope');
+	foreach (['{', '{}', '[{"dimension":"sql","id":"1"}]'] as $invalid) {
+		$check($fresh($workspace)->annualOverview(2020, reportFilters: $invalid)->getStatus() === 400, 'Annual reports fail closed for malformed nested filters');
+		$check($fresh($workspace)->index(reportFilters: $invalid)->getStatus() === 400, 'Payment lists fail closed for malformed nested filters');
+		$check($fresh($workspace)->reportBreakdown('2020-01-01', '2020-01-31', reportFilters: $invalid)->getStatus() === 400, 'Composition fails closed for malformed nested filters');
+	}
+
 	$check($futureReport['totals']['expense']['totalCount'] === 12, 'Saved payments and planned occurrences each count once');
 	$check($futureReport['totals']['expense']['months'][0] === 0 && $futureReport['totals']['expense']['months'][1] === 878 && $futureReport['totals']['expense']['months'][2] === 101, 'Planned recurrences appear in their scheduled months');
 	$check($data($fresh($workspace)->annualOverview($futureYear, 'paymentPartners', includeFuturePayments: true))['totals'] === $futureReport['totals'], 'Recurring forecasts preserve totals across category and partner grouping');
@@ -206,6 +230,23 @@ try {
 	$check($fresh($workspace)->annualOverview(2020, period: 'day', month: 13)->getStatus() === 400, 'Day month 13 is rejected');
 	$check($fresh($workspace)->annualOverview(2020, period: 'hour')->getStatus() === 400, 'Unknown periods are rejected');
 
+	foreach (['year', 'quarter', 'week', 'day'] as $breakdown) {
+		$rangeReport = $data($fresh($workspace)->annualOverview(2020, period: $breakdown, dateFrom: '2019-12-25', dateTo: '2020-01-03'));
+		$check($rangeReport['totals']['expense']['total'] === 5306, 'Free range totals are independent of breakdown and preserve personal scope');
+		$check($rangeReport['periods'][0]['dateFrom'] === strtotime('2019-12-25 Europe/Vienna'), 'Clipped range starts on the selected date');
+		$check($rangeReport['periods'][count($rangeReport['periods']) - 1]['dateTo'] === strtotime('2020-01-04 Europe/Vienna') - 1, 'The final date is inclusive');
+		$check($rangeReport['range'] === ['dateFrom' => '2019-12-25', 'dateTo' => '2020-01-03'], 'API exposes the applied dates for details and averages');
+		$sharedRange = $data($fresh($workspace)->annualOverview(2020, projectId: $project, entryScope: 'shared', period: $breakdown, dateFrom: '2019-12-25', dateTo: '2020-01-03'));
+		$check($sharedRange['totals']['expense']['total'] === 11000, 'Shared range uses full sources exactly once');
+		$comparedRange = $data($fresh($workspace)->annualOverview(2020, comparison: 'month', period: $breakdown, dateFrom: '2019-12-25', dateTo: '2020-01-03'));
+		$check(count($comparedRange['totals']['expense']['comparisons']) === count($rangeReport['periods']) - 1, 'Comparison columns match clipped report columns');
+	}
+	foreach ([['2020-02-30', '2020-03-01'], ['2020-01-03', '2020-01-01'], ['', '2020-01-01']] as [$from, $to]) {
+		$check($fresh($workspace)->annualOverview(2020, dateFrom: $from, dateTo: $to)->getStatus() === 400, 'Invalid date ranges are rejected by the API');
+	}
+	$rangeEmpty = $data($fresh($workspace)->annualOverview(2020, dateFrom: '2020-02-01', dateTo: '2020-02-10', period: 'day'));
+	$check($rangeEmpty['totals']['expense']['total'] === 0 && count($rangeEmpty['periods']) === 11, 'Empty vacation ranges retain the selected ten days');
+
 	$labelWorkspace = $insert('workspaces', ['name' => 'Label overview fixture', 'user_id' => $uid]);
 	$labeledEntry = static function(int $cents, array $overrides = []) use ($insert, $uid, $labelWorkspace, $date): int {
 		return $insert('entries', array_replace([
@@ -272,6 +313,15 @@ try {
 	$check($labelList['total'] === 2 && $listCents($labelList) === 260, 'Tag drilldown matches the tag row');
 	$labelList = $data($fresh($labelWorkspace)->index(isImportant: true, type: 'expense', dateFrom: $labelPeriod['dateFrom'], dateTo: $labelPeriod['dateTo']));
 	$check($labelList['total'] === 1 && $listCents($labelList) === 250, 'Label drilldown matches the label row');
+
+	$tagIntersection = json_encode([['dimension' => 'hashtags', 'id' => (string)$hashtag], ['dimension' => 'paymentPartners', 'id' => '0']]);
+	$check($data($fresh($labelWorkspace)->annualOverview(2020, reportFilters: $tagIntersection))['totals']['expense']['total'] === 260, 'A joined tag and partner predicate count each payment once');
+	$check($data($fresh($labelWorkspace)->index(dateFrom: $labelPeriod['dateFrom'], dateTo: $labelPeriod['dateTo'], reportFilters: $tagIntersection))['total'] === 2, 'Tag intersections agree with saved-payment pagination');
+	$labelIntersection = json_encode([['dimension' => 'labels', 'id' => 'important'], ['dimension' => 'labels', 'id' => 'insurance']]);
+	$bothLabels = $config->getUserValue($uid, 'cobudget', 'enable_important_payments', 'yes') === 'yes' && $config->getUserValue($uid, 'cobudget', 'enable_insurance', 'yes') === 'yes';
+	$check($data($fresh($labelWorkspace)->annualOverview(2020, reportFilters: $labelIntersection))['totals']['expense']['total'] === ($bothLabels ? 250 : 0), 'Multiple detail labels use AND and respect disabled features');
+	$check($data($fresh($labelWorkspace)->annualOverview(2020, hashtags: (string)$oldHashtag, reportFilters: $tagIntersection))['totals']['expense']['total'] === 0, 'Global description-tag filters remain in force alongside a different nested tag');
+
 	$categoryReport = $data($fresh($labelWorkspace)->annualOverview(2020, 'categories'));
 	$check($categoryReport['totals']['expense']['total'] === 352 && $categoryReport['totals']['expense']['totalCount'] === 4, 'Category totals include every payment before filtering');
 	$check($categoryReport['years'] === $labelReport['years'], 'Payment filters are not required for the year list');
@@ -303,6 +353,9 @@ try {
 	$check($data($fresh($labelWorkspace)->annualOverview(2020, 'categories', amountMin: '2.00'))['years'] === $categoryReport['years'], 'Payment filters do not remove years from the year list');
 	$filteredList = $data($fresh($labelWorkspace)->index(type: 'expense', dateFrom: $labelPeriod['dateFrom'], dateTo: $labelPeriod['dateTo'], labels: 'important,fixedCost', amountMin: '2.00'));
 	$check($filteredList['total'] === 1 && $listCents($filteredList) === 250, 'Payment list drilldown keeps the amount and any selected label');
+	$labelDetailList = $data($fresh($labelWorkspace)->index(type: 'expense', dateFrom: $labelPeriod['dateFrom'], dateTo: $labelPeriod['dateTo'], reportGrouping: 'labelsAndTags'));
+	$check($listCents($labelDetailList) === $expectedTotal, 'Report detail payments exclude unlabelled entries and count multiple labels and tags only once');
+	$check($labelDetailList['total'] === $labelReport['totals']['expense']['totalCount'], 'Report detail saved-payment count matches label and tag totals');
 	$filteredDashboard = $data($fresh($labelWorkspace)->dashboard(type: 'expense', dateFrom: $labelPeriod['dateFrom'], dateTo: $labelPeriod['dateTo'], hashtags: (string)$hashtag));
 	$check($filteredDashboard['total'] === 2 && $listCents($filteredDashboard) === 260, 'Personal payment page uses the same tag filter');
 
@@ -312,7 +365,7 @@ try {
 	$check($comparison['totals']['expense']['comparisons'][1]['delta'] === -5306, 'Empty month after history begins has a real decline');
 	$check($data($fresh($workspace)->annualOverview(2021, comparison: 'year'))['totals']['expense']['comparisons'][0]['previous'] === 5306, 'Prior-year comparison crosses the report query boundary');
 	$check($data($fresh($workspace)->annualOverview(2021, comparison: 'year'))['totals']['expense']['comparisons'][1] === null, 'No prior-year payments means no comparison');
-	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project, comparison: 'month'))['totals']['expense']['comparisons'][1]['previous'] === 11000, 'Shared comparison uses full source amounts without personal duplicates');
+	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project, entryScope: 'shared', comparison: 'month'))['totals']['expense']['comparisons'][1]['previous'] === 11000, 'Shared comparison uses full source amounts without personal duplicates');
 	$check($data($fresh($workspace)->annualOverview(2020, projectId: $solo, comparison: 'month'))['totals']['expense']['comparisons'][1]['previous'] === 303, 'Solo comparison remains scoped');
 	$check($fresh($workspace)->annualOverview(2020, comparison: 'invalid')->getStatus() === 400, 'Invalid comparison is rejected');
 
@@ -384,9 +437,12 @@ try {
 	$check($personalForecast['totals']['expense']['total'] === 8009, 'My finances uses the two exact stored 4001-cent shares, including their balanced rounding cent, rather than rounding 40 percent again');
 	$check($personalForecast['totals']['expense']['totalCount'] === 3, 'Shared forecast occurrences count once alongside saved personal payments');
 	$check($personalForecast['totals']['expense']['months'][1] === 4008 && $personalForecast['totals']['expense']['months'][2] === 4001 && $personalForecast['totals']['expense']['months'][3] === 0, 'Shared personal forecasts follow scheduled months and stop at the series end');
+	$areaPersonalForecast = $data($fresh($forecastWorkspace)->annualOverview($futureYear, projectId: $forecastProject, includeFuturePayments: true));
+	$check($areaPersonalForecast['totals']['expense']['total'] === 8002, 'A selected area defaults to its exact personal forecast and excludes unrelated personal payments');
+	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, projectId: $forecastProject, includeFuturePayments: true, amountMin: '50'))['totals']['expense']['total'] === 0, 'Personal area forecast filters use personal cents rather than source amounts');
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear))['totals']['expense']['total'] === 0, 'Shared forecasts remain opt-in');
 	$check($data($fresh($emptyWorkspace)->annualOverview($futureYear, includeFuturePayments: true))['totals']['expense']['total'] === 0, 'Shared forecasts never enter another personal workspace');
-	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, projectId: $forecastProject, includeFuturePayments: true))['totals']['expense']['total'] === 20002, 'Area forecasts retain the full shared source amounts');
+	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, projectId: $forecastProject, entryScope: 'shared', includeFuturePayments: true))['totals']['expense']['total'] === 20002, 'Area forecasts retain the full shared source amounts');
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, 'paymentPartners', includeFuturePayments: true))['totals'] === $personalForecast['totals'], 'Personal shared forecasts preserve totals across grouping');
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, includeFuturePayments: true, amountMin: '35', amountMax: '45'))['totals']['expense']['total'] === 8002, 'Amount limits filter shared forecasts by the personal share');
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, includeFuturePayments: true, amountMin: '50'))['totals']['expense']['total'] === 0, 'A full source amount never makes a smaller personal allocation match');
@@ -394,7 +450,7 @@ try {
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, includeFuturePayments: true, partners: (string)$forecastPartner))['totals']['expense']['total'] === 8002, 'Payment-partner filters retain matching shared personal forecasts');
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, includeFuturePayments: true, hashtags: (string)$forecastPersonalTag))['totals']['expense']['total'] === 8002, 'Personal tag IDs match shared-series tags by normalized name');
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, includeFuturePayments: true, hashtags: (string)$forecastSourceTag))['totals']['expense']['total'] === 0, 'A foreign workspace tag ID cannot filter a personal shared forecast');
-	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, projectId: $forecastProject, includeFuturePayments: true, hashtags: (string)$forecastSourceTag))['totals']['expense']['total'] === 20002, 'Area tag filters retain their own workspace IDs');
+	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, projectId: $forecastProject, entryScope: 'shared', includeFuturePayments: true, hashtags: (string)$forecastSourceTag))['totals']['expense']['total'] === 20002, 'Area tag filters retain their own workspace IDs');
 	$forecastLabels = $data($fresh($forecastWorkspace)->annualOverview($futureYear, 'labelsAndTags', includeFuturePayments: true));
 	$check($forecastLabels['totals']['expense']['total'] === 8002 && $forecastLabels['totals']['expense']['totalCount'] === 2, 'Labels and tags count shared personal forecast amounts once');
 	$forecastTagRows = array_values(array_filter($forecastLabels['groups']['expense'], static fn(array $row): bool => $row['kind'] === 'hashtag'));
@@ -403,6 +459,23 @@ try {
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, period: 'month', month: 3, includeFuturePayments: true))['totals']['expense']['total'] === 4001, 'Monthly reports include only the matching shared personal occurrence');
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, period: 'week', includeFuturePayments: true))['totals']['expense']['total'] === 8009, 'Weekly reports include shared personal forecasts');
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, period: 'day', includeFuturePayments: true))['totals']['expense']['total'] === 8009, 'Daily reports include shared personal forecasts');
+	$forecastComposition = $data($fresh($forecastWorkspace)->reportBreakdown($futureYear . '-01-01', $futureYear . '-12-31', includeFuturePayments: true));
+	$personalAreas = $data($fresh($forecastWorkspace)->areaOverview($futureYear . '-01-01', $futureYear . '-12-31', includeFuturePayments: true));
+	$fullAreas = $data($fresh($forecastWorkspace)->areaOverview($futureYear . '-01-01', $futureYear . '-12-31', amountView: 'area', includeFuturePayments: true));
+	$check($personalAreas['totals']['expense']['total'] === 8009 && $personalAreas['totals']['expense']['totalCount'] === 3, 'Area comparison uses exact personal projections and recurrence allocations');
+	$check($fullAreas['totals']['expense']['total'] === 20009 && $fullAreas['totals']['expense']['totalCount'] === 3, 'Full-area forecasts replace personal projections rather than adding both');
+	$marchAreas = $data($fresh($forecastWorkspace)->areaOverview($futureYear . '-03-01', $futureYear . '-03-31', amountView: 'area', includeFuturePayments: true));
+	$check($marchAreas['totals']['expense']['total'] === 10001, 'Projected area amounts stay inside the opened month');
+	$taggedAreas = $data($fresh($forecastWorkspace)->areaOverview($futureYear . '-01-01', $futureYear . '-12-31', amountView: 'area', includeFuturePayments: true, hashtags: (string)$forecastPersonalTag));
+	$check($taggedAreas['totals']['expense']['total'] === 20002, 'Full area comparison resolves personal tag identities for shared forecasts');
+	$taggedAreaRows = array_column($taggedAreas['rows'], null, 'id');
+	$check($taggedAreaRows[$forecastProject]['filterHashtags'] === [$forecastSourceTag], 'Full-area links carry the equivalent source-workspace tag filter');
+	$check($forecastComposition['totals']['expense'] === ['amountCents' => 8009, 'count' => 3], 'Composition includes every personal saved payment and exact shared forecast once');
+	$forecastTagComposition = $data($fresh($forecastWorkspace)->reportBreakdown($futureYear . '-01-01', $futureYear . '-12-31', grouping: 'labelsAndTags', detailId: 'tag:' . $forecastPersonalTag, includeFuturePayments: true));
+	$check($forecastTagComposition['totals']['expense'] === ['amountCents' => 8002, 'count' => 2], 'Composition resolves projected tag identities in the personal workspace');
+	$forecastAreaComposition = $data($fresh($forecastWorkspace)->reportBreakdown($futureYear . '-03-01', $futureYear . '-03-31', projectId: $forecastProject, entryScope: 'shared', includeFuturePayments: true));
+	$check($forecastAreaComposition['totals']['expense'] === ['amountCents' => 10001, 'count' => 1], 'Composition clips full shared forecasts to the opened month');
+	$check($data($fresh($forecastWorkspace)->reportBreakdown($futureYear . '-01-01', $futureYear . '-12-31', includeFuturePayments: true, amountMin: '50'))['totals']['expense']['amountCents'] === 0, 'Composition amount filters use allocated cents before forecast aggregation');
 	$check($beforeForecast === $forecastState(), 'Forecast reads never create payments, rewrite snapshots or update rounding balances or tags');
 
 	// Simulate advancing the source series after an occurrence was generated.
@@ -413,14 +486,284 @@ try {
 	$advance = $db->getQueryBuilder();
 	$advance->update('cobudget_entries')->set('recurrence_interval', $advance->createNamedParameter(null, \PDO::PARAM_NULL))->set('recurrence_next_date', $advance->createNamedParameter(null, \PDO::PARAM_NULL))->where($advance->expr()->eq('id', $advance->createNamedParameter($forecastSource, \PDO::PARAM_INT)))->executeStatement();
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, includeFuturePayments: true))['totals']['expense']['total'] === 8009, 'A saved personal occurrence replaces its forecast without double counting');
-	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, projectId: $forecastProject, includeFuturePayments: true))['totals']['expense']['total'] === 20002, 'Advancing the source series also preserves the full area forecast');
+	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, projectId: $forecastProject, entryScope: 'shared', includeFuturePayments: true))['totals']['expense']['total'] === 20002, 'Advancing the source series also preserves the full area forecast');
 	$zeroSource = $entry(10001, $sourceValues);
 	$insert('entry_shares', ['entry_id' => $zeroSource, 'user_id' => $uid, 'share_basis_points' => 0, 'amount_cents' => 0]);
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, includeFuturePayments: true))['totals']['expense']['total'] === 8009, 'A zero-share shared series never enters personal forecasts');
 	$insert('members', ['project_id' => $forecastProject, 'user_id' => 'former:annual-forecast-fixture', 'share_basis_points' => 0]);
 	$check($data($fresh($forecastWorkspace)->annualOverview($futureYear, includeFuturePayments: true))['totals']['expense']['total'] === 4008, 'Former participants pause future shared forecasts while saved personal payments remain');
+
+	// Personal area totals follow immutable stored payments, including zero/full
+	// allocations, settled copies and shares that differ from today's defaults.
+	$scopeWorkspace = $insert('workspaces', ['name' => 'Area perspective fixture', 'user_id' => $uid]);
+	$scopeProject = $insert('projects', ['name' => 'Historical allocations', 'owner_id' => '__annual_foreign__', 'workspace_id' => $foreignWorkspace]);
+	$insert('members', ['project_id' => $scopeProject, 'user_id' => $uid, 'personal_workspace_id' => $scopeWorkspace, 'share_basis_points' => 5000]);
+	$insert('members', ['project_id' => $scopeProject, 'user_id' => '__annual_foreign__', 'personal_workspace_id' => $foreignWorkspace, 'share_basis_points' => 5000]);
+	$scopeCategory = $insert('categories', ['name' => 'Area original', 'user_id' => '__annual_foreign__', 'workspace_id' => $foreignWorkspace, 'project_id' => $scopeProject]);
+	$personalCategory = $insert('categories', ['name' => 'Edited personal category', 'user_id' => $uid, 'workspace_id' => $scopeWorkspace]);
+	$scopePartner = $insert('payment_partners', ['name' => 'Area partner', 'user_id' => '__annual_foreign__', 'workspace_id' => $foreignWorkspace, 'project_id' => $scopeProject]);
+	foreach ([[10001, 4001, false], [2000, 800, true], [3000, 0, false], [100, 100, false]] as [$fullCents, $personalCents, $settled]) {
+		$sourceId = $entry($fullCents, ['entry_kind' => 'shared', 'user_id' => '__annual_foreign__', 'workspace_id' => $foreignWorkspace, 'project_id' => $scopeProject, 'category_id' => $scopeCategory, 'payment_partner_id' => $scopePartner, 'is_important' => 1, 'is_settled' => (int)$settled]);
+		$personalId = $personalCents > 0 ? $entry($personalCents, ['workspace_id' => $scopeWorkspace, 'project_id' => $scopeProject, 'source_entry_id' => $settled ? null : $sourceId, 'is_locked' => (int)!$settled, 'is_settled' => (int)$settled, 'category_id' => $settled ? $personalCategory : $scopeCategory, 'payment_partner_id' => $scopePartner, 'is_important' => 1]) : null;
+		$insert('entry_shares', ['entry_id' => $sourceId, 'user_id' => $uid, 'share_basis_points' => $personalCents === 100 ? 10000 : ($personalCents ? 4000 : 0), 'amount_cents' => $personalCents, 'personal_entry_id' => $settled ? null : $personalId]);
+	}
+	$entry(9999, ['workspace_id' => $scopeWorkspace]);
+	foreach (['categories', 'paymentPartners', 'labelsAndTags'] as $grouping) {
+		foreach (['personal' => [4901, 3], 'shared' => [15101, 4]] as $entryScope => [$expectedCents, $expectedCount]) {
+			$scoped = $data($fresh($scopeWorkspace)->annualOverview(2020, $grouping, projectId: $scopeProject, entryScope: $entryScope));
+			$check($scoped['totals']['expense']['total'] === $expectedCents && $scoped['totals']['expense']['totalCount'] === $expectedCount, 'Each grouping follows stored historical, zero and full allocations in ' . $entryScope . ' scope');
+			$check($scoped['entryScope'] === $entryScope, 'Report metadata identifies the actual amount perspective');
+			$list = $data($fresh($scopeWorkspace)->index(limit: 500, projectId: $scopeProject, entryScope: $entryScope, reportGrouping: $grouping));
+			$check($listCents($list) === $expectedCents && $list['total'] === $expectedCount, 'Saved detail payments match their ' . $entryScope . ' report without source/copy duplicates');
+		}
+	}
+	$personalArea = $data($fresh($scopeWorkspace)->annualOverview(2020, projectId: $scopeProject));
+	foreach (['personal' => [4001, 800, 100], 'shared' => [10001, 3000, 2000, 100]] as $perspective => $expected) {
+		$ranked = $data($fresh($scopeWorkspace)->index(limit: 10, type: 'expense', sortBy: 'amount', sortDir: 'desc', projectId: $scopeProject, entryScope: $perspective));
+		$check(array_map(static fn(array $row): int => (int)round((float)$row['amount'] * 100), $ranked['entries']) === $expected, 'Top 10 ranks the selected stored ' . $perspective . ' cents, retaining historical and full shares without duplicates');
+	}
+	$check($personalArea['entryScope'] === 'personal' && $personalArea['totals']['expense']['total'] === 4901, 'Area reports default to personal stored cents rather than today’s 50-percent membership default');
+	$check(in_array($personalCategory, $personalArea['filterChoices']['categoryIds'], true), 'Released personal payment categories remain filterable');
+	$check($data($fresh($scopeWorkspace)->annualOverview(2020, projectId: $scopeProject, amountMin: '5'))['totals']['expense']['total'] === 4801, 'Personal amount limits use the personal payment value');
+	$check($data($fresh($scopeWorkspace)->annualOverview(2020, projectId: $scopeProject, entryScope: 'shared', amountMin: '50'))['totals']['expense']['total'] === 10001, 'Entire-area amount limits use full source values');
+	$check($data($fresh($scopeWorkspace)->annualOverview(2021, projectId: $scopeProject, comparison: 'year'))['totals']['expense']['comparisons'][0]['previous'] === 4901, 'Historical comparisons use the selected personal perspective');
+	$check($data($fresh($scopeWorkspace)->annualOverview(2021, projectId: $scopeProject, entryScope: 'shared', comparison: 'year'))['totals']['expense']['comparisons'][0]['previous'] === 15101, 'Historical comparisons also support entire-area totals');
+	foreach (['year', 'quarter', 'week', 'day'] as $breakdown) {
+		$check($data($fresh($scopeWorkspace)->annualOverview(2020, projectId: $scopeProject, period: $breakdown, dateFrom: '2020-01-01', dateTo: '2020-01-10'))['totals']['expense']['total'] === 4901, 'Custom area dates retain personal cents with ' . $breakdown . ' columns');
+	}
+	$check($data($fresh($workspace)->annualOverview(2020, projectId: $solo, entryScope: 'shared'))['entryScope'] === 'personal', 'Solo areas always use their personal representation');
+	$check($data($fresh($scopeWorkspace)->annualOverview(2020, entryScope: 'shared'))['entryScope'] === 'personal', 'My finances cannot switch to shared sources');
+	$check($fresh($workspace)->annualOverview(2020, projectId: $scopeProject)->getStatus() === 403, 'A personal area report cannot cross the member’s persisted workspace');
+	$check($fresh($scopeWorkspace)->annualOverview(2020, projectId: $project, entryScope: 'shared')->getStatus() === 403, 'Entire-area reports also retain membership/workspace authorization');
+	// New detail comparisons use the exact same authorized scope for curves, means and metrics.
+	foreach (['personal' => 4901, 'shared' => 15101] as $entryScope => $expected) {
+		$detailReport = $data($fresh($scopeWorkspace)->annualOverview(2021, projectId: $scopeProject, entryScope: $entryScope, period: 'day', dateFrom: '2021-01-01', dateTo: '2021-01-31', comparison: 'detail', detailType: 'expense'));
+		$references = array_column($detailReport['detailComparisons'], null, 'id');
+		$check(array_keys($references) === ['previous', 'year', 'average-previous-quarter'], 'Monthly details include a monthly average from the previous quarter in ' . $entryScope);
+		$check($references['year']['previous'] === $expected, 'Prior-year reference respects exact stored ' . $entryScope . ' amounts');
+		$check(array_sum($references['year']['values']) === $expected, 'Daily reference curve agrees with the amount shown');
+		$filtered = $data($fresh($scopeWorkspace)->annualOverview(2021, projectId: $scopeProject, entryScope: $entryScope, period: 'day', dateFrom: '2021-01-01', dateTo: '2021-01-31', comparison: 'detail', detailType: 'expense', amountMin: '99999999'));
+		$filteredReferences = array_column($filtered['detailComparisons'], null, 'id');
+		$check($filteredReferences['year']['available'] && $filteredReferences['year']['previous'] === 0, 'Filtering to no payments keeps known scope coverage and zero reference amounts');
+		foreach (['categories', 'paymentPartners', 'labelsAndTags'] as $grouping) {
+			$weeklyDetail = $data($fresh($scopeWorkspace)->annualOverview(2020, grouping: $grouping, projectId: $scopeProject, entryScope: $entryScope, period: 'day', dateFrom: '2020-02-03', dateTo: '2020-02-09', comparison: 'detail', detailType: 'expense', detailAverageUnit: 'week'));
+			$weeklyMeans = array_column($weeklyDetail['detailComparisons'], null, 'id');
+			$check($weeklyMeans['average-previous-month']['fullAverage'] === (int)round($expected * 7 / 31), 'Prior-month weekly means follow exact ' . $entryScope . ' amounts in ' . $grouping);
+			$check($weeklyMeans['average-previous-month']['values'] === array_fill(0, 7, (int)round($expected * 7 / 31)), 'Weekly benchmarks stay constant in daily charts');
+			$monthlyDetail = $data($fresh($scopeWorkspace)->annualOverview(2020, grouping: $grouping, projectId: $scopeProject, entryScope: $entryScope, period: 'day', dateFrom: '2020-04-01', dateTo: '2020-04-30', comparison: 'detail', detailType: 'expense', detailAverageUnit: 'month'));
+			$monthlyMeans = array_column($monthlyDetail['detailComparisons'], null, 'id');
+			$check($monthlyMeans['average-previous-quarter']['fullAverage'] === (int)round($expected / 3), 'Prior-quarter monthly means include empty months and deduplicate labels in ' . $entryScope);
+		}
+		$filteredAverage = $data($fresh($scopeWorkspace)->annualOverview(2020, projectId: $scopeProject, entryScope: $entryScope, period: 'day', dateFrom: '2020-02-03', dateTo: '2020-02-09', comparison: 'detail', detailType: 'expense', detailAverageUnit: 'week', amountMin: '50'));
+		$filteredMeans = array_column($filteredAverage['detailComparisons'], null, 'id');
+		$check($filteredMeans['average-previous-month']['fullAverage'] === ($entryScope === 'shared' ? (int)round(10001 * 7 / 31) : 0), 'Average amount filters use the chosen stored perspective');
+	}
+	$wholeYear = $data($fresh($workspace)->annualOverview(2021, comparison: 'detail', detailType: 'all'));
+	$yearReferences = array_column($wholeYear['detailComparisons'], null, 'id');
+	$check(array_keys($yearReferences) === ['previous'], 'Whole-year balance totals have suitable, nonduplicated references');
+	$check($yearReferences['previous']['previous'] === -306, 'Whole-year balance uses deduplicated income minus expense');
+	$tagDetail = $data($fresh($workspace)->annualOverview(2021, grouping: 'labelsAndTags', period: 'day', dateFrom: '2021-01-01', dateTo: '2021-01-31', comparison: 'detail', detailType: 'expense'));
+	$check(count($tagDetail['detailComparisons']) === 3, 'Label and tag totals accept period and prior-quarter average comparisons');
+	$check($fresh($workspace)->annualOverview(2021, comparison: 'detail', detailType: 'all', detailId: '1')->getStatus() === 400, 'Reject balance subjects that are not totals');
+	$check($fresh($workspace)->annualOverview(2021, comparison: 'detail', detailType: 'expense', detailId: 'invalid')->getStatus() === 400, 'Reject malformed comparison subjects');
+	$check($fresh($workspace)->annualOverview(2021, comparison: 'detail', detailType: 'expense', detailAverageUnit: 'invalid')->getStatus() === 400, 'Reject malformed comparison units');
+	$check($fresh($scopeWorkspace)->annualOverview(2021, comparison: 'detail', detailType: 'expense', projectId: $project, entryScope: 'shared')->getStatus() === 403, 'Detail histories cannot cross workspace membership');
+
+	$averageYear = (int)(new DateTimeImmutable('now', new DateTimeZone('Europe/Vienna')))->format('Y');
+	$averageCategory = $insert('categories', ['name' => 'Sparse current-year average', 'user_id' => $uid, 'workspace_id' => $workspace]);
+	$entry(32400, ['date' => strtotime($averageYear . '-01-10 Europe/Vienna'), 'category_id' => $averageCategory]);
+	$currentDetail = $data($fresh($workspace)->annualOverview($averageYear, comparison: 'detail', detailType: 'expense', detailId: (string)$averageCategory));
+	$currentCategory = array_values(array_filter($currentDetail['groups']['expense'], static fn(array $row): bool => $row['id'] === $averageCategory))[0];
+	$check($currentCategory['total'] === 32400 && $currentCategory['totalCount'] === 1, 'A single current-year category payment retains its exact chart data');
+	$currentReferences = array_column($currentDetail['detailComparisons'], null, 'id');
+	$check(array_keys($currentReferences) === ['previous'], 'Historical data does not add separate average variants to a yearly detail');
+	$check($currentReferences['previous']['available'] && $currentReferences['previous']['previous'] === 0, 'A known empty previous period is still a valid zero baseline');
+
+	foreach ([['personal', 4901, 3], ['shared', 15101, 4]] as [$perspective, $expected, $count]) {
+		$composition = $data($fresh($scopeWorkspace)->reportBreakdown('2020-01-01', '2020-12-31', projectId: $scopeProject, entryScope: $perspective));
+		$check($composition['totals']['expense'] === ['amountCents' => $expected, 'count' => $count], 'Composition follows historical, zero/full and settled ' . $perspective . ' amounts');
+		$check(array_sum(array_column($composition['groups']['categories']['expense'], 'amountCents')) === $expected, 'Category composition matches its scoped total');
+	}
+	foreach ([[(string)$parent, false, 303], [(string)$parent, true, 101], [(string)$child, false, 202]] as [$subject, $direct, $expected]) {
+		$composition = $data($fresh($workspace)->reportBreakdown('2020-01-01', '2020-01-01', detailId: $subject, detailDirect: $direct));
+		$check($composition['totals']['expense']['amountCents'] === $expected, 'Composition retains category parent/direct/child semantics');
+	}
+	$labelComposition = $data($fresh($labelWorkspace)->reportBreakdown('2020-01-01', '2020-12-31', grouping: 'labelsAndTags'));
+	$check($labelComposition['totals']['expense'] === ['amountCents' => $labelReport['totals']['expense']['total'], 'count' => $labelReport['totals']['expense']['totalCount']], 'Label composition deduplicates qualifying payments and excludes unlabelled payments');
+	$tagComposition = $data($fresh($labelWorkspace)->reportBreakdown('2020-01-01', '2020-12-31', grouping: 'labelsAndTags', detailId: 'tag:' . $hashtag));
+	$check($tagComposition['totals']['expense'] === ['amountCents' => 260, 'count' => 2], 'Tag composition retains its exact payment population');
+	$partnerComposition = $data($fresh($labelWorkspace)->reportBreakdown('2020-01-01', '2020-12-31', grouping: 'paymentPartners', detailId: (string)$usedPartner, categories: (string)$usedCategory));
+	$check($partnerComposition['totals']['expense']['amountCents'] === 77, 'Detail subject and payment filters intersect before grouping');
+	$check($fresh($workspace)->reportBreakdown('2020-01-01', '2020-01-31', projectId: $scopeProject, entryScope: 'shared')->getStatus() === 403, 'Composition cannot cross the member’s workspace');
+	$check($fresh($workspace)->reportBreakdown('2020-01-01', '2020-01-31', detailId: 'label:important')->getStatus() === 400, 'Reject subjects from a different grouping');
+	$check($fresh($workspace)->reportBreakdown('2020-01-01', '2020-01-31', detailType: 'all', detailId: '1')->getStatus() === 400, 'Balance composition is available only for totals');
+	$check($fresh($workspace)->reportBreakdown('2020-02-30', '2020-03-01')->getStatus() === 400, 'Composition validates calendar dates');
+	$personalAreas = $data($fresh($scopeWorkspace)->areaOverview('2020-01-01', '2020-12-31'));
+	$fullAreas = $data($fresh($scopeWorkspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'area'));
+	$check($personalAreas['totals']['expense']['total'] === 14900, 'Area rows plus Without area reconcile to My finances');
+	$check($fullAreas['totals']['expense']['total'] === 25100, 'Full areas count authorized shared sources and unassigned personal payments once');
+	$personalAreaRows = array_column($personalAreas['rows'], null, 'id');
+	$fullAreaRows = array_column($fullAreas['rows'], null, 'id');
+	$check($personalAreaRows[$scopeProject]['expense']['total'] === 4901 && $fullAreaRows[$scopeProject]['expense']['total'] === 15101, 'Area comparison preserves historical, zero/full and independently edited settled allocations');
+	$check($fullAreaRows[0]['expense']['total'] === 9999 && $fullAreaRows[0]['entryScope'] === 'personal', 'Without area remains personal in both views');
+	$check($data($fresh($emptyWorkspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'area'))['totals']['expense']['total'] === 0, 'Whole-area comparisons cannot leak another workspace’s shared payments');
+	$check($data($fresh($scopeWorkspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'area', amountMin: '50'))['totals']['expense']['total'] === 20000, 'Amount filters use the selected full amounts');
+	$check($data($fresh($scopeWorkspace)->annualOverview(2020, withoutArea: true))['totals']['expense']['total'] === 9999, 'Without-area detail charts exclude every area');
+	$check($data($fresh($scopeWorkspace)->reportBreakdown('2020-01-01', '2020-12-31', withoutArea: true))['totals']['expense']['amountCents'] === 9999, 'Without-area composition retains its exact population');
+	$privateList = $data($fresh($scopeWorkspace)->index(withoutArea: true));
+	$check($privateList['total'] === 1 && $listCents($privateList) === 9999, 'Without-area saved payment lists exclude area payments');
+	$check($fresh($workspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'invalid')->getStatus() === 400, 'Reject invalid area amount modes');
+	$baseAreaRows = array_column($data($fresh($workspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'area'))['rows'], null, 'id');
+	$check($baseAreaRows[$solo]['expense']['total'] === 303 && $baseAreaRows[$solo]['entryScope'] === 'personal', 'Solo areas retain ordinary personal payments in the full view');
+	$savedTagAreas = $data($fresh($forecastWorkspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'area', hashtags: (string)$forecastPersonalTag));
+	$check($savedTagAreas['totals']['expense']['total'] === 10001, 'Normalized tag filters match saved shared source rows as well as forecasts');
+	$check($data($fresh($forecastWorkspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'area', hashtags: (string)$forecastSourceTag))['totals']['expense']['total'] === 0, 'Foreign workspace tag IDs cannot inject a filter into a personal comparison');
+	$archive = $db->getQueryBuilder();
+	$archive->update('cobudget_projects')->set('is_archived', $archive->createNamedParameter(true, \PDO::PARAM_BOOL))->where($archive->expr()->eq('id', $archive->createNamedParameter($scopeProject, \PDO::PARAM_INT)))->executeStatement();
+	$archivedAreaRows = array_column($data($fresh($scopeWorkspace)->areaOverview('2020-01-01', '2020-12-31'))['rows'], null, 'id');
+	$check($archivedAreaRows[$scopeProject]['archived'] && $archivedAreaRows[$scopeProject]['expense']['total'] === 4901, 'Archival does not remove historical area comparisons');
+	$zeroArea = $insert('projects', ['name' => 'Zero-share tag-only forecast', 'owner_id' => '__annual_foreign__', 'workspace_id' => $foreignWorkspace]);
+	$insert('members', ['project_id' => $zeroArea, 'user_id' => $uid, 'personal_workspace_id' => $emptyWorkspace, 'share_basis_points' => 0]);
+	$insert('members', ['project_id' => $zeroArea, 'user_id' => '__annual_foreign__', 'personal_workspace_id' => $foreignWorkspace, 'share_basis_points' => 10000]);
+	$zeroHead = $entry(7777, ['entry_kind' => 'shared', 'workspace_id' => $foreignWorkspace, 'project_id' => $zeroArea, 'recurrence_interval' => 'month', 'recurrence_multiplier' => 1, 'recurrence_next_date' => $futureDate, 'recurrence_end_date' => strtotime($futureYear . '-03-31 23:59:59 Europe/Vienna')]);
+	$insert('entry_shares', ['entry_id' => $zeroHead, 'user_id' => $uid, 'share_basis_points' => 0, 'amount_cents' => 0]);
+	$sourceOnlyTag = $insert('hashtags', ['workspace_id' => $foreignWorkspace, 'normalized_name' => 'area-only-forecast', 'display_name' => 'Area only', 'created_at' => $date, 'updated_at' => $date]);
+	$insert('entry_hashtags', ['entry_id' => $zeroHead, 'hashtag_id' => $sourceOnlyTag, 'workspace_id' => $foreignWorkspace, 'created_at' => $date]);
+	$zeroFull = $data($fresh($emptyWorkspace)->areaOverview($futureYear . '-01-01', $futureYear . '-12-31', amountView: 'area', grouping: 'labelsAndTags', includeFuturePayments: true));
+	$check($zeroFull['totals']['expense']['total'] === 15554, 'An authorized zero-share user sees full tag-only forecasts even without a personal copy of that tag: ' . json_encode($zeroFull['totals']['expense']));
+	$check($data($fresh($emptyWorkspace)->areaOverview($futureYear . '-01-01', $futureYear . '-12-31', includeFuturePayments: true))['totals']['expense']['total'] === 0, 'Zero-share forecasts never enter the default personal comparison');
+	// End-of-period forecasts have their own cutoff: saved plans and known
+	// recurrence occurrences remain visible even in a payments-up-to-today report.
+	$forecastNow = new DateTimeImmutable('now', new DateTimeZone('Europe/Vienna'));
+	$forecastToday = $forecastNow->setTime(0, 0);
+	$forecastFrom = $forecastToday->modify('-9 days')->format('Y-m-d');
+	$forecastTo = $forecastToday->modify('+10 days')->format('Y-m-d');
+	$forecastNext = $forecastToday->modify('+1 day')->setTime(9, 0)->getTimestamp();
+	$currentForecastWorkspace = $insert('workspaces', ['name' => 'Current forecast fixture', 'user_id' => $uid]);
+	$currentForecastCategory = $insert('categories', ['name' => 'Everyday spending', 'user_id' => $uid, 'workspace_id' => $currentForecastWorkspace]);
+	$currentForecastOther = $insert('categories', ['name' => 'Other plans', 'user_id' => $uid, 'workspace_id' => $currentForecastWorkspace]);
+	$currentForecastArea = $insert('projects', ['name' => 'Current forecast shared area', 'owner_id' => '__annual_foreign__', 'workspace_id' => $foreignWorkspace]);
+	$insert('members', ['project_id' => $currentForecastArea, 'user_id' => $uid, 'personal_workspace_id' => $currentForecastWorkspace, 'share_basis_points' => 4000]);
+	$insert('members', ['project_id' => $currentForecastArea, 'user_id' => '__annual_foreign__', 'personal_workspace_id' => $foreignWorkspace, 'share_basis_points' => 6000]);
+	$currentForecastEntry = static fn(int $cents, array $extra = []): int => $entry($cents, array_replace(['workspace_id' => $currentForecastWorkspace, 'date' => strtotime($forecastFrom . ' 09:00 Europe/Vienna')], $extra));
+	$currentForecastEntry(300000, ['type' => 'income']);
+	$currentForecastEntry(70000, ['is_fixed_cost' => 1]);
+	$currentForecastVariable = $currentForecastEntry(10000, ['category_id' => $currentForecastCategory]);
+	$currentForecastEntry(2000, ['category_id' => $currentForecastCategory, 'date' => $forecastNext]);
+	$currentForecastEntry(1000, ['category_id' => $currentForecastOther, 'date' => $forecastNext]);
+	$currentForecastEntry(7000, ['recurrence_interval' => 'month', 'recurrence_multiplier' => 12, 'recurrence_next_date' => $forecastNext]);
+	$currentForecastSource = $currentForecastEntry(10001, ['entry_kind' => 'shared', 'workspace_id' => $foreignWorkspace, 'project_id' => $currentForecastArea, 'recurrence_interval' => 'month', 'recurrence_multiplier' => 12, 'recurrence_next_date' => $forecastNext]);
+	$insert('entry_shares', ['entry_id' => $currentForecastSource, 'user_id' => $uid, 'share_basis_points' => 2500, 'amount_cents' => 2500]);
+	$currentForecastEntry(2500, ['project_id' => $currentForecastArea, 'source_entry_id' => $currentForecastSource, 'is_locked' => 1]);
+	foreach (['forecast-one', 'forecast-two'] as $tagName) {
+		$tagId = $insert('hashtags', ['workspace_id' => $currentForecastWorkspace, 'normalized_name' => $tagName, 'display_name' => $tagName, 'created_at' => $date, 'updated_at' => $date]);
+		$insert('entry_hashtags', ['entry_id' => $currentForecastVariable, 'hashtag_id' => $tagId, 'workspace_id' => $currentForecastWorkspace, 'created_at' => $date]);
+	}
+	$periodForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo));
+	$check($periodForecast['status'] === 'current' && $periodForecast['elapsedDays'] === 10 && $periodForecast['remainingDays'] === 10, 'Forecasts count the browser-timezone calendar including empty days');
+	$check($periodForecast['actual'] === ['incomeCents' => 300000, 'expenseCents' => 89500, 'balanceCents' => 210500], 'Forecast actuals use personal rows exactly once, independent of tag joins');
+	$check($periodForecast['planned']['expenseCents'] === 12500, 'Known plans combine saved future payments and stored exact-cent recurrence allocations');
+	$check($periodForecast['variableCount'] === 1 && $periodForecast['estimated']['expenseCents'] === 8000, 'Recurring sources behind locked personal copies and fixed costs are excluded from the pace, and same-category plans cover part of the remainder');
+	$check($periodForecast['forecast'] === ['incomeCents' => 300000, 'expenseCents' => 110000, 'balanceCents' => 190000], 'The personal forecast reconciles actuals, plans and additional estimates without projecting salary');
+	$forecastMain = $data($fresh($currentForecastWorkspace)->annualOverview(dateFrom: $forecastFrom, dateTo: $forecastTo));
+	$forecastMainFuture = $data($fresh($currentForecastWorkspace)->annualOverview(dateFrom: $forecastFrom, dateTo: $forecastTo, includeFuturePayments: true));
+	$check($forecastMain['totals']['expense']['total'] === $periodForecast['actual']['expenseCents'] && $forecastMainFuture['totals']['expense']['total'] === $periodForecast['actual']['expenseCents'] + $periodForecast['planned']['expenseCents'], 'Statistical estimates never enter the normal tables or their future-payment totals');
+	foreach ([['personal', 2500], ['shared', 10001]] as [$view, $expected]) {
+		$areaForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, projectId: $currentForecastArea, entryScope: $view));
+		$check($areaForecast['actual']['expenseCents'] === $expected && $areaForecast['planned']['expenseCents'] === $expected, 'Forecasts preserve the selected ' . $view . ' historical and planned amounts');
+		$check($areaForecast['estimated'] === null, 'Known series alone do not invent a variable-spending estimate');
+	}
+	$withoutAreaForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, withoutArea: true));
+	$check($withoutAreaForecast['actual']['expenseCents'] === 87000 && $withoutAreaForecast['planned']['expenseCents'] === 10000, 'Without-area forecast details exclude all area amounts');
+
+	$forecastFilters = json_encode([['dimension' => 'type', 'id' => 'expense'], ['dimension' => 'categories', 'id' => (string)$currentForecastCategory, 'direct' => true], ['dimension' => 'paymentPartners', 'id' => '0']]);
+	$nestedForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, reportFilters: $forecastFilters));
+	$check($nestedForecast['actual']['expenseCents'] === 10000 && $nestedForecast['planned']['expenseCents'] === 2000 && $nestedForecast['actual']['incomeCents'] === 0, 'Forecast actuals and plans retain every nested predicate');
+	$check($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, reportFilters: '{')->getStatus() === 400, 'Forecasts reject malformed drill-down identities');
+	$sharedFilters = json_encode([['dimension' => 'categories', 'id' => '0'], ['dimension' => 'paymentPartners', 'id' => '0']]);
+	foreach ([['personal', 2500], ['shared', 10001]] as [$view, $expected]) {
+		$nestedArea = $data($fresh($currentForecastWorkspace)->annualOverview(dateFrom: $forecastFrom, dateTo: $forecastTo, projectId: $currentForecastArea, entryScope: $view, includeFuturePayments: true, reportFilters: $sharedFilters));
+		$check($nestedArea['totals']['expense']['total'] === 2 * $expected, 'Nested area details preserve stored personal/full-area allocations for actuals and known recurrence plans');
+	}
+
+	$categoryForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, detailType: 'expense', detailId: (string)$currentForecastCategory));
+	$check($categoryForecast['actual']['expenseCents'] === 10000 && $categoryForecast['planned']['expenseCents'] === 2000 && $categoryForecast['estimated']['expenseCents'] === 8000, 'A category detail uses its own population for all three forecast parts');
+	$filteredForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, grouping: 'paymentPartners', categories: (string)$currentForecastCategory));
+	$check($filteredForecast['forecast']['expenseCents'] === $categoryForecast['forecast']['expenseCents'], 'Forecast payment filters match report filters before grouping');
+	$tagForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, grouping: 'labelsAndTags', detailType: 'expense', detailId: 'tag:' . $tagId));
+	$check($tagForecast['actual']['expenseCents'] === 10000 && $tagForecast['variableCount'] === 1, 'Tag details count one payment even when several tags are joined');
+	$fullFilterForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, projectId: $currentForecastArea, entryScope: 'shared', amountMin: '50'));
+	$personalFilterForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, projectId: $currentForecastArea, amountMin: '50'));
+	$check($fullFilterForecast['planned']['expenseCents'] === 10001 && $personalFilterForecast['planned']['expenseCents'] === 0, 'Amount filters use full or stored personal recurrence cents as selected');
+	$futureOnlyForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastToday->modify('+1 day')->format('Y-m-d'), $forecastTo));
+	$check($futureOnlyForecast['status'] === 'future' && $futureOnlyForecast['estimated'] === null && $futureOnlyForecast['planned']['expenseCents'] === 12500, 'Future-only dates show plans without inventing a consumption pace');
+	$check($data($fresh($currentForecastWorkspace)->reportForecast('2020-01-01', '2020-12-31')) === ['status' => 'past'], 'Completed periods have no forecast');
+	$check($fresh($workspace)->reportForecast($forecastFrom, $forecastTo, projectId: $currentForecastArea, entryScope: 'shared')->getStatus() === 403, 'Forecasts cannot cross a member’s persisted workspace');
+	$check($fresh($foreignWorkspace)->reportForecast($forecastFrom, $forecastTo)->getStatus() === 403, 'Forecasts reject foreign workspace headers');
+	$check($fresh($workspace)->reportForecast('2026-02-30', '2026-03-01')->getStatus() === 400, 'Forecasts validate exact calendar dates');
+	$check($fresh($workspace)->reportForecast($forecastFrom, $forecastTo, detailType: 'all', detailId: '1')->getStatus() === 400, 'Balance forecasts require a total subject');
+	$check($fresh($workspace)->reportForecast($forecastFrom, $forecastTo, detailId: 'label:important')->getStatus() === 400, 'Forecast subjects must belong to their grouping');
+	$snapshotQuery = $db->getQueryBuilder();
+	$snapshotQuery->select('amount_cents')->from('cobudget_entry_shares')->where($snapshotQuery->expr()->eq('entry_id', $snapshotQuery->createNamedParameter($currentForecastSource)));
+	$snapshotResult = $snapshotQuery->executeQuery();
+	$check((int)$snapshotResult->fetchOne() === 2500, 'Forecast reads leave immutable share snapshots unchanged');
+	$snapshotResult->closeCursor();
+	$incomeWorkspace = $insert('workspaces', ['name' => 'Income pattern forecast', 'user_id' => $uid]);
+	$incomeCategory = $insert('categories', ['name' => 'Regular income', 'user_id' => $uid, 'workspace_id' => $incomeWorkspace]);
+	$incomeDue = $forecastToday->modify('+5 days');
+	$incomeRows = [];
+	for ($back = 4; $back >= 1; $back--) {
+		$month = $incomeDue->modify('first day of this month')->modify('-' . $back . ' months');
+		$incomeDate = $month->setDate((int)$month->format('Y'), (int)$month->format('n'), min((int)$incomeDue->format('j'), (int)$month->format('t')))->setTime(9, 0)->getTimestamp();
+		$incomeRows[] = $entry(333333, ['workspace_id' => $incomeWorkspace, 'category_id' => $incomeCategory, 'type' => 'income', 'date' => $incomeDate]);
+		if ($back === 2) {
+			$beforeFour = $data($fresh($incomeWorkspace)->reportForecast($forecastFrom, $forecastTo));
+			$check($beforeFour['incomePatternCount'] === 0 && $beforeFour['estimated'] === null, 'Three earlier salary entries do not imply an income pattern');
+		}
+	}
+	foreach (['year', 'quarter', 'week', 'day'] as $chartPeriod) {
+		$salaryForecast = $data($fresh($incomeWorkspace)->reportForecast($forecastFrom, $forecastTo, period: $chartPeriod));
+		$check($salaryForecast['incomePatternCount'] === 1 && $salaryForecast['actual']['incomeCents'] === 0 && $salaryForecast['estimated']['incomeCents'] === 333333, 'Four authorized earlier salaries support current income estimates in ' . $chartPeriod . ' buckets without entering the actual total');
+		foreach (['actual', 'planned', 'estimated'] as $part) foreach (['income', 'expense', 'balance'] as $kind) {
+			$check(array_sum($salaryForecast['chart'][$part][$kind]) === ($salaryForecast[$part][$kind . 'Cents'] ?? 0), 'Forecast chart components reconcile to the table: ' . $part . '/' . $kind . '/' . $chartPeriod);
+		}
+	}
+	$entry(345678, ['workspace_id' => $incomeWorkspace, 'category_id' => $incomeCategory, 'type' => 'income', 'date' => $incomeDue->setTime(9, 0)->getTimestamp()]);
+	$knownSalaryForecast = $data($fresh($incomeWorkspace)->reportForecast($forecastFrom, $forecastTo));
+	$check($knownSalaryForecast['planned']['incomeCents'] === 345678 && $knownSalaryForecast['estimated']['incomeCents'] === 0 && $knownSalaryForecast['forecast']['incomeCents'] === 345678, 'Known future income supersedes an inferred occurrence even when the amount changes');
+	$check($data($fresh($emptyWorkspace)->reportForecast($forecastFrom, $forecastTo))['incomePatternCount'] === 0, 'Other workspaces cannot borrow the salary history');
+	$check($fresh($incomeWorkspace)->reportForecast($forecastFrom, $forecastTo, period: 'invalid')->getStatus() === 400, 'Forecast chart buckets validate their period');
+	$sharedIncomeCategory = $insert('categories', ['name' => 'Area salary', 'user_id' => '__annual_foreign__', 'workspace_id' => $foreignWorkspace, 'project_id' => $currentForecastArea]);
+	for ($back = 4; $back >= 1; $back--) {
+		$month = $incomeDue->modify('first day of this month')->modify('-' . $back . ' months');
+		$incomeDate = $month->setDate((int)$month->format('Y'), (int)$month->format('n'), min((int)$incomeDue->format('j'), (int)$month->format('t')))->setTime(9, 0)->getTimestamp();
+		$salarySource = $entry(10001, ['workspace_id' => $foreignWorkspace, 'entry_kind' => 'shared', 'project_id' => $currentForecastArea, 'category_id' => $sharedIncomeCategory, 'type' => 'income', 'date' => $incomeDate]);
+		$insert('entry_shares', ['entry_id' => $salarySource, 'user_id' => $uid, 'share_basis_points' => 2500, 'amount_cents' => 2500]);
+		$entry(2500, ['workspace_id' => $currentForecastWorkspace, 'project_id' => $currentForecastArea, 'source_entry_id' => $salarySource, 'is_locked' => 1, 'category_id' => $currentForecastCategory, 'type' => 'income', 'date' => $incomeDate]);
+	}
+	foreach ([['personal', 2500], ['shared', 10001]] as [$view, $expected]) {
+		$areaIncomeForecast = $data($fresh($currentForecastWorkspace)->reportForecast($forecastFrom, $forecastTo, detailType: 'income', projectId: $currentForecastArea, entryScope: $view));
+		$check($areaIncomeForecast['incomePatternCount'] === 1 && $areaIncomeForecast['estimated']['incomeCents'] === $expected && $areaIncomeForecast['forecast']['incomeCents'] === $expected, 'Income patterns retain historical exact cents in the ' . $view . ' perspective rather than recalculating current default shares');
+	}
 	$session->setUser(null);
+	$check($fresh($workspace)->reportForecast($forecastFrom, $forecastTo)->getStatus() === 401, 'Forecasts require authentication');
+	$check($fresh($workspace)->areaOverview('2020-01-01', '2020-12-31')->getStatus() === 401, 'Area comparisons require authentication');
+	$check($fresh($workspace)->reportBreakdown('2020-01-01', '2020-12-31')->getStatus() === 401, 'Composition requires authentication');
 	$check($fresh($workspace)->annualOverview(2020)->getStatus() === 401, 'Unauthenticated annual access is denied');
+	$session->setUser($user);
+	$rankingWorkspace = $insert('workspaces', ['name' => 'Top 10 fixture', 'user_id' => $uid]);
+	for ($rank = 1; $rank <= 15; $rank++) $entry($rank * 100 + 1, ['workspace_id' => $rankingWorkspace, 'is_important' => $rank % 2]);
+	$entry(8888, ['workspace_id' => $rankingWorkspace, 'type' => 'income']);
+	$entry(999999, ['workspace_id' => $rankingWorkspace, 'user_id' => '__annual_foreign__']);
+	$entry(777777, ['workspace_id' => $rankingWorkspace, 'date' => $futureDate]);
+	$ranked = $data($fresh($rankingWorkspace)->index(limit: 10, type: 'expense', sortBy: 'amount', sortDir: 'desc', dateFrom: $date - 1, dateTo: $futureDate));
+	$check(array_map(static fn(array $row): int => (int)round((float)$row['amount'] * 100), $ranked['entries']) === array_map(static fn(int $rank): int => $rank * 100 + 1, range(15, 6)), 'Top 10 limits after exact-cent descending ordering, excluding income, foreign users and future dates');
+	$rankedIncome = $data($fresh($rankingWorkspace)->index(limit: 10, type: 'income', sortBy: 'amount', sortDir: 'desc', dateFrom: $date - 1, dateTo: $date + 1));
+	$check(array_map(static fn(array $row): int => (int)round((float)$row['amount'] * 100), $rankedIncome['entries']) === [8888], 'Income ranking remains independent and returns fewer than ten rows without filler');
+	$rankedImportant = $data($fresh($rankingWorkspace)->index(limit: 10, type: 'expense', sortBy: 'amount', sortDir: 'desc', dateFrom: $date - 1, dateTo: $date + 1, labels: 'important', amountMin: '10'));
+	$check(array_map(static fn(array $row): int => (int)round((float)$row['amount'] * 100), $rankedImportant['entries']) === [1501, 1301, 1101], 'Ranking applies report labels, amount limits and exact selected dates before limiting');
+	$rankedFuture = $data($fresh($rankingWorkspace)->index(limit: 10, type: 'expense', sortBy: 'amount', sortDir: 'desc', includeFuturePayments: true, dateFrom: $date - 1, dateTo: $futureDate));
+	$check((int)round((float)$rankedFuture['entries'][0]['amount'] * 100) === 777777, 'Explicit future-payment mode includes saved future payments in the ranking');
 	echo "Annual overview integration passed: {$assertions} assertions; fixtures rolled back.\n";
 } finally {
 	$db->rollBack();

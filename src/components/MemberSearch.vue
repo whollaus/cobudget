@@ -1,5 +1,5 @@
 <template>
-	<div class="member-search">
+	<div class="member-search" @keydown.esc.stop="closeDropdown">
 		<div class="search-input-wrapper">
 			<NcTextField
 				ref="searchInput"
@@ -8,15 +8,17 @@
 				:placeholder="placeholder"
 				@focus="showDropdown = true"
 			/>
-			<div v-if="loading" class="search-spinner">⏳</div>
+			<NcLoadingIcon v-if="loading" class="search-spinner" :size="20" />
 		</div>
 
 		<!-- Search results dropdown -->
 		<ul v-if="showDropdown && results.length > 0" class="search-results">
-			<li v-for="user in results" :key="user.id" @click="selectUser(user)" class="search-result-item">
-				<span class="user-avatar">👤</span>
-				<span class="user-name">{{ user.displayName }}</span>
-				<span class="user-id">({{ user.id }})</span>
+			<li v-for="user in results" :key="user.id">
+				<button type="button" @click="selectUser(user)" class="search-result-item cobudget-focusable">
+					<AccountIcon :size="20" aria-hidden="true" />
+					<span class="user-name">{{ user.displayName }}</span>
+					<span class="user-id">({{ user.id }})</span>
+				</button>
 			</li>
 		</ul>
 		<div v-if="showDropdown && searchTerm.length >= 1 && !loading && results.length === 0" class="no-results">
@@ -32,7 +34,7 @@
 					:aria-label="$texts.memberSearch.removeMember(member.displayName)"
 					:title="$texts.memberSearch.removeMember(member.displayName)"
 					@click="removeMember(member)"
-					class="remove-btn">✕</button>
+					class="remove-btn cobudget-focusable"><CloseIcon :size="16" aria-hidden="true" /></button>
 			</span>
 		</div>
 	</div>
@@ -42,12 +44,15 @@
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import AccountIcon from 'vue-material-design-icons/Account.vue'
+import CloseIcon from 'vue-material-design-icons/Close.vue'
 import { texts } from '../l10n/texts'
 import { showRequestError } from '../services/notifications'
 
 export default {
 	name: 'MemberSearch',
-	components: { NcTextField },
+	components: { NcTextField, NcLoadingIcon, AccountIcon, CloseIcon },
 	props: {
 		modelValue: {
 			type: Array,
@@ -96,6 +101,10 @@ export default {
 		document.removeEventListener('click', this.handleClickOutside)
 	},
 	methods: {
+		closeDropdown() {
+			this.$el.querySelector('input')?.focus()
+			this.showDropdown = false
+		},
 		handleClickOutside(e) {
 			if (!this.$el.contains(e.target)) {
 				this.showDropdown = false
@@ -132,7 +141,7 @@ export default {
 			this.$emit('update:modelValue', updated)
 			this.searchTerm = ''
 			this.results = []
-			this.showDropdown = false
+			this.closeDropdown()
 		},
 		removeMember(member) {
 			const updated = this.selectedMembers.filter(m => m.id !== member.id)
@@ -146,6 +155,12 @@ export default {
 .member-search {
 	position: relative;
 }
+
+@media (max-width: 768px) {
+	.member-search {
+		--default-clickable-area: var(--cobudget-mobile-touch-size);
+	}
+}
 .search-input-wrapper {
 	position: relative;
 }
@@ -156,6 +171,7 @@ export default {
 	transform: translateY(-50%);
 }
 .search-results {
+	box-sizing: border-box;
 	position: absolute;
 	z-index: 1000;
 	width: 100%;
@@ -163,15 +179,24 @@ export default {
 	overflow-y: auto;
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: 0 0 var(--border-radius, 4px) var(--border-radius, 4px);
+	border-radius: var(--cobudget-control-radius);
 	list-style: none;
-	padding: 0;
+	padding: var(--cobudget-menu-padding);
 	margin: 0;
-	box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+	box-shadow: var(--cobudget-shadow-md);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 .search-result-item {
-	padding: 10px 12px;
+	box-sizing: border-box;
+	width: 100%;
+	min-height: var(--cobudget-menu-item-height);
+	margin: 0;
+	padding: 8px 12px;
+	border: 0;
+	border-radius: var(--cobudget-menu-item-radius);
+	background: transparent;
+	font: inherit;
+	text-align: start;
 	cursor: pointer;
 	display: flex;
 	align-items: center;
@@ -181,8 +206,13 @@ export default {
 .search-result-item:hover {
 	background: var(--cobudget-surface-muted, #f0f0f0);
 }
-.user-avatar {
-	font-size: var(--cobudget-font-md);
+.search-result-item :deep(.material-design-icon) {
+	flex-shrink: 0;
+}
+.user-name,
+.user-id {
+	min-width: 0;
+	overflow-wrap: anywhere;
 }
 .user-name {
 	font-weight: 500;
@@ -199,12 +229,12 @@ export default {
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	border: 1px solid var(--cobudget-border, #ddd);
 	border-top: none;
-	border-radius: 0 0 var(--border-radius, 4px) var(--border-radius, 4px);
+	border-radius: var(--cobudget-control-radius);
 }
 .selected-members {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: 8px;
 	margin-top: 8px;
 }
 .member-chip {
@@ -219,6 +249,13 @@ export default {
 	font-weight: 500;
 }
 .remove-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--cobudget-control-height-compact);
+	min-height: var(--cobudget-control-height-compact);
+	margin: 0;
+	border-radius: 50%;
 	background: none;
 	border: none;
 	cursor: pointer;
@@ -230,5 +267,16 @@ export default {
 }
 .remove-btn:hover {
 	opacity: 1;
+	background: var(--cobudget-surface-strong);
+}
+
+@media (max-width: 768px) {
+	.search-result-item,
+	.remove-btn {
+		min-height: var(--cobudget-mobile-touch-size);
+	}
+	.remove-btn {
+		width: var(--cobudget-mobile-touch-size);
+	}
 }
 </style>

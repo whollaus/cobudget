@@ -3,17 +3,17 @@
 		<div class="entry-history-backdrop" @click.self="$emit('close')">
 			<section
 				ref="modal"
-				class="entry-history-modal"
+				class="entry-history-modal cobudget-dialog"
 				role="dialog"
 				aria-modal="true"
 				:aria-label="$texts.entry.historyTitle()"
 				tabindex="-1"
 				@keydown.esc.stop.prevent="$emit('close')">
-				<header class="entry-history-header">
+				<header class="entry-history-header cobudget-dialog-header cobudget-dialog-header--padded">
 					<h2>{{ $texts.entry.historyTitle() }}</h2>
 					<button
 						type="button"
-						class="entry-history-close"
+						class="entry-history-close cobudget-dialog-close cobudget-focusable"
 						:aria-label="$texts.common.close()"
 						@click="$emit('close')">
 						<CloseIcon :size="24" aria-hidden="true" />
@@ -100,9 +100,9 @@ export default {
 	align-items: center;
 	justify-content: center;
 	padding: 24px;
-	background: rgba(0, 0, 0, 0.45);
-	z-index: 10000;
+	background: var(--cobudget-dialog-backdrop);
 	backdrop-filter: blur(2px);
+	z-index: 10000;
 }
 
 .entry-history-modal {
@@ -112,51 +112,14 @@ export default {
 	flex-direction: column;
 	overflow: hidden;
 	border: 1px solid var(--cobudget-history-border);
-	border-radius: var(--border-radius-large, 12px);
+	border-radius: var(--cobudget-dialog-radius);
 	background: var(--cobudget-history-surface);
 	color: var(--cobudget-history-text);
-	box-shadow: 0 12px 42px rgba(0, 0, 0, 0.28);
-}
-
-.entry-history-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	padding: 10px 20px;
-	border-bottom: 1px solid var(--cobudget-history-border);
-	border-radius: var(--border-radius-large, 12px) var(--border-radius-large, 12px) 0 0;
-	background: var(--cobudget-history-surface-muted);
-}
-
-.entry-history-header h2 {
-	margin: 0;
-	font-size: var(--cobudget-font-lg, 18px);
-	font-weight: 700;
-	line-height: 1.2;
-}
-
-.entry-history-close {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 44px;
-	height: 44px;
-	border: 0;
-	border-radius: var(--border-radius-large, 10px);
-	background: transparent;
-	color: var(--cobudget-history-text);
-	cursor: pointer;
-}
-
-.entry-history-close:hover,
-.entry-history-close:focus-visible {
-	background: var(--cobudget-history-surface-muted);
-	outline: none;
+	box-shadow: var(--cobudget-dialog-shadow);
 }
 
 .entry-history-body {
-	padding: 16px 20px 20px;
+	padding: 16px var(--cobudget-dialog-padding) var(--cobudget-dialog-padding);
 	overflow: auto;
 }
 
@@ -169,7 +132,7 @@ export default {
 .history-table-wrapper {
 	overflow-x: auto;
 	border: 1px solid var(--cobudget-history-border);
-	border-radius: var(--border-radius-large, 8px);
+	border-radius: var(--cobudget-table-radius);
 }
 
 .history-table {
@@ -180,7 +143,7 @@ export default {
 
 .history-table th,
 .history-table td {
-  padding: 4px 10px;
+  padding: var(--cobudget-table-cell-padding);
   border-bottom: 1px solid var(--cobudget-border, #ddd);
   letter-spacing: 0.5px;
 	text-align: left;
@@ -190,7 +153,7 @@ export default {
 }
 
 .history-table th {
-	background: var(--cobudget-history-surface-muted);
+	background: var(--cobudget-table-header-background);
   color: var(--cobudget-text-muted, #888);
 	letter-spacing: 0;
 }

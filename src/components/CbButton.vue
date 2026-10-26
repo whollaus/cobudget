@@ -11,6 +11,7 @@
 			}
 		]"
 		:disabled="disabled || busy"
+		:aria-busy="busy || null"
 		:aria-label="ariaLabel || null"
 		:title="title || null"
 		@click="$emit('click', $event)">
@@ -80,9 +81,11 @@ export default {
 	min-width: 120px;
 	max-width: 100%;
 	min-height: var(--cobudget-button-height);
+	margin: 0;
+	box-sizing: border-box;
 	padding: 0 24px;
 	border: 1px solid transparent;
-	border-radius: var(--cobudget-radius-md);
+	border-radius: var(--cobudget-control-radius);
 	background: var(--cobudget-surface);
 	color: var(--cobudget-text);
 	cursor: pointer;
@@ -102,14 +105,18 @@ export default {
 }
 
 .cobudget-button:focus-visible {
-	outline: 0;
-	box-shadow: var(--cobudget-focus-ring);
+	outline: var(--cobudget-focus-outline) !important;
+	outline-offset: var(--cobudget-focus-offset);
+	box-shadow: none;
 }
 
 .cobudget-button:disabled {
 	cursor: not-allowed;
 	opacity: 0.55;
-	color: var(--cobudget-text-muted);
+	background: var(--cobudget-surface-muted) !important;
+	border-color: var(--cobudget-border) !important;
+	color: var(--cobudget-text-muted) !important;
+	box-shadow: none;
 	transform: none !important;
 }
 
@@ -126,9 +133,9 @@ export default {
 
 .cobudget-button--compact {
 	min-width: 0;
-	min-height: 36px;
+	min-height: var(--cobudget-button-height);
 	padding: 0 14px;
-	font-size: var(--cobudget-font-compact);
+	font-size: var(--cobudget-font-base);
 }
 
 .cobudget-button--large {
@@ -141,7 +148,7 @@ export default {
 	background: var(--cobudget-primary);
 	background-color: var(--cobudget-primary);
 	border-color: var(--cobudget-primary);
-	box-shadow: var(--cobudget-shadow-sm);
+	box-shadow: none;
 	color: var(--cobudget-primary-text) !important;
 }
 
@@ -178,13 +185,13 @@ export default {
 
 .cobudget-button--danger {
 	background: var(--cobudget-error);
-	color: var(--cobudget-primary-text);
+	color: var(--cobudget-danger-text);
   border:none;
 }
 
 .cobudget-button--danger:hover:not(:disabled) {
 	background: var(--cobudget-error-dark);
-	color: var(--cobudget-primary-text);
+	color: var(--cobudget-danger-text);
   border:none;
 }
 
@@ -197,7 +204,7 @@ export default {
 .cobudget-button--danger-outline:hover:not(:disabled) {
   border: 1px solid var(--cobudget-error)!important;
 	background: var(--cobudget-error);
-	color: var(--cobudget-primary-text);
+	color: var(--cobudget-danger-text);
 }
 
 .cobudget-button--ghost {
@@ -214,13 +221,15 @@ export default {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
-	height: 20px;
+	width: var(--cobudget-icon-action);
+	height: var(--cobudget-icon-action);
 }
 
 .cobudget-button__icon :deep(.material-design-icon),
 .cobudget-button__icon :deep(.material-design-icon__svg) {
 	display: block;
+	width: var(--cobudget-icon-action);
+	height: var(--cobudget-icon-action);
 	color: currentColor !important;
 	fill: currentColor !important;
 }

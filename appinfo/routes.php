@@ -22,6 +22,9 @@ return [
 		['name' => 'entry#destroyAttachment', 'url' => '/api/entries/{id}/attachments/{attachmentId}', 'verb' => 'DELETE'],
 
 		['name' => 'entry#annualOverview', 'url' => '/api/annual-overview', 'verb' => 'GET'],
+		['name' => 'entry#reportBreakdown', 'url' => '/api/report-breakdown', 'verb' => 'GET'],
+		['name' => 'entry#reportForecast', 'url' => '/api/report-forecast', 'verb' => 'GET'],
+		['name' => 'entry#areaOverview', 'url' => '/api/area-overview', 'verb' => 'GET'],
 
 		// API routes for Analytics
 		['name' => 'analytics#summary', 'url' => '/api/analytics/summary', 'verb' => 'GET'],

@@ -2,7 +2,10 @@
 	--cobudget-primary: var(--color-primary-element, var(--color-primary, #0078a8));
 	--cobudget-primary-hover: var(--color-primary-element-hover, var(--color-primary-hover, #006a92));
 	--cobudget-primary-light: var(--color-primary-element-light, var(--color-primary-light, #e6f4fb));
-	--cobudget-primary-text: #fff;
+	--cobudget-primary-text: var(--color-primary-element-text, #fff);
+	--cobudget-danger-text: #fff;
+	--cobudget-info-text: var(--color-primary-element-light-text, #006aa6);
+	--cobudget-info-background: color-mix(in srgb, var(--cobudget-primary) 12%, var(--cobudget-surface));
 
 	--cobudget-error: #d13438;
 	--cobudget-error-light: #fde8ea;
@@ -38,27 +41,82 @@
 	--cobudget-shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.22);
 	--cobudget-shadow-header: 0 3px 10px rgba(0, 0, 0, 0.18);
 	--cobudget-focus-ring: 0 0 0 2px var(--cobudget-primary);
+	--cobudget-control-radius: var(--border-radius-element, 8px);
+	--cobudget-control-height: 44px;
+	--cobudget-control-height-compact: var(--default-clickable-area, 34px);
+	--cobudget-control-border: 2px;
+	--cobudget-control-focus-border: var(--cobudget-text);
+	--cobudget-focus-outline: 2px solid var(--cobudget-text);
+	--cobudget-focus-offset: 2px;
+	--cobudget-dialog-radius: var(--cobudget-radius-lg);
+	--cobudget-dialog-shadow: var(--cobudget-shadow-lg);
+	--cobudget-dialog-backdrop: rgba(0, 0, 0, 0.45);
+	--cobudget-dialog-padding: 24px;
+	--cobudget-dialog-title-size: var(--cobudget-font-xl);
+	--cobudget-menu-padding: 8px;
+	--cobudget-menu-item-radius: var(--cobudget-control-radius);
+	--cobudget-menu-item-height: var(--default-clickable-area, 34px);
+	/* Surfaces share the Nextcloud grid; dense financial tables and mobile
+	 * edge-to-edge reports deliberately retain their own geometry. */
+	--cobudget-card-radius: var(--cobudget-radius-lg);
+	--cobudget-card-padding: calc(var(--default-grid-baseline, 4px) * 5);
+	--cobudget-card-padding-compact: calc(var(--default-grid-baseline, 4px) * 4);
+	--cobudget-card-gap: calc(var(--default-grid-baseline, 4px) * 4);
+	--cobudget-content-gap: calc(var(--default-grid-baseline, 4px) * 3);
+	--cobudget-section-gap: calc(var(--default-grid-baseline, 4px) * 6);
+	--cobudget-settings-section-gap: calc(var(--default-grid-baseline, 4px) * 8);
+	--cobudget-form-inset: calc(var(--default-grid-baseline, 4px) * 7);
+	--cobudget-form-max-width: 900px;
+	--cobudget-table-radius: var(--cobudget-radius-lg);
+	--cobudget-table-header-background: var(--cobudget-surface-muted);
+	--cobudget-table-row-hover: var(--cobudget-surface-muted);
+	--cobudget-table-sort-hover: var(--cobudget-surface-strong);
+	--cobudget-table-cell-padding: var(--default-grid-baseline, 4px) calc(var(--default-grid-baseline, 4px) * 2.5);
+	--cobudget-table-payment-padding: 0 calc(var(--default-grid-baseline, 4px) * 2.5);
+	--cobudget-table-detail-padding: calc(var(--default-grid-baseline, 4px) * 3) calc(var(--default-grid-baseline, 4px) * 4);
+	--cobudget-card-hover-shadow: var(--cobudget-shadow-sm);
 
-	--cobudget-font-xxs: 10px;
-	--cobudget-font-xs: 10px;
-	--cobudget-font-sm: 12px;
-	--cobudget-font-compact: 12px;
-	--cobudget-font-base: var(--default-font-size, 14px);
+	--cobudget-font-body: var(--default-font-size, 15px);
+	--cobudget-font-caption: 12px;
+	--cobudget-font-label: var(--cobudget-font-caption);
+	--cobudget-font-badge: var(--cobudget-font-caption);
+	--cobudget-font-badge-compact: 10px;
+	--cobudget-font-card-title: 18px;
+	--cobudget-font-subheading: 18px;
+	--cobudget-font-section-title: 22px;
+	--cobudget-font-page-title: 26px;
+	--cobudget-font-page-title-mobile: 20px;
+	--cobudget-font-metric: 22px;
+	--cobudget-font-metric-compact: 18px;
+	--cobudget-icon-inline: 16px;
+	--cobudget-icon-action: 20px;
+	--cobudget-icon-close: 24px;
+	--cobudget-badge-radius: 4px;
+	--cobudget-badge-padding: 2px 6px;
+
+	/* Compatibility aliases for existing compact tables and specialized controls. */
+	--cobudget-font-xxs: var(--cobudget-font-badge-compact);
+	--cobudget-font-xs: var(--cobudget-font-badge-compact);
+	--cobudget-font-sm: var(--cobudget-font-caption);
+	--cobudget-font-compact: var(--cobudget-font-caption);
+	--cobudget-font-base: var(--cobudget-font-body);
 	--cobudget-font-ui: 16px;
-	--cobudget-font-md: 16px;
-	--cobudget-font-md-plus: 18px;
-	--cobudget-font-lg: 18px;
-	--cobudget-font-lg-plus: 20px;
-	--cobudget-font-xl: 20px;
-	--cobudget-font-section: 22px;
-	--cobudget-font-title-sm: 22px;
-	--cobudget-font-title-md: 26px;
-	--cobudget-font-title: 26px;
+	--cobudget-font-md: var(--cobudget-font-ui);
+	--cobudget-font-md-plus: var(--cobudget-font-card-title);
+	--cobudget-font-lg: var(--cobudget-font-card-title);
+	--cobudget-font-lg-plus: var(--cobudget-font-page-title-mobile);
+	--cobudget-font-xl: var(--cobudget-font-page-title-mobile);
+	--cobudget-font-section: var(--cobudget-font-section-title);
+	--cobudget-font-title-sm: var(--cobudget-font-section-title);
+	--cobudget-font-title-md: var(--cobudget-font-page-title);
+	--cobudget-font-title: var(--cobudget-font-page-title);
 	--cobudget-font-weight-action: var(--font-weight-element, 700);
+	--cobudget-report-header-height: calc(var(--default-grid-baseline, 4px) * 16);
+	--cobudget-report-section-gap: calc(var(--default-grid-baseline, 4px) * 6);
 
-	--cobudget-button-height: var(--button-size, 34px);
+	--cobudget-button-height: var(--default-clickable-area, 34px);
 	--cobudget-button-height-large: 54px;
-	--cobudget-icon-button-size: var(--button-size, 34px);
+	--cobudget-icon-button-size: var(--default-clickable-area, 34px);
 	--cobudget-mobile-touch-size: 44px;
 }
 
@@ -181,6 +239,7 @@
 
 @media (prefers-color-scheme: dark) {
 	:root {
+		--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 		--cobudget-error-light: rgba(209, 52, 56, 0.2);
 		--cobudget-error-soft: rgba(209, 52, 56, 0.16);
 		--cobudget-error-dark: #ff8f96;
@@ -210,6 +269,7 @@ body.cobudget-theme-light {
 	--cobudget-tax-light: #f3e8ff;
 	--cobudget-tax-dark: #5b21b6;
 	--cobudget-text: #222;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 70%, #000);
 	--cobudget-text-muted: #666;
 	--cobudget-surface: #fff;
 	--cobudget-surface-muted: #f5f5f5;
@@ -253,6 +313,7 @@ body[data-cobudget-theme="dark"] {
 	--cobudget-tax-light: rgba(124, 58, 237, 0.22);
 	--cobudget-tax-dark: #c4b5fd;
 	--cobudget-text: #f5f5f5;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #b3b3b3;
 	--cobudget-surface: #181818;
 	--cobudget-surface-muted: #242424;
@@ -311,6 +372,7 @@ body.theme--dark:not(.cobudget-theme-light) {
 	--cobudget-tax-light: rgba(124, 58, 237, 0.22);
 	--cobudget-tax-dark: #c4b5fd;
 	--cobudget-text: #f5f5f5;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #b3b3b3;
 	--cobudget-surface: #181818;
 	--cobudget-surface-muted: #242424;
@@ -363,6 +425,7 @@ body.theme--dark:not(.cobudget-theme-light) #content.app-cobudget {
 		--cobudget-tax-light: rgba(124, 58, 237, 0.22);
 		--cobudget-tax-dark: #c4b5fd;
 		--cobudget-text: #f5f5f5;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 		--cobudget-text-muted: #b3b3b3;
 		--cobudget-surface: #181818;
 		--cobudget-surface-muted: #242424;
@@ -439,6 +502,7 @@ body.theme--dark:not(.cobudget-theme-light) #content.app-cobudget {
 	.restore-report-block
 ) {
 	--cobudget-text: #f5f5f5;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #b3b3b3;
 	--cobudget-surface: #181818;
 	--cobudget-surface-muted: #242424;
@@ -463,6 +527,7 @@ body:has(#content.app-cobudget) :where(
 	.project-create-modal-backdrop
 ) {
 	--cobudget-text: #222;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 70%, #000);
 	--cobudget-text-muted: #666;
 	--cobudget-surface: #fff;
 	--cobudget-surface-muted: #f5f5f5;
@@ -586,6 +651,7 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 	.project-create-modal-backdrop
 ) {
 	--cobudget-text: #f5f5f5;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #b3b3b3;
 	--cobudget-surface: #181818;
 	--cobudget-surface-muted: #242424;
@@ -615,6 +681,7 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 		.project-create-modal-backdrop
 	) {
 		--cobudget-text: #f5f5f5;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 		--cobudget-text-muted: #b3b3b3;
 		--cobudget-surface: #181818;
 		--cobudget-surface-muted: #242424;
@@ -657,13 +724,12 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 ) :where(
 	#content.app-cobudget .app-page-header__title,
 	#content.app-cobudget .app-page-header__subtitle,
-	#content.app-cobudget .project-card,
 	#content.app-cobudget .project-card h3,
 	#content.app-cobudget .project-card-meta,
 	#content.app-cobudget .settings-list,
 	#content.app-cobudget .settings-list-item,
 	#content.app-cobudget .settings-list-info,
-	#content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+	#content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
 	#content.app-cobudget .settings-list-info > strong,
 	#content.app-cobudget .backup-info,
 	#content.app-cobudget .backup-info strong,
@@ -781,8 +847,7 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 	#content.app-cobudget .backup-items,
 	#content.app-cobudget .backup-item,
 	#content.app-cobudget .share-table,
-	#content.app-cobudget .share-row,
-	#content.app-cobudget .project-card
+	#content.app-cobudget .share-row
 ) {
 	background-color: var(--cobudget-surface) !important;
 	border-color: var(--cobudget-border) !important;
@@ -850,7 +915,7 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 ) {
 	background-color: var(--cobudget-surface) !important;
 	color: var(--cobudget-text) !important;
-	border-color: var(--cobudget-border-strong) !important;
+	/* Field components own border colors for hover, focus and validation. */
 }
 
 :where(
@@ -934,6 +999,7 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 		.restore-report-block
 	) {
 		--cobudget-text: #f5f5f5;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 		--cobudget-text-muted: #b3b3b3;
 		--cobudget-surface: #181818;
 		--cobudget-surface-muted: #242424;
@@ -1132,10 +1198,10 @@ html.cobudget-theme-dark #content.app-cobudget .settings-list-info,
 body.cobudget-theme-dark #content.app-cobudget .settings-list-info,
 html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info,
 body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info,
-html.cobudget-theme-dark #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
-body.cobudget-theme-dark #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
-html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
-body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+html.cobudget-theme-dark #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
+body.cobudget-theme-dark #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
 html.cobudget-theme-dark #content.app-cobudget .settings-list-info > strong,
 body.cobudget-theme-dark #content.app-cobudget .settings-list-info > strong,
 html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-info > strong,
@@ -1188,10 +1254,6 @@ body[data-cobudget-theme="dark"] #content.app-cobudget .insights-card p {
 	opacity: 1 !important;
 }
 
-html.cobudget-theme-dark #content.app-cobudget .project-card,
-body.cobudget-theme-dark #content.app-cobudget .project-card,
-html[data-cobudget-theme="dark"] #content.app-cobudget .project-card,
-body[data-cobudget-theme="dark"] #content.app-cobudget .project-card,
 html.cobudget-theme-dark #content.app-cobudget .settings-list,
 body.cobudget-theme-dark #content.app-cobudget .settings-list,
 html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list,
@@ -1250,10 +1312,10 @@ html.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .se
 body.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info,
 html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info,
 body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info,
-html.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden),
-body.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden),
-html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden),
-body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden),
+html.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
+body.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
+html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
+body[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge]),
 html.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > strong,
 body.cobudget-theme-dark #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > strong,
 html[data-cobudget-theme="dark"] #content.app-cobudget .settings-list-item.is-hidden .settings-list-info > strong,
@@ -1275,6 +1337,7 @@ body.cobudget-theme-dark .project-create-modal-backdrop,
 html[data-cobudget-theme="dark"] .project-create-modal-backdrop,
 body[data-cobudget-theme="dark"] .project-create-modal-backdrop {
 	--cobudget-text: #f5f5f5;
+	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #c7c7c7;
 	--cobudget-surface: #181818;
 	--cobudget-surface-muted: #242424;
@@ -1391,7 +1454,7 @@ body.cobudget-theme-dark .project-create-modal textarea,
 html[data-cobudget-theme="dark"] .project-create-modal textarea,
 body[data-cobudget-theme="dark"] .project-create-modal textarea {
 	background-color: var(--cobudget-surface) !important;
-	border-color: var(--cobudget-border-strong) !important;
+	/* Field components own border colors for hover, focus and validation. */
 	color: var(--cobudget-text) !important;
 }
 

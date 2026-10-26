@@ -1,16 +1,16 @@
 <template>
 	<div class="settings-item-actions">
 		<CbIconButton v-if="canEdit" :aria-label="editLabel" :title="editLabel" @click="$emit('edit')">
-			<PencilIcon :size="20" />
+			<PencilIcon :size="20" aria-hidden="true" />
 		</CbIconButton>
 		<CbIconButton v-if="canDelete" :aria-label="deleteLabel" :title="deleteLabel" @click="$emit('delete')">
-			<DeleteOutlineIcon :size="20" />
+			<DeleteOutlineIcon :size="20" aria-hidden="true" />
 		</CbIconButton>
 		<CbIconButton v-if="canHide" :aria-label="hideLabel" :title="hideLabel" @click="$emit('hide')">
-			<EyeOffIcon :size="20" />
+			<EyeOffIcon :size="20" aria-hidden="true" />
 		</CbIconButton>
 		<CbIconButton v-if="canUnhide" :aria-label="unhideLabel" :title="unhideLabel" @click="$emit('unhide')">
-			<PlusIcon :size="20" />
+			<EyeIcon :size="20" aria-hidden="true" />
 		</CbIconButton>
 	</div>
 </template>
@@ -20,7 +20,7 @@ import CbIconButton from './CbIconButton.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
 import EyeOffIcon from 'vue-material-design-icons/EyeOff.vue'
 import PencilIcon from 'vue-material-design-icons/Pencil.vue'
-import PlusIcon from 'vue-material-design-icons/Plus.vue'
+import EyeIcon from 'vue-material-design-icons/Eye.vue'
 import { texts } from '../l10n/texts'
 
 export default {
@@ -30,7 +30,7 @@ export default {
 		DeleteOutlineIcon,
 		EyeOffIcon,
 		PencilIcon,
-		PlusIcon
+		EyeIcon
 	},
 	props: {
 		canEdit: {
@@ -73,7 +73,7 @@ export default {
 <style scoped>
 .settings-item-actions {
 	display: flex;
-	gap: 5px;
+	gap: var(--default-grid-baseline, 4px);
 	flex-wrap: wrap;
 	justify-content: flex-end;
 }

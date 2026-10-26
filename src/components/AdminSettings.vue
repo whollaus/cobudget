@@ -7,14 +7,11 @@
 			<!-- Kategorien -->
 			<div class="settings-column">
 				<h3>{{ $texts.admin.globalCategories() }}</h3>
-				<div class="tabs-container">
-					<button class="tab-button" :class="{ active: categoryTab === 'expense' }" @click.prevent="categoryTab = 'expense'">{{ $texts.common.expense() }}</button>
-					<button class="tab-button" :class="{ active: categoryTab === 'income' }" @click.prevent="categoryTab = 'income'">{{ $texts.common.income() }}</button>
-				</div>
+				<CbTypeTabs v-model="categoryTab" :label="$texts.admin.globalCategories()" />
 				<form @submit.prevent="addCategory" class="add-form">
 					<IconPicker v-model="newCategoryIcon" />
-					<input type="text" class="form-control" v-model="newCategory" :placeholder="$texts.admin.newCategory()" required>
-					<NcButton type="primary" native-type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()"
+					<input type="text" class="form-control" data-cobudget-field="compact" v-model="newCategory" :placeholder="$texts.admin.newCategory()" required>
+					<NcButton variant="primary" type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()"
 						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
 				</form>
 				<SettingsList :items="filteredCategories" :empty-text="$texts.admin.noGlobalCategories()">
@@ -25,8 +22,8 @@
 								<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>
 								<span>{{ cat.name }}</span>
 							</div>
-							<span class="badge-global">{{ $texts.common.global() }}</span>
-							<span v-if="cat.is_hidden" class="badge-hidden">{{ $texts.admin.hidden() }}</span>
+							<span class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
+							<span v-if="cat.is_hidden" class="badge-hidden" data-cobudget-badge="neutral">{{ $texts.admin.hidden() }}</span>
 						</div>
 						<SettingsItemActions
 							class="settings-list-actions"
@@ -49,13 +46,10 @@
 			<!-- Zahlungspartner -->
 			<div class="settings-column">
 				<h3>{{ $texts.admin.globalPaymentPartners() }}</h3>
-				<div class="tabs-container">
-					<button class="tab-button" :class="{ active: paymentPartnerTab === 'expense' }" @click.prevent="paymentPartnerTab = 'expense'">{{ $texts.common.expense() }}</button>
-					<button class="tab-button" :class="{ active: paymentPartnerTab === 'income' }" @click.prevent="paymentPartnerTab = 'income'">{{ $texts.common.income() }}</button>
-				</div>
+				<CbTypeTabs v-model="paymentPartnerTab" :label="$texts.admin.globalPaymentPartners()" />
 				<form @submit.prevent="addPaymentPartner" class="add-form">
-					<input type="text" class="form-control" v-model="newPaymentPartner" :placeholder="paymentPartnerPlaceholder" required>
-					<NcButton type="primary" native-type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()"
+					<input type="text" class="form-control" data-cobudget-field="compact" v-model="newPaymentPartner" :placeholder="paymentPartnerPlaceholder" required>
+					<NcButton variant="primary" type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()"
 						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
 				</form>
 				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
@@ -65,8 +59,8 @@
 								<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>
 								<span>{{ paymentPartner.name }}</span>
 							</div>
-							<span class="badge-global">{{ $texts.common.global() }}</span>
-							<span v-if="paymentPartner.is_hidden" class="badge-hidden">{{ $texts.admin.hidden() }}</span>
+							<span class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
+							<span v-if="paymentPartner.is_hidden" class="badge-hidden" data-cobudget-badge="neutral">{{ $texts.admin.hidden() }}</span>
 						</div>
 						<SettingsItemActions
 							class="settings-list-actions"
@@ -87,19 +81,19 @@
 			</div>
 		</div>
 
-		<div class="integrity-card">
+		<div class="integrity-card" data-cobudget-card="">
 			<div class="integrity-card-header">
 				<div>
 					<h3>{{ $texts.admin.dataQuality() }}</h3>
 					<p>{{ $texts.admin.dataQualityHint() }}</p>
 				</div>
 				<div class="integrity-actions">
-					<NcButton type="secondary" :disabled="integrityLoading || integrityRepairing" @click="fetchIntegrityReport">
+					<NcButton variant="secondary" :disabled="integrityLoading || integrityRepairing" @click="fetchIntegrityReport">
 						{{ $texts.admin.checkNow() }}
 					</NcButton>
 					<NcButton
 						v-if="integrityOrphanCount > 0"
-						type="primary"
+						variant="primary"
 						:disabled="integrityLoading || integrityRepairing"
 						@click="repairIntegrityReferences">
 						{{ $texts.admin.repairOrphans() }}
@@ -168,7 +162,7 @@
 			</div>
 		</div>
 
-		<div class="admin-backup-card">
+		<div class="admin-backup-card" data-cobudget-card="">
 			<div class="integrity-card-header">
 				<div>
 					<h3>{{ $texts.admin.fullBackups() }}</h3>
@@ -176,7 +170,7 @@
 				</div>
 				<div class="integrity-actions">
 					<NcButton
-						type="primary"
+						variant="primary"
 						:disabled="fullBackupCreating || !fullBackupStorageUser.trim()"
 						@click="createFullBackupNow">
 						{{ fullBackupCreating ? $texts.admin.fullBackupCreating() : $texts.admin.fullBackupCreateNow() }}
@@ -193,7 +187,7 @@
 					<span>{{ $texts.admin.fullBackupStorageUserHint() }}</span>
 					<input
 						v-model="fullBackupStorageUser"
-						class="form-control"
+						class="form-control" data-cobudget-field="compact"
 						type="text"
 						:placeholder="$texts.admin.fullBackupStorageUserPlaceholder()">
 				</label>
@@ -202,7 +196,7 @@
 					<span>{{ $texts.admin.fullBackupFolderHint() }}</span>
 					<input
 						v-model="fullBackupStorageFolder"
-						class="form-control"
+						class="form-control" data-cobudget-field="compact"
 						type="text">
 				</label>
 				<label class="admin-backup-field">
@@ -210,7 +204,7 @@
 					<span>{{ $texts.admin.fullBackupRetentionHint() }}</span>
 					<input
 						v-model.number="fullBackupRetentionCount"
-						class="form-control"
+						class="form-control" data-cobudget-field="compact"
 						type="number"
 						min="1"
 						max="100">
@@ -218,7 +212,7 @@
 				<label class="admin-backup-field">
 					{{ $texts.admin.fullBackupSchedule() }}
 					<span>{{ $texts.admin.fullBackupScheduleHint() }}</span>
-					<select v-model="fullBackupSchedule" class="form-control">
+					<select v-model="fullBackupSchedule" class="form-control" data-cobudget-field="compact">
 						<option value="none">{{ $texts.admin.fullBackupScheduleNone() }}</option>
 						<option value="daily">{{ $texts.admin.fullBackupScheduleDaily() }}</option>
 						<option value="weekly">{{ $texts.admin.fullBackupScheduleWeekly() }}</option>
@@ -227,7 +221,7 @@
 				</label>
 				<div class="admin-backup-save-action">
 					<NcButton
-						type="primary"
+						variant="primary"
 						:disabled="fullBackupSettingsSaving"
 						@click="saveFullBackupSettings">
 						{{ fullBackupSettingsSaving ? $texts.common.saveBusy() : $texts.common.save() }}
@@ -282,7 +276,7 @@
 								</template>
 							</NcButton>
 							<NcButton
-								type="secondary"
+								variant="secondary"
 								:disabled="!!fullBackupRestoringFileName"
 								@click="openFullBackupRestore(backup)">
 								{{ $texts.admin.fullBackupRestore() }}
@@ -300,20 +294,20 @@
 				@click.self="closeRenameAdminItemModal"
 				@keydown.esc.stop.prevent="closeRenameAdminItemModal">
 				<div
-					class="settings-modal"
+					class="settings-modal cobudget-dialog cobudget-dialog--contained"
 					:class="{ 'settings-modal--payment-partner': renameAdminItemType === 'paymentPartner' }"
 					role="dialog"
 					aria-modal="true"
 					aria-labelledby="admin-rename-title">
-					<div class="modal-header">
+					<div class="modal-header cobudget-dialog-header">
 						<h2 id="admin-rename-title">{{ renameAdminItemTitle }}</h2>
 						<button
 							type="button"
-							class="settings-modal-close-button"
+							class="settings-modal-close-button cobudget-dialog-close cobudget-focusable"
 							:aria-label="$texts.common.close()"
 							:title="$texts.common.close()"
 							@click="closeRenameAdminItemModal">
-							<CloseIcon :size="22" aria-hidden="true" />
+							<CloseIcon :size="24" aria-hidden="true" />
 						</button>
 					</div>
 					<p class="modal-note">
@@ -331,7 +325,7 @@
 										id="admin-category-code"
 										ref="renameAdminItemCodeInput"
 										v-model="renameAdminItemCode"
-										class="form-control"
+										class="form-control" data-cobudget-field="compact"
 										type="text"
 										maxlength="128"
 										autocomplete="off"
@@ -343,7 +337,7 @@
 										id="admin-rename-name"
 										ref="renameAdminItemInput"
 										v-model="renameAdminItemName"
-										class="form-control"
+										class="form-control" data-cobudget-field="compact"
 										type="text"
 										maxlength="128"
 										required>
@@ -354,7 +348,7 @@
 								<select
 									id="admin-category-parent"
 									v-model="renameAdminItemParentId"
-									class="form-control"
+									class="form-control" data-cobudget-field="compact"
 									:disabled="!!renameAdminItem.has_children">
 									<option value="">{{ $texts.common.noParentMainCategory() }}</option>
 									<option
@@ -396,17 +390,17 @@
 				tabindex="-1"
 				@click.self="closeFullBackupRestoreModal"
 				@keydown.esc.stop.prevent="closeFullBackupRestoreModal">
-				<div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="admin-full-backup-restore-title">
-					<div class="modal-header">
+				<div class="settings-modal cobudget-dialog cobudget-dialog--contained" role="dialog" aria-modal="true" aria-labelledby="admin-full-backup-restore-title">
+					<div class="modal-header cobudget-dialog-header">
 						<h2 id="admin-full-backup-restore-title">{{ $texts.admin.fullBackupRestoreTitle() }}</h2>
 						<button
 							type="button"
-							class="settings-modal-close-button"
+							class="settings-modal-close-button cobudget-dialog-close cobudget-focusable"
 							:aria-label="$texts.common.close()"
 							:title="$texts.common.close()"
 							:disabled="!!fullBackupRestoringFileName"
 							@click="closeFullBackupRestoreModal">
-							<CloseIcon :size="22" aria-hidden="true" />
+							<CloseIcon :size="24" aria-hidden="true" />
 						</button>
 					</div>
 					<p class="modal-note">
@@ -417,7 +411,7 @@
 						<input
 							id="admin-full-backup-restore-confirm"
 							v-model="fullBackupRestoreConfirmation"
-							class="form-control"
+							class="form-control" data-cobudget-field="compact"
 							type="text"
 							autocomplete="off"
 							:placeholder="$texts.admin.fullBackupRestoreConfirmHint()">
@@ -447,6 +441,7 @@
 </template>
 
 <script>
+import CbTypeTabs from './CbTypeTabs.vue'
 import { getAppLocale } from '../utils/formatMoney'
 import { defineAsyncComponent } from 'vue'
 import axios from '../services/http'
@@ -474,6 +469,7 @@ const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobud
 export default {
 	name: 'AdminSettings',
 	components: {
+		CbTypeTabs,
 		NcButton,
 		IconPicker,
 		ConfirmModal,
@@ -1092,8 +1088,8 @@ export default {
 <style scoped>
 .settings-section {
 	display: block;
-	margin: calc(var(--default-grid-baseline, 4px) * 7);
-	width: min(900px, calc(100% - var(--default-grid-baseline, 4px) * 7 * 2));
+	margin: var(--cobudget-form-inset);
+	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
 	box-sizing: border-box;
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
@@ -1112,17 +1108,13 @@ export default {
 
 .settings-grid {
 	display: flex;
-	gap: 30px;
+	gap: var(--cobudget-settings-section-gap);
 	margin-bottom: 28px;
 }
 
 .integrity-card,
 .admin-backup-card {
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	margin: 0 0 28px 0;
-	padding: 18px;
+	margin: 0 0 var(--cobudget-section-gap) 0;
 }
 
 .integrity-card-header {
@@ -1282,7 +1274,7 @@ export default {
 	border-radius: var(--border-radius, 6px);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	display: block;
-	font-size: var(--cobudget-font-xs);
+	font-size: var(--cobudget-font-caption);
 	line-height: 1.45;
 	margin-top: 8px;
 	max-width: 100%;
@@ -1402,6 +1394,7 @@ export default {
 	margin-top: 0;
 	margin-bottom: 16px;
 	font-weight: bold;
+	font-size: var(--cobudget-font-section-title);
 }
 
 .add-form {
@@ -1413,16 +1406,6 @@ export default {
 }
 
 .form-control {
-	width: 100%;
-	height: 34px;
-	padding: 0 12px;
-	border: 1px solid var(--cobudget-border-strong, #888);
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-ui);
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	box-sizing: border-box;
-	transition: border-color 0.2s;
 	flex: 1;
 }
 
@@ -1453,31 +1436,6 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
 
-.form-control:focus {
-	border-color: var(--color-primary, #0082c9);
-	outline: none;
-}
-
-.badge-global {
-	font-size: var(--cobudget-font-xxs);
-	background-color: #e0f0ff;
-	color: #006aa6;
-	padding: 2px 6px;
-	border-radius: 10px;
-	margin-left: 8px;
-	text-transform: uppercase;
-	font-weight: bold;
-}
-
-.badge-hidden {
-	font-size: var(--cobudget-font-xxs);
-	background-color: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	padding: 2px 6px;
-	border-radius: 10px;
-	text-transform: uppercase;
-	font-weight: bold;
-}
 
 .settings-modal-backdrop {
 	--color-main-text: var(--cobudget-text);
@@ -1493,7 +1451,8 @@ export default {
 	left: 0;
 	width: 100vw;
 	height: 100vh;
-	background: rgba(0, 0, 0, 0.4);
+	background: var(--cobudget-dialog-backdrop);
+	backdrop-filter: blur(2px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1502,11 +1461,11 @@ export default {
 
 .settings-modal {
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	border-radius: var(--border-radius-large, 8px);
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+	border-radius: var(--cobudget-dialog-radius);
+	box-shadow: var(--cobudget-dialog-shadow);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	max-width: 520px;
-	padding: 24px;
+	padding: var(--cobudget-dialog-padding);
 	width: 90%;
 }
 
@@ -1515,53 +1474,6 @@ export default {
 	max-height: calc(100vh - 32px);
 	max-width: 760px;
 	overflow-y: auto;
-}
-
-.modal-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	margin: -4px 0 20px;
-	padding-bottom: 14px;
-	border-bottom: 1px solid var(--cobudget-border, var(--color-border, #ddd));
-}
-
-.modal-header h2 {
-	font-size: var(--cobudget-font-xl);
-	margin: 0;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.settings-modal-close-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: var(--cobudget-icon-button-size, 44px);
-	height: var(--cobudget-icon-button-size, 44px);
-	min-width: var(--cobudget-icon-button-size, 44px);
-	padding: 0;
-	border: 0;
-	border-radius: var(--cobudget-radius-sm, 8px);
-	background: transparent;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	cursor: pointer;
-}
-
-.settings-modal-close-button:hover,
-.settings-modal-close-button:focus-visible {
-	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
-	outline: none;
-}
-
-.settings-modal-close-button:focus-visible {
-	box-shadow: var(--cobudget-focus-ring, 0 0 0 2px var(--color-primary, #0082c9));
-}
-
-.settings-modal-close-button :deep(.material-design-icon),
-.settings-modal-close-button :deep(.material-design-icon__svg) {
-	display: block;
 }
 
 .modal-note {
@@ -1601,58 +1513,13 @@ export default {
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
+  font-size: var(--cobudget-font-label);
+  letter-spacing: normal;
 }
 
 .modal-error {
 	color: var(--cobudget-error);
 	margin: 0 0 16px 0;
-}
-
-.tabs-container {
-	display: flex;
-	gap: 4px;
-	width: 100%;
-	margin: 18px 0 18px;
-	padding: 4px;
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	background: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
-	box-sizing: border-box;
-}
-
-.tab-button {
-	flex: 1;
-	min-width: 0;
-	background: transparent;
-	border: none;
-	border-radius: calc(var(--border-radius-large, 8px) - 3px);
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	cursor: pointer;
-	font-size: var(--cobudget-font-base);
-	font-weight: 600;
-	line-height: 1.3;
-	padding: 9px 12px;
-	text-align: center;
-	transition: background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
-}
-
-.tab-button:hover {
-	background-color: var(--cobudget-surface-muted, #f6f6f6);
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.tab-button.active {
-	background: var(--cobudget-page-background, #fff);
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-	color: var(--color-primary, #0076a8);
-	cursor: default;
-}
-
-.tab-button.active:hover {
-	background: var(--cobudget-page-background, #fff);
-	color: var(--color-primary, #0076a8);
 }
 
 @media (max-width: 768px) {
@@ -1699,12 +1566,6 @@ export default {
 
 	.rename-fields.has-category-number {
 		grid-template-columns: minmax(0, 1fr);
-	}
-}
-
-@media (max-width: 480px) {
-	.tab-button {
-		padding: 8px 10px;
 	}
 }
 </style>

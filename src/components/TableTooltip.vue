@@ -151,7 +151,8 @@ export default {
 
 .table-tooltip-trigger:focus-visible {
 	border-radius: var(--border-radius, 4px);
-	box-shadow: 0 0 0 2px var(--color-primary-element-light, rgba(0, 130, 201, 0.25));
+	outline: var(--cobudget-focus-outline);
+	outline-offset: var(--cobudget-focus-offset);
 }
 
 .table-tooltip {
@@ -161,13 +162,13 @@ export default {
 	max-width: min(520px, calc(100vw - 16px));
 	padding: 6px 10px;
 	border-radius: var(--border-radius, 6px);
-	background: var(--color-main-text, #222);
+	background: var(--cobudget-text);
 	color: var(--cobudget-page-background, #fff);
 	font-size: var(--cobudget-font-sm);
 	font-weight: 600;
 	line-height: 1.35;
 	pointer-events: none;
-	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+	box-shadow: var(--cobudget-shadow-md);
 }
 
 .table-tooltip-line {

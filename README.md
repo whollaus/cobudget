@@ -45,12 +45,13 @@ The screenshots below illustrate the app UI and may differ from the current beta
 
 ## Features
 
-- **Annual overview:** Compare personal finances or individual areas using Months, Quarters, Weeks or Days. Days starts in January; choose another month or All days for the whole year. A development chart below the controls shows income, expenses and balance together, or expenses alone when income management is disabled. Toggle curves through the legend to scale the chart to the visible amounts. Start with Running total or switch to Individual amounts, with exact values available by mouse, touch or keyboard even for a full year of daily data. Group by categories and subcategories, payment partners, or enabled labels and description tags; narrow payments with combined filters. Click amounts for counts, shares, averages and available previous-period/prior-year comparisons, then open the matching saved payments. Reports support recurring forecasts, including stored personal shares of shared series in My finances, collapsible sections, sorting, A4 landscape printing/PDF and CSV download or saving to Nextcloud Files. See the [annual overview details](FEATURES.md#annual-overview) for period boundaries, forecast limits and export behavior.
+- **Reports:** Select the period directly in the title, which shows a year, month or exact date range. Choose the current or previous month or year, a selected year, the last twelve months, or a custom inclusive date range such as a ten-day vacation. Read income, expenses and balance at a glance, with income and expense tables ordered by their total for the selected period, highest amount first. Open a row title or amount for a detail page with collapsible sections for Development, period-labelled key figures, averages, comparisons, composition and saved payments. All sections start open and remember their state per account in this browser across detail pages. Use visible tabs to break down the selected subject by payment partner, category, area, label or tag with amounts, shares and payment counts. Open a composition row to inspect its exact combination, such as Food → Supermarket, with the same dates, area, amount perspective and filters. The title shows the selection path; Back returns one detail level and retains the previous view. Edit matching payments and return to the previous overview. View the same dates by quarters, months, weeks or days, with months as the default annual breakdown; calendar buckets at the edges stay inside the selected dates. Compare personal finances or individual areas; shared areas start with Personal share and can switch to Entire area. Summaries, details, comparisons, payments and exports follow the chosen perspective and stored historical allocations. Group and filter payments, see the subject's calendar-year total in year, month, week and quarter details, compare detail totals with previous periods, and optionally overlay reference curves or averages for different units and source periods in the development chart. Yearly quarterly, monthly and weekly means let a week be compared with an average month or a month with an average quarter. Earlier-period benchmarks include weekly means from the previous month or quarter and daily means from the previous week. Opened months and weeks default to the subject’s monthly or weekly average in the selected year, through the current bucket for payments up to today or over the full year with future payments. The metric and default-enabled curve share the full reference amount, shown as a horizontal line in finer daily charts and both display modes. Empty buckets count, and unavailable comparisons stay hidden. Compare areas side by side below Total, using personal shares by default or full area amounts, with income, expense and balance choices and matching period details. Switch between Development and Forecast in one collapsible section, with income, expense and balance boxes above the chart. Forecast separates actual payments, known future plans and additional estimates with the same dates, filters and personal/full-area amounts. Its projected chart reconciles to the boxes and breakdown table. Exclude fixed costs and identifiable recurring payments from the expense pace and offset known plans per category. Estimate additional income only after at least four matching recent payments in a regular rhythm; earlier authorized history can provide the basis and known plans always take precedence. Completed periods hide the forecast; future periods show plans only. Reports also include known recurring forecasts, CSV export to this device or Nextcloud Files, and A4 landscape printing/PDF. See the [report details](FEATURES.md#reports) for period boundaries, forecast limits and export behavior.
 
 - Track income and expenses
 - Calculate dashboard month/year totals and payment table subtotals in the browser timezone, matching the displayed payment dates
-- Switch between finances, areas and analytics through a persistent app-style mobile bottom navigation
-- Open Annual overview or Statistics from the shared mobile Analytics entry; start with Annual overview and remember the last mobile report per account in this browser
+- Switch between finances, areas and Reports through a persistent app-style mobile bottom navigation
+- Use one Reports entry with the line-chart icon on desktop and mobile; old Statistics links redirect with compatible periods and filters, and budget goals remain in their own module
+- Find Reports below Budget goals in the sidebar; mobile report tables use the full available screen width with square corners while section headings keep their page gutter
 - Keep page titles and primary actions visible in a sticky mobile header while scrolling
 - Create and edit income and expenses in a responsive sidebar with mode-specific titles, guarded unsaved changes, support for consecutive desktop entries, and a new-payment action that remains available while reviewing existing payments
 - Review payment change history with changed fields, previous values and new values
@@ -60,6 +61,7 @@ The screenshots below illustrate the app UI and may differ from the current beta
 - Add free-form `#tags` directly in the payment note
 - Copy an existing personal or area payment while retaining its area and starting the new payment with today's date
 - Create shared areas for household costs, trips or other shared budgets
+- Find areas in a consistent natural A–Z order across navigation, My areas and area selectors, with My finances first and archived areas kept separate
 - Choose payment areas in two columns with My finances for up to five areas (at most three rows), and a dropdown from six areas onward
 - Use one-member areas as simple personal groupings without balances or settlements
 - Add the first additional member only while an area has no personal payments, avoiding ambiguous retroactive splits
@@ -74,13 +76,23 @@ The screenshots below illustrate the app UI and may differ from the current beta
 - Settle shared areas and keep settlement history
 - Attach receipts and invoices stored in Nextcloud Files
 - Define flexible budget goals with hierarchy-aware category choices
-- Select analytics periods through a compact mobile dropdown and desktop quick-switch controls
-- Review income, expenses and balance through a consistent three-card analytics summary with embedded averages and booking counts
-- View analytics for spending, income, trends, labels, areas and budget signals, including direct main-category values, subcategory details and category-group totals
+- Open Top 10 tabs beside Report income and expenses, with independent horizontal scrolling and pinned amounts; mobile dates are compact, centered and pinned, wider text columns wrap without category icons, descriptions sit below category and payment partner, dates and amounts align with the first line, and rows open payment details
+- Collapse or expand Report sections through the three-dot menu after their headings or tabs, with view options on the right on desktop and in a left-aligned row below the heading on mobile; retain the selected view and remembered section visibility
+- Keep mobile Report filters close to the title, matching the finance overview's content spacing; use matching neutral-gray Compare and chart-display controls with consistent heights and keep mobile saved-payment cards inset from the screen edges
+- Read mobile report-detail dates and financial context in two aligned, full-width lines below navigation; long titles wrap while Back and Print remain aligned at the top
+- Close section menus by clicking outside or opening another section menu, with consistent mouse and touch behavior
+- Print the current Report overview or detail page with charts, figures, selected table tabs and all matching saved payments; download sections as CSV, save them in Nextcloud or copy them into a spreadsheet using the active tab's displayed column labels, currency formatting and visible rows; section exports start with column headers and data, while whole-overview exports also include section titles and report settings
 - Use workspaces to separate independent data pools
 - Export payments as CSV
 - Create personal exports and administrator-owned full backups/restore
 - Support light, dark and system theme modes
+- Use consistent form and button states with visible keyboard focus and keyboard-accessible area cards, while retaining compact settings forms and dedicated report/payment controls
+- Dialogs share title, close-button, radius and shadow styles. Settings reuse one expense/income selector; custom menus share spacing and visible keyboard focus. Report text tabs, hierarchical category selection, payment sidebars and mobile full-screen dialogs retain their dedicated layouts.
+- Cards share borders, radii and standard/compact padding. Lists, settings sections and table headers use shared spacing and theme colors, retaining compact payment rows, financial status colors, horizontal summary cards and mobile report tables with pinned columns.
+- Member-search results support keyboard selection and Escape. Narrow settings columns place actions below names and badges. Small selection menus and expandable form groups share hover/focus styling; mobile Report tabs, filter options and icon choices use 44 px touch targets.
+- Payment labels, area choices and the receipts/planning header provide mouse/trackpad hover feedback. Selected areas use a solid area-color fill with contrasting text and icons; My finances and default areas use the active Nextcloud blue. Unselected labels and areas use Nextcloud’s light accent palette. Area names match payment-label typography, and lookup headings match form labels. Opening receipts, recurrence and reminders brings the section into view and moves focus to it without opening a mobile keyboard.
+- Focused form fields use one contrast border within their existing bounds, avoiding clipped double frames in the payment sidebar. Buttons and menus retain their keyboard focus indicators.
+- Typography uses shared page, section, card, label and metric roles. Metadata badges share a readable style, while payment labels retain their compact size and semantic colors. Action, inline-status and close icons use separate consistent sizes; show/hide actions use paired eye icons.
 
 See [FEATURES.md](FEATURES.md) for a more detailed overview.
 
@@ -137,6 +149,10 @@ php occ cobudget:background-jobs:check --repair
 Repair checks all four jobs before adding missing registrations. Existing registrations, including legacy jobs with empty-array arguments, keep their schedule and state. Jobs are run later by the configured Nextcloud scheduler. The command must be installed on the server along with the updated CoBudget files before it is available.
 
 ## Development
+
+For UI changes and new modules, follow the [CoBudget Design System](docs/design-system.md)
+for shared components, tokens, deliberate CoBudget variants and validation.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
 ### Reset CoBudget for a fresh-install test
 

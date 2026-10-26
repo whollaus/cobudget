@@ -3,6 +3,11 @@ namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\CsvCellSanitizer;
 use OCA\CoBudget\Service\AnnualOverviewService;
+use OCA\CoBudget\Service\ReportComparisonService;
+use OCA\CoBudget\Service\ReportBreakdownService;
+use OCA\CoBudget\Service\ReportScopeService;
+use OCA\CoBudget\Service\ReportForecastService;
+use OCA\CoBudget\Service\AreaOverviewService;
 use OCA\CoBudget\Service\HashtagService;
 use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\EntryProjectionService;
@@ -143,6 +148,10 @@ class EntryController extends Controller {
 	private string $entryScope = 'personal';
 	private bool $includeFuturePayments = false;
 	private bool $includeSubcategories = false;
+	private bool $reportLabeledOnly = false;
+	private bool $reportWithoutArea = false;
+	/** @var list<int>|null Shared areas authorized in the active personal workspace. */
+	private ?array $reportAreaTotals = null;
 	private ?\DateTimeZone $calendarTimezone = null;
 	/** @var array{categoryIds: list<int>, partnerIds: list<int>, labelKeys: list<string>, labelsRequested: bool, hashtagIds: list<int>, amountMin: ?int, amountMax: ?int} */
 	private array $paymentNarrowing = [
@@ -208,16 +217,21 @@ class EntryController extends Controller {
 		string $labels = '',
 		string $hashtags = '',
 		string $amountMin = '',
-		string $amountMax = ''
+		string $amountMax = '',
+		string $reportGrouping = '',
+		bool $withoutArea = false,
+		string $reportFilters = ''
 	): DataResponse {
+		$this->reportWithoutArea = $withoutArea;
 		$this->includeFuturePayments = $includeFuturePayments;
 		$this->includeSubcategories = $includeSubcategories;
-		$this->paymentNarrowing = $this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax);
+		$this->reportLabeledOnly = $reportGrouping === 'labelsAndTags';
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
 			}
+			$this->paymentNarrowing = $this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters);
 			[$limit, $offset] = $this->normalizePagination($limit, $offset);
 
 			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
@@ -229,6 +243,8 @@ class EntryController extends Controller {
 			unset($payload['_aggregate']);
 
 			return new DataResponse($payload);
+		} catch (\InvalidArgumentException $error) {
+			return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
@@ -236,15 +252,20 @@ class EntryController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
-	public function annualOverview(int $year = 0, string $grouping = 'categories', ?int $projectId = null, bool $includeFuturePayments = false, string $comparison = 'none', string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', string $period = 'year', int $month = 0, int $quarter = 0): DataResponse {
+	public function annualOverview(int $year = 0, string $grouping = 'categories', ?int $projectId = null, bool $includeFuturePayments = false, string $comparison = 'none', string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', string $period = 'year', int $month = 0, int $quarter = 0, string $dateFrom = '', string $dateTo = '', string $entryScope = 'personal', string $detailType = '', string $detailId = 'total', bool $detailDirect = false, string $detailAverageUnit = '', bool $withoutArea = false, string $reportFilters = ''): DataResponse {
+		$this->reportLabeledOnly = false;
+		$this->reportWithoutArea = $withoutArea;
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
 			}
 			$now = $this->calendarDate();
 			$year = $year === 0 ? (int)$now->format('Y') : $year;
-			if ($year < 1970 || $year > 9999 || !in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true) || !in_array($comparison, ['none', 'month', 'year'], true) || !in_array($period, ['year', 'month', 'quarter', 'week', 'day'], true) || ($period === 'month' && ($month < 1 || $month > 12)) || ($period === 'day' && ($month < 0 || $month > 12))) {
+			if ($year < 1970 || $year > 9999 || !in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true) || !in_array($comparison, ['none', 'month', 'year', 'detail'], true) || !in_array($period, ['year', 'month', 'quarter', 'week', 'day'], true) || ($period === 'month' && ($month < 1 || $month > 12)) || ($period === 'day' && ($month < 0 || $month > 12))) {
 				return $this->errorResponse('Invalid annual overview selection', Http::STATUS_BAD_REQUEST);
+			}
+			if ($comparison === 'detail' && (!in_array($detailType, ['income', 'expense', 'all'], true) || ($detailType === 'all' && $detailId !== 'total') || !preg_match('/^(total|[0-9]+|label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D', $detailId) || !in_array($detailAverageUnit, ['', 'day', 'week', 'month', 'quarter'], true))) {
+				return $this->errorResponse('Invalid report comparison subject', Http::STATUS_BAD_REQUEST);
 			}
 			if ($period !== 'month' && !($period === 'day' && $month >= 1 && $month <= 12)) {
 				$month = 0;
@@ -259,12 +280,21 @@ class EntryController extends Controller {
 			if ($projectId !== null && ($projectId <= 0 || $this->projectVisibleForCurrentUser($projectId) === null)) {
 				return $this->errorResponse('Area not found', Http::STATUS_FORBIDDEN);
 			}
-			$this->entryScope = $this->normalizeEntryScope('shared', $projectId);
+			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
 			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
 			if ($workspaceId === null) {
 				return $this->errorResponse('Workspace not found', Http::STATUS_FORBIDDEN);
 			}
-			if ($monthSpan) {
+			$selectedPeriods = [];
+			if ($dateFrom !== '' || $dateTo !== '') {
+				try {
+					$selectedPeriods = $service->periods($dateFrom, $dateTo, $now->getTimezone(), $period);
+				} catch (\InvalidArgumentException $error) {
+					return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
+				}
+				$start = $now->setTimestamp($selectedPeriods[0]['dateFrom']);
+				$end = $selectedPeriods[count($selectedPeriods) - 1]['dateTo'];
+			} elseif ($monthSpan) {
 				$start = $now->setDate($year, $month, 1)->setTime(0, 0);
 				$end = $start->modify('+1 month')->getTimestamp() - 1;
 			} elseif ($period === 'week') {
@@ -277,7 +307,7 @@ class EntryController extends Controller {
 			$cutoff = $includeFuturePayments ? $end : min($end, $now->getTimestamp());
 			$rangeStart = $comparison === 'none' ? $start->getTimestamp() : $start->setDate(1970, 1, 1)->getTimestamp();
 			$narrowing = $this->annualNarrowingForGrouping(
-				$this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax),
+				$this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters),
 				$grouping
 			);
 			// Planned occurrences stay out of "payments up to today". They follow the series head and are not saved yet.
@@ -286,9 +316,11 @@ class EntryController extends Controller {
 				: ['categories' => [], 'partners' => [], 'entries' => [], 'hashtags' => [], 'totals' => []];
 			if ($grouping === 'labelsAndTags') {
 				$rows = $this->annualLabelAndTagRows($workspaceId, $rangeStart, $cutoff, $projectId, $narrowing, $projected);
-				$payload = $service->build($rows, $year, $now->getTimezone(), $grouping, $month, $byQuarter, $byWeek, $byDay);
-				if ($comparison !== 'none') {
-					$payload = $service->compare($payload, $rows, $year, $now, $grouping, $comparison, $month, $byQuarter, $byWeek, $byDay);
+				$payload = $service->build($rows, $year, $now->getTimezone(), $grouping, $month, $byQuarter, $byWeek, $byDay, $selectedPeriods);
+				if (in_array($comparison, ['month', 'year'], true)) {
+					$payload = $selectedPeriods
+						? $service->comparePeriods($payload, $rows, $selectedPeriods, $now, $grouping, $comparison, $period)
+							: $service->compare($payload, $rows, $year, $now, $grouping, $comparison, $month, $byQuarter, $byWeek, $byDay);
 				}
 			} else {
 				$qb = $this->buildVisibleEntriesQuery($workspaceId);
@@ -320,58 +352,281 @@ class EntryController extends Controller {
 						}
 					})();
 					if ($comparison === 'none') {
-						$payload = $service->build($rows, $year, $now->getTimezone(), $grouping, $month, $byQuarter, $byWeek, $byDay);
+						$payload = $service->build($rows, $year, $now->getTimezone(), $grouping, $month, $byQuarter, $byWeek, $byDay, $selectedPeriods);
 					} else {
 						$rows = iterator_to_array($rows);
-						$payload = $service->build($rows, $year, $now->getTimezone(), $grouping, $month, $byQuarter, $byWeek, $byDay);
-						$payload = $service->compare($payload, $rows, $year, $now, $grouping, $comparison, $month, $byQuarter, $byWeek, $byDay);
+						$payload = $service->build($rows, $year, $now->getTimezone(), $grouping, $month, $byQuarter, $byWeek, $byDay, $selectedPeriods);
+						if ($comparison !== 'detail') $payload = $selectedPeriods
+							? $service->comparePeriods($payload, $rows, $selectedPeriods, $now, $grouping, $comparison, $period)
+							: $service->compare($payload, $rows, $year, $now, $grouping, $comparison, $month, $byQuarter, $byWeek, $byDay);
 					}
 				} finally {
 					$result->closeCursor();
 				}
 			}
-			$periods = [];
-			if ($monthSpan) {
-				$days = (int)$start->format('t');
-				for ($day = 0; $day < $days; $day++) {
-					$dayStart = $start->modify('+' . $day . ' days');
-					$periods[] = ['dateFrom' => $dayStart->getTimestamp(), 'dateTo' => $dayStart->modify('+1 day')->getTimestamp() - 1];
+			$periods = $selectedPeriods;
+			if (!$selectedPeriods) {
+				if ($monthSpan) {
+					$days = (int)$start->format('t');
+					for ($day = 0; $day < $days; $day++) {
+						$dayStart = $start->modify('+' . $day . ' days');
+						$periods[] = ['dateFrom' => $dayStart->getTimestamp(), 'dateTo' => $dayStart->modify('+1 day')->getTimestamp() - 1];
+					}
+				} elseif ($period === 'quarter') {
+					for ($quarterIndex = 0; $quarterIndex < 4; $quarterIndex++) {
+						$quarterStart = $start->modify('+' . ($quarterIndex * 3) . ' months');
+						$periods[] = ['dateFrom' => $quarterStart->getTimestamp(), 'dateTo' => $quarterStart->modify('+3 months')->getTimestamp() - 1];
+					}
+				} elseif ($period === 'week') {
+					$weeks = $service->isoWeekCount($year, $now->getTimezone());
+					for ($weekIndex = 0; $weekIndex < $weeks; $weekIndex++) {
+						$weekStart = $start->modify('+' . $weekIndex . ' weeks');
+						$periods[] = ['dateFrom' => $weekStart->getTimestamp(), 'dateTo' => $weekStart->modify('+1 week')->getTimestamp() - 1];
+					}
+				} elseif ($period === 'day') {
+					$days = $service->calendarDayCount($year, $now->getTimezone());
+					for ($day = 0; $day < $days; $day++) {
+						$dayStart = $start->modify('+' . $day . ' days');
+						$periods[] = ['dateFrom' => $dayStart->getTimestamp(), 'dateTo' => $dayStart->modify('+1 day')->getTimestamp() - 1];
+					}
+				} else {
+					for ($monthIndex = 0; $monthIndex < 12; $monthIndex++) {
+						$monthStart = $start->modify('+' . $monthIndex . ' months');
+						$periods[] = ['dateFrom' => $monthStart->getTimestamp(), 'dateTo' => $monthStart->modify('+1 month')->getTimestamp() - 1];
+					}
 				}
-			} elseif ($period === 'quarter') {
-				for ($quarterIndex = 0; $quarterIndex < 4; $quarterIndex++) {
-					$quarterStart = $start->modify('+' . ($quarterIndex * 3) . ' months');
-					$periods[] = ['dateFrom' => $quarterStart->getTimestamp(), 'dateTo' => $quarterStart->modify('+3 months')->getTimestamp() - 1];
-				}
-			} elseif ($period === 'week') {
-				$weeks = $service->isoWeekCount($year, $now->getTimezone());
-				for ($weekIndex = 0; $weekIndex < $weeks; $weekIndex++) {
-					$weekStart = $start->modify('+' . $weekIndex . ' weeks');
-					$periods[] = ['dateFrom' => $weekStart->getTimestamp(), 'dateTo' => $weekStart->modify('+1 week')->getTimestamp() - 1];
-				}
-			} elseif ($period === 'day') {
-				$days = $service->calendarDayCount($year, $now->getTimezone());
-				for ($day = 0; $day < $days; $day++) {
-					$dayStart = $start->modify('+' . $day . ' days');
-					$periods[] = ['dateFrom' => $dayStart->getTimestamp(), 'dateTo' => $dayStart->modify('+1 day')->getTimestamp() - 1];
-				}
-			} else {
-				for ($monthIndex = 0; $monthIndex < 12; $monthIndex++) {
-					$monthStart = $start->modify('+' . $monthIndex . ' months');
-					$periods[] = ['dateFrom' => $monthStart->getTimestamp(), 'dateTo' => $monthStart->modify('+1 month')->getTimestamp() - 1];
-				}
+			}
+			if ($comparison === 'detail') {
+				$payload['detailComparisons'] = (new ReportComparisonService())->build($rows, $periods, $now, $cutoff, $grouping, $detailType, $detailId, $detailDirect, $this->annualHistoryStart($workspaceId, $projectId), $period, $detailAverageUnit);
 			}
 			$periods[] = ['dateFrom' => $start->getTimestamp(), 'dateTo' => $end];
 			return new DataResponse($payload + [
 				'year' => $year,
+				'entryScope' => $this->entryScope,
+				'range' => $selectedPeriods ? ['dateFrom' => $dateFrom, 'dateTo' => $dateTo] : null,
 				'cutoff' => $cutoff,
 				'periods' => $periods,
 				'years' => $this->annualOverviewYears($workspaceId, $projectId, $now->getTimezone()),
 				'hashtags' => $this->annualHashtagChoices($workspaceId, $projectId, $start->getTimestamp(), $end),
 				'filterChoices' => $this->annualFilterChoices($workspaceId, $projectId, $start->getTimestamp(), $end),
 			]);
+		} catch (\InvalidArgumentException $error) {
+			return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
+	}
+
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 120, period: 60)]
+	public function reportBreakdown(string $dateFrom = '', string $dateTo = '', string $grouping = 'categories', string $detailType = 'expense', string $detailId = 'total', bool $detailDirect = false, ?int $projectId = null, string $entryScope = 'personal', bool $includeFuturePayments = false, string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', bool $withoutArea = false, string $reportFilters = ''): DataResponse {
+		$this->reportLabeledOnly = false;
+		$this->reportWithoutArea = $withoutArea;
+		try {
+			if ($error = $this->authErrorResponse()) return $error;
+			if (!in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true)
+				|| !in_array($detailType, ['income', 'expense', 'all'], true)
+				|| ($detailType === 'all' && $detailId !== 'total')
+				|| ($detailId !== 'total' && !preg_match($grouping === 'labelsAndTags' ? '/^(label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D' : '/^[0-9]+$/D', $detailId))) {
+				return $this->errorResponse('Invalid report breakdown subject', Http::STATUS_BAD_REQUEST);
+			}
+			$now = $this->calendarDate();
+			try {
+				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), 'year');
+			} catch (\InvalidArgumentException $error) {
+				return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
+			}
+			if ($projectId !== null && ($projectId <= 0 || $this->projectVisibleForCurrentUser($projectId) === null)) return $this->errorResponse('Area not found', Http::STATUS_FORBIDDEN);
+			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
+			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
+			if ($workspaceId === null) return $this->errorResponse('Workspace not found', Http::STATUS_FORBIDDEN);
+			$from = $periods[0]['dateFrom'];
+			$to = $periods[count($periods) - 1]['dateTo'];
+			$cutoff = $includeFuturePayments ? $to : min($to, $now->getTimestamp());
+			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters), $grouping);
+			$qb = $this->buildVisibleEntriesQuery($workspaceId);
+			$qb->select('e.id', 'e.date', 'e.type', 'e.amount_cents', 'c.id AS category_id', 'c.name AS category_name', 'parent_category.id AS parent_id', 'parent_category.name AS parent_name', 'p.id AS partner_id', 'p.name AS partner_name', 'e.project_id', 'report_project.name AS project_name', 'report_hashtag.id AS hashtag_id', 'report_hashtag.display_name AS hashtag_name')
+				->leftJoin('c', 'cobudget_categories', 'parent_category', $qb->expr()->eq('c.parent_category_id', 'parent_category.id'))
+				->leftJoin('e', 'cobudget_projects', 'report_project', $qb->expr()->eq('e.project_id', 'report_project.id'))
+				->leftJoin('e', 'cobudget_entry_hashtags', 'report_entry_tag', $qb->expr()->andX($qb->expr()->eq('report_entry_tag.entry_id', 'e.id'), $qb->expr()->eq('report_entry_tag.workspace_id', 'e.workspace_id')))
+				->leftJoin('report_entry_tag', 'cobudget_hashtags', 'report_hashtag', $qb->expr()->andX($qb->expr()->eq('report_hashtag.id', 'report_entry_tag.hashtag_id'), $qb->expr()->eq('report_hashtag.workspace_id', 'e.workspace_id')))
+				->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)))
+				->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_INT)));
+			foreach (self::ANNUAL_LABELS as $label) $qb->addSelect('e.' . $label['column']);
+			if ($projectId !== null) $qb->andWhere($qb->expr()->eq('e.project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)));
+			$this->applyAnnualPaymentNarrowing($qb, $narrowing);
+			$projected = $includeFuturePayments ? $this->annualProjectedRecurrenceRows($workspaceId, $projectId, $now->getTimestamp(), $to, $narrowing, true)['payments'] : [];
+			$result = $qb->executeQuery();
+			try {
+				$rows = (static function() use ($result, $projected): \Generator {
+					while ($row = $result->fetch()) yield $row;
+					yield from $projected;
+				})();
+				return new DataResponse((new ReportBreakdownService())->build($rows, $from, $cutoff, $grouping, $detailType, $detailId, $detailDirect, $this->enabledAnnualLabels()));
+			} finally { $result->closeCursor(); }
+		} catch (\InvalidArgumentException $error) {
+			return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
+		} catch (\Throwable $error) {
+			return $this->loggedErrorResponse($error);
+		}
+	}
+
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 120, period: 60)]
+	public function reportForecast(string $dateFrom = '', string $dateTo = '', string $grouping = 'categories', string $detailType = 'all', string $detailId = 'total', bool $detailDirect = false, ?int $projectId = null, string $entryScope = 'personal', string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', bool $withoutArea = false, string $period = 'year', string $reportFilters = ''): DataResponse {
+		$this->reportLabeledOnly = false;
+		$this->reportWithoutArea = $withoutArea;
+		try {
+			if ($error = $this->authErrorResponse()) return $error;
+			if (!in_array($period, ['year', 'quarter', 'week', 'day'], true) || !in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true)
+				|| !in_array($detailType, ['income', 'expense', 'all'], true)
+				|| ($detailType === 'all' && $detailId !== 'total')
+				|| ($detailId !== 'total' && !preg_match($grouping === 'labelsAndTags' ? '/^(label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D' : '/^[0-9]+$/D', $detailId))) {
+				return $this->errorResponse('Invalid report forecast subject', Http::STATUS_BAD_REQUEST);
+			}
+			$now = $this->calendarDate();
+			try {
+				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), $period);
+			} catch (\InvalidArgumentException $error) {
+				return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
+			}
+			if ($projectId !== null && ($projectId <= 0 || $this->projectVisibleForCurrentUser($projectId) === null)) return $this->errorResponse('Area not found', Http::STATUS_FORBIDDEN);
+			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
+			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
+			if ($workspaceId === null) return $this->errorResponse('Workspace not found', Http::STATUS_FORBIDDEN);
+			$from = $periods[0]['dateFrom'];
+			$to = $periods[count($periods) - 1]['dateTo'];
+			if ($to < $now->getTimestamp()) return new DataResponse(['status' => 'past']);
+			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters), $grouping);
+			$qb = $this->buildVisibleEntriesQuery($workspaceId);
+			$qb->select('e.id', 'e.date', 'e.type', 'e.amount_cents', 'e.project_id', 'e.description', 'e.recurrence_interval', 'e.recurrence_series_id', 'e.recurrence_parent_id', 'c.id AS category_id', 'parent_category.id AS parent_id', 'p.id AS partner_id', 'report_hashtag.id AS hashtag_id', 'report_hashtag.display_name AS hashtag_name')
+				->leftJoin('c', 'cobudget_categories', 'parent_category', $qb->expr()->eq('c.parent_category_id', 'parent_category.id'))
+				->leftJoin('e', 'cobudget_entries', 'forecast_source', $qb->expr()->andX($qb->expr()->eq('forecast_source.id', 'e.source_entry_id'), $qb->expr()->eq('forecast_source.project_id', 'e.project_id')))
+				->addSelect('forecast_source.recurrence_interval AS source_recurrence_interval', 'forecast_source.recurrence_series_id AS source_recurrence_series_id', 'forecast_source.recurrence_parent_id AS source_recurrence_parent_id')
+				->leftJoin('e', 'cobudget_entry_hashtags', 'report_entry_tag', $qb->expr()->andX($qb->expr()->eq('report_entry_tag.entry_id', 'e.id'), $qb->expr()->eq('report_entry_tag.workspace_id', 'e.workspace_id')))
+				->leftJoin('report_entry_tag', 'cobudget_hashtags', 'report_hashtag', $qb->expr()->andX($qb->expr()->eq('report_hashtag.id', 'report_entry_tag.hashtag_id'), $qb->expr()->eq('report_hashtag.workspace_id', 'e.workspace_id')))
+				->andWhere($qb->expr()->orX(
+					$qb->expr()->andX($qb->expr()->gte('e.date', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)), $qb->expr()->lte('e.date', $qb->createNamedParameter($to, IQueryBuilder::PARAM_INT))),
+					$qb->expr()->andX($qb->expr()->eq('e.type', $qb->createNamedParameter('income')), $qb->expr()->gte('e.date', $qb->createNamedParameter($now->modify('-5 years')->getTimestamp(), IQueryBuilder::PARAM_INT)), $qb->expr()->lte('e.date', $qb->createNamedParameter($now->getTimestamp(), IQueryBuilder::PARAM_INT)))
+				));
+			foreach (self::ANNUAL_LABELS as $label) $qb->addSelect('e.' . $label['column']);
+			if ($projectId !== null) $qb->andWhere($qb->expr()->eq('e.project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)));
+			$this->applyAnnualPaymentNarrowing($qb, $narrowing);
+			// Forecasts always include known future payments, independently of the
+			// overview cutoff. Reuse the read-only, exact-allocation recurrence path.
+			$projected = $this->annualProjectedRecurrenceRows($workspaceId, $projectId, $now->getTimestamp(), $to, $narrowing, true)['payments'];
+			$result = $qb->executeQuery();
+			try {
+				$rows = (static function() use ($result, $projected): \Generator {
+					while ($row = $result->fetch()) yield $row;
+					yield from $projected;
+				})();
+				return new DataResponse((new ReportForecastService())->build($rows, $from, $to, $now, $grouping, $detailType, $detailId, $detailDirect, $this->enabledAnnualLabels(), $periods));
+			} finally { $result->closeCursor(); }
+		} catch (\InvalidArgumentException $error) {
+			return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
+		} catch (\Throwable $error) {
+			return $this->loggedErrorResponse($error);
+		}
+	}
+
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 120, period: 60)]
+	public function areaOverview(string $dateFrom = '', string $dateTo = '', string $period = 'year', string $amountView = 'personal', string $grouping = 'categories', bool $includeFuturePayments = false, string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = ''): DataResponse {
+		$this->reportWithoutArea = false;
+		$this->reportLabeledOnly = $grouping === 'labelsAndTags';
+		try {
+			if ($error = $this->authErrorResponse()) return $error;
+			if (!in_array($amountView, ['personal', 'area'], true) || !in_array($period, ['year', 'quarter', 'week', 'day'], true) || !in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true)) return $this->errorResponse('Invalid area overview selection', Http::STATUS_BAD_REQUEST);
+			$now = $this->calendarDate();
+			try {
+				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), $period);
+			} catch (\InvalidArgumentException $error) {
+				return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
+			}
+			$workspaceId = $this->getWorkspaceId();
+			if ($workspaceId === null) return $this->errorResponse('Workspace not found', Http::STATUS_FORBIDDEN);
+			$areaQuery = $this->db->getQueryBuilder();
+			$areaQuery->select('area.id', 'area.name', 'area.workspace_id', 'area.is_archived')
+				->selectAlias($areaQuery->createFunction('COUNT(all_members.id)'), 'member_count')
+				->from('cobudget_projects', 'area')
+				->innerJoin('area', 'cobudget_members', 'own_member', $areaQuery->expr()->andX(
+					$areaQuery->expr()->eq('own_member.project_id', 'area.id'),
+					$areaQuery->expr()->eq('own_member.user_id', $areaQuery->createNamedParameter((string)$this->userId)),
+					$areaQuery->expr()->eq('own_member.personal_workspace_id', $areaQuery->createNamedParameter($workspaceId, IQueryBuilder::PARAM_INT))
+				))
+				->innerJoin('area', 'cobudget_members', 'all_members', $areaQuery->expr()->eq('all_members.project_id', 'area.id'))
+				->groupBy('area.id', 'area.name', 'area.workspace_id', 'area.is_archived');
+			$areas = array_column($this->fetchAnnualAggregate($areaQuery), null, 'id');
+			$this->entryScope = $amountView === 'area' ? 'shared' : 'personal';
+			$this->reportAreaTotals = $amountView === 'area' ? array_values(array_map('intval', array_keys(array_filter($areas, static fn(array $area): bool => (int)$area['member_count'] > 1)))) : null;
+			$from = $periods[0]['dateFrom'];
+			$to = $periods[count($periods) - 1]['dateTo'];
+			$cutoff = $includeFuturePayments ? $to : min($to, $now->getTimestamp());
+			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax), $grouping);
+			// Resolve cross-workspace tag identities by normalized name. The full
+			// amount view and its detail links must apply the same visible tag filter.
+			$sourceNarrowing = $narrowing;
+			$tagNames = [];
+			if ($amountView === 'area' && $narrowing['hashtagIds'] !== []) {
+				$tags = $this->db->getQueryBuilder();
+				$tags->select('normalized_name')->from('cobudget_hashtags')->where($tags->expr()->eq('workspace_id', $tags->createNamedParameter($workspaceId, IQueryBuilder::PARAM_INT)))->andWhere($tags->expr()->in('id', $tags->createNamedParameter($narrowing['hashtagIds'], IQueryBuilder::PARAM_INT_ARRAY)));
+				$tagNames = array_column($this->fetchAnnualAggregate($tags), 'normalized_name');
+				$sourceNarrowing['hashtagIds'] = [];
+				foreach ($areas as &$area) {
+					if ((int)$area['member_count'] <= 1) continue;
+					$tags = $this->db->getQueryBuilder();
+					$tags->select('id')->from('cobudget_hashtags')->where($tags->expr()->eq('workspace_id', $tags->createNamedParameter((int)$area['workspace_id'], IQueryBuilder::PARAM_INT)))->andWhere($tags->expr()->in('normalized_name', $tags->createNamedParameter($tagNames ?: [''], IQueryBuilder::PARAM_STR_ARRAY)));
+					$area['filterHashtags'] = array_map('intval', array_column($this->fetchAnnualAggregate($tags), 'id'));
+				}
+				unset($area);
+			}
+			$qb = $this->buildVisibleEntriesQuery($workspaceId);
+			$qb->select('e.date', 'e.type', 'e.project_id AS group_id')
+				->selectAlias($qb->createFunction('SUM(e.amount_cents)'), 'amount_cents')
+				->selectAlias($qb->createFunction('COUNT(e.id)'), 'payment_count')
+				->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)))
+				->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_INT)))
+				->groupBy('e.date', 'e.type', 'e.project_id');
+			$this->applyAnnualPaymentNarrowing($qb, $sourceNarrowing);
+			if ($amountView === 'area' && $narrowing['hashtagIds'] !== []) {
+				$tagFilter = $this->db->getQueryBuilder();
+				$tagFilter->select('area_tag.entry_id')->from('cobudget_entry_hashtags', 'area_tag')
+					->innerJoin('area_tag', 'cobudget_hashtags', 'tag_name', $tagFilter->expr()->andX($tagFilter->expr()->eq('tag_name.id', 'area_tag.hashtag_id'), $tagFilter->expr()->eq('tag_name.workspace_id', 'area_tag.workspace_id')))
+					->where($tagFilter->expr()->eq('area_tag.entry_id', 'e.id'))->andWhere($tagFilter->expr()->eq('area_tag.workspace_id', 'e.workspace_id'));
+				$qb->andWhere($qb->createFunction('EXISTS (' . $tagFilter->getSQL() . ' AND ' . $qb->expr()->in('tag_name.normalized_name', $qb->createNamedParameter($tagNames ?: [''], IQueryBuilder::PARAM_STR_ARRAY)) . ')'));
+			}
+			$rows = $this->fetchAnnualAggregate($qb);
+			if ($includeFuturePayments) {
+				$projected = $this->annualProjectedRecurrenceRows($workspaceId, null, $now->getTimestamp(), $to, $narrowing, true)['payments'];
+				$enabled = $this->enabledAnnualLabels();
+				foreach ($projected as $payment) {
+					$labeled = false;
+					foreach ($enabled as $label) if ($this->dbBool($payment[$label['column']] ?? false)) $labeled = true;
+					if ($this->reportLabeledOnly && !$labeled && !$payment['has_description_tags']) continue;
+					$rows[] = ['date' => $payment['date'], 'type' => $payment['type'], 'group_id' => $payment['project_id'], 'amount_cents' => $payment['amount_cents'], 'payment_count' => 1];
+				}
+			}
+			return new DataResponse((new AreaOverviewService())->build($rows, $periods, $now->getTimezone(), $areas, $amountView) + ['periods' => [...$periods, ['dateFrom' => $from, 'dateTo' => $to]], 'cutoff' => $cutoff, 'amountView' => $amountView]);
+		} catch (\Throwable $error) {
+			return $this->loggedErrorResponse($error);
+		} finally {
+			$this->reportAreaTotals = null;
+			$this->entryScope = 'personal';
+			$this->reportLabeledOnly = false;
+		}
+	}
+
+	/** History coverage belongs to the selected financial scope, independently of payment filters. */
+	private function annualHistoryStart(int $workspaceId, ?int $projectId): ?int {
+		$qb = $this->buildVisibleEntriesQuery($workspaceId);
+		$qb->selectAlias($qb->createFunction('MIN(e.date)'), 'first_date');
+		if ($projectId !== null) $qb->andWhere($qb->expr()->eq('e.project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)));
+		$result = $qb->executeQuery();
+		try {
+			$row = $result->fetch();
+			return $row && $row['first_date'] !== null ? (int)$row['first_date'] : null;
+		} finally { $result->closeCursor(); }
 	}
 
 	private function annualOverviewYears(int $workspaceId, ?int $projectId, \DateTimeZone $timezone): array {
@@ -408,8 +663,9 @@ class EntryController extends Controller {
 	 * @param array{categoryIds: list<int>, partnerIds: list<int>, labelKeys: list<string>, labelsRequested: bool, hashtagIds: list<int>, amountMin: ?int, amountMax: ?int} $narrowing
 	 * @return array{categories: list<array<string, mixed>>, partners: list<array<string, mixed>>, entries: list<array<string, mixed>>, hashtags: list<array<string, mixed>>, totals: list<array<string, mixed>>}
 	 */
-	private function annualProjectedRecurrenceRows(int $workspaceId, ?int $projectId, int $after, int $until, array $narrowing): array {
+	private function annualProjectedRecurrenceRows(int $workspaceId, ?int $projectId, int $after, int $until, array $narrowing, bool $withPayments = false): array {
 		$empty = ['categories' => [], 'partners' => [], 'entries' => [], 'hashtags' => [], 'totals' => []];
+		if ($withPayments) $empty['payments'] = [];
 		if ($after >= $until) {
 			return $empty;
 		}
@@ -418,6 +674,7 @@ class EntryController extends Controller {
 		$qb = $this->buildVisibleEntriesQuery($workspaceId, true);
 		$qb->select(
 			'e.id',
+			'e.description',
 			'e.entry_kind',
 			'e.project_id',
 			'e.type',
@@ -455,13 +712,25 @@ class EntryController extends Controller {
 		// report workspace. Apply those after resolving the visible series heads.
 		$this->applyAnnualPaymentNarrowing($qb, array_replace($narrowing, [
 			'amountMin' => null, 'amountMax' => null, 'hashtagIds' => [],
+			'reportFilters' => array_values(array_filter($narrowing['reportFilters'] ?? [], static fn(array $filter): bool => $filter['dimension'] !== 'hashtags')),
 		]));
 		$heads = $this->fetchAnnualAggregate($qb);
 		if ($heads === []) {
 			return $empty;
 		}
+		$projectNames = [];
+		if ($withPayments) {
+			$projectIds = array_values(array_unique(array_filter(array_column($heads, 'project_id'))));
+			if ($projectIds !== []) {
+				$projects = $this->db->getQueryBuilder();
+				$projects->select('id', 'name')->from('cobudget_projects')->where($projects->expr()->in('id', $projects->createNamedParameter($projectIds, IQueryBuilder::PARAM_INT_ARRAY)));
+				foreach ($this->fetchAnnualAggregate($projects) as $project) $projectNames[(int)$project['id']] = (string)$project['name'];
+			}
+		}
 		$tagsByEntry = [];
+		$hasDescriptionTags = [];
 		$tagQuery = $this->db->getQueryBuilder();
+		$reportTagJoin = $this->reportAreaTotals === null ? 'innerJoin' : 'leftJoin';
 		$tagQuery->select('eh.entry_id', 'report_tag.id', 'report_tag.display_name')
 			->from('cobudget_entry_hashtags', 'eh')
 			->innerJoin('eh', 'cobudget_entries', 'tag_entry', $tagQuery->expr()->andX(
@@ -472,12 +741,14 @@ class EntryController extends Controller {
 				$tagQuery->expr()->eq('h.id', 'eh.hashtag_id'),
 				$tagQuery->expr()->eq('h.workspace_id', 'eh.workspace_id')
 			))
-			->innerJoin('h', 'cobudget_hashtags', 'report_tag', $tagQuery->expr()->andX(
+			->$reportTagJoin('h', 'cobudget_hashtags', 'report_tag', $tagQuery->expr()->andX(
 				$tagQuery->expr()->eq('report_tag.normalized_name', 'h.normalized_name'),
 				$tagQuery->expr()->eq('report_tag.workspace_id', $tagQuery->createNamedParameter($workspaceId, IQueryBuilder::PARAM_INT))
 			))
 			->where($tagQuery->expr()->in('eh.entry_id', $tagQuery->createNamedParameter(array_map(static fn(array $head): int => (int)$head['id'], $heads), IQueryBuilder::PARAM_INT_ARRAY)));
 		foreach ($this->fetchAnnualAggregate($tagQuery) as $tag) {
+			$hasDescriptionTags[(int)$tag['entry_id']] = true;
+			if ((int)($tag['id'] ?? 0) <= 0) continue;
 			$tagsByEntry[(int)$tag['entry_id']][] = ['id' => (int)$tag['id'], 'name' => (string)$tag['display_name']];
 		}
 		$enabled = $this->enabledAnnualLabels();
@@ -488,6 +759,7 @@ class EntryController extends Controller {
 			}
 			$amountCents = $this->entryAggregateAmountCents($head, []);
 			$tags = $tagsByEntry[(int)$head['id']] ?? [];
+			if (!(new ReportScopeService())->matches($head + ['hashtags' => $tags], $narrowing['reportFilters'] ?? [], $enabled)) continue;
 			if ((($narrowing['amountMin'] ?? null) !== null && $amountCents < $narrowing['amountMin'])
 				|| (($narrowing['amountMax'] ?? null) !== null && $amountCents > $narrowing['amountMax'])
 				|| (($narrowing['hashtagIds'] ?? []) !== [] && array_intersect($narrowing['hashtagIds'], array_column($tags, 'id')) === [])
@@ -522,6 +794,14 @@ class EntryController extends Controller {
 					'type' => (string)$head['type'],
 					'amount_cents' => $amountCents,
 					'payment_count' => 1,
+				];
+				if ($withPayments) $empty['payments'][] = $base + $flags + [
+					'id' => 'projected:' . $head['id'] . ':' . $date, 'description' => (string)($head['description'] ?? ''),
+					'category_id' => (int)($head['category_id'] ?? 0), 'category_name' => (string)($head['category_name'] ?? ''),
+					'parent_id' => (int)($head['parent_id'] ?? 0), 'parent_name' => (string)($head['parent_name'] ?? ''),
+					'partner_id' => (int)($head['payment_partner_id'] ?? 0), 'partner_name' => (string)($head['partner_name'] ?? ''),
+					'project_id' => (int)($head['project_id'] ?? 0), 'project_name' => $projectNames[(int)($head['project_id'] ?? 0)] ?? '', 'hashtags' => $tags,
+					'has_description_tags' => isset($hasDescriptionTags[(int)$head['id']]),
 				];
 				$empty['categories'][] = $base + [
 					'group_id' => (int)($head['category_id'] ?? 0),
@@ -659,7 +939,7 @@ class EntryController extends Controller {
 	 *
 	 * @return array{categoryIds: list<int>, partnerIds: list<int>, labelKeys: list<string>, labelsRequested: bool, hashtagIds: list<int>, amountMin: ?int, amountMax: ?int}
 	 */
-	private function parseAnnualPaymentNarrowing(string $categories, string $partners, string $labels, string $hashtags, string $amountMin, string $amountMax): array {
+	private function parseAnnualPaymentNarrowing(string $categories, string $partners, string $labels, string $hashtags, string $amountMin, string $amountMax, string $reportFilters = ''): array {
 		$min = $this->parseAnnualAmount($amountMin);
 		$max = $this->parseAnnualAmount($amountMax);
 		if ($min !== null && $max !== null && $min > $max) {
@@ -674,6 +954,7 @@ class EntryController extends Controller {
 			'hashtagIds' => $this->parseAnnualIdList($hashtags, false),
 			'amountMin' => $min,
 			'amountMax' => $max,
+			'reportFilters' => (new ReportScopeService())->parse($reportFilters),
 		];
 	}
 
@@ -760,7 +1041,8 @@ class EntryController extends Controller {
 
 	/** @param array{categoryIds?: list<int>, partnerIds?: list<int>, labelKeys?: list<string>, labelsRequested?: bool, hashtagIds?: list<int>, amountMin?: ?int, amountMax?: ?int} $narrowing */
 	private function annualNarrowingIsActive(array $narrowing): bool {
-		return ($narrowing['categoryIds'] ?? []) !== []
+		return ($narrowing['reportFilters'] ?? []) !== []
+			|| ($narrowing['categoryIds'] ?? []) !== []
 			|| ($narrowing['partnerIds'] ?? []) !== []
 			|| !empty($narrowing['labelsRequested'])
 			|| ($narrowing['hashtagIds'] ?? []) !== []
@@ -788,11 +1070,51 @@ class EntryController extends Controller {
 		}
 	}
 
-	/** @param array{categoryIds?: list<int>, partnerIds?: list<int>, labelKeys?: list<string>, labelsRequested?: bool, hashtagIds?: list<int>, amountMin?: ?int, amountMax?: ?int} $narrowing */
+	/** Each drill-down choice intersects the original report filters, including choices in the same dimension. */
+	private function applyReportScope($qb, array $filters): void {
+		$enabled = $this->enabledAnnualLabels();
+		foreach ($filters as $filter) {
+			$id = $filter['id'];
+			$dimension = $filter['dimension'];
+			if ($dimension === 'type') {
+				$qb->andWhere($qb->expr()->eq('e.type', $qb->createNamedParameter($id)));
+			} elseif ($dimension === 'categories') {
+				if ($id === '0') $qb->andWhere($qb->expr()->isNull('c.id'));
+				else {
+					$match = $qb->expr()->eq('e.category_id', $qb->createNamedParameter((int)$id, IQueryBuilder::PARAM_INT));
+					$qb->andWhere($filter['direct'] ? $match : $qb->expr()->orX($match, $qb->expr()->eq('c.parent_category_id', $qb->createNamedParameter((int)$id, IQueryBuilder::PARAM_INT))));
+				}
+			} elseif ($dimension === 'paymentPartners') {
+				$this->applyAnnualIdChoice($qb, [(int)$id], 'e.payment_partner_id', 'p.id');
+			} elseif ($dimension === 'projects') {
+				$match = $qb->expr()->eq('e.project_id', $qb->createNamedParameter((int)$id, IQueryBuilder::PARAM_INT));
+				$qb->andWhere($id === '0' ? $qb->expr()->orX($qb->expr()->isNull('e.project_id'), $match) : $match);
+			} elseif ($dimension === 'labels') {
+				if ($id !== '') {
+					$qb->andWhere(isset($enabled[$id])
+						? $qb->expr()->eq('e.' . $enabled[$id]['column'], $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL))
+						: $qb->expr()->eq('e.id', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+				} else {
+					foreach ($enabled as $label) $qb->andWhere($qb->expr()->orX($qb->expr()->isNull('e.' . $label['column']), $qb->expr()->eq('e.' . $label['column'], $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL))));
+				}
+			} elseif ($dimension === 'hashtags') {
+				$tags = $this->db->getQueryBuilder();
+				$tags->select('scope_tag.entry_id')->from('cobudget_entry_hashtags', 'scope_tag')
+					->where($tags->expr()->eq('scope_tag.entry_id', 'e.id'))
+					->andWhere($tags->expr()->eq('scope_tag.workspace_id', 'e.workspace_id'));
+				$condition = $id === '0' ? '' : ' AND ' . $qb->expr()->eq('scope_tag.hashtag_id', $qb->createNamedParameter((int)$id, IQueryBuilder::PARAM_INT));
+				$qb->andWhere($qb->createFunction(($id === '0' ? 'NOT EXISTS (' : 'EXISTS (') . $tags->getSQL() . $condition . ')'));
+			}
+		}
+	}
+
+	/** @param array{categoryIds?: list<int>, partnerIds?: list<int>, labelKeys?: list<string>, labelsRequested?: bool, hashtagIds?: list<int>, amountMin?: ?int, amountMax?: ?int, reportFilters?: list<array>} $narrowing */
 	private function applyAnnualPaymentNarrowing($qb, array $narrowing): void {
+		if ($this->reportLabeledOnly) $qb->andWhere($this->annualQualifyingCondition($qb, $this->enabledAnnualLabels()));
 		if (!$this->annualNarrowingIsActive($narrowing)) {
 			return;
 		}
+		$this->applyReportScope($qb, $narrowing['reportFilters'] ?? []);
 		$this->applyAnnualIdChoice($qb, $narrowing['categoryIds'] ?? [], 'e.category_id', 'c.id');
 		$this->applyAnnualIdChoice($qb, $narrowing['partnerIds'] ?? [], 'e.payment_partner_id', 'p.id');
 
@@ -1980,7 +2302,24 @@ class EntryController extends Controller {
 			->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
 			->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'));
 
-		if ($this->entryScope === 'shared') {
+		if ($this->reportAreaTotals !== null) {
+			$personal = $qb->expr()->andX(
+				$qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('personal')),
+				$qb->expr()->eq('e.user_id', $qb->createNamedParameter((string)$this->userId)),
+				$qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, IQueryBuilder::PARAM_INT))
+			);
+			if ($this->reportAreaTotals !== []) $personal->add($qb->expr()->orX($qb->expr()->isNull('e.project_id'), $qb->expr()->notIn('e.project_id', $qb->createNamedParameter($this->reportAreaTotals, IQueryBuilder::PARAM_INT_ARRAY))));
+			if ($this->reportAreaTotals === []) $qb->where($personal);
+			else {
+				$qb->leftJoin('e', 'cobudget_projects', 'visible_report_area', $qb->expr()->eq('visible_report_area.id', 'e.project_id'));
+				$shared = $qb->expr()->andX(
+					$qb->expr()->eq('e.entry_kind', $qb->createNamedParameter('shared')),
+					$qb->expr()->in('e.project_id', $qb->createNamedParameter($this->reportAreaTotals, IQueryBuilder::PARAM_INT_ARRAY)),
+					$qb->expr()->eq('e.workspace_id', 'visible_report_area.workspace_id')
+				);
+				$qb->where($qb->expr()->orX($personal, $shared));
+			}
+		} elseif ($this->entryScope === 'shared') {
 			$qb->innerJoin('e', 'cobudget_members', 'm', $qb->expr()->andX(
 				$qb->expr()->eq('e.project_id', 'm.project_id'),
 				$qb->expr()->eq('m.user_id', $qb->createNamedParameter((string)$this->userId))
@@ -2016,6 +2355,7 @@ class EntryController extends Controller {
 				->andWhere($qb->expr()->eq('e.workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
 		}
 
+		if ($this->reportWithoutArea) $qb->andWhere($qb->expr()->isNull('e.project_id'));
 		return $qb;
 	}
 

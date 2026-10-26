@@ -20,7 +20,7 @@
 				<section v-if="sections.categories && categoryOptions.length" class="annual-filter-section">
 					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'categories' }" :aria-expanded="open.categories" @mousedown.prevent @mouseleave="clearQuiet('categories')" @click="toggleSection('categories', $event)">
 						<span class="annual-filter-heading">{{ $texts.analytics.category() }}</span>
-						<ChevronDownIcon v-if="open.categories" :size="18" /><ChevronRightIcon v-else :size="18" />
+						<ChevronUpIcon v-if="open.categories" :size="18" /><ChevronDownIcon v-else :size="18" />
 					</button>
 					<div v-show="open.categories" class="annual-filter-body">
 						<input v-if="categoryOptions.length > 8" v-model="categoryQuery" type="search" class="annual-filter-search" :aria-label="$texts.filters.search()" :placeholder="$texts.filters.search()">
@@ -28,7 +28,7 @@
 							<label v-for="option in visibleCategories" :key="option.id" class="annual-filter-option" :class="{ child: option.child }">
 								<input type="checkbox" :checked="normalized.categories.includes(option.id)" @change="toggle('categories', option.id)">
 								<span v-if="showKind(option)" class="annual-filter-kind" :class="`is-${option.type}`" :title="kindLabel(option.type)">
-									<span aria-hidden="true">{{ option.type === 'income' ? '+' : '−' }}</span>
+									<svg class="annual-filter-kind-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path :d="option.type === 'income' ? 'M4 8h8M8 4v8' : 'M4 8h8'" /></svg>
 									<span class="visually-hidden">{{ kindLabel(option.type) }}</span>
 								</span>
 								<span>{{ option.label }}</span>
@@ -39,7 +39,7 @@
 				<section v-if="sections.partners && partnerOptions.length" class="annual-filter-section">
 					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'partners' }" :aria-expanded="open.partners" @mousedown.prevent @mouseleave="clearQuiet('partners')" @click="toggleSection('partners', $event)">
 						<span class="annual-filter-heading">{{ $texts.analytics.paymentPartner() }}</span>
-						<ChevronDownIcon v-if="open.partners" :size="18" /><ChevronRightIcon v-else :size="18" />
+						<ChevronUpIcon v-if="open.partners" :size="18" /><ChevronDownIcon v-else :size="18" />
 					</button>
 					<div v-show="open.partners" class="annual-filter-body">
 						<input v-if="partnerOptions.length > 8" v-model="partnerQuery" type="search" class="annual-filter-search" :aria-label="$texts.filters.search()" :placeholder="$texts.filters.search()">
@@ -47,7 +47,7 @@
 							<label v-for="option in visiblePartners" :key="option.id" class="annual-filter-option">
 								<input type="checkbox" :checked="normalized.partners.includes(option.id)" @change="toggle('partners', option.id)">
 								<span v-if="showKind(option)" class="annual-filter-kind" :class="`is-${option.type}`" :title="kindLabel(option.type)">
-									<span aria-hidden="true">{{ option.type === 'income' ? '+' : '−' }}</span>
+									<svg class="annual-filter-kind-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path :d="option.type === 'income' ? 'M4 8h8M8 4v8' : 'M4 8h8'" /></svg>
 									<span class="visually-hidden">{{ kindLabel(option.type) }}</span>
 								</span>
 								<span>{{ option.label }}</span>
@@ -58,7 +58,7 @@
 				<section class="annual-filter-section">
 					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'amount' }" :aria-expanded="open.amount" @mousedown.prevent @mouseleave="clearQuiet('amount')" @click="toggleSection('amount', $event)">
 						<span class="annual-filter-heading">{{ $texts.entry.amount() }}</span>
-						<ChevronDownIcon v-if="open.amount" :size="18" /><ChevronRightIcon v-else :size="18" />
+						<ChevronUpIcon v-if="open.amount" :size="18" /><ChevronDownIcon v-else :size="18" />
 					</button>
 					<div v-show="open.amount" class="annual-filter-body">
 						<div class="annual-filter-amounts">
@@ -76,7 +76,7 @@
 				<section v-if="sections.labels && labelOptions.length" class="annual-filter-section">
 					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'labels' }" :aria-expanded="open.labels" @mousedown.prevent @mouseleave="clearQuiet('labels')" @click="toggleSection('labels', $event)">
 						<span class="annual-filter-heading">{{ $texts.analytics.labels() }}</span>
-						<ChevronDownIcon v-if="open.labels" :size="18" /><ChevronRightIcon v-else :size="18" />
+						<ChevronUpIcon v-if="open.labels" :size="18" /><ChevronDownIcon v-else :size="18" />
 					</button>
 					<div v-show="open.labels" class="annual-filter-body">
 						<div class="annual-filter-options">
@@ -90,7 +90,7 @@
 				<section v-if="sections.hashtags && hashtagOptions.length" class="annual-filter-section">
 					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'hashtags' }" :aria-expanded="open.hashtags" @mousedown.prevent @mouseleave="clearQuiet('hashtags')" @click="toggleSection('hashtags', $event)">
 						<span class="annual-filter-heading">{{ $texts.annual.tags() }}</span>
-						<ChevronDownIcon v-if="open.hashtags" :size="18" /><ChevronRightIcon v-else :size="18" />
+						<ChevronUpIcon v-if="open.hashtags" :size="18" /><ChevronDownIcon v-else :size="18" />
 					</button>
 					<div v-show="open.hashtags" class="annual-filter-body">
 						<input v-if="hashtagOptions.length > 8" v-model="hashtagQuery" type="search" class="annual-filter-search" :aria-label="$texts.filters.search()" :placeholder="$texts.filters.search()">
@@ -111,7 +111,7 @@
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
-import ChevronRightIcon from 'vue-material-design-icons/ChevronRight.vue'
+import ChevronUpIcon from 'vue-material-design-icons/ChevronUp.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import FilterVariantIcon from 'vue-material-design-icons/FilterVariant.vue'
 import { annualFilterChips, annualFilterPanelMaxHeight, annualFilterSections, annualSelection, formatAnnualAmountParam, parseAnnualAmountInput } from '../services/annualOverview'
@@ -119,7 +119,7 @@ import { categoryChoiceLabel, categoryParentId, sortCategoriesHierarchically } f
 
 export default {
 	name: 'AnnualOverviewFilters',
-	components: { NcButton, NcPopover, ChevronDownIcon, ChevronRightIcon, CloseIcon, FilterVariantIcon },
+	components: { NcButton, NcPopover, ChevronDownIcon, ChevronUpIcon, CloseIcon, FilterVariantIcon },
 	props: {
 		selection: { type: Object, required: true },
 		categories: { type: Array, default: () => [] },
@@ -415,7 +415,7 @@ export default {
 .annual-filter-chip:hover, .annual-filter-chip:focus-within { background: var(--cobudget-surface-muted); }
 .annual-filter-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .annual-filter-remove { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 18px; height: 18px; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
-.annual-filter-panel { width: min(360px, calc(100vw - 48px)); max-height: var(--annual-filter-max-height, none); padding: 8px; overflow-y: auto; overscroll-behavior: contain; }
+.annual-filter-panel { width: min(360px, calc(100vw - 48px)); max-height: var(--annual-filter-max-height, none); padding: var(--cobudget-menu-padding); overflow-y: auto; overscroll-behavior: contain; }
 .annual-filter-panel:focus { outline: none; }
 .annual-filter-section + .annual-filter-section { margin-top: 2px; }
 .annual-filter-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 36px; margin: 0; padding: 6px 8px; border: 0; border-radius: var(--border-radius-element, 8px); background-color: transparent; color: var(--cobudget-text, var(--color-main-text)); font: inherit; font-weight: 400; text-align: start; cursor: pointer; }
@@ -436,13 +436,20 @@ export default {
 .annual-filter-option input[type="checkbox"]:hover,
 .annual-filter-option input[type="checkbox"]:focus,
 .annual-filter-option input[type="checkbox"]:active { border: 0; background: transparent; box-shadow: none; }
-.annual-filter-option input[type="checkbox"]:focus-visible { outline: 2px solid var(--color-main-text); outline-offset: 2px; }
+.annual-filter-option input[type="checkbox"]:focus-visible { outline: var(--cobudget-focus-outline); outline-offset: 2px; }
 .annual-filter-option.child { padding-inline-start: 26px; }
-.annual-filter-kind { position: relative; display: inline-flex; flex: 0 0 16px; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; font-size: 13px; font-weight: 600; line-height: 16px; }
-.annual-filter-kind.is-income { color: #107C41; background: rgba(16, 124, 65, 0.12); }
-.annual-filter-kind.is-expense { color: var(--cobudget-error, #e9322d); background: rgba(233, 50, 45, 0.12); }
+.annual-filter-kind { position: relative; display: inline-flex; flex: 0 0 16px; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; line-height: 0; }
+.annual-filter-kind-icon { display: block; flex: 0 0 12px; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.annual-filter-kind.is-income { color: var(--cobudget-success); background: var(--cobudget-success-light); }
+.annual-filter-kind.is-expense { color: var(--cobudget-error, #e9322d); background: var(--cobudget-error-soft); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .annual-filter-amounts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-inline: 8px; }
 .annual-filter-amounts label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .annual-filter-amounts span { color: var(--cobudget-text-muted, var(--color-text-maxcontrast)); }
+.annual-filter-toggle:focus-visible,
+.annual-filter-remove:focus-visible { outline: var(--cobudget-focus-outline); outline-offset: -2px; }
+@media (max-width: 768px) {
+	.annual-filter-toggle, .annual-filter-option, .annual-filter-chip, .annual-filter-remove { min-height: var(--cobudget-mobile-touch-size); }
+	.annual-filter-remove { min-width: var(--cobudget-mobile-touch-size); }
+}
 </style>

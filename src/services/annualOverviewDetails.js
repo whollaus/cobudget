@@ -19,14 +19,15 @@ export function annualCellDetails({ row, index, total = false }, report, selecti
 	const periods = Array.isArray(report?.periods) ? report.periods : []
 	const periodEnd = periods[periodTotalIndex(report, row)]?.dateTo
 	const spanStart = periods[0]?.dateFrom
-	const containsToday = weekly
+	const containsToday = report.range || weekly
 		? spanStart !== undefined && periodEnd !== undefined && spanStart <= report.cutoff && report.cutoff < periodEnd
 		: monthly || dailyMonth
 			? selection.year === cutoff.getFullYear() && Number(selection.month) === cutoff.getMonth() + 1
 			: selection.year === cutoff.getFullYear()
 	const partialYear = !selection.includeFuturePayments && containsToday && periodEnd !== undefined && report.cutoff < periodEnd
-	const monthCount = partialYear ? cutoff.getMonth() + 1 : 12
-	const quarterCount = partialYear ? Math.ceil((cutoff.getMonth() + 1) / 3) : 4
+	const rangeCount = report.range ? Math.max(1, periods.slice(0, -1).filter(period => selection.includeFuturePayments || period.dateFrom <= report.cutoff).length) : null
+	const monthCount = rangeCount ?? (partialYear ? cutoff.getMonth() + 1 : 12)
+	const quarterCount = rangeCount ?? (partialYear ? Math.ceil((cutoff.getMonth() + 1) / 3) : 4)
 	const dayCount = partialYear ? cutoff.getDate() : Math.max(periodTotalIndex(report, row), 1)
 	const weekBuckets = periods.length > 1 ? periods.slice(0, -1) : []
 	const completeWeekCount = weekBuckets.length || (Array.isArray(row?.months) ? row.months.length : 52)

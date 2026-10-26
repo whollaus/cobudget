@@ -139,6 +139,7 @@ export default {
 }
 
 .drag-scroll:focus-visible {
-	box-shadow: 0 0 0 2px var(--color-primary-element, var(--color-primary, #0082c9));
+	outline: var(--cobudget-focus-outline);
+	outline-offset: -2px;
 }
 </style>

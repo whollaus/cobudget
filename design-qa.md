@@ -1,5 +1,9 @@
 # Design QA
 
+This is a historical, task-specific payment-sidebar audit. Its findings and
+verification status refer to that task. For maintained rules for future UI work,
+use the [CoBudget Design System](docs/design-system.md).
+
 - Source visual truth: `/var/folders/q0/fv5ktypn05g_4kx5xrbnrksc0000gn/T/ai-chat-attachment-11834058153482612437.png`
 - Design direction: remove all visible desktop sidebar header controls, align the date field with the top of the middle work surface, add a secondary `Abbrechen` action to the fixed footer, and toggle the sidebar when the active row or new-payment action is selected again
 - Target viewport: wide desktop; supplied source crop `562 × 808` pixels at native density

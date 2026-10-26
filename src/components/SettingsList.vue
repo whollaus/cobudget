@@ -1,5 +1,5 @@
 <template>
-	<ul class="settings-list">
+	<ul class="settings-list" data-cobudget-card="flush">
 		<li
 			v-for="(item, index) in items"
 			:key="itemKey(item, index)"
@@ -57,12 +57,9 @@ export default {
 
 <style scoped>
 .settings-list {
+	container-type: inline-size;
 	list-style: none;
-	padding: 0;
 	margin: 0;
-	border: 1px solid var(--cobudget-border, #eee);
-	border-radius: var(--border-radius-large, 8px);
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
@@ -72,7 +69,7 @@ export default {
 	justify-content: space-between;
 	gap: 12px;
 	position: relative;
-	padding: 10px 15px;
+	padding: var(--cobudget-table-detail-padding);
 	border-bottom: 1px solid var(--cobudget-border, #eee);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
@@ -100,7 +97,7 @@ export default {
 }
 
 .settings-list-item.is-hidden :deep(.settings-list-info),
-.settings-list-item.is-hidden :deep(.settings-list-info > span:not(.badge-global):not(.badge-hidden)),
+.settings-list-item.is-hidden :deep(.settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge])),
 .settings-list-item.is-hidden :deep(.settings-list-info > strong) {
 	color: var(--cobudget-text-muted, #666) !important;
 }
@@ -112,7 +109,7 @@ export default {
 }
 
 .settings-list-empty {
-	padding: 15px;
+	padding: var(--cobudget-card-padding-compact);
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 	text-align: center;
 	font-style: italic;
@@ -120,14 +117,32 @@ export default {
 
 :deep(.settings-list-info) {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
-	gap: 10px;
+	gap: var(--cobudget-content-gap);
 	min-width: 0;
 	flex: 1;
 	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 }
 
-:deep(.settings-list-info > span:not(.badge-global):not(.badge-hidden)),
+:deep(.settings-list-info > [data-cobudget-badge]) {
+	flex-shrink: 0;
+}
+
+/* A narrow admin column needs the same readable layout as a mobile list,
+ * even when the overall viewport is wide. */
+@container (max-width: 440px) {
+	.settings-list-item {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	:deep(.settings-list-actions) {
+		justify-content: flex-start;
+	}
+}
+
+:deep(.settings-list-info > span:not(.badge-global):not(.badge-hidden):not([data-cobudget-badge])),
 :deep(.settings-list-info > strong) {
 	color: inherit !important;
 	overflow-wrap: anywhere;

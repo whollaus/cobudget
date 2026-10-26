@@ -12,22 +12,22 @@
 			<div class="budget-form-grid">
 				<div class="form-group">
 					<label for="budget-name">{{ $texts.common.name() }}</label>
-					<input id="budget-name" v-model="form.name" class="form-control" type="text" maxlength="128" :placeholder="$texts.budgetGoals.namePlaceholder()" required>
+					<input id="budget-name" v-model="form.name" class="form-control" data-cobudget-field="compact" type="text" maxlength="128" :placeholder="$texts.budgetGoals.namePlaceholder()" required>
 				</div>
 				<div class="form-group">
 					<label for="budget-amount">{{ $texts.budgetGoals.budget() }}</label>
-					<input id="budget-amount" v-model="form.amount" class="form-control amount-input" type="number" min="0.01" step="0.01" placeholder="200.00" required>
+					<input id="budget-amount" v-model="form.amount" class="form-control amount-input" data-cobudget-field="compact" type="number" min="0.01" step="0.01" placeholder="200.00" required>
 				</div>
 				<div class="form-group">
 					<label for="budget-period">{{ $texts.budgetGoals.period() }}</label>
-					<select id="budget-period" v-model="form.period" class="form-control select-control">
+					<select id="budget-period" v-model="form.period" class="form-control select-control" data-cobudget-field="compact">
 						<option value="year">{{ $texts.budgetGoals.year() }}</option>
 						<option value="month">{{ $texts.budgetGoals.month() }}</option>
 					</select>
 				</div>
 				<div class="form-group">
 					<label for="budget-mode">{{ $texts.budgetGoals.evaluation() }}</label>
-					<select id="budget-mode" v-model="form.mode" class="form-control select-control">
+					<select id="budget-mode" v-model="form.mode" class="form-control select-control" data-cobudget-field="compact">
 						<option value="flexible">{{ $texts.budgetGoals.flexibleForecast() }}</option>
 						<option value="hard">{{ $texts.budgetGoals.hardLimit() }}</option>
 					</select>
@@ -64,8 +64,8 @@
 			</div>
 
 			<div class="form-actions">
-				<NcButton v-if="editingId" type="secondary" native-type="button" :disabled="saving" @click="resetForm">{{ $texts.common.cancel() }}</NcButton>
-				<NcButton type="primary" native-type="submit" :disabled="saving || !canSave">
+				<NcButton v-if="editingId" variant="secondary" type="button" :disabled="saving" @click="resetForm">{{ $texts.common.cancel() }}</NcButton>
+				<NcButton variant="primary" type="submit" :disabled="saving || !canSave">
 					{{ editingId ? $texts.common.save() : $texts.common.add() }}
 				</NcButton>
 			</div>
@@ -106,8 +106,8 @@
 					</div>
 				</div>
 				<div class="budget-card-actions">
-					<NcButton type="secondary" @click="editGoal(goal)">{{ $texts.budgetGoals.edit() }}</NcButton>
-					<NcButton type="error" @click="requestDelete(goal)">{{ $texts.budgetGoals.delete() }}</NcButton>
+					<NcButton variant="secondary" @click="editGoal(goal)">{{ $texts.budgetGoals.edit() }}</NcButton>
+					<NcButton variant="error" @click="requestDelete(goal)">{{ $texts.budgetGoals.delete() }}</NcButton>
 				</div>
 			</article>
 		</div>
@@ -384,18 +384,6 @@ export default {
   color: var(--cobudget-text-muted, #888);
   font-size: var(--cobudget-font-sm);
   letter-spacing: 0.5px;
-}
-
-.form-control {
-	width: 100%;
-	height: 34px;
-	padding: 0 12px;
-	border: 1px solid var(--cobudget-border-strong, #888);
-	border-radius: var(--border-radius, 6px);
-	box-sizing: border-box;
-	background: var(--cobudget-page-background, #fff);
-	color: var(--color-main-text, #222);
-	font-size: var(--cobudget-font-ui);
 }
 
 .amount-input {

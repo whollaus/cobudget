@@ -39,25 +39,25 @@
 				<div class="form-grid two-columns">
 					<div class="form-group">
 						<label for="budget-name">{{ $texts.common.name() }}</label>
-						<input id="budget-name" ref="nameInput" v-model="form.name" class="form-control" type="text" :placeholder="$texts.budgetGoals.namePlaceholderFlexibleFood()" required />
+						<input id="budget-name" ref="nameInput" v-model="form.name" class="form-control" data-cobudget-field type="text" :placeholder="$texts.budgetGoals.namePlaceholderFlexibleFood()" required />
 					</div>
 					<div class="form-group amount-group">
 						<label for="budget-amount">{{ $texts.budgetGoals.budget() }} ({{ displayCurrency }})</label>
-						<input id="budget-amount" v-model="form.amount" class="form-control" inputmode="decimal" type="text" placeholder="0.00" required />
+						<input id="budget-amount" v-model="form.amount" class="form-control" data-cobudget-field inputmode="decimal" type="text" placeholder="0.00" required />
 					</div>
 				</div>
 
 				<div class="form-grid two-columns">
 					<div class="form-group">
 						<label for="budget-period">{{ $texts.budgetGoals.period() }}</label>
-						<select id="budget-period" v-model="form.period" class="form-control select-control">
+						<select id="budget-period" v-model="form.period" class="form-control select-control" data-cobudget-field>
 							<option value="year">{{ $texts.budgetGoals.annual() }}</option>
 							<option value="month">{{ $texts.budgetGoals.monthly() }}</option>
 						</select>
 					</div>
 					<div class="form-group">
 						<label for="budget-mode">{{ $texts.budgetGoals.type() }}</label>
-						<select id="budget-mode" v-model="form.mode" class="form-control select-control">
+						<select id="budget-mode" v-model="form.mode" class="form-control select-control" data-cobudget-field>
 							<option value="flexible">{{ $texts.budgetGoals.flexibleGoalWithForecast() }}</option>
 							<option value="hard">{{ $texts.budgetGoals.fixedLimit() }}</option>
 						</select>
@@ -65,7 +65,7 @@
 				</div>
 
 				<div class="budget-section-actions">
-					<NcButton class="budget-save-button" type="primary" native-type="submit" :disabled="saving || !canSave">
+					<NcButton class="budget-save-button" variant="primary" type="submit" :disabled="saving || !canSave">
 						{{ saving ? $texts.common.saveBusy() : $texts.common.save() }}
 					</NcButton>
 				</div>
@@ -98,7 +98,7 @@
 							<select
 								v-model="newRule.projectId"
 								:aria-label="$texts.budgetGoals.areaForNewCriterion()"
-								class="form-control select-control"
+								class="form-control select-control" data-cobudget-field
 								@change="onRuleProjectChange(newRule)">
 								<option value="">*</option>
 								<option v-for="project in activeProjects" :key="project.id" :value="String(project.id)">
@@ -110,7 +110,7 @@
 							<select
 								v-model="newRule.categoryId"
 								:aria-label="$texts.budgetGoals.categoryForNewCriterion()"
-								class="form-control select-control">
+								class="form-control select-control" data-cobudget-field>
 								<option value="">*</option>
 								<option v-for="category in categoryOptionsForRule(newRule)" :key="category.id" :value="String(category.id)">
 									{{ categoryOptionLabel(category) }}
@@ -118,7 +118,7 @@
 							</select>
 						</div>
 						<div role="cell">
-							<select v-model="newRule.tag" :aria-label="$texts.budgetGoals.labelForNewCriterion()" class="form-control select-control">
+							<select v-model="newRule.tag" :aria-label="$texts.budgetGoals.labelForNewCriterion()" class="form-control select-control" data-cobudget-field>
 								<option value="">*</option>
 								<option v-for="tag in availableTags" :key="tag.value" :value="tag.value">
 									{{ tag.label }}
@@ -178,6 +178,7 @@ import ConfirmModal from '../components/ConfirmModal.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import { showRequestError, showToast } from '../services/notifications'
 import { categoryChoiceLabel, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
+import { sortAreasByName } from '../utils/areaSorting'
 
 let nextRuleKey = 0
 
@@ -229,10 +230,7 @@ export default {
 			return !!this.id
 		},
 		activeProjects() {
-			return this.projects
-				.filter(project => !this.isArchivedProject(project))
-				.slice()
-				.sort((a, b) => a.name.localeCompare(b.name))
+			return sortAreasByName(this.projects.filter(project => !this.isArchivedProject(project)))
 		},
 		availableTags() {
 			return [
@@ -616,17 +614,17 @@ export default {
 }
 
 .budget-form {
-	width: min(900px, calc(100% - 56px));
-	margin: 0 28px 0;
+	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
+	margin: 0 var(--cobudget-form-inset) 0;
 }
 
 .budget-form-section {
-	margin-bottom: 26px;
-	padding-bottom: 22px;
+	margin-bottom: var(--cobudget-section-gap);
+	padding-bottom: var(--cobudget-section-gap);
 }
 
 .budget-form-section h3 {
-	margin: 0 0 18px;
+	margin: 0 0 var(--cobudget-card-gap);
 	font-size: var(--cobudget-font-section);
 	line-height: 1.25;
 }
@@ -650,20 +648,8 @@ export default {
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
-}
-
-.form-control {
-	width: 100%;
-	min-height: 44px;
-	box-sizing: border-box;
-	padding: 8px 12px;
-	border: 1px solid var(--cobudget-border-strong, #d0d0d0);
-	border-radius: 6px;
-	background: var(--cobudget-page-background, #fff);
-	color: var(--color-main-text, #222);
-	font-size: var(--cobudget-font-md);
+  font-size: var(--cobudget-font-label);
+  letter-spacing: normal;
 }
 
 .select-control {
@@ -681,24 +667,6 @@ export default {
 	justify-content: flex-end;
 	gap: 12px;
 	margin-top: 6px;
-}
-
-.budget-save-button,
-:deep(.budget-save-button.button-vue),
-.budget-save-button :deep(.button-vue) {
-	background-color: var(--color-primary-element, var(--color-primary, #0082c9)) !important;
-	color: var(--color-primary-text, #fff) !important;
-	border-color: var(--color-primary-element, var(--color-primary, #0082c9)) !important;
-}
-
-.budget-save-button:hover:not(:disabled),
-.budget-save-button:focus-visible:not(:disabled),
-:deep(.budget-save-button.button-vue:hover:not(:disabled)),
-:deep(.budget-save-button.button-vue:focus-visible:not(:disabled)),
-.budget-save-button :deep(.button-vue:hover:not(:disabled)),
-.budget-save-button :deep(.button-vue:focus-visible:not(:disabled)) {
-	background-color: var(--color-primary-hover, var(--color-primary, #0082c9)) !important;
-	color: var(--color-primary-text, #fff) !important;
 }
 
 .section-title-row {
@@ -722,7 +690,7 @@ export default {
 .budget-criteria-table {
 	overflow: hidden;
 	border: 1px solid var(--cobudget-border, #e5e5e5);
-	border-radius: 8px;
+	border-radius: var(--cobudget-table-radius);
 	background: var(--cobudget-page-background, #fff);
 }
 
@@ -758,7 +726,7 @@ export default {
 }
 
 .budget-criteria-empty {
-	padding: 18px 14px;
+	padding: var(--cobudget-card-padding-compact);
 	border-top: 1px solid var(--cobudget-border, #e5e5e5);
 	color: var(--color-text-maxcontrast, #666);
 	font-style: italic;

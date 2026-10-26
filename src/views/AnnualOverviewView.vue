@@ -1,6 +1,10 @@
 <template>
 	<div class="annual-overview">
-		<AppPageHeader :title="$texts.annual.title()">
+		<div v-show="!detailRequested" ref="overview">
+		<AppPageHeader class="annual-report-header" :class="{ 'annual-report-header--stacked-period': titleRangeLabel.length > 4 }" :title="$texts.annual.title()">
+			<template #title>
+				<span class="annual-report-title"><span class="annual-report-name">{{ $texts.annual.title() }}</span><ReportPeriodPicker v-if="selection.timeRange" :selection="selection" :years="yearOptions" :label="titleRangeLabel || $texts.annual.selectedPeriod()" @change="selectReportPeriod" /></span>
+			</template>
 			<template #actions>
 				<span class="annual-export-wrap" :title="exporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv()">
 					<NcActions class="annual-export-menu" variant="tertiary" force-menu placement="bottom-end"
@@ -15,6 +19,7 @@
 							<template #icon><CloudUploadOutlineIcon :size="20" /></template>
 							{{ $texts.annual.saveInNextcloud() }}
 						</NcActionButton>
+						<NcActionButton close-after-click :disabled="exporting" @click="copyReport"><template #icon><ClipboardTextOutlineIcon :size="20" /></template>{{ $texts.common.copyToClipboard() }}</NcActionButton>
 					</NcActions>
 				</span>
 				<NcButton variant="tertiary" class="cobudget-toolbar-icon-button" :disabled="loading || error || !report || printing"
@@ -23,24 +28,23 @@
 				</NcButton>
 			</template>
 		</AppPageHeader>
-		<MobileReportSwitch />
 		<div class="annual-controls">
 			<label class="annual-select" :title="$texts.annual.breakdown()">
 				<span aria-hidden="true"><span class="annual-select-label">{{ breakdownLabel }}</span><ChevronDownIcon :size="18" /></span>
 				<select :value="selection.period" :aria-label="$texts.annual.breakdown()" @change="selectPeriod">
-					<option value="year">{{ $texts.annual.months() }}</option>
 					<option value="quarter">{{ $texts.annual.quarters() }}</option>
+					<option value="year">{{ $texts.annual.months() }}</option>
 					<option value="week">{{ $texts.annual.weeks() }}</option>
 					<option value="day">{{ $texts.annual.days() }}</option>
 				</select>
 			</label>
-			<label class="annual-select" :title="$texts.annual.year()">
+			<label v-if="!selection.timeRange" class="annual-select" :title="$texts.annual.year()">
 				<span aria-hidden="true">{{ selection.year }}<ChevronDownIcon :size="18" /></span>
 				<select :value="selection.year" :disabled="loading || !yearOptions.length" :aria-label="$texts.annual.year()" @change="selectYear">
 					<option v-for="year in yearOptions" :key="year" :value="year">{{ year }}</option>
 				</select>
 			</label>
-			<label v-if="selection.period === 'day'" class="annual-select" :title="$texts.budgetGoals.month()">
+			<label v-if="!selection.timeRange && selection.period === 'day'" class="annual-select" :title="$texts.budgetGoals.month()">
 				<span aria-hidden="true"><span class="annual-select-label">{{ selectedMonthLabel }}</span><ChevronDownIcon :size="18" /></span>
 				<select :value="Number(selection.month) >= 1 ? selection.month : 'all'" :aria-label="$texts.budgetGoals.month()" @change="selectMonth">
 					<option value="all">{{ $texts.annual.allDays() }}</option>
@@ -49,9 +53,16 @@
 			</label>
 			<label v-if="$enableProjects" class="annual-select" :title="scopeLabel">
 				<span aria-hidden="true"><span class="annual-select-label">{{ scopeLabel }}</span><ChevronDownIcon :size="18" /></span>
-				<select v-model="selection.projectId" :aria-label="$texts.annual.scope()" @change="updateSelection">
+				<select v-model="selection.projectId" :aria-label="$texts.annual.scope()" @change="selectProject">
 					<option :value="null">{{ $texts.settings.myFinances() }}</option>
 					<option v-for="project in projects" :key="project.id" :value="Number(project.id)">{{ project.name }}</option>
+				</select>
+			</label>
+			<label v-if="$enableProjects && isSharedArea" class="annual-select" :title="$texts.annual.amountScope()">
+				<span aria-hidden="true"><span class="annual-select-label">{{ amountScopeLabel }}</span><ChevronDownIcon :size="18" /></span>
+				<select v-model="selection.entryScope" :aria-label="$texts.annual.amountScope()" @change="updateSelection">
+					<option value="personal">{{ $texts.annual.personalShare() }}</option>
+					<option value="shared">{{ $texts.annual.wholeArea() }}</option>
 				</select>
 			</label>
 			<label class="annual-select" :title="$texts.annual.grouping()">
@@ -70,24 +81,39 @@
 			</label>
 			<AnnualOverviewFilters :selection="selection" :categories="categoryChoices" :partners="partnerChoices" :hashtags="hashtagChoices" :category-ids="filterChoices.categoryIds" :partner-ids="filterChoices.partnerIds" :label-keys="filterChoices.labels" @change="onFilterChange" @clear="clearFilter" />
 		</div>
-		<AnnualOverviewChart v-if="report && !loading && !error"
-			v-model:mode="chartMode"
-			v-model:hidden-series="chartHiddenSeries"
-			:report="report"
-			:labels="columns.slice(0, -1)"
-			:label-titles="columnTitles.slice(0, -1)"
-			:axis-labels="chartAxisLabels"
-			:income-enabled="$enableIncomes"
-			:format-cents="$formatMoneyFromCents" />
+		<ReportDevelopment v-if="report && !loading && !error" ref="development" v-model:mode="chartMode" v-model:hidden-series="chartHiddenSeries"
+			:report="report" :selection="selection" :labels="columns.slice(0, -1)" :label-titles="columnTitles.slice(0, -1)" :axis-labels="chartAxisLabels"
+			:chart-period="selection.period" :summary-rows="totalRows" :period-label="titleRangeLabel" @details="openSummaryDetails" />
 		<div v-if="error" class="annual-error" role="alert"><p>{{ $texts.annual.loadError() }}</p><NcButton @click="load">{{ $texts.annual.retry() }}</NcButton></div>
-		<p v-else-if="loading" role="status">{{ $texts.common.loading() }}</p>
-		<div v-else-if="report" ref="printSource" class="annual-scroll" tabindex="0" role="region" :aria-label="periodTitle" :style="bucketStyle">
-			<AnnualOverviewTable v-for="type in paymentTypes" :key="`${selection.grouping}-${selection.projectId}-${selection.period}-${selection.month}-${selection.quarter}-${type}`" :section="type"
+		<p v-if="loading" role="status">{{ $texts.common.loading() }}</p>
+		<div v-if="report" v-show="!loading && !error" ref="printSource" class="annual-scroll" tabindex="0" role="region" :aria-label="periodTitle" :style="bucketStyle">
+			<div class="annual-scroll-content">
+			<ReportPaymentSection v-for="type in paymentTypes" ref="paymentSections" :key="type" :section="type" :report="report" :selected-entry-id="selectedEntryId"
 				:title="type === 'income' ? $texts.annual.income() : $texts.annual.expenses()" :first-heading="firstHeading"
-				:columns="columns" :column-titles="columnTitles" :rows="groupRows(type)" :total-row="totalRows.find(row => row.type === type)" :selection="selection" :periods="report.periods" :empty-message="emptyMessage" @details="detail = $event" />
-			<AnnualOverviewTable v-if="$enableIncomes && hasPayments" section="total" :title="$texts.analytics.total()" :first-heading="$texts.analytics.total()" :columns="columns" :column-titles="columnTitles" :rows="totalRows" :selection="selection" :periods="report.periods" summary @details="detail = $event" />
+				:columns="columns" :column-titles="columnTitles" :rows="groupRows(type)" :total-row="totalRows.find(row => row.type === type)" :selection="selection" :periods="report.periods" :empty-message="emptyMessage" @details="openDetails" @open-entry-sidebar="$emit('open-entry-sidebar', $event)" />
+			<AnnualOverviewTable v-if="$enableIncomes && hasPayments" ref="totalSummary" section="total" :title="$texts.analytics.total()" :first-heading="$texts.analytics.total()" :columns="columns" :column-titles="columnTitles" :rows="totalRows" :selection="selection" :periods="report.periods" summary @details="openDetails" />
+			<ReportAreaOverview v-if="$enableProjects && !selection.projectId && !selection.withoutArea" ref="areaOverview"
+				:selection="selection" :report="report" :columns="columns" :column-titles="columnTitles" :amount-view="areaAmountView" :metric="areaMetric"
+				@update:amount-view="updateAreaControls($event, areaMetric)" @update:metric="updateAreaControls(areaAmountView, $event)" />
+			</div>
 		</div>
-		<AnnualOverviewDetails v-if="detail && report && !loading" :detail="detail" :report="report" :selection="selection" :scope-label="scopeLabel" @close="detail = null" />
+		</div>
+		<template v-if="detailRequested">
+			<ReportAreaDetailView v-if="$enableProjects && $route.query.detailArea !== undefined && report && !loading && !error" :query="$route.query" :selection="selection"
+				:export-metadata="exportMetadata()"
+				:projects="projects" :labels="columns.slice(0, -1)" :label-titles="columnTitles.slice(0, -1)" :axis-labels="chartAxisLabels" :selected-entry-id="selectedEntryId"
+				@back="closeDetails" @open-entry-sidebar="$emit('open-entry-sidebar', $event)" @selected-entry-missing="$emit('selected-entry-missing', $event)" />
+			<ReportDetailView v-else-if="focusedDetail && !loading && !error" :detail="focusedDetail" :report="report" :selection="selection" :scope-label="reportScopeLabel"
+				:export-metadata="exportMetadata()"
+				:projects="projects" :labels="columns.slice(0, -1)" :label-titles="columnTitles.slice(0, -1)" :axis-labels="chartAxisLabels" :selected-entry-id="selectedEntryId"
+				@back="closeDetails" @open-entry-sidebar="$emit('open-entry-sidebar', $event)" @selected-entry-missing="$emit('selected-entry-missing', $event)" />
+			<div v-else class="annual-detail-status">
+				<NcButton variant="tertiary" @click="closeDetails">{{ $texts.annual.back() }}</NcButton>
+				<p v-if="loading" role="status">{{ $texts.common.loading() }}</p>
+				<div v-else-if="error" role="alert"><p>{{ $texts.annual.loadError() }}</p><NcButton @click="load">{{ $texts.annual.retry() }}</NcButton></div>
+				<p v-else role="status">{{ $texts.annual.detailUnavailable() }}</p>
+			</div>
+		</template>
 	</div>
 </template>
 
@@ -99,35 +125,74 @@ import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import CloudUploadOutlineIcon from 'vue-material-design-icons/CloudUploadOutline.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import PrinterIcon from 'vue-material-design-icons/Printer.vue'
+import ClipboardTextOutlineIcon from 'vue-material-design-icons/ClipboardTextOutline.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
-import MobileReportSwitch from '../components/MobileReportSwitch.vue'
 import AnnualOverviewTable from '../components/AnnualOverviewTable.vue'
-import AnnualOverviewDetails from '../components/AnnualOverviewDetails.vue'
+import ReportPaymentSection from '../components/ReportPaymentSection.vue'
+import ReportDetailView from '../components/ReportDetailPage.vue'
 import AnnualOverviewFilters from '../components/AnnualOverviewFilters.vue'
-import AnnualOverviewChart from '../components/AnnualOverviewChart.vue'
+import ReportPeriodPicker from '../components/ReportPeriodPicker.vue'
+import ReportAreaOverview from '../components/ReportAreaOverview.vue'
+import ReportAreaDetailView from '../components/ReportAreaDetailView.vue'
+import ReportDevelopment from '../components/ReportDevelopment.vue'
+import { getAppLocale } from '../utils/formatMoney'
+import { sortAreasByName } from '../utils/areaSorting'
 import axios from '../services/http'
-import { getCurrentUser } from '@nextcloud/auth'
-import { getFilePickerBuilder } from '@nextcloud/dialogs'
-import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
-import { annualFilterChips, annualFilterNameMaps, annualPeriodContainsToday, annualRequestParams, annualRouteQuery, annualSelection, buildAnnualOverviewCsv, calendarDayCount, downloadTextFile, encodeNextcloudPath, isoWeekCount, isoWeekStart, nextcloudCopyName, nextcloudFilePath } from '../services/annualOverview'
+import { generateUrl } from '@nextcloud/router'
+import { annualFilterChips, annualFilterNameMaps, annualPaymentRoute, annualPeriodContainsToday, annualReportSelection, reportPeriodLabel, reportRangeError, reportContainsToday, parseReportDate, isoWeekNumber, isoWeekYear, annualRequestParams, annualRouteQuery, annualSelection, calendarDayCount, isoWeekCount, isoWeekStart } from '../services/annualOverview'
 import { printAnnualOverview } from '../services/annualOverviewPrint'
-import { formatCalendarLabel, getAppLanguage } from '../utils/formatDate'
+import { reportExportMetadata } from '../services/reportExport'
+import { deliverReportExport } from '../services/reportExportActions'
+import { formatCalendarLabel } from '../utils/formatDate'
 import { showRequestError, showToast } from '../services/notifications'
 import { REMOTE_DATA_CHANGED_EVENT } from '../services/dataSync'
+import { reportDetailNavigation, reportDetailQuery, reportDetailParentQuery, reportDetailParentMatches, resolveReportDetail, areaOverviewOptions, areaOverviewQuery } from '../services/reportDetails'
 
 export default {
 	name: 'AnnualOverviewView',
-	components: { NcButton, NcActions, NcActionButton, ChevronDownIcon, CloudUploadOutlineIcon, DownloadIcon, PrinterIcon, AppPageHeader, MobileReportSwitch, AnnualOverviewTable, AnnualOverviewDetails, AnnualOverviewFilters, AnnualOverviewChart },
-	data() { return { selection: annualSelection(this.$route.query), chartMode: 'cumulative', chartHiddenSeries: [], projects: [], categoryChoices: [], partnerChoices: [], hashtagChoices: [], filterChoices: { categoryIds: [], partnerIds: [], labels: [] }, report: null, detail: null, loading: true, printing: false, exporting: false, error: false, requestId: 0, filterChoiceRequest: 0 } },
+	components: { NcButton, NcActions, NcActionButton, ChevronDownIcon, CloudUploadOutlineIcon, DownloadIcon, PrinterIcon, ClipboardTextOutlineIcon, AppPageHeader, AnnualOverviewTable, ReportPaymentSection, ReportDetailView, AnnualOverviewFilters, ReportPeriodPicker, ReportAreaOverview, ReportAreaDetailView, ReportDevelopment },
+	provide() { return { reportExportContext: () => ({ metadata: this.exportMetadata(), filename: this.annualExportFilename() }) } },
+	props: { selectedEntryId: { type: [Number, String], default: null }, hideNewPaymentAction: { type: Boolean, default: false } },
+	emits: ['open-entry-sidebar', 'selected-entry-missing'],
+	data() { const selection = annualReportSelection(this.$route.query); return { selection, ...areaOverviewOptions(this.$route.query), chartMode: 'cumulative', chartHiddenSeries: [], projects: [], categoryChoices: [], partnerChoices: [], hashtagChoices: [], filterChoices: { categoryIds: [], partnerIds: [], labels: [] }, report: null, loading: true, printing: false, exporting: false, error: false, requestId: 0, filterChoiceRequest: 0, overviewPosition: null, openedDetailFromOverview: false } },
 	computed: {
+		areaControlQuery() { return areaOverviewQuery(this.areaAmountView, this.areaMetric) },
+		detailRequested() { return this.$route.query.detailType !== undefined },
+		detailIdentity() {
+			const { detailType, detailId, detailDirect, detailPeriod, detailArea } = this.$route.query
+			return JSON.stringify({ detailType, detailId, detailDirect, detailPeriod, detailArea })
+		},
+		focusedDetail() {
+			const identity = JSON.parse(this.detailIdentity)
+			if (!this.detailRequested || !this.report || identity.detailArea !== undefined) return null
+			const detail = resolveReportDetail(identity, this.report, this.paymentTypes.flatMap(type => this.groupRows(type)), this.totalRows, this.$texts.common.mainCategory())
+			return detail ? { ...detail, route: annualPaymentRoute(this.selection, this.report.periods[detail.index], detail.row.type, detail.total ? null : detail.row) } : null
+		},
+		titleRangeLabel() {
+			const dateFormat = new Intl.DateTimeFormat(getAppLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
+			return reportPeriodLabel(this.selection, formatCalendarLabel, date => dateFormat.format(date))
+		},
+		selectedRangeLabel() {
+			const from = parseReportDate(this.selection.dateFrom), to = parseReportDate(this.selection.dateTo)
+			const format = date => formatCalendarLabel(date, { day: 'numeric', month: 'short', year: 'numeric' })
+			return from && to ? `${format(from)} – ${format(to)}` : ''
+		},
+		rangePeriods() { return this.selection.timeRange ? (this.report?.periods || []).slice(0, -1) : [] },
 		currentYear() { return new Date().getFullYear() },
 		paymentTypes() { return this.$enableIncomes ? ['income', 'expense'] : ['expense'] },
 		hasPayments() {
 			if (!this.report) return false
 			return Boolean(this.report.groups.income.length || this.report.groups.expense.length)
 		},
-		yearOptions() { return this.report?.years || [] },
+		yearOptions() {
+			const years = this.report?.years || []
+			return this.selection?.timeRange === 'year' && !years.includes(this.selection.year) ? [...years, this.selection.year].sort((a, b) => b - a) : years
+		},
 		scopeLabel() { return this.selection.projectId ? this.projects.find(project => Number(project.id) === this.selection.projectId)?.name || this.$texts.annual.scope() : this.$texts.settings.myFinances() },
+		isSharedArea() { return Number(this.projects.find(project => Number(project.id) === this.selection.projectId)?.member_count || 0) > 1 },
+		amountScopeLabel() { return this.selection.entryScope === 'shared' ? this.$texts.annual.wholeArea() : this.$texts.annual.personalShare() },
+		reportScopeLabel() { return this.isSharedArea ? `${this.scopeLabel} · ${this.amountScopeLabel}` : this.scopeLabel },
+		filterCatalogKey() { return `${this.selection.projectId || ''}:${this.selection.entryScope}` },
 		periodTitle() {
 			if (this.selection.period === 'day') return this.$texts.annual.dailyTitle()
 			if (this.selection.period === 'month') return this.$texts.annual.monthlyTitle()
@@ -142,7 +207,7 @@ export default {
 			return this.$texts.annual.months()
 		},
 		showsCutoff() {
-			return annualPeriodContainsToday(this.selection.year, this.selection.period, this.selection.month)
+			return reportContainsToday(this.selection)
 		},
 		dayCount() { return new Date(this.selection.year, this.selection.month, 0).getDate() },
 		monthOptions() { return Array.from({ length: 12 }, (_, month) => ({ value: month + 1, label: formatCalendarLabel(new Date(this.selection.year, month, 1), { month: 'long' }) })) },
@@ -152,6 +217,7 @@ export default {
 			return formatCalendarLabel(new Date(this.selection.year, month - 1, 1), { month: 'long' })
 		},
 		columns() {
+			if (this.selection.timeRange) return [...this.rangePeriods.map(period => this.rangeBucketLabel(period)), this.$texts.analytics.total()]
 			if (this.selection.period === 'day') return [...this.dailyDates().map(date => formatCalendarLabel(date, { day: 'numeric', month: 'short' })), this.$texts.analytics.total()]
 			if (this.selection.period === 'month') {
 				const monthIndex = (this.selection.month || 1) - 1
@@ -162,6 +228,10 @@ export default {
 			return [...Array.from({ length: 12 }, (_, month) => formatCalendarLabel(new Date(this.selection.year, month, 1), { month: 'long' })), this.$texts.analytics.total()]
 		},
 		columnTitles() {
+			if (this.selection.timeRange) {
+				const format = timestamp => formatCalendarLabel(new Date(timestamp * 1000), { day: 'numeric', month: 'long', year: 'numeric' })
+				return [...this.rangePeriods.map(period => `${format(period.dateFrom)} – ${format(period.dateTo)}`), this.$texts.analytics.total()]
+			}
 			if (this.selection.period === 'day') {
 				return [...this.dailyDates().map(date => formatCalendarLabel(date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })), this.$texts.analytics.total()]
 			}
@@ -181,6 +251,7 @@ export default {
 			return { '--annual-bucket-count': String(Math.max(this.columns.length - 1, 1)), '--annual-bucket-width': '108px' }
 		},
 		chartAxisLabels() {
+			if (this.selection.timeRange) return this.rangePeriods.map(period => this.rangeBucketLabel(period, true))
 			if (this.selection.period === 'year') return Array.from({ length: 12 }, (_, month) => formatCalendarLabel(new Date(this.selection.year, month, 1), { month: 'short' }))
 			return this.columns.slice(0, -1)
 		},
@@ -203,8 +274,23 @@ export default {
 		},
 	},
 	watch: {
-		'$route.query': { handler() { this.selection = annualSelection(this.$route.query); this.load() }, deep: true },
-		'selection.projectId'() {
+		'$route.query': { handler(query, previous = {}) {
+			Object.assign(this, areaOverviewOptions(query))
+			const next = annualReportSelection(query)
+			const changed = JSON.stringify(annualRouteQuery(next)) !== JSON.stringify(annualRouteQuery(this.selection))
+			const contextChanged = JSON.stringify(annualRouteQuery(next)) !== JSON.stringify(annualRouteQuery(annualReportSelection(previous)))
+			const entering = query.detailType !== undefined && previous.detailType === undefined
+			const leaving = query.detailType === undefined && previous.detailType !== undefined
+			if (entering) { this.rememberOverviewPosition(); this.openedDetailFromOverview = true }
+			if (changed) this.selection = next
+			if (contextChanged || changed || !this.report) this.load()
+			this.$nextTick(() => {
+				const target = this.$el?.closest?.('.app-content')
+				if (entering && target) target.scrollTop = 0
+				if (leaving) this.restoreOverviewPosition()
+			})
+		}, deep: true },
+		filterCatalogKey() {
 			this.hashtagChoices = []
 			this.categoryChoices = []
 			this.partnerChoices = []
@@ -217,14 +303,63 @@ export default {
 		this.loadFilterChoices()
 		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.load)
 		window.addEventListener('cobudget-data-changed', this.load)
+		window.addEventListener('entry-saved', this.load)
 	},
 	beforeUnmount() {
 		this.requestId++
 		this.filterChoiceRequest++
 		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.load)
 		window.removeEventListener('cobudget-data-changed', this.load)
+		window.removeEventListener('entry-saved', this.load)
 	},
 	methods: {
+		rememberOverviewPosition() {
+			const target = this.$el?.closest?.('.app-content')
+			this.overviewPosition = { top: target?.scrollTop || 0, left: this.$refs.printSource?.scrollLeft || 0 }
+		},
+		restoreOverviewPosition() {
+			const target = this.$el?.closest?.('.app-content')
+			if (target && this.overviewPosition) target.scrollTop = this.overviewPosition.top
+			if (this.$refs.printSource && this.overviewPosition) this.$refs.printSource.scrollLeft = this.overviewPosition.left
+		},
+		openDetails(detail) {
+			if (!this.report || this.loading || this.error) return
+			return this.$router.push({ name: 'annual-overview', query: { ...annualRouteQuery(this.selection), ...this.areaControlQuery, ...reportDetailQuery(detail, this.report.periods) } })
+		},
+		closeDetails() {
+			const parent = reportDetailParentQuery(this.$route?.query || {})
+			if (parent) {
+				const route = { name: 'annual-overview', query: parent }
+				const previousPath = this.$router.options?.history?.state?.back
+				const previous = previousPath ? this.$router.resolve(previousPath) : null
+				if (previous?.name === 'annual-overview' && reportDetailParentMatches(this.$route.query, previous.query)) this.$router.back()
+				else this.$router.replace(route)
+				return
+			}
+			if (this.openedDetailFromOverview) this.$router.back()
+			else this.$router.replace({ name: 'annual-overview', query: { ...annualRouteQuery(this.selection), ...this.areaControlQuery } })
+		},
+		updateAreaControls(amountView, metric) {
+			Object.assign(this, areaOverviewOptions({ areasView: amountView, areasMetric: metric }))
+			return this.$router.replace({ name: 'annual-overview', query: { ...annualRouteQuery(this.selection), ...areaOverviewQuery(this.areaAmountView, this.areaMetric) } })
+		},
+		openSummaryDetails(row) {
+			if (!this.report || this.loading || this.error) return
+			const index = this.report.periods.length - 1
+			return this.openDetails({ row, index, total: true, label: row.label })
+		},
+		rangeBucketLabel(period, short = false) {
+			const date = new Date(period.dateFrom * 1000)
+			const crossYear = this.selection.dateFrom?.slice(0, 4) !== this.selection.dateTo?.slice(0, 4)
+			if (this.selection.period === 'day') return formatCalendarLabel(date, { day: 'numeric', month: 'short', ...(crossYear ? { year: '2-digit' } : {}) })
+			if (this.selection.period === 'week') return `${this.$texts.annual.week(isoWeekNumber(date))}${crossYear ? ` ${isoWeekYear(date)}` : ''}`
+			if (this.selection.period === 'quarter') return `${this.$texts.annual.quarter(Math.floor(date.getMonth() / 3) + 1)}${crossYear ? ` ${date.getFullYear()}` : ''}`
+			return formatCalendarLabel(date, { month: short ? 'short' : 'long', ...(crossYear ? { year: 'numeric' } : {}) })
+		},
+		selectReportPeriod(selection) {
+			this.selection = annualSelection(selection)
+			return this.updateSelection()
+		},
 		dailyDates() {
 			const month = Number(this.selection.month)
 			if (month >= 1 && month <= 12) {
@@ -236,8 +371,10 @@ export default {
 			if (this.loading || this.error || !this.report || this.printing || !this.$refs.printSource) return
 			this.printing = true
 			try {
-				const details = [this.scopeLabel, this.groupingLabel]
-				if (annualPeriodContainsToday(this.selection.year, this.selection.period, this.selection.month)) {
+				const printSource = this.$refs.overview || this.$refs.printSource
+				const metadata = this.exportMetadata?.() || []
+				const details = [this.reportScopeLabel, this.groupingLabel]
+				if (reportContainsToday(this.selection)) {
 					details.push(this.selection.includeFuturePayments ? this.$texts.annual.includeFuture() : `${this.$texts.annual.paymentsUntilToday()} (${formatCalendarLabel(new Date(), { dateStyle: 'medium' })})`)
 				}
 				const text = (fn, fallback = '') => typeof fn === 'function' ? fn() : fallback
@@ -267,6 +404,18 @@ export default {
 					atMost: text(this.$texts.annual?.atMost, 'At most'),
 					formatMoney: cents => typeof this.$formatMoneyFromCents === 'function' ? this.$formatMoneyFromCents(cents) : String(cents),
 				}).map(chip => chip.label))
+				if (this.selection.timeRange) {
+					const buckets = this.report.periods.slice(0, -1)
+					const groups = []
+					buckets.forEach((period, index) => {
+						const date = new Date(period.dateFrom * 1000)
+						const label = this.selection.period === 'day' ? formatCalendarLabel(date, { month: 'long', year: 'numeric' }) : ''
+						if (!groups.length || groups.at(-1).label !== label) groups.push({ label, columns: [] })
+						groups.at(-1).columns.push(this.columns[index])
+					})
+					await printAnnualOverview(printSource, { title: `CoBudget – ${this.$texts.annual.title()} ${this.titleRangeLabel || this.selectedRangeLabel}`, details, metadata, months: this.columns.slice(0, -1), groups })
+					return
+				}
 				const monthly = this.selection.period === 'month'
 				const quarterly = this.selection.period === 'quarter'
 				const weekly = this.selection.period === 'week'
@@ -285,7 +434,7 @@ export default {
 				const dailyDates = dailyMonth
 					? Array.from({ length: new Date(this.selection.year, this.selection.month, 0).getDate() }, (_, day) => new Date(this.selection.year, this.selection.month - 1, day + 1))
 					: []
-				await printAnnualOverview(this.$refs.printSource, {
+				await printAnnualOverview(printSource, {
 					title: daily
 						? `CoBudget – ${this.$texts.annual.dailyTitle()} ${dailyMonth ? `${monthName} ` : ''}${this.selection.year}`
 						: monthly
@@ -296,6 +445,7 @@ export default {
 									? `CoBudget – ${this.$texts.annual.quarterlyTitle()} ${this.selection.year}`
 									: `CoBudget – ${this.$texts.annual.title()} ${this.selection.year}`,
 					details,
+					metadata,
 					months: dayGroups
 						? dayGroups.flatMap(group => group.columns)
 						: daily
@@ -309,13 +459,16 @@ export default {
 										: Array.from({ length: 12 }, (_, month) => formatCalendarLabel(new Date(this.selection.year, month, 1), { month: 'short' })),
 					...(dayGroups ? { groups: dayGroups } : {}),
 				})
+			} catch (error) {
+				if (error?.code === 'REPORT_LOADING') showToast(this.$texts.common.loading(), 'info')
+				else showRequestError(error, this.$texts.annual.printError())
 			} finally {
 				this.printing = false
 			}
 		},
 		selectPeriod(event) {
 			const requested = event.target.value
-			if (requested === 'day' && this.selection.period !== 'day') this.selection.month = 1
+			if (!this.selection.timeRange && requested === 'day' && this.selection.period !== 'day') this.selection.month = 1
 			this.selection.period = requested === 'quarter' || requested === 'week' || requested === 'day' ? requested : 'year'
 			return this.updateSelection(event)
 		},
@@ -342,11 +495,15 @@ export default {
 			this.selection.year = year
 			this.updateSelection(event)
 		},
+		selectProject() {
+			this.selection.entryScope = 'personal'
+			return this.updateSelection()
+		},
 		updateSelection(event) {
 			// Keep keyboard focus on the selection control after changing its value.
 			this.selection = annualSelection(this.selection)
-			if (!this.$enableProjects) this.selection.projectId = null
-			return this.$router.replace({ name: 'annual-overview', query: annualRouteQuery(this.selection) })
+			if (!this.$enableProjects) { this.selection.projectId = null; this.selection.entryScope = 'personal' }
+			return this.$router.replace({ name: 'annual-overview', query: { ...annualRouteQuery(this.selection), ...this.areaControlQuery } })
 		},
 		onFilterChange(filters) {
 			this.selection = {
@@ -372,90 +529,36 @@ export default {
 			return this.updateSelection()
 		},
 		annualExportSections() {
-			const sections = this.paymentTypes.map(type => {
-				const rows = []
-				for (const row of this.sortedExportRows(this.groupRows(type))) {
-					rows.push(this.exportAmountRow(row.label, row))
-					for (const child of row.children || []) {
-						const name = child.direct ? this.$texts.common.mainCategory() : child.name
-						rows.push(this.exportAmountRow(`${row.label} · ${name}`, child))
-					}
-				}
-				const total = this.totalRows.find(item => item.type === type)
-				if (total) rows.push(this.exportAmountRow(this.$texts.entry.groupTotal(total.label), total))
-				return { title: type === 'income' ? this.$texts.annual.income() : this.$texts.annual.expenses(), rows }
-			})
-			if (this.$enableIncomes !== false && this.hasPayments) {
-				sections.push({
-					title: this.$texts.analytics.total(),
-					rows: this.totalRows.map(row => this.exportAmountRow(row.label, row, row.type === 'all')),
-				})
-			}
-			return sections
+			return [
+				...this.$refs.development.exportData(),
+				...this.paymentTypes.flatMap(type => this.$refs.paymentSections.find(section => section.section === type).exportData()),
+				...(this.$refs.totalSummary?.exportData() || []),
+				...(this.$refs.areaOverview?.exportData() || []),
+			]
 		},
-		exportReport() {
+		exportMetadata() {
+			return reportExportMetadata(this.selection, { report: this.report, scopeLabel: this.reportScopeLabel, groupingLabel: this.groupingLabel, breakdownLabel: this.breakdownLabel, currency: this.$currency,
+				texts: this.$texts, categoryChoices: this.categoryChoices, partnerChoices: this.partnerChoices, hashtagChoices: this.hashtagChoices, filterChoices: this.filterChoices, incomes: this.$enableIncomes !== false,
+				formatDate: timestamp => formatCalendarLabel(new Date(Number(timestamp) * 1000), { day: 'numeric', month: 'short', year: 'numeric' }), formatCents: this.$formatMoneyFromCents })
+		},
+		exportReport() { return this.runExport('download') },
+		saveReportInNextcloud() { return this.runExport('save') },
+		copyReport() { return this.runExport('copy') },
+		runExport(action) {
 			if (this.loading || this.error || !this.report || this.exporting) return
 			this.exporting = true
-			try {
-				downloadTextFile(this.annualExportFilename(), buildAnnualOverviewCsv({
-					labelHeading: this.firstHeading,
-					columns: this.columns,
-					sections: this.annualExportSections(),
-				}))
-				showToast(this.$texts.common.exportCsvCreated())
-			} catch (error) {
-				showRequestError(error, this.$texts.common.exportCsvError(), 'Failed to export annual overview')
-			} finally {
-				this.exporting = false
+			const onError = error => {
+				if (error?.code === 'REPORT_LOADING') showToast(this.$texts.common.loading(), 'info')
+				else showRequestError(error, action === 'copy' ? this.$texts.common.copyToClipboardError() : action === 'save' ? this.$texts.annual.saveInNextcloudError() : this.$texts.common.exportCsvError())
 			}
-		},
-		async saveReportInNextcloud() {
-			if (this.loading || this.error || !this.report || this.exporting) return
-			this.exporting = true
 			try {
-				const filename = this.annualExportFilename()
-				const contents = buildAnnualOverviewCsv({
-					labelHeading: this.firstHeading,
-					columns: this.columns,
-					sections: this.annualExportSections(),
-				})
-				let folder
-				try {
-					folder = await getFilePickerBuilder(this.$texts.annual.saveInNextcloud())
-						.setMultiSelect(false)
-						.allowDirectories(true)
-						.setMimeTypeFilter(['httpd/unix-directory'])
-						.addButton({ label: this.$texts.annual.saveHere(), variant: 'primary', callback() {} })
-						.build()
-						.pick()
-				} catch (error) {
-					if (error?.name === 'FilePickerClosed') return
-					throw error
-				}
-				const uid = getCurrentUser()?.uid || ''
-				if (!uid) throw new Error('Missing Nextcloud user')
-				let storedName = filename
-				for (let copy = 0; copy < 100; copy++) {
-					storedName = nextcloudCopyName(filename, copy)
-					const path = nextcloudFilePath(folder, storedName)
-					try {
-						await axios.put(generateRemoteUrl(`dav/files/${encodeURIComponent(uid)}${encodeNextcloudPath(path)}`), contents, {
-							headers: { 'Content-Type': 'text/csv; charset=utf-8', 'If-None-Match': '*' },
-						})
-						showToast(this.$texts.annual.savedInNextcloud(storedName))
-						return
-					} catch (error) {
-						if (error?.response?.status !== 412) throw error
-					}
-				}
-				throw new Error('No free Nextcloud file name')
-			} catch (error) {
-				showRequestError(error, this.$texts.annual.saveInNextcloudError(), 'Failed to save annual overview in Nextcloud')
-			} finally {
-				this.exporting = false
-			}
+				const context = { metadata: this.exportMetadata(), filename: this.annualExportFilename() }
+				return deliverReportExport(action, this.annualExportSections(), context, this.$texts).catch(onError).finally(() => { this.exporting = false })
+			} catch (error) { onError(error); this.exporting = false }
 		},
 		annualExportFilename() {
+			const scope = this.selection.projectId ? `-area-${this.selection.projectId}-${this.selection.entryScope === 'shared' ? 'total' : 'personal'}` : ''
+			if (this.selection.timeRange) return `cobudget-auswertung-${this.selection.dateFrom}-${this.selection.dateTo}-${this.selection.period}${scope}.csv`
 			const year = this.selection.year
 			const month = Number(this.selection.month)
 			const monthText = String(month).padStart(2, '0')
@@ -466,16 +569,6 @@ export default {
 			if (this.selection.period === 'quarter') return `cobudget-uebersicht-quartale-${year}.csv`
 			return `cobudget-uebersicht-${year}.csv`
 		},
-		sortedExportRows(rows) {
-			const compare = (a, b) => String(a.label ?? a.name ?? '').localeCompare(String(b.label ?? b.name ?? ''), getAppLanguage(), { sensitivity: 'base' })
-			return [...rows].sort(compare).map(row => ({
-				...row,
-				children: [...(row.children || [])].sort((a, b) => Number(Boolean(b.direct)) - Number(Boolean(a.direct)) || compare(a, b)),
-			}))
-		},
-		exportAmountRow(label, row, balance = row.type === 'all') {
-			return { label, amounts: [...(row.months || []), row.total], counts: row.counts || [], balance }
-		},
 		groupRows(type) {
 			return this.report.groups[type].map(row => ({
 				...row, key: `${type}-${row.id}`, type,
@@ -483,15 +576,16 @@ export default {
 			}))
 		},
 		async load() {
-			this.detail = null
 			if (this.$route?.query) {
 				const next = annualRouteQuery(this.selection)
-				const stale = ['categories', 'partners', 'labels', 'hashtags', 'amountMin', 'amountMax', 'period', 'month', 'quarter', 'week', 'day'].some(key => String(this.$route.query[key] || '') !== String(next[key] || ''))
+				const stale = ['categories', 'partners', 'labels', 'hashtags', 'amountMin', 'amountMax', 'period', 'month', 'quarter', 'week', 'day', 'timeRange', 'dateFrom', 'dateTo', 'entryScope'].some(key => String(this.$route.query[key] || '') !== String(next[key] || ''))
 				if (stale) {
-					await this.updateSelection()
+					if (this.$route.query.detailType !== undefined) await this.$router.replace({ name: 'annual-overview', query: { ...next, ...this.areaControlQuery, ...reportDetailNavigation(this.$route.query) } })
+					else await this.updateSelection()
 					return
 				}
 			}
+			if (this.selection.timeRange && reportRangeError(this.selection)) { this.error = true; this.loading = false; return }
 			const requestId = ++this.requestId
 			this.loading = true
 			this.error = false
@@ -514,9 +608,9 @@ export default {
 					partnerIds: Array.isArray(choices.partnerIds) ? choices.partnerIds : [],
 					labels: Array.isArray(choices.labels) ? choices.labels : [],
 				}
-				this.projects = [...projects.data].sort((a, b) => a.name.localeCompare(b.name))
+				this.projects = sortAreasByName(projects.data)
 				const years = report.data.years
-				if (years.length && !years.includes(this.selection.year)) {
+				if (!this.selection.timeRange && years.length && !years.includes(this.selection.year)) {
 					this.selection.year = years.find(year => year <= this.currentYear) ?? years[years.length - 1]
 					this.selection.includeFuturePayments = false
 					await this.updateSelection()
@@ -531,13 +625,17 @@ export default {
 			const requestId = ++this.filterChoiceRequest
 			const params = this.selection.projectId ? { projectId: this.selection.projectId } : {}
 			try {
-				const [categories, partners] = await Promise.all([
+				// Released personal payments can use the member's own categories and
+				// partners as well as the area's original catalog.
+				const scopes = [params, ...(this.selection.projectId && this.selection.entryScope !== 'shared' ? [{}] : [])]
+				const catalogs = await Promise.all(scopes.map(params => Promise.all([
 					axios.get(generateUrl('/apps/cobudget/api/categories'), { params }),
 					axios.get(generateUrl('/apps/cobudget/api/payment-partners'), { params }),
-				])
+				])))
 				if (requestId !== this.filterChoiceRequest) return
-				this.categoryChoices = Array.isArray(categories.data) ? categories.data : []
-				this.partnerChoices = Array.isArray(partners.data) ? partners.data : []
+				const choices = index => [...new Map(catalogs.flatMap(catalog => Array.isArray(catalog[index].data) ? catalog[index].data : []).map(item => [Number(item.id), item])).values()]
+				this.categoryChoices = choices(0)
+				this.partnerChoices = choices(1)
 			} catch {
 				if (requestId === this.filterChoiceRequest) {
 					this.categoryChoices = []
@@ -559,21 +657,78 @@ export default {
 .annual-select-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .annual-select :deep(.material-design-icon) { flex-shrink: 0; }
 .annual-select:hover { background: var(--cobudget-surface-muted); }
-.annual-select:focus-within { outline: 2px solid var(--cobudget-primary); outline-offset: -2px; }
+.annual-select:focus-within { outline: var(--cobudget-focus-outline); outline-offset: -2px; }
 .annual-select select:disabled { cursor: default; }
 .annual-select select { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; max-width: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.annual-report-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--default-grid-baseline, 4px); min-width: 0; max-width: 100%; }
+.annual-report-header :deep(.app-page-header__title) { white-space: normal; overflow: visible; }
+.annual-report-header :deep(.app-page-header__title > .annual-report-title) { flex: 1 1 auto; }
 .annual-scroll {
 	--annual-label-min: 180px;
 	--annual-bucket-width: 108px;
 	--annual-total-width: 108px;
+	--annual-table-inline-borders: 2px;
 	container-type: inline-size;
 	overflow: auto;
 	max-width: 100%;
-	margin-top: 20px;
+	margin-top: 0;
 	background: var(--cobudget-surface, #fff);
 	scroll-padding-inline: var(--annual-label-min) var(--annual-total-width);
 }
-.annual-scroll:focus-visible { outline: 2px solid var(--color-primary-element); }
+.annual-scroll-content { width: 100%; min-width: 100%; }
+.annual-scroll-content:has(.annual-table:not(.is-collapsed)) { min-width: calc(var(--annual-label-min, 180px) + (var(--annual-bucket-count, 12) + 1) * var(--annual-bucket-width, 108px) + var(--annual-table-inline-borders, 2px)); }
+.annual-scroll:focus-visible { outline: var(--cobudget-focus-outline); }
 .annual-error { padding: 20px; }
-@media (max-width: 768px) { .annual-controls { gap: 4px 8px; } .annual-controls .annual-select > span { min-height: 44px; } }
+@media (max-width: 768px) {
+	.annual-overview { --report-mobile-gutter: var(--cobudget-mobile-content-padding, calc(var(--default-grid-baseline, 4px) * 2.5)); }
+	/* Tables use the available screen width; headings retain the page gutter. */
+	.annual-scroll,
+	.annual-overview :deep(.annual-details-table),
+	.annual-overview :deep(.report-breakdown-scroll),
+	.annual-overview :deep(.report-forecast-scroll) {
+		width: calc(100% + var(--report-mobile-gutter) * 2);
+		max-width: none;
+		margin-inline: calc(-1 * var(--report-mobile-gutter));
+		border-radius: 0;
+	}
+	.annual-scroll { --annual-label-min: 140px; --annual-table-inline-borders: 0px; }
+	.annual-scroll-content { --annual-label-min: clamp(112px, calc(100cqi - var(--annual-total-width) - var(--annual-bucket-width) - var(--annual-table-inline-borders)), 140px); }
+	.annual-scroll :deep(.report-payment-header),
+	.annual-scroll :deep(.annual-section-header) { padding-inline: var(--report-mobile-gutter); }
+	.annual-overview :deep(.report-development-controls),
+	.annual-overview :deep(.annual-chart-controls),
+	.annual-overview :deep(.annual-section-controls),
+	.annual-overview :deep(.report-breakdown-type) { flex-basis: 100%; margin-inline-start: 0; justify-content: flex-start; }
+	.annual-overview :deep(.report-area-controls) { justify-content: flex-start; }
+	.annual-overview :deep(table) {
+		/* Cell corners inherit the same square shape, including pinned columns. */
+		--border-radius-large: 0px;
+		border-radius: 0;
+		border-inline-width: 0;
+	}
+	.annual-overview :deep(.report-payment-tab),
+	.annual-overview :deep(.report-development-tab),
+	.annual-overview :deep(.report-breakdown-tab) { background: transparent !important; overflow: visible; }
+	/* Keep compact text tabs, with a full touch target and native keyboard focus. */
+	.annual-overview :deep(.report-payment-tab::before),
+	.annual-overview :deep(.report-development-tab::before),
+	.annual-overview :deep(.report-breakdown-tab::before) {
+		content: '';
+		position: absolute;
+		inset-inline: 0;
+		inset-block-start: 50%;
+		height: 100%;
+		min-height: var(--default-clickable-area, 44px);
+		transform: translateY(-50%);
+	}
+	/* Dropdowns already include vertical space in their 44px touch targets. */
+	.annual-report-header { padding-block-end: 0; }
+	.annual-controls { gap: 4px 8px; margin-block-start: 0; }
+	.annual-controls .annual-select > span { min-height: 44px; }
+	/* Only the first line reserves space for export and print. */
+	.annual-report-header--stacked-period { display: block; }
+	.annual-report-header--stacked-period .annual-report-title { flex-direction: column; align-items: flex-start; gap: 0; }
+	.annual-report-header--stacked-period .annual-report-name { display: flex; align-items: center; min-height: var(--cobudget-mobile-touch-size, 44px); max-width: calc(100% - var(--cobudget-mobile-touch-size, 44px) * 2 - var(--default-grid-baseline, 4px) * 3); }
+	.annual-report-header--stacked-period :deep(.app-page-header__actions) { position: absolute; inset-block-start: 3px; inset-inline-end: var(--app-page-header-mobile-gutter); }
+}
 </style>

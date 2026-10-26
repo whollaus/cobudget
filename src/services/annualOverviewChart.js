@@ -4,6 +4,7 @@ export function annualChartSeries(report, count, { incomeEnabled = true, cumulat
 	return types.map(id => {
 		let running = 0
 		const values = Array.from({ length: count }, (_, index) => {
+			if (Array.isArray(report.totals?.[id]?.months) && index >= report.totals[id].months.length) return null
 			const start = Number(report.periods?.[index]?.dateFrom)
 			const cutoff = Number(report.cutoff)
 			if (report.cutoff !== null && Number.isFinite(start) && Number.isFinite(cutoff) && start > cutoff) return null
@@ -17,7 +18,7 @@ export function annualChartSeries(report, count, { incomeEnabled = true, cumulat
 }
 
 export function annualChartScale(series) {
-	const values = series.flatMap(item => item.values.filter(value => value !== null))
+	const values = series.flatMap(item => [...item.values, ...(item.actualValues || [])].filter(value => value !== null))
 	const low = Math.min(0, ...values)
 	const high = Math.max(0, ...values)
 	const rawStep = (high - low || 100) / 4
@@ -60,10 +61,21 @@ export function annualChartGeometry(series, count, width, { left = 80, rightInse
 		}
 		if (segment.length) segments.push(segment)
 		const path = points => points.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(' ')
+		const lineFor = values => {
+			const parts = []; let part = []
+			for (let index = 0; index < values.length; index++) {
+				if (values[index] !== null) part.push({ x: x(index), y: y(values[index]) })
+				else if (part.length) { parts.push(path(part)); part = [] }
+			}
+			if (part.length) parts.push(path(part))
+			return parts.join(' ')
+		}
 		return {
 			...item,
 			points,
-			line: segments.map(path).join(' '),
+			line: item.futureValues ? lineFor(item.futureValues) : segments.map(path).join(' '),
+			actualLine: item.actualValues ? lineFor(item.actualValues) : '',
+			actualPoints: item.actualValues ? item.actualValues.map((value, index) => ({ x: x(index), y: value === null ? null : y(value), value })).filter(point => point.value !== null) : [],
 			area: segments.map(points => `${path(points)} L${points.at(-1).x.toFixed(2)},${zero.toFixed(2)} L${points[0].x.toFixed(2)},${zero.toFixed(2)} Z`).join(' '),
 		}
 	})

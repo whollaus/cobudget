@@ -44,7 +44,7 @@
 				<article
 					v-for="goal in goals"
 					:key="goal.id"
-						class="budget-goal-card"
+						class="budget-goal-card cobudget-interactive-card cobudget-focusable" data-cobudget-card=""
 						role="button"
 						tabindex="0"
 						:aria-label="$texts.budgetGoals.editNamed(goal.name)"
@@ -209,8 +209,8 @@ export default {
 }
 
 .budget-goals-section {
-	width: min(900px, calc(100% - 56px));
-	margin: 0 28px 40px;
+	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
+	margin: 0 var(--cobudget-form-inset) var(--cobudget-settings-section-gap);
 }
 
 .budget-empty-state {
@@ -225,36 +225,24 @@ export default {
 .budget-goal-list {
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
+	gap: var(--cobudget-card-gap);
 }
 
 .budget-goal-card {
-	padding: 20px;
-	border: 1px solid var(--cobudget-border, #e5e5e5);
-	border-radius: 8px;
-	background: var(--cobudget-page-background, #fff);
 	cursor: pointer;
 	transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.budget-goal-card:hover,
-.budget-goal-card:focus-visible {
-  border: 1px solid var(--color-primary-element, #0082c9);
-  //background: var(--color-background-hover, #f5f5f5);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .08);
-	outline: none;
 }
 
 .budget-card-header {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
-	gap: 18px;
+	gap: var(--cobudget-card-gap);
 }
 
 .budget-card-header h3 {
 	margin: 0;
-	font-size: var(--cobudget-font-xl);
+	font-size: var(--cobudget-font-card-title);
 	line-height: 1.25;
 }
 
@@ -281,7 +269,7 @@ export default {
 
 .budget-progress-track {
 	height: 10px;
-	margin: 18px 0 14px;
+	margin: var(--cobudget-card-gap) 0 var(--cobudget-content-gap);
 	overflow: hidden;
 	border-radius: 999px;
 	background: var(--color-background-darker, #ededed);
@@ -308,13 +296,13 @@ export default {
 .budget-metrics {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 10px;
-	margin-bottom: 14px;
+	gap: var(--cobudget-content-gap);
+	margin-bottom: var(--cobudget-content-gap);
 }
 
 .budget-metrics div {
-	padding: 10px 12px;
-	border-radius: 8px;
+	padding: var(--cobudget-content-gap);
+	border-radius: var(--cobudget-card-radius);
 	background: var(--cobudget-surface-muted, #f5f5f5);
 }
 

@@ -3,22 +3,22 @@
 		<div v-if="show" class="confirm-modal-backdrop" @click.self="cancel">
 			<div
 				ref="modal"
-				class="confirm-modal"
+				class="confirm-modal cobudget-dialog cobudget-dialog--contained"
 				:class="{ 'confirm-modal-wide': wide }"
 				role="dialog"
 				aria-modal="true"
 				:aria-labelledby="titleId"
 				tabindex="-1"
 				@keydown.esc.stop.prevent="cancel">
-				<div class="confirm-modal-header">
+				<div class="confirm-modal-header cobudget-dialog-header">
 					<h2 :id="titleId">{{ title }}</h2>
 					<button
 						type="button"
-						class="confirm-modal-close-button"
+						class="confirm-modal-close-button cobudget-dialog-close cobudget-focusable"
 						:aria-label="closeLabel"
 						:title="closeLabel"
 						@click="cancel">
-						<CloseIcon :size="22" aria-hidden="true" />
+						<CloseIcon :size="24" aria-hidden="true" />
 					</button>
 				</div>
 
@@ -178,9 +178,9 @@ export default {
 	justify-content: center;
 	width: 100vw;
 	height: 100vh;
-	background: rgba(0, 0, 0, 0.45);
-	z-index: 10000;
+	background: var(--cobudget-dialog-backdrop);
 	backdrop-filter: blur(2px);
+	z-index: 10000;
 }
 
 :global(html.cobudget-theme-dark) .confirm-modal-backdrop,
@@ -239,65 +239,15 @@ export default {
 
 .confirm-modal {
 	width: min(520px, calc(100vw - 32px));
-	padding: 24px;
-	border-radius: var(--border-radius-large, 8px);
+	padding: var(--cobudget-dialog-padding);
+	border-radius: var(--cobudget-dialog-radius);
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	box-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+	box-shadow: var(--cobudget-dialog-shadow);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
 .confirm-modal-wide {
 	width: min(760px, calc(100vw - 32px));
-}
-
-.confirm-modal-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	margin: -4px 0 20px;
-	padding-bottom: 14px;
-	border-bottom: 1px solid var(--cobudget-border, var(--color-border, #ddd));
-}
-
-.confirm-modal-header h2 {
-	margin: 0;
-	font-size: var(--cobudget-font-title-sm);
-	font-weight: 700;
-	line-height: 1.25;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	text-align: left;
-}
-
-.confirm-modal-close-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: var(--cobudget-icon-button-size, 44px);
-	height: var(--cobudget-icon-button-size, 44px);
-	min-width: var(--cobudget-icon-button-size, 44px);
-	padding: 0;
-	border: 0;
-	border-radius: var(--cobudget-radius-sm, 8px);
-	background: transparent;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	cursor: pointer;
-}
-
-.confirm-modal-close-button:hover,
-.confirm-modal-close-button:focus-visible {
-	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
-	outline: none;
-}
-
-.confirm-modal-close-button:focus-visible {
-	box-shadow: var(--cobudget-focus-ring, 0 0 0 2px var(--color-primary, #0082c9));
-}
-
-.confirm-modal-close-button :deep(.material-design-icon),
-.confirm-modal-close-button :deep(.material-design-icon__svg) {
-	display: block;
 }
 
 .confirm-modal-message {
@@ -378,10 +328,6 @@ export default {
 @media (max-width: 768px) {
 	.confirm-modal {
 		padding: 20px;
-	}
-
-	.confirm-modal-header h2 {
-		font-size: var(--cobudget-font-section);
 	}
 }
 </style>

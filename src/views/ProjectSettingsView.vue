@@ -64,7 +64,7 @@
 							id="project-settings-name"
 							ref="projectNameInput"
 							v-model="editProjectData.name"
-							class="form-control"
+							class="form-control" data-cobudget-field="compact"
 							type="text"
 							required
 							:disabled="!canManageProject">
@@ -115,7 +115,7 @@
 					{{ $texts.areaSettings.areaAdminHint() }}
 				</p>
 				<div class="ownership-transfer-form">
-					<select v-model="selectedOwnerId" class="form-control" :disabled="!!transferringOwnerId">
+					<select v-model="selectedOwnerId" class="form-control" data-cobudget-field="compact" :disabled="!!transferringOwnerId">
 						<option value="" disabled>{{ $texts.areaSettings.selectAreaAdmin() }}</option>
 						<option v-for="member in transferableOwnerMembers" :key="member.id" :value="member.id">
 							{{ member.displayName }}
@@ -182,12 +182,12 @@
 						<div class="share-member" role="cell">
 							<span class="member-avatar">{{ initials(member.displayName) }}</span>
 							<span>{{ member.displayName }}</span>
-							<span v-if="member.isFormer" class="former-member-badge">{{ $texts.areaSettings.formerMember() }}</span>
+							<span v-if="member.isFormer" class="former-member-badge" data-cobudget-badge="neutral">{{ $texts.areaSettings.formerMember() }}</span>
 						</div>
 						<div class="share-input-wrap" role="cell">
 							<input
 								v-model.number="member.sharePercent"
-								class="form-control share-input"
+								class="form-control share-input" data-cobudget-field="compact"
 								type="number"
 								min="0"
 								max="100"
@@ -758,9 +758,9 @@ export default {
 
 .settings-content {
 	box-sizing: border-box;
-	margin: 0 calc(var(--default-grid-baseline, 4px) * 7);
-	max-width: 900px;
-	width: calc(100% - var(--default-grid-baseline, 4px) * 7 * 2);
+	margin: 0 var(--cobudget-form-inset);
+	max-width: var(--cobudget-form-max-width);
+	width: calc(100% - var(--cobudget-form-inset) * 2);
 }
 
 .settings-header {
@@ -787,12 +787,13 @@ export default {
 }
 
 .settings-block {
-	margin-top: 30px;
+	margin-top: var(--cobudget-settings-section-gap);
 }
 
 .settings-block h3 {
 	margin: 0 0 16px;
 	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-size: var(--cobudget-font-section-title);
 }
 
 .project-edit-form {
@@ -886,7 +887,7 @@ export default {
 
 .share-table {
 	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
+	border-radius: var(--cobudget-table-radius);
 	overflow: hidden;
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	color: var(--cobudget-text, var(--color-main-text, #222));
@@ -897,7 +898,7 @@ export default {
 	grid-template-columns: minmax(0, 1fr) 160px;
 	gap: 14px;
 	align-items: center;
-	padding: 12px 14px;
+	padding: var(--cobudget-table-detail-padding);
 	border-top: 1px solid var(--cobudget-border, #ddd);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
@@ -915,12 +916,12 @@ export default {
 }
 
 .share-row-header {
-  background: var(--cobudget-surface-muted, #f5f5f5);
+  background: var(--cobudget-table-header-background);
   color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
   font-size: var(--cobudget-font-sm);
   letter-spacing: 0.5px;
   text-align: left;
-  padding: 4px 10px;
+  padding: var(--default-grid-baseline, 4px) var(--cobudget-card-padding-compact);
 }
 
 .share-row-header > div {
@@ -944,7 +945,7 @@ export default {
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
-.share-member span:not(.member-avatar) {
+.share-member span:not(.member-avatar):not([data-cobudget-badge]) {
 	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 }
 
@@ -981,17 +982,6 @@ export default {
 	min-width: 0;
 }
 
-.former-member-badge {
-	display: inline-flex;
-	align-items: center;
-	padding: 3px 8px;
-	border-radius: 999px;
-	background: var(--cobudget-surface-strong);
-	color: var(--cobudget-text-muted) !important;
-	font-size: var(--cobudget-font-compact);
-	font-weight: 600;
-}
-
 .share-summary {
 	margin-top: 10px;
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
@@ -1014,25 +1004,8 @@ export default {
 .form-group label {
   display: block;
   color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
-}
-
-.form-control {
-	width: 100%;
-	height: 34px;
-	padding: 0 12px;
-	border: 1px solid var(--cobudget-border-strong, #888);
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-ui);
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	box-sizing: border-box;
-}
-
-.form-control:focus {
-	border-color: var(--color-primary, #0082c9);
-	outline: none;
+  font-size: var(--cobudget-font-label);
+  letter-spacing: normal;
 }
 
 .color-picker-wrapper {

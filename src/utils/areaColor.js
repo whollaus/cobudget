@@ -41,3 +41,22 @@ export function getAreaColorStyle(color, fallback = DEFAULT_AREA_COLOR) {
 		border: `1px solid ${palette.foreground}`,
 	}
 }
+
+// Solid selection controls need a different palette from translucent table badges.
+export function getAreaSelectionPalette(color) {
+	const hex = normalizeHexColor(color)
+	const channels = [0, 2, 4].map(offset => parseInt(hex.slice(offset, offset + 2), 16))
+	const linear = channels.map(channel => {
+		const value = channel / 255
+		return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+	})
+	const luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+	const useWhite = 1.05 / (luminance + 0.05) >= (luminance + 0.05) / 0.05
+	// Move the hover fill away from the text luminance, preserving its contrast.
+	const hover = channels.map(channel => Math.round(useWhite ? channel * 0.9 : channel + (255 - channel) * 0.1))
+	return {
+		background: `rgb(${channels.join(', ')})`,
+		foreground: useWhite ? '#ffffff' : '#000000',
+		hover: `rgb(${hover.join(', ')})`,
+	}
+}

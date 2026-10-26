@@ -205,7 +205,7 @@ return [
 	},
 	'Annual endpoint uses authorized personal or area scope without pagination' => function(TestRunner $t): void {
 		$body = $t->methodBody('lib/Controller/EntryController.php', 'annualOverview');
-		foreach (['authErrorResponse()', 'projectVisibleForCurrentUser($projectId)', 'normalizeEntryScope(\'shared\', $projectId)', 'workspaceIdForEntryScope($projectId)', 'buildVisibleEntriesQuery($workspaceId)', 'SUM(e.amount_cents)', 'calendarDate()'] as $guard) {
+		foreach (['authErrorResponse()', 'projectVisibleForCurrentUser($projectId)', 'normalizeEntryScope($entryScope, $projectId)', 'workspaceIdForEntryScope($projectId)', 'buildVisibleEntriesQuery($workspaceId)', 'SUM(e.amount_cents)', 'calendarDate()'] as $guard) {
 			$t->assertContains($guard, $body, 'Annual overview must preserve authorization and money/calendar rules');
 		}
 		$t->assertNotContains('setMaxResults', $body, 'Totals must cover all payments, not just one page');

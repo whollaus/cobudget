@@ -5,8 +5,8 @@
 		</div>
 		<div v-else>
 			<form class="add-form" @submit.prevent="createWorkspace">
-				<input type="text" class="form-control" v-model="newWorkspaceName" :placeholder="$texts.workspaces.newWorkspace()" required />
-				<NcButton type="primary" native-type="submit" :disabled="!newWorkspaceName.trim()">{{ $texts.workspaces.add() }}</NcButton>
+				<input type="text" class="form-control" data-cobudget-field="compact" v-model="newWorkspaceName" :placeholder="$texts.workspaces.newWorkspace()" required />
+				<NcButton variant="primary" type="submit" :disabled="!newWorkspaceName.trim()">{{ $texts.workspaces.add() }}</NcButton>
 			</form>
 
 			<SettingsList :items="workspaces" :empty-text="$texts.workspaces.empty()">
@@ -16,14 +16,14 @@
 						<TableTooltip
 							v-if="workspace.is_default"
 							:text="$texts.workspaces.baseTooltip()">
-							<span class="default-badge">{{ $texts.workspaces.base() }}</span>
+							<span class="default-badge" data-cobudget-badge="info">{{ $texts.workspaces.base() }}</span>
 						</TableTooltip>
-						<span v-if="isActiveWorkspace(workspace)" class="active-badge">{{ $texts.workspaces.active() }}</span>
+						<span v-if="isActiveWorkspace(workspace)" class="active-badge" data-cobudget-badge="success">{{ $texts.workspaces.active() }}</span>
 					</div>
 					<button
 						v-if="!isActiveWorkspace(workspace)"
 						type="button"
-						class="select-workspace-button"
+						class="select-workspace-button cobudget-focusable"
 						@click="selectWorkspace(workspace)">
 						{{ $texts.workspaces.select() }}
 					</button>
@@ -51,16 +51,20 @@
 				tabindex="-1"
 				@click.self="closeRenameWorkspaceModal"
 				@keydown.esc.stop.prevent="closeRenameWorkspaceModal">
-				<div class="workspace-modal" role="dialog" aria-modal="true" aria-labelledby="workspace-rename-title">
-					<div class="modal-header">
+				<div class="workspace-modal cobudget-dialog cobudget-dialog--contained" role="dialog" aria-modal="true" aria-labelledby="workspace-rename-title">
+					<div class="modal-header cobudget-dialog-header">
 						<h2 id="workspace-rename-title">{{ $texts.workspaces.renameTitle() }}</h2>
+						<button type="button" class="cobudget-dialog-close cobudget-focusable"
+							:aria-label="$texts.common.close()" :disabled="renamingWorkspace" @click="closeRenameWorkspaceModal">
+							<CloseIcon :size="24" aria-hidden="true" />
+						</button>
 					</div>
 
 					<form @submit.prevent="confirmRenameWorkspace">
 						<div class="form-group">
 							<label for="workspace-rename-name">{{ $texts.common.name() }}</label>
 							<input id="workspace-rename-name" ref="renameWorkspaceInput"
-								v-model="renameWorkspaceName" class="form-control" type="text" required />
+								v-model="renameWorkspaceName" class="form-control" data-cobudget-field="compact" type="text" required />
 						</div>
 						<p v-if="renameWorkspaceError" class="modal-error">{{ renameWorkspaceError }}</p>
 						<ModalActions
@@ -80,9 +84,13 @@
 				tabindex="-1"
 				@click.self="closeDeleteWorkspaceModal"
 				@keydown.esc.stop.prevent="closeDeleteWorkspaceModal">
-				<div class="workspace-delete-modal" role="dialog" aria-modal="true" aria-labelledby="workspace-delete-title">
-					<div class="modal-header">
+				<div class="workspace-delete-modal cobudget-dialog cobudget-dialog--contained" role="dialog" aria-modal="true" aria-labelledby="workspace-delete-title">
+					<div class="modal-header cobudget-dialog-header">
 						<h2 id="workspace-delete-title">{{ $texts.workspaces.deleteTitle() }}</h2>
+						<button type="button" class="cobudget-dialog-close cobudget-focusable"
+							:aria-label="$texts.common.close()" :disabled="deletingWorkspace" @click="closeDeleteWorkspaceModal">
+							<CloseIcon :size="24" aria-hidden="true" />
+						</button>
 					</div>
 					<p class="delete-warning">{{ $texts.workspaces.deleteWarning(workspaceToDelete.name) }}</p>
 					<p class="delete-impact">{{ $texts.workspaces.deleteImpact() }}</p>
@@ -91,7 +99,7 @@
 						<div class="form-group">
 							<label for="workspace-delete-confirmation">{{ $texts.workspaces.deleteConfirmation() }}</label>
 							<input id="workspace-delete-confirmation" ref="deleteConfirmationInput"
-								v-model="deleteConfirmationText" class="form-control" type="text"
+								v-model="deleteConfirmationText" class="form-control" data-cobudget-field="compact" type="text"
 								autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="DELETE" />
 						</div>
 						<p v-if="deleteError" class="modal-error">{{ deleteError }}</p>
@@ -117,6 +125,7 @@ import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import { showSuccess, showInfo } from '@nextcloud/dialogs'
+import CloseIcon from 'vue-material-design-icons/Close.vue'
 import ModalActions from './ModalActions.vue'
 import SettingsItemActions from './SettingsItemActions.vue'
 import SettingsList from './SettingsList.vue'
@@ -125,6 +134,7 @@ import TableTooltip from './TableTooltip.vue'
 export default {
 	name: 'WorkspaceSettings',
 	components: {
+		CloseIcon,
 		NcButton,
 		NcLoadingIcon,
 		ModalActions,
@@ -504,43 +514,29 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
 
-.default-badge {
-	background: var(--color-primary-light, #0082c933);
-	color: var(--color-primary, #0082c9);
-	padding: 2px 6px;
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-xs);
-	font-weight: bold;
-	white-space: nowrap;
-}
-
-.active-badge {
-	background: var(--color-success-light, #e6f4ea);
-	padding: 2px 6px;
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-xs);
-	font-weight: bold;
-	white-space: nowrap;
-}
 
 .select-workspace-button {
 	border: 1px solid var(--cobudget-border-strong, #b8b8b8);
-	border-radius: var(--border-radius, 6px);
+	border-radius: var(--cobudget-control-radius);
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	cursor: pointer;
 	flex: 0 0 auto;
 	font-size: var(--cobudget-font-compact);
 	font-weight: 600;
-	min-height: 34px;
+	min-height: var(--cobudget-control-height-compact);
 	padding: 0 12px;
 }
 
 .select-workspace-button:hover,
 .select-workspace-button:focus-visible {
-	border-color: var(--color-primary, #0082c9);
-	color: var(--color-primary, #0082c9);
-	outline: none;
+	border-color: var(--cobudget-info-text);
+	color: var(--cobudget-info-text);
+}
+
+.select-workspace-button:focus-visible {
+	outline: var(--cobudget-focus-outline);
+	outline-offset: var(--cobudget-focus-offset);
 }
 
 .add-form {
@@ -552,23 +548,7 @@ export default {
 }
 
 .form-control {
-	width: 100%;
-	height: 34px;
-	padding: 0 12px;
-	border: 1px solid var(--cobudget-border-strong, #888);
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-ui);
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	box-sizing: border-box;
-	transition: border-color 0.2s;
 	flex: 1;
-	min-width: 0;
-}
-
-.form-control:focus {
-	border-color: var(--color-primary, #0082c9);
-	outline: none;
 }
 
 @media (max-width: 768px) {
@@ -597,7 +577,8 @@ export default {
 	left: 0;
 	width: 100vw;
 	height: 100vh;
-	background: rgba(0, 0, 0, 0.4);
+	background: var(--cobudget-dialog-backdrop);
+	backdrop-filter: blur(2px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -607,18 +588,12 @@ export default {
 .workspace-modal,
 .workspace-delete-modal {
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	border-radius: var(--border-radius-large, 8px);
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+	border-radius: var(--cobudget-dialog-radius);
+	box-shadow: var(--cobudget-dialog-shadow);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	max-width: 520px;
-	padding: 24px;
+	padding: var(--cobudget-dialog-padding);
 	width: 90%;
-}
-
-.modal-header h2 {
-	font-size: var(--cobudget-font-xl);
-	margin: 0 0 20px 0;
-	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
 .delete-warning,
@@ -642,7 +617,7 @@ export default {
 	display: block;
   color: var(--cobudget-text-muted, #888);
   font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
+  letter-spacing: normal;
 
 }
 
@@ -657,5 +632,8 @@ export default {
 		padding: 20px;
 		width: calc(100% - 32px);
 	}
+}
+@media (max-width: 768px) {
+	.select-workspace-button { min-height: var(--cobudget-mobile-touch-size); }
 }
 </style>

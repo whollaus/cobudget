@@ -179,6 +179,13 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
 
+/* Compact status icons share a size; the history button keeps its hit area. */
+.shared-icon :deep(.material-design-icon),
+.shared-icon :deep(.material-design-icon__svg) {
+	width: var(--cobudget-icon-inline);
+	height: var(--cobudget-icon-inline);
+}
+
 .settled-icon {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
@@ -191,7 +198,7 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
 
-.history-icon {
+button.history-icon {
 	appearance: none;
 	padding: 2px;
 	border: 0;
@@ -200,10 +207,15 @@ export default {
 	cursor: pointer;
 }
 
-.history-icon:hover,
-.history-icon:focus-visible {
+button.history-icon:hover,
+button.history-icon:focus-visible {
 	background: var(--color-background-hover, #f5f5f5);
 	outline: none;
+}
+
+button.history-icon:focus-visible {
+	outline: var(--cobudget-focus-outline);
+	outline-offset: var(--cobudget-focus-offset);
 }
 
 .amount-text {

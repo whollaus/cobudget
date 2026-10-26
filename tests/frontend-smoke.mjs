@@ -139,7 +139,7 @@ assertContains(main, 'webpackChunkName: "cobudget-view-project-detail"', 'projec
 assertContains(main, 'webpackChunkName: "cobudget-view-project-settings"', 'project settings chunk name')
 assertContains(main, 'webpackChunkName: "cobudget-view-budgets"', 'budget goals list chunk name')
 assertContains(main, 'webpackChunkName: "cobudget-view-budget-form"', 'budget goal form chunk name')
-assertContains(main, 'webpackChunkName: "cobudget-view-analytics"', 'analytics view chunk name')
+assertNotContains(main, 'cobudget-view-analytics', 'legacy statistics no longer creates a view chunk')
 assertContains(main, 'webpackChunkName: "cobudget-view-settings"', 'settings view chunk name')
 assertNotContains(main, "import TransactionsView from './views/TransactionsView.vue'", 'main static route imports')
 assertContains(settingsEntry, "import { createApp, h } from 'vue'", 'admin settings entry imports Vue app helpers')
@@ -157,7 +157,7 @@ assertContains(main, "{ path: '/projects/:id/settings', name: 'project-settings'
 assertContains(main, "{ path: '/budgets', name: 'budgets', component: BudgetGoalsView }", 'budget goals route')
 assertContains(main, "{ path: '/budgets/new', name: 'budget-new', component: BudgetGoalFormView }", 'new budget goal route')
 assertContains(main, "{ path: '/budgets/:id', name: 'budget-edit', component: BudgetGoalFormView, props: true }", 'edit budget goal route')
-assertContains(main, "{ path: '/analytics', name: 'analytics', component: AnalyticsView }", 'analytics route')
+assertContains(main, "{ path: '/analytics', name: 'analytics', redirect: legacyAnalyticsLocation }", 'statistics bookmarks redirect to Reports')
 assertContains(main, "skipWorkspaceHeader: true", 'Initial settings load should be user-global and ignore stale workspace headers')
 assertContains(main, "{ path: '/workspaces', redirect: '/settings' }", 'legacy workspaces redirect')
 assertContains(main, 'app.config.globalProperties.$entriesPerPage = normalizeEntryPageSize(res.data.entries_per_page)', 'main stores configured entry page size')
@@ -451,7 +451,7 @@ assertContains(app, '{{ $texts.mobileNavigation.finances() }}', 'Mobile quick na
 assertContains(app, "return ['personal', 'payments'].includes(this.$route?.name);", 'Mobile quick navigation keeps finances active on the dedicated payments page')
 assertContains(app, 'v-if="$enableProjects"', 'Mobile quick navigation respects the disabled areas feature')
 assertContains(app, '{{ $texts.mobileNavigation.areas() }}', 'Mobile quick navigation links to areas with a localized label')
-assertContains(app, '{{ $texts.mobileNavigation.analytics() }}', 'Mobile quick navigation links to analytics with a localized label')
+assertContains(app, '{{ $texts.annual.title() }}', 'Mobile navigation uses the same Reports label as the sidebar and header')
 assertContains(app, "['projects', 'project-detail', 'project-payments', 'project-settings', 'project-settlements'].includes(this.$route?.name)", 'Mobile quick navigation keeps areas active on area subpages')
 assertContains(app, 'class="mobile-bottom-navigation__icon"', 'Mobile quick navigation gives each icon a dedicated active-state surface')
 assertContains(app, '.mobile-bottom-navigation__item--active .mobile-bottom-navigation__icon', 'Mobile quick navigation highlights the active icon without relying on color alone')
@@ -501,7 +501,7 @@ assertContains(app, 'routeSupportsOpenEntrySidebar()', 'App limits automatic sid
 assertContains(app, 'return !hasPersonalEntryListRouteState(this.$route.query);', 'App keeps every filtered or sorted personal view focused on its results')
 assertContains(app, "return !!project && !isArchived && !hasProjectEntryListRouteState(this.$route.query);", 'App keeps filtered area results focused instead of opening a creation form')
 assertContains(app, "if (this.$route?.name === 'project-payments')", 'App never automatically opens creation on the dedicated area payments page')
-assertContains(app, "['personal', 'payments', 'project-detail', 'project-payments'].includes(this.$route?.name)", 'App shares entry selection with both dedicated payments pages')
+assertContains(app, "['personal', 'payments', 'project-detail', 'project-payments', 'annual-overview'].includes(this.$route?.name)", 'App shares entry selection with payments and report detail pages')
 assertContains(app, 'this.selectedEntryId = null;', 'App centrally clears payment row selection')
 assertContains(app, 'shouldCloseEntrySidebar(sidebar, {', 'App centralizes repeat-click sidebar toggling')
 assertContains(app, 'return shouldCloseEntrySidebarForRequest({', 'App delegates repeat-click decisions to the tested policy')
@@ -516,188 +516,25 @@ assertContains(app, 'v-if="$enableProjects" :name="$texts.settings.areas()"', 'A
 assertContains(app, 'v-if="$enableBudgetGoals" :name="$texts.budgetGoals.title()"', 'App hides the Budgetziele sidebar entry when disabled')
 assertContains(app, "['budgets', 'budget-new', 'budget-edit'].includes($route.name)", 'App highlights all budget routes in the sidebar')
 assertContains(app, "navigateTo('/budgets')", 'App sidebar opens Budgetziele')
-assertContains(app, ':name="$texts.analytics.title()"', 'App sidebar shows analytics')
-assertContains(app, "$route.name === 'analytics'", 'App highlights analytics route in the sidebar')
-assertContains(app, "navigateTo('/analytics')", 'App sidebar opens Auswertungen')
+assertContains(app, ':name="$texts.annual.title()"', 'App sidebar shows Reports')
+assertContains(app, "$route.name === 'annual-overview'", 'App highlights the unified Reports route in the sidebar')
+assertContains(app, "navigateTo('/annual-overview')", 'App sidebar opens Reports')
 assertBefore(app, ':name="$texts.settings.areas()"', ':name="$texts.budgetGoals.title()"', 'App places Budgetziele below the Bereiche section')
-assertBefore(app, ':name="$texts.analytics.title()"', ':name="$texts.budgetGoals.title()"', 'App places Budgetziele below Auswertungen')
+assertBefore(app, ':name="$texts.budgetGoals.title()"', ':name="$texts.annual.title()"', 'App places Reports below Budgetziele')
 assertContains(app, "import ViewGridIcon from 'vue-material-design-icons/ViewGrid.vue'", 'App sidebar uses a neutral Bereiche icon')
 assertContains(app, "import ChartLineIcon from 'vue-material-design-icons/ChartLine.vue'", 'App sidebar uses a chart icon for Auswertungen')
 assertNotContains(app, 'name="Projekte"', 'App sidebar no longer uses project wording')
 assertNotContains(app, 'BriefcaseIcon', 'App sidebar no longer uses the briefcase project icon')
 
-const analyticsView = read('src/views/AnalyticsView.vue')
-assertNotContains(analyticsView, ':subtitle="$texts.analytics.subtitle()"', 'Analytics uses a compact page header without explanatory subtitle')
-assertNotContains(sharedTexts, "subtitle: () => tx('Overview of development, forecast, and focus areas of your finances.')", 'Shared analytics texts remove the obsolete header subtitle')
-assertEqual(Object.hasOwn(germanTranslations, 'Overview of development, forecast, and focus areas of your finances.'), false, 'German translations remove the obsolete analytics header subtitle')
-const analyticsPeriodSwitch = read('src/components/analytics/AnalyticsPeriodSwitch.vue')
-const analyticsSummaryGrid = read('src/components/analytics/AnalyticsSummaryGrid.vue')
-const analyticsComponents = [
-	'src/components/analytics/AnalyticsPeriodSwitch.vue',
-	'src/components/analytics/AnalyticsSummaryGrid.vue',
-	'src/components/analytics/AnalyticsInsightsSection.vue',
-	'src/components/analytics/AnalyticsDevelopmentChart.vue',
-	'src/components/analytics/AnalyticsDrilldownDevelopment.vue',
-	'src/components/analytics/AnalyticsForecastCard.vue'
-].map(read).join('\n')
-const analyticsSource = `${analyticsView}\n${analyticsComponents}`
 const personalDashboard = read('src/views/TransactionsView.vue')
 const mobileFinanceSummary = read('src/components/MobileFinanceSummary.vue')
-assertContains(analyticsView, '<AnalyticsPeriodSwitch', 'Analytics delegates period switching to a focused component')
-assertContains(analyticsPeriodSwitch, 'class="period-select__control"', 'Analytics provides a compact mobile period dropdown')
-assertContains(analyticsPeriodSwitch, ':value="selected"', 'Analytics keeps the mobile period dropdown in sync with the selected period')
-assertContains(analyticsPeriodSwitch, '@change="onMobileSelect"', 'Analytics emits mobile period dropdown changes through its existing selection event')
-assertContains(analyticsPeriodSwitch, "import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'", 'Analytics gives the mobile period dropdown a familiar disclosure icon')
-assertContains(analyticsPeriodSwitch, 'min-height: var(--default-clickable-area, 44px);', 'Analytics mobile period dropdown provides a touch-sized target')
-assertContains(analyticsPeriodSwitch, '@media (max-width: 768px)', 'Analytics switches period controls at the mobile breakpoint')
-assertContains(analyticsPeriodSwitch, '.period-switch {\n\t\tdisplay: none;', 'Analytics hides the wrapped period buttons on mobile')
-assertContains(analyticsPeriodSwitch, '.period-select {\n\t\tdisplay: block;', 'Analytics displays the compact period dropdown on mobile')
-assertContains(analyticsView, '<AnalyticsSummaryGrid', 'Analytics delegates key figures to a focused component')
-assertContains(analyticsView, '<AnalyticsInsightsSection', 'Analytics delegates insights to a focused component')
-assertContains(analyticsView, '<AnalyticsDevelopmentChart', 'Analytics delegates the development chart to a focused component')
-assertContains(analyticsSource, "new Intl.DateTimeFormat(getAppLocale(), { month: 'short' })", 'Analytics shortens monthly chart-axis labels to localized month names')
-assertContains(analyticsSource, "showSeriesLabel(index) ? seriesAxisLabel(item) : ''", 'Analytics uses compact labels on both main and drilldown development charts')
-assertContains(analyticsView, '<AnalyticsDrilldownDevelopment', 'Analytics renders a focused development chart after selecting a breakdown row')
-assertContains(analyticsView, '<AnalyticsForecastCard', 'Analytics delegates the forecast card to a focused component')
-assertContains(analyticsView, "selectedPeriod: 'current-year'", 'Analytics defaults to current year')
-assertContains(sharedTexts, "focusDevelopmentHint: (type, period) => tx('{type} over “{period}”.'", 'Analytics visually separates the selected period with quotation marks')
-for (const helperName of [
-	'developmentFor:',
-	'periodValuesFor:',
-	'breakdownInCategory:',
-	'breakdownWithPaymentPartner:',
-	'breakdownWithLabel:',
-	'breakdownWithHashtag:',
-	'breakdownInArea:'
-]) {
-	const helperLine = sharedTexts.split('\n').find(line => line.includes(helperName)) || ''
-	assertContains(helperLine, '{ escape: false }', `Analytics ${helperName} leaves dynamic text decoding to safe Vue interpolation`)
-}
-assertContains(analyticsView, "{ key: 'current-year', label: this.$texts.analytics.currentYear() }", 'Analytics fallback periods include current year first')
-assertContains(analyticsView, "{ key: 'last-month', label: this.$texts.analytics.lastMonth() }", 'Analytics fallback periods include the previous month')
-assertContains(analyticsView, "{ key: 'last-year', label: this.$texts.analytics.lastYear() }", 'Analytics fallback periods include the previous year')
-assertContains(analyticsView, 'this.$texts.analytics.dailyDevelopmentSelectedMonth()', 'Analytics labels previous-month daily development without calling it the current month')
-assertContains(analyticsView, 'availableForecast: null', 'Analytics empty state includes the available-money forecast')
-assertContains(analyticsView, 'availableForecast()', 'Analytics exposes the available-money forecast')
-assertContains(analyticsView, 'availableForecastTitle()', 'Analytics reuses the projection period title for the available-money forecast')
-assertContains(analyticsView, '$texts.analytics.availableForecast()', 'Analytics renders a free-available-money forecast card')
-assertContains(analyticsView, 'availableForecastTooltip', 'Analytics explains the free-available-money forecast')
-assertContains(analyticsView, 'availableForecastRangeLabel', 'Analytics shows a cautious forecast range')
-assertContains(analyticsView, 'available-forecast-card', 'Analytics styles the available-money forecast as a dedicated card')
-assertBefore(analyticsView, 'class="analytics-card development-card"', 'class="analytics-card available-forecast-card"', 'Analytics places the available-money forecast below development')
-assertNotContains(analyticsView, 'class="analytics-card projection-card"', 'Analytics removes the old duplicate projection card')
-assertContains(analyticsSource, '$texts.analytics.insights()', 'Analytics highlights notable findings')
-assertContains(analyticsView, 'insightItems()', 'Analytics exposes prioritized insight cards')
-assertContains(analyticsView, 'buildBudgetInsightItems()', 'Analytics turns critical budgets into insights')
-assertContains(analyticsView, 'buildReceiptInsightItems()', 'Analytics turns missing receipts into insights')
-assertContains(analyticsView, 'buildTrendInsightItems()', 'Analytics turns strong Schwerpunkt trends into insights')
-assertContains(analyticsView, 'buildOutlierInsightItems()', 'Analytics turns high amounts into insights')
-assertContains(analyticsView, 'openInsight(item)', 'Analytics insight cards route to the relevant detail section')
-assertContains(analyticsView, 'scrollToAnalyticsSection', 'Analytics can jump from insights to detail sections')
-assertBefore(analyticsView, 'class="summary-grid"', 'class="analytics-card insights-card"', 'Analytics places insights directly after summary cards')
-assertBefore(analyticsView, 'class="analytics-card insights-card"', 'class="analytics-card budget-history-card"', 'Analytics places insights before detailed budget history')
-assertContains(analyticsView, "tags: { expense: [], income: [] }", 'Analytics empty state includes label breakdowns')
-assertContains(analyticsView, "categoryDrilldowns: {", 'Analytics empty state includes Kategorie drilldowns')
-assertContains(analyticsView, "paymentPartnerDrilldowns: {", 'Analytics empty state includes Zahlungspartner drilldowns')
-assertContains(analyticsView, "projectDrilldowns: {", 'Analytics empty state includes Bereich drilldowns')
-assertContains(analyticsView, 'title: this.$texts.analytics.breakdownBy(typeLabel, this.$texts.analytics.labels())', 'Analytics renders tags as a Labels Schwerpunkt block')
-assertContains(analyticsView, 'hideIfSingle: true', 'Analytics hides Bereiche Schwerpunkt when it only has one group')
-assertBefore(analyticsView, "key: 'tags'", "key: 'projects'", 'Analytics places Kennzeichen before Bereiche in Schwerpunkte')
-assertContains(analyticsView, 'breakdown-table-grid no-print', 'Analytics renders Schwerpunkte as compact tables')
-assertContains(analyticsView, 'breakdown-toolbar no-print', 'Analytics keeps drilldown controls in the dimension row')
-assertContains(analyticsView, 'selectedBreakdownDimension', 'Analytics stores the selected Schwerpunkt dimension')
-assertContains(analyticsView, 'activeBreakdownSection', 'Analytics renders one wide Schwerpunkt table at a time')
-assertContains(analyticsView, 'breakdown-name-tooltip', 'Analytics moves Schwerpunkt metadata to the name tooltip')
-assertContains(analyticsView, '<tfoot>', 'Analytics shows a total row in Schwerpunkt tables')
-assertContains(analyticsView, 'breakdownSectionTotalCents', 'Analytics computes Schwerpunkt table totals')
-assertContains(analyticsView, 'breakdownSectionTooltip(activeBreakdownSection)', 'Analytics exposes Schwerpunkt total details in the footer tooltip')
-assertContains(analyticsView, '<th class="amount-cell">{{ $texts.analytics.amount() }}</th>', 'Analytics keeps Betrag as the last Schwerpunkt column')
-assertBefore(analyticsView, '<th class="share-cell">{{ $texts.analytics.share() }}</th>', '<th class="amount-cell">{{ $texts.analytics.amount() }}</th>', 'Analytics orders Anteil before Betrag in Schwerpunkt tables')
-assertContains(analyticsView, '.breakdown-table .average-cell', 'Analytics right-aligns Schwerpunkt averages by class')
-assertContains(analyticsView, '.breakdown-table .share-cell', 'Analytics right-aligns Schwerpunkt shares by class')
-assertContains(analyticsView, 'breakdownTooltip(item, section)', 'Analytics exposes Schwerpunkt averages in tooltips')
-assertContains(analyticsView, 'this.bookingCountLabel(item.count)', 'Analytics name tooltip includes the booking count')
-assertContains(analyticsView, 'this.breakdownItemName(item, section) || section.shortTitle || this.$texts.analytics.focus()', 'Analytics tooltip starts with the decoded hierarchy-aware Schwerpunkt title')
-assertContains(analyticsView, 'v-if="incomeEnabled"', 'Analytics hides the income focus tab when income tracking is disabled')
-assertContains(analyticsView, "cards.filter(card => !['income', 'balance'].includes(card.key))", 'Analytics hides income and balance summary cards when income tracking is disabled')
-assertContains(analyticsView, "cards.filter(card => !['income', 'balance'].includes(card.key))", 'Analytics hides income comparison cards when income tracking is disabled')
-assertContains(analyticsView, "groups.filter(group => group.key !== 'income')", 'Analytics hides income print sections when income tracking is disabled')
-assertContains(analyticsView, '@click.stop="selectBreakdownDrilldown(activeBreakdownSection, item)"', 'Analytics drilldown names activate their row directly')
-assertContains(analyticsView, '{{ breakdownItemName(item, activeBreakdownSection) }}', 'Analytics renders decoded hierarchy-aware breakdown labels')
-assertContains(analyticsView, "item?.rowType === 'category-total'", 'Analytics labels category group totals explicitly')
-assertContains(analyticsView, "item.rowType === 'category-child'", 'Analytics identifies subcategory rows')
-assertContains(analyticsView, "item.rowType === 'category-main'", 'Analytics identifies main-category rows')
-assertContains(analyticsView, "'category-row-total': item.rowType === 'category-total'", 'Analytics gives category totals a distinct visual row')
-assertContains(analyticsView, ".filter(item => item?.rowType !== 'category-total')", 'Analytics excludes category group totals from overall totals')
-assertNotContains(analyticsView, 'this.$texts.analytics.directBookings()', 'Analytics omits the redundant direct-bookings caption')
-assertContains(analyticsView, 'categoryGroupTotalLabel(value)', 'Analytics centralizes grouped category total labels')
-assertContains(analyticsView, 'this.decodeHtmlEntities(this.$texts.analytics.categoryGroupTotal(category))', 'Analytics decodes translated category total labels after interpolation')
-assertNotContains(analyticsView, 'this.$texts.common.subcategoryOf', 'Analytics relies on indentation instead of repeating the parent category')
-assertNotContains(analyticsView, 'this.$texts.common.mainCategory()', 'Analytics does not add redundant main-category captions')
-assertContains(analyticsView, '.breakdown-table tr.category-row-total td:first-child', 'Analytics indents category group total labels')
-assertContains(analyticsView, '`${parentName} › ${label}`', 'Analytics category drilldowns retain the main-category path')
-assertContains(analyticsView, 'decodeHtmlEntities(value)', 'Analytics decodes safe HTML entities without v-html')
-assertContains(analyticsView, 'breakdown-trend-badge', 'Analytics shows clear Schwerpunkt trend badges')
-assertContains(analyticsView, "this.$texts.analytics.directionLabel(this.breakdownTrendLabel(item.trend, 'direction'))", 'Analytics explains recent Schwerpunkt direction in the tooltip')
-assertContains(analyticsView, "this.$texts.analytics.comparisonLabel(this.breakdownTrendLabel(item.comparison, 'comparison'))", 'Analytics keeps previous-period Schwerpunkt comparison in the tooltip')
-assertContains(analyticsView, 'trend?.level === \'strong\'', 'Analytics visually distinguishes strong Schwerpunkt trends')
-assertContains(analyticsView, 'text-decoration: underline dotted', 'Analytics metadata visually indicates tooltip availability')
-assertContains(analyticsView, 'activeCategoryDrilldown', 'Analytics can filter Schwerpunkte by Kategorien')
-assertContains(analyticsView, 'activePaymentPartnerDrilldown', 'Analytics can filter Schwerpunkte by Zahlungspartner')
-assertContains(analyticsView, 'activeTagDrilldown', 'Analytics can filter Schwerpunkte by labels')
-assertContains(analyticsView, 'activeProjectDrilldown', 'Analytics can filter Schwerpunkte by Bereiche')
-assertContains(analyticsView, 'activeDrilldownSeries()', 'Analytics exposes the selected focus row period series')
-assertContains(analyticsView, ':series="activeDrilldownSeries"', 'Analytics passes the selected focus row period series to its chart')
-assertContains(analyticsSource, ':series-type="type"', 'Analytics focus development renders only the selected income or expense series')
-assertContains(analyticsSource, '$texts.analytics.showValues()', 'Analytics focus development offers exact period values on demand')
-assertContains(analyticsSource, '$texts.analytics.hideValues()', 'Analytics focus development can collapse exact period values')
-assertContains(analyticsSource, 'item.count', 'Analytics focus period values include booking counts')
-assertContains(analyticsSource, 'seriesType !== \'all\'', 'Analytics development hides the balance chart for a focused single series')
-assertContains(analyticsView, 'getCategoryDrilldownSections(this.breakdownType, this.activeCategoryDrilldownData)', 'Analytics renders Kategorie drilldown details')
-assertContains(analyticsView, 'getPaymentPartnerDrilldownSections(this.breakdownType, this.activePaymentPartnerDrilldownData)', 'Analytics renders Zahlungspartner drilldown details')
-assertContains(analyticsView, 'getTagDrilldownSections(this.breakdownType, this.activeTagDrilldownData)', 'Analytics renders label drilldown details')
-assertContains(analyticsView, 'getProjectDrilldownSections(this.breakdownType, this.activeProjectDrilldownData)', 'Analytics renders Bereich drilldown details')
-assertContains(analyticsView, '$texts.analytics.showAllCategories()', 'Analytics lets users clear Kategorie drilldown filters')
-assertContains(analyticsView, '$texts.analytics.showAllPaymentPartners()', 'Analytics lets users clear Zahlungspartner drilldown filters')
-assertContains(analyticsView, '$texts.analytics.showAllLabels()', 'Analytics lets users clear label drilldown filters')
-assertContains(analyticsView, '$texts.analytics.showAllAreas()', 'Analytics lets users clear Bereich drilldown filters')
-assertContains(analyticsView, "this.selectedBreakdownDimension = 'categories'", 'Analytics returns to Kategorien after clearing a Kategorie drilldown')
-assertContains(analyticsView, "this.selectedBreakdownDimension = 'paymentPartners'", 'Analytics returns to Zahlungspartner after clearing a Zahlungspartner drilldown')
-assertContains(analyticsView, "this.selectedBreakdownDimension = 'tags'", 'Analytics returns to Labels after clearing a label drilldown')
-assertContains(analyticsView, "this.selectedBreakdownDimension = 'projects'", 'Analytics returns to Bereiche after clearing a Bereich drilldown')
-assertContains(analyticsView, 'expenseComparisonDetail(this.comparison.deltaExpenseCents || 0)', 'Analytics explains expense comparison direction')
-assertContains(analyticsView, "const averageIncomeCents = this.summaryAverageCents('income', this.summaryAverageUnit)", 'Analytics embeds the income average in the income summary card')
-assertContains(analyticsView, "const averageExpenseCents = this.summaryAverageCents('expense', this.summaryAverageUnit)", 'Analytics embeds the expense average in the expense summary card')
-assertContains(analyticsView, "const averageBalanceCents = this.summaryAverageCents('balance', this.summaryAverageUnit)", 'Analytics embeds the balance average in the balance summary card')
-assertContains(analyticsView, "value: this.formatSummaryCents('expense', summary.expenseCents || 0)", 'Analytics uses the same signed expense presentation as My Finances')
-assertContains(analyticsSummaryGrid, 'v-for="detail in card.details"', 'Analytics keeps averages and booking counts inside their related summary cards')
-assertContains(analyticsSummaryGrid, "import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'", 'Analytics income summary card matches the My Finances icon language')
-assertContains(analyticsSummaryGrid, 'grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));', 'Analytics summary uses a responsive three-card desktop grid')
-assertContains(analyticsSummaryGrid, '@media (max-width: 768px)', 'Analytics summary adapts at the Nextcloud mobile breakpoint')
-assertContains(analyticsSummaryGrid, 'grid-template-columns: minmax(0, 1fr);', 'Analytics summary uses one readable card column on mobile')
-assertContains(analyticsView, 'summaryAverageUnit()', 'Analytics chooses monthly or daily summary averages by period')
-assertContains(analyticsView, "this.analytics.period?.kind === 'current-month'", 'Analytics uses daily averages for the current month')
-assertContains(analyticsView, "Number(this.analytics.summary?.averageMonthCount || 0) > 0 ? 'month' : 'day'", 'Analytics avoids month averages when no completed month exists')
-assertContains(analyticsView, 'summaryAverageTooltip(type)', 'Analytics embedded averages expose week and day tooltips')
-assertContains(analyticsView, "this.$texts.analytics.valuePerWeek(this.formatSummaryCents(type, this.summaryAverageCents(type, 'week')))", 'Analytics summary average tooltip includes signed weekly values')
-assertContains(analyticsView, "this.$texts.analytics.valuePerDay(this.formatSummaryCents(type, this.summaryAverageCents(type, 'day')))", 'Analytics summary average tooltip includes signed daily values')
-assertContains(analyticsSummaryGrid, 'summary-detail-tooltip', 'Analytics embedded average visually indicates tooltip availability')
-assertContains(analyticsView, 'sharedProjects: []', 'Analytics empty state includes shared Bereich summaries')
-assertContains(analyticsView, 'sharedProjects()', 'Analytics exposes shared Bereich summaries')
-assertContains(analyticsView, '$texts.analytics.sharedAreas()', 'Analytics renders shared Bereich section')
-assertContains(analyticsView, 'formatCents(project.totalPaidCents)', 'Analytics shared Bereich cards show total paid')
-assertContains(analyticsView, 'formatCents(project.personalShareCents)', 'Analytics shared Bereich cards show personal share')
-assertContains(analyticsView, 'sharedProjectBalanceClass(project)', 'Analytics shared Bereich cards highlight the personal share by balance')
-assertContains(analyticsView, 'sharedProjectBalanceLabel(project)', 'Analytics shared Bereich cards explain the personal balance state')
-assertContains(analyticsView, 'currentUserBalanceCents', 'Analytics shared Bereich cards use the current user balance')
-assertContains(analyticsView, 'formatCents(project.openCents)', 'Analytics shared Bereich cards show open totals')
-assertContains(analyticsView, 'formatCents(member.paidCents)', 'Analytics shared Bereich cards show paid-by-member amounts')
-assertContains(analyticsView, 'upcomingReminders', 'Analytics shows active reminders')
-assertContains(analyticsView, 'upcomingPlanned', 'Analytics shows planned payments')
-assertContains(analyticsView, "this.$router.push({ name: 'personal', query: { filter: 'reminder' } })", 'Analytics links reminders to the payment overview')
-assertContains(analyticsView, "'has-three-breakdown-columns': sections.length >= 3", 'Analytics uses three Schwerpunkt columns when enough blocks exist')
+assertNotContains(app, '$texts.analytics.title()', 'Reports is the single reporting navigation entry')
+assertNotContains(app, "navigateTo('/analytics')", 'Sidebar no longer opens the old Statistics view')
+assertNotContains(app, 'readMobileReportView', 'Old mobile report preferences cannot restore Statistics')
+assertContains(app, '<template #icon><ChartLineIcon :size="20" /></template>', 'Reports uses the former Statistics chart icon')
+assertContains(sharedTexts, "title: () => tx('Reports')", 'Reports uses a plural module title')
 
-assertContains(entryListRouteSource, "reminder: { hasReminder: 'true' }", 'Personal dashboard can open the reminder filter from analytics')
+assertContains(entryListRouteSource, "reminder: { hasReminder: 'true' }", 'Personal dashboard retains the reminder filter')
 assertContains(personalDashboard, 'parsePersonalEntryListRouteQuery(this.$route.query, this.$entriesPerPage)', 'Personal dashboard applies every filter from the route')
 
 assertContains(app, 'routeDefaultEntryType()', 'App derives sidebar default type from current route')
@@ -935,11 +772,14 @@ assertContains(addEntryModal, 'button.lookup-trigger:focus-visible', 'AddEntryMo
 assertContains(addEntryModal, 'box-shadow: none !important;', 'AddEntryModal lookup focus removes the global button shadow')
 assertContains(addEntryModal, '.form-control:not(.amount-input):hover:not(:disabled)', 'Entry sidebar gives standard controls one shared hover treatment')
 assertContains(addEntryModal, '.form-control:not(.amount-input):focus-visible:not(:disabled)', 'Entry sidebar gives standard controls one shared focus treatment')
-assertContains(addEntryModal, 'border: 2px solid var(--color-primary, #0082c9) !important;', 'Entry sidebar replaces native focus rings with the lookup field focus border')
-assertContains(addEntryModal, '--area-choice-state-border: var(--cobudget-border-strong, var(--color-border-dark, #ccc));', 'Entry sidebar keeps unselected area choices at the same border strength as its fields')
+const paymentFieldFocus = addEntryModal.slice(addEntryModal.indexOf('.form-control:not(.amount-input):focus:not(:disabled)'), addEntryModal.indexOf('\n.amount-input {'))
+assertContains(paymentFieldFocus, 'border-color: var(--cobudget-control-focus-border) !important;', 'Payment field focus uses the shared contrast border')
+assertContains(paymentFieldFocus, 'outline: none !important;', 'Payment field focus does not draw an outer ring clipped by the sidebar')
+assertContains(paymentFieldFocus, 'box-shadow: none !important;', 'Payment field focus does not add a second shadow frame')
+assertContains(addEntryModal, '--area-choice-state-border: var(--color-primary-element-light-hover, var(--cobudget-primary-light));', 'Unselected area choices use the native Nextcloud selection palette')
 assertContains(addEntryModal, 'border: 2px solid var(--area-choice-state-border) !important;', 'Entry sidebar derives every area-choice interaction from one persistent state border')
 assertContains(addEntryModal, '.area-choice:focus-visible {\n\toutline: 2px solid', 'Entry sidebar keeps keyboard focus outside the persistent area choice state')
-assertNotContains(addEntryModal, '.area-choice:hover:not(:disabled)', 'Entry sidebar area choices do not retain a sticky mobile hover appearance')
+assertContains(addEntryModal, '@media (hover: hover) and (pointer: fine)', 'Payment selection hover is limited to precise hover-capable pointers')
 assertContains(addEntryModal, '@click="toggleLookup(\'category\')"', 'AddEntryModal category trigger opens the selection menu')
 assertContains(addEntryModal, '@click="toggleLookup(\'paymentPartner\')"', 'AddEntryModal paymentPartner trigger opens the selection menu')
 assertContains(addEntryModal, '@click="startLookupInput(\'category\')"', 'AddEntryModal category creation is explicit')
@@ -1027,8 +867,8 @@ assertContains(addEntryModal, '.amount-input-wrap.is-expense {', 'AddEntryModal 
 assertContains(addEntryModal, '.amount-input-wrap.is-income {', 'AddEntryModal colors the combined amount control for incomes')
 assertContains(addEntryModal, 'margin-block: 3px;', 'AddEntryModal vertically aligns the combined amount control with native form inputs')
 assertContains(addEntryModal, 'margin-block: 3px;\n\tborder: 2px solid var(--cobudget-border-strong, #ccc);', 'AddEntryModal gives the inactive amount group the standard grey border')
-assertContains(addEntryModal, '.amount-input-wrap:hover {\n\tborder-color: var(--color-border-dark', 'AddEntryModal keeps the amount border neutral on hover instead of suggesting an error')
-assertContains(addEntryModal, '.amount-input-wrap:focus-within {\n\tborder-color: var(--color-primary-element', 'AddEntryModal uses the standard theme focus color for the amount group')
+assertContains(addEntryModal, '@media (hover: hover) and (pointer: fine) {\n\t.amount-input-wrap:hover {\n\t\tborder-color: var(--amount-accent);', 'The whole amount group uses its income/expense accent on mouse hover without sticky touch feedback')
+assertContains(addEntryModal, '.amount-input-wrap:focus-within {\n\tborder-color: var(--amount-accent);', 'The focused amount group uses the expense or income accent')
 assertContains(addEntryModal, '\t.entry-required-panel {\n\t\tgrid-template-columns: 1fr;', 'AddEntryModal stacks date and amount on narrow phones')
 assertContains(addEntryModal, 'core-amount', 'AddEntryModal amount remains in the required block')
 assertContains(addEntryModal, 'core-date', 'AddEntryModal date remains in the required block')
@@ -1057,10 +897,44 @@ assertContains(addEntryModal, ":aria-checked=\"isAreaSelected(option.id) ? 'true
 assertContains(addEntryModal, ".area-choice[aria-checked='true']", 'AddEntryModal styles area selection directly from its radio state')
 assertNotContains(addEntryModal, 'area-choice--selected', 'AddEntryModal does not duplicate area selection with a competing state class')
 assertContains(addEntryModal, ':style="areaChoiceStyle(option)"', 'AddEntryModal derives the selected area choice appearance from its configured color')
-assertContains(addEntryModal, "'area-choice--project': option.id !== null", 'AddEntryModal keeps My finances neutral while colorizing selected areas')
-assertContains(addEntryModal, "'--area-choice-selected-background': palette.background", 'AddEntryModal applies a readable light area background to the selected choice')
+assertNotContains(addEntryModal, 'area-choice--project', 'My finances and areas use the same selected-state styling')
+assertContains(addEntryModal, "'--area-choice-selected-background': palette.background", 'AddEntryModal applies an opaque area background to the selected choice')
+
+const areaPaletteModule = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(read('src/utils/areaColor.js'))}`)
+const areaChoiceMethod = addEntryModal.slice(addEntryModal.indexOf('		areaChoiceStyle(option) {'), addEntryModal.indexOf('		isAreaSelected(projectId) {'))
+const areaChoiceStyle = new Function('getAreaSelectionPalette', `return {${areaChoiceMethod}}`)(areaPaletteModule.getAreaSelectionPalette).areaChoiceStyle
+const selectedChoiceContext = { isAreaSelected: () => true }
+const personalChoice = areaChoiceStyle.call(selectedChoiceContext, { id: null, color: 'var(--color-primary-element, #00679e)' })
+const defaultAreaChoice = areaChoiceStyle.call(selectedChoiceContext, { id: 7, color: 'var(--color-primary-element, #00679e)' })
+assertEqual(isDeepStrictEqual(personalChoice, defaultAreaChoice), true, 'My finances matches a selected area without a custom color')
+assertEqual(Object.keys(personalChoice).length, 4, 'My finances has a complete selected palette')
+assertEqual(personalChoice['--area-choice-selected-border'], 'var(--cobudget-primary)', 'Default area selection follows the active Nextcloud accent instead of a fixed blue fallback')
+assertEqual(isDeepStrictEqual(areaChoiceStyle.call(selectedChoiceContext, { id: 7 }), personalChoice), true, 'Areas without a stored color use the same theme palette')
+assertEqual(areaChoiceStyle.call(selectedChoiceContext, { id: 7, color: '#c03070' })['--area-choice-selected-border'], 'rgb(192, 48, 112)', 'Custom area selection colors remain intact')
+assertEqual(Object.keys(areaChoiceStyle.call({ isAreaSelected: () => false }, { id: 7, color: '#c03070' })).length, 0, 'Unselected areas do not retain a selected palette')
+assertEqual(personalChoice['--area-choice-selected-background'], 'var(--cobudget-primary)', 'Default selection uses solid Nextcloud blue')
+assertEqual(personalChoice['--area-choice-selected-text'], 'var(--cobudget-primary-text)', 'Default selection uses the paired Nextcloud foreground')
+assertEqual(areaPaletteModule.getAreaSelectionPalette('#fff').foreground, '#000000', 'Light area fills use dark text')
+assertEqual(areaPaletteModule.getAreaSelectionPalette('#123').foreground, '#ffffff', 'Dark area fills use white text')
+const relativeLuminance = channels => channels.map(channel => {
+	const value = channel / 255
+	return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+}).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0)
+for (const color of ['#000', '#fff', '#ff0', '#00ff00', '#00ffff', '#ff0000', '#c03070', '#777777', '#00679e']) {
+	const palette = areaPaletteModule.getAreaSelectionPalette(color)
+	for (const state of ['background', 'hover']) {
+		const rgb = palette[state].match(/^rgb\((\d+), (\d+), (\d+)\)$/)
+		assertEqual(Boolean(rgb), true, `Area ${color} ${state} is opaque`)
+		const luminance = relativeLuminance(rgb.slice(1).map(Number))
+		const contrast = palette.foreground === '#ffffff' ? 1.05 / (luminance + 0.05) : (luminance + 0.05) / 0.05
+		assertEqual(contrast >= 4.5, true, `Area ${color} ${state} has readable text and icon contrast`)
+	}
+}
+assertEqual(areaPaletteModule.getAreaColorPalette('#c03070').background, 'rgba(192, 48, 112, 0.12)', 'Table area badges retain their existing pale palette')
+
+
 assertContains(addEntryModal, '<WalletIcon v-if="option.id === null" :size="22" />', 'AddEntryModal uses the navigation wallet icon for My finances')
-assertContains(addEntryModal, '<FolderIcon v-else :size="22" :fillColor="option.color || \'currentColor\'" />', 'AddEntryModal uses the colored navigation folder icon for areas')
+assertContains(addEntryModal, ':fillColor="isAreaSelected(option.id) ? \'currentColor\' : option.color || \'currentColor\'"', 'Selected area icons inherit their contrasting foreground; unselected icons retain area identity')
 assertNotContains(addEntryModal, 'area-choice__check', 'AddEntryModal does not duplicate the selected state with a check icon')
 assertNotContains(addEntryModal, 'area-choice__color', 'AddEntryModal does not use a separate area color stripe')
 assertContains(addEntryModal, 'role="radiogroup"', 'AddEntryModal exposes direct area choices as one accessible selection group')
@@ -1108,15 +982,47 @@ assertContains(addEntryModal, 'if (this.entry.hasReminder && this.reminderDateSt
 assertContains(addEntryModal, 'shouldExpandPlanningOptions()', 'AddEntryModal expands planning section when editing active recurrence or reminder values')
 assertContains(addEntryModal, '|| this.hasAttachments', 'AddEntryModal expands the optional section when receipts already exist')
 assertContains(addEntryModal, 'planning-grid', 'AddEntryModal planning and reminder controls stay grouped')
+const planningToggleMethod = addEntryModal.slice(addEntryModal.indexOf('\t\tasync togglePlanningOptions() {'), addEntryModal.indexOf('\t\tareaChoiceStyle(option) {'))
+const planningCalls = []
+let reducePlanningMotion = false
+const togglePlanningOptions = new Function('window', `return {${planningToggleMethod}}`)({
+	getComputedStyle: () => ({ paddingTop: '20px' }),
+	matchMedia: () => ({ matches: reducePlanningMotion }),
+}).togglePlanningOptions
+const planningContext = {
+	showPlanningOptions: false,
+	isOpen: true,
+	$nextTick: async () => {},
+	$refs: {
+		planningSection: { open: true, focus: options => planningCalls.push(['focus', options]), getBoundingClientRect: () => ({ top: 600 }) },
+		modalBody: { scrollTop: 100, getBoundingClientRect: () => ({ top: 80 }), scrollTo: options => planningCalls.push(['scroll', options]) },
+	},
+}
+await togglePlanningOptions.call(planningContext)
+assertEqual(planningContext.showPlanningOptions, true, 'Manual activation expands the planning section')
+assertEqual(isDeepStrictEqual(planningCalls, [['focus', { preventScroll: true }], ['scroll', { top: 600, behavior: 'smooth' }]]), true, 'Expansion focuses the group and scrolls only its owning body with the content inset')
+planningCalls.length = 0
+await togglePlanningOptions.call(planningContext)
+assertEqual(planningContext.showPlanningOptions, false, 'Activating the expanded planning summary collapses it')
+assertEqual(planningCalls.length, 0, 'Collapsing planning does not move focus or scroll')
+reducePlanningMotion = true
+await togglePlanningOptions.call(planningContext)
+assertEqual(planningCalls.at(-1)[1].behavior, 'auto', 'Planning reveal respects reduced motion')
+planningCalls.length = 0
+planningContext.showPlanningOptions = false
+planningContext.$nextTick = async () => { planningContext.isOpen = false }
+await togglePlanningOptions.call(planningContext)
+assertEqual(planningCalls.length, 0, 'Closing the sidebar before rendering cancels the pending planning reveal')
+
 assertNotContains(addEntryModal, 'modal-close-btn', 'AddEntryModal extra close button')
 assertNotContains(addEntryModal, '<label>Eigenschaften</label>', 'AddEntryModal visible tags heading')
 assertContains(addEntryModal, 'padding-inline: var(--default-grid-baseline, 4px);', 'AddEntryModal reserves space around the tag row so keyboard focus is not clipped')
 assertContains(addEntryModal, '.tag-toggle input:focus-visible + .tag-btn', 'AddEntryModal tag toggles have visible keyboard focus')
 assertContains(addEntryModal, '.tag-toggle input:checked + .tag-btn', 'AddEntryModal derives the one persistent selected tag style from the checkbox state')
-assertNotContains(addEntryModal, '.tag-toggle:hover .tag-btn', 'AddEntryModal tags do not retain a misleading sticky hover state on touch devices')
+assertContains(addEntryModal, '.tag-toggle:hover input:not(:disabled):checked + .tag-btn', 'Checked labels retain distinct hover feedback')
 assertNotContains(addEntryModal, '.tag-btn.active', 'AddEntryModal tags avoid a duplicate visual selection state')
 assertContains(addEntryModal, '.amount-input:hover,\n.amount-input:focus,\n.amount-input:focus-visible,\n.amount-input:active {', 'AddEntryModal suppresses isolated amount input interaction styling')
-assertContains(addEntryModal, '.amount-input-wrap:focus-within {\n\tborder-color: var(--color-primary-element, var(--color-primary, #0082c9));\n\toutline: none;\n\tbox-shadow: none;', 'AddEntryModal uses its border rather than an outer frame for amount focus')
+assertContains(addEntryModal, '.amount-input-wrap:focus-within {\n\tborder-color: var(--amount-accent);\n\toutline: none;\n\tbox-shadow: none;', 'AddEntryModal uses its border rather than an outer frame for amount focus')
 assertContains(addEntryModal, '.amount-type-trigger.button-vue:focus-visible)', 'AddEntryModal explicitly neutralizes the type segment focus state')
 assertContains(addEntryModal, 'background: transparent !important;\n\toutline: none !important;\n\toutline-offset: 0;\n\tbox-shadow: none !important;', 'AddEntryModal keeps the type segment visually unchanged during interaction')
 assertNotContains(addEntryModal, 'box-shadow: 0 0 0 2px color-mix(in srgb, var(--amount-accent)', 'AddEntryModal removes the combined amount focus ring')
@@ -1190,7 +1096,8 @@ assertContains(budgetGoalsView, '@keydown.space.prevent="editGoal(goal)"', 'Budg
 assertContains(budgetGoalsView, "this.$router.push({ name: 'budget-new' })", 'Budget goals view opens the dedicated create page')
 assertContains(budgetGoalsView, "this.$router.push({ name: 'budget-edit', params: { id: String(goal.id) } })", 'Budget goals view opens the dedicated edit page')
 assertContains(budgetGoalsView, 'class="budget-new-button mobile-create-fab"', 'Budget goals expose their create action as a mobile floating button')
-assertContains(budgetGoalsView, 'budget-goal-card:hover', 'Budget goal cards have a visible hover affordance')
+assertContains(budgetGoalsView, 'cobudget-interactive-card', 'Budget goal cards use the shared hover affordance')
+assertContains(read('src/styles/controls.css'), '.cobudget-interactive-card:hover', 'Shared interactive cards have a visible hover affordance')
 assertContains(budgetGoalsView, 'progressAriaLabel(goal)', 'Budget goals expose progress to assistive tech')
 assertContains(budgetGoalsView, "showRequestError(error, this.$texts.budgetGoals.loadError(), 'Failed to fetch budget goals')", 'Budget goals load errors are visible to users')
 assertNotContains(budgetGoalsView, 'Bearbeiten</', 'Budget goals view avoids per-card edit text buttons')
@@ -1370,7 +1277,7 @@ const projectSettings = read('src/views/ProjectSettingsView.vue')
 assertContains(projectSettings, 'name: \'ProjectSettingsView\'', 'Project settings dedicated view')
 assertContains(projectSettings, '<ProjectScopedSettings', 'Project settings view embeds project category/contact settings')
 assertContains(projectSettings, 'cobudget-project-settings settings-section', 'Project settings view uses the Nextcloud settings section layout')
-assertContains(projectSettings, 'margin: 0 calc(var(--default-grid-baseline, 4px) * 7);', 'Project settings uses the Nextcloud settings content width')
+assertContains(projectSettings, 'margin: 0 var(--cobudget-form-inset);', 'Project settings uses the Nextcloud settings content width')
 assertContains(projectSettings, 'margin-top: 0;', 'Project settings starts at the top')
 assertContains(projectSettings, "this.$router.push({ name: 'project-detail', params: { id: this.projectId } });", 'Project settings view links back to the project')
 assertContains(projectSettings, "axios.get(generateUrl(`/apps/cobudget/api/projects/${this.projectId}`))", 'Project settings view loads project details')
@@ -1475,11 +1382,11 @@ assertBefore(personalDashboard, 'class="stat-card current-month-card"', 'class="
 assertBefore(personalDashboard, 'class="stat-card current-year-card"', 'class="stat-card budget-card', 'Personal dashboard places period cards before the optional budget card')
 assertBefore(personalDashboard, 'class="stat-card current-year-card"', 'class="stat-card income-card"', 'Personal dashboard places period cards before income and expenses')
 const currentMonthCard = personalDashboard.slice(
-	personalDashboard.indexOf('<div class="stat-card current-month-card">'),
-	personalDashboard.indexOf('<div class="stat-card current-year-card">'),
+	personalDashboard.indexOf('<div class="stat-card current-month-card"'),
+	personalDashboard.indexOf('<div class="stat-card current-year-card"'),
 )
 const currentYearCard = personalDashboard.slice(
-	personalDashboard.indexOf('<div class="stat-card current-year-card">'),
+	personalDashboard.indexOf('<div class="stat-card current-year-card"'),
 	personalDashboard.indexOf('<div\n\t\t\t\tv-if="showBudgetCard"'),
 )
 assertContains(currentMonthCard, 'CalendarMonthIcon :size="20" class="period-card-icon"', 'Current-month card uses its dedicated month icon with the shared period color class')
@@ -1703,7 +1610,7 @@ assertContains(entryTable, '.clickable-row:focus-visible', 'EntryTable rows reta
 assertContains(entryTable, ':close-after-click="true" icon="icon-rename"', 'EntryTable edit action closes menu')
 assertContains(entryTable, ':close-after-click="true" icon="icon-add"', 'EntryTable duplicate action closes menu')
 assertContains(entryTable, ':close-after-click="true" icon="icon-delete"', 'EntryTable delete action closes menu')
-assertContains(entryTable, 'v-if="canDuplicateEntry(row.entry)"', 'EntryTable offers copy for locked area projections with a shared source')
+assertContains(entryTable, 'v-if="!editOnly && canDuplicateEntry(row.entry)"', 'EntryTable offers copy outside embedded edit-only report lists')
 assertContains(entryTable, 'return !entry.is_locked || !!(entry.editable_entry_id || entry.source_entry_id)', 'EntryTable recognizes copyable locked area projections')
 assertNotContains(entryTable, 'v-if="!row.entry.is_locked"', 'EntryTable no longer hides copy solely because an area projection is locked')
 assertContains(entryTable, ':key="`${actionsResetKey}-${row.entry.id}`"', 'EntryTable action menu remounts after a selected action')
@@ -1809,12 +1716,14 @@ assertContains(read('src/l10n/texts.js'), 'settings: () => tx(\'Settings\')', 'S
 assertContains(settings, '@keydown.esc.stop.prevent="closeRenameSettingsItemModal"', 'Settings rename modal closes with Escape')
 assertContains(settings, 'webpackChunkName: "cobudget-icon-picker"', 'Settings icon picker lazy chunk')
 assertContains(adminSettings, 'webpackChunkName: "cobudget-icon-picker"', 'Admin settings icon picker lazy chunk')
-assertContains(settings, 'background: var(--cobudget-surface-muted, var(--color-background-dark', 'Settings tabs use shared segmented background')
-assertContains(settings, 'box-shadow: 0 1px 3px', 'Settings active tabs sit on the content background')
-assertContains(adminSettings, 'background: var(--cobudget-surface-muted, var(--color-background-dark', 'Admin settings tabs use shared segmented background')
-assertContains(adminSettings, 'box-shadow: 0 1px 3px', 'Admin active tabs sit on the content background')
-assertBefore(adminSettings, '<div class="settings-grid">', '<div class="integrity-card">', 'Admin settings place category and payment-partner management before data quality')
-assertBefore(adminSettings, '<div class="integrity-card">', '<div class="admin-backup-card">', 'Admin settings place backups below data quality')
+for (const source of [settings, adminSettings, projectScopedSettings]) {
+	assertContains(source, '<CbTypeTabs', 'Settings reuse the common expense/income selector')
+}
+const typeTabs = read('src/components/CbTypeTabs.vue')
+assertContains(typeTabs, 'background: var(--cobudget-surface-muted)', 'Shared settings tabs use a neutral segmented background')
+assertContains(typeTabs, 'box-shadow: 0 1px 3px', 'Shared active settings tabs sit on the content background')
+assertBefore(adminSettings, '<div class="settings-grid">', '<div class="integrity-card"', 'Admin settings place category and payment-partner management before data quality')
+assertBefore(adminSettings, '<div class="integrity-card"', '<div class="admin-backup-card"', 'Admin settings place backups below data quality')
 assertContains(settings, '<SettingsList', 'Settings shared list component')
 assertContains(settings, '<SettingsItemActions', 'Settings shared action component')
 assertContains(settings, '<ModalActions', 'Settings shared modal actions')
@@ -2040,6 +1949,39 @@ assertNotContains(cbSplitButton, '>▾<', 'CbSplitButton does not use a font-dep
 assertContains(cbSplitButton, "document.addEventListener('pointerdown', this.handleDocumentPointerDown, true)", 'CbSplitButton closes split menus on outside pointerdown')
 assertContains(cbSplitButton, 'handleDocumentPointerDown(event)', 'CbSplitButton has an outside-click handler')
 assertContains(cbSplitButton, 'root.contains(event.target)', 'CbSplitButton keeps the menu open for internal split clicks')
+{
+	const document = { activeElement: null }
+	const componentScript = cbSplitButton.match(/<script>([\s\S]*?)<\/script>/)[1]
+	const component = new Function('ChevronDownIcon', 'document', componentScript.replace(/^import .*$/gm, '').replace('export default', 'return'))({}, document)
+	const item = name => ({ name, focus() { document.activeElement = this } })
+	const first = item('first'), last = item('last'), toggle = item('toggle')
+	const context = {
+		menuOpen: false, busy: false, disabled: false,
+		$nextTick: () => Promise.resolve(),
+		$refs: { toggle, root: { querySelectorAll: () => [first, last], contains: target => [first, last, toggle].includes(target) } },
+		$emit: () => { throw new Error('Keyboard navigation must not execute a menu action') }
+	}
+	for (const [name, method] of Object.entries(component.methods)) context[name] = method.bind(context)
+	await context.openMenu()
+	assertEqual(document.activeElement, first, 'Opening a split menu focuses its first enabled action')
+	for (const [key, expected] of [['ArrowDown', last], ['ArrowDown', first], ['ArrowUp', last], ['Home', first], ['End', last]]) {
+		context.handleMenuKeydown({ key, preventDefault() {}, stopPropagation() {} })
+		assertEqual(document.activeElement, expected, `Split menu keyboard navigation: ${key}`)
+	}
+	await context.handleFocusOut()
+	assertEqual(context.menuOpen, true, 'Moving focus within a split menu keeps it open')
+	context.closeMenu(true)
+	assertEqual(document.activeElement, toggle, 'Closing with Escape restores the split toggle focus')
+	await context.openMenu(true)
+	assertEqual(document.activeElement, last, 'Opening with ArrowUp focuses the last enabled action')
+	document.activeElement = null
+	await context.handleFocusOut()
+	assertEqual(context.menuOpen, false, 'Leaving the split menu with Tab closes it')
+	context.busy = true
+	await context.openMenu()
+	assertEqual(context.menuOpen, false, 'Busy split actions cannot reopen their menu')
+}
+
 assertContains(modalActions, 'variant="danger-outline"', 'ModalActions subtle side danger action')
 assertContains(cbButton, '.cobudget-button:focus-visible', 'Shared buttons have visible keyboard focus')
 assertContains(modalActions, 'equalWidth', 'ModalActions supports equal-width footer layouts')
@@ -2093,7 +2035,7 @@ assertContains(settingsView, 'clearWorkspaceId()', 'Settings reset clears the ac
 const workspaceSettings = read('src/components/WorkspaceSettings.vue')
 assertContains(workspaceSettings, '@keydown.esc.stop.prevent="closeRenameWorkspaceModal"', 'Workspace rename modal closes with Escape')
 assertContains(workspaceSettings, '@keydown.esc.stop.prevent="closeDeleteWorkspaceModal"', 'Workspace delete modal closes with Escape')
-assertContains(workspaceSettings, '<span class="default-badge">{{ $texts.workspaces.base() }}</span>', 'Workspace settings labels the default workspace as base through shared texts')
+assertContains(workspaceSettings, '<span class="default-badge" data-cobudget-badge="info">{{ $texts.workspaces.base() }}</span>', 'Workspace settings labels the default workspace as base through shared texts')
 assertContains(workspaceSettings, '$texts.workspaces.baseTooltip()', 'Workspace settings explains the base workspace tooltip through shared texts')
 assertContains(workspaceSettings, 'selectWorkspace(workspace)', 'Workspace settings can switch the active workspace')
 assertContains(workspaceSettings, 'window.location.reload()', 'Workspace settings reloads after switching workspace')

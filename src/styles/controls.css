@@ -1,0 +1,102 @@
+/* Opt-in fields also work in teleported dialogs and the admin settings entry.
+ * The payment sidebar keeps its compound amount/lookup controls and shares
+ * these tokens instead of applying independent states to their segments. */
+.form-control[data-cobudget-field="compact"] {
+	--cobudget-field-size: var(--cobudget-control-height-compact);
+}
+
+.form-control[data-cobudget-field] {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+	height: var(--cobudget-field-size, var(--cobudget-control-height));
+	min-height: var(--cobudget-field-size, var(--cobudget-control-height));
+	margin-block: 3px;
+	padding: 0 12px;
+	border: var(--cobudget-control-border) solid var(--cobudget-border-strong);
+	border-radius: var(--cobudget-control-radius);
+	background: var(--cobudget-surface);
+	color: var(--cobudget-text);
+	font-family: inherit;
+	font-size: var(--cobudget-font-base);
+	line-height: 1.4;
+	box-shadow: none;
+	transition: border-color 0.15s ease;
+}
+
+.form-control[data-cobudget-field]::placeholder {
+	color: var(--cobudget-text-muted);
+	opacity: 1;
+}
+
+.form-control[data-cobudget-field]:hover:not(:disabled) {
+	border-color: var(--cobudget-text);
+}
+
+.form-control[data-cobudget-field]:focus:not(:disabled) {
+	/* A single contrast border stays inside the field's existing box. */
+	border-color: var(--cobudget-control-focus-border);
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.form-control[data-cobudget-field]:is(.is-invalid, [aria-invalid="true"]):not(:disabled) {
+	border-color: var(--cobudget-error);
+}
+
+.form-control[data-cobudget-field]:disabled {
+	background: var(--cobudget-surface-muted);
+	color: var(--cobudget-text-muted);
+	cursor: not-allowed;
+	opacity: 0.65;
+}
+
+textarea.form-control[data-cobudget-field] {
+	height: auto;
+	min-height: 84px;
+	padding-block: 8px;
+	resize: vertical;
+}
+
+/* Neutral secondary actions are an intentional CoBudget variant. Native
+ * primary/error/tertiary buttons and report text tabs keep their own roles. */
+:where(#content.app-cobudget, #cobudget-settings, .settings-modal, .project-create-modal) .button-vue.button-vue--secondary {
+	background-color: var(--cobudget-surface-muted);
+	border-color: transparent;
+	color: var(--cobudget-text);
+}
+
+:where(#content.app-cobudget, #cobudget-settings, .settings-modal, .project-create-modal) .button-vue.button-vue--secondary:hover:not(:disabled) {
+	background-color: var(--cobudget-surface-strong);
+}
+
+/* Explicit utility for custom controls: native NcButton already supplies
+ * its own keyboard focus. Keep this independent of hover and selection. */
+.cobudget-focusable:focus-visible {
+	outline: var(--cobudget-focus-outline) !important;
+	outline-offset: var(--cobudget-focus-offset);
+}
+
+.cobudget-interactive-card {
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.cobudget-interactive-card:hover:not(:disabled),
+.cobudget-interactive-card:focus-visible:not(:disabled) {
+	background-color: var(--cobudget-surface-muted);
+	border-color: var(--cobudget-primary);
+	box-shadow: var(--cobudget-card-hover-shadow);
+}
+
+@media (max-width: 768px) {
+	.form-control[data-cobudget-field] {
+		min-height: var(--cobudget-mobile-touch-size);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.form-control[data-cobudget-field],
+	.cobudget-interactive-card {
+		transition: none;
+	}
+}

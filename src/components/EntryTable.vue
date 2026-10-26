@@ -118,10 +118,10 @@
 							<NcActionButton v-if="canEditEntry(row.entry)" :close-after-click="true" icon="icon-rename" @click="emitAction('edit', row.entry)">
 								{{ $texts.entry.editPayment() }}
 							</NcActionButton>
-							<NcActionButton v-if="canDuplicateEntry(row.entry)" :close-after-click="true" icon="icon-add" @click="emitAction('duplicate', row.entry)">
+							<NcActionButton v-if="!editOnly && canDuplicateEntry(row.entry)" :close-after-click="true" icon="icon-add" @click="emitAction('duplicate', row.entry)">
 								{{ $texts.entry.copyPayment() }}
 							</NcActionButton>
-							<NcActionButton v-if="canDeleteEntry(row.entry)" :close-after-click="true" icon="icon-delete" @click="emitAction('delete', row.entry)">
+							<NcActionButton v-if="!editOnly && canDeleteEntry(row.entry)" :close-after-click="true" icon="icon-delete" @click="emitAction('delete', row.entry)">
 								{{ $texts.entry.deletePaymentAction() }}
 							</NcActionButton>
 						</NcActions>
@@ -222,6 +222,7 @@ export default {
 			type: Boolean,
 			default: true
 		},
+		editOnly: { type: Boolean, default: false },
 		archived: {
 			type: Boolean,
 			default: false
@@ -657,8 +658,8 @@ export default {
 		},
 		canActOnEntry(entry) {
 			return this.actionsEnabled
-				&& !entry.is_settled
-				&& (this.canEditEntry(entry) || this.canDuplicateEntry(entry) || this.canDeleteEntry(entry))
+				&& (!entry.is_settled || (this.editOnly && !this.isProjectMode))
+				&& (this.canEditEntry(entry) || (!this.editOnly && (this.canDuplicateEntry(entry) || this.canDeleteEntry(entry))))
 		}
 	}
 }
@@ -677,7 +678,7 @@ export default {
 	border-collapse: separate;
 	border-spacing: 0;
   border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
+	border-radius: var(--cobudget-table-radius);
 	table-layout: fixed;
 }
 
@@ -688,7 +689,7 @@ export default {
 .data-table th {
 	box-sizing: border-box;
 	min-width: 0;
-	padding: 4px 10px;
+	padding: var(--cobudget-table-cell-padding);
 	overflow: hidden;
 	border-bottom: 1px solid var(--cobudget-border, #ddd);
 	color: var(--cobudget-text-muted, #888);
@@ -697,23 +698,23 @@ export default {
 	text-align: left;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-  background-color: var(--cobudget-surface-muted, #f9f9f9);
+  background-color: var(--cobudget-table-header-background);
 }
 
 .data-table th:first-child {
-	border-top-left-radius: calc(var(--border-radius-large, 8px) - 1px);
+	border-top-left-radius: calc(var(--cobudget-table-radius) - 1px);
 }
 
 .data-table th:last-child {
-	border-top-right-radius: calc(var(--border-radius-large, 8px) - 1px);
+	border-top-right-radius: calc(var(--cobudget-table-radius) - 1px);
 }
 
 .data-table tbody tr:last-child td:first-child {
-	border-bottom-left-radius: calc(var(--border-radius-large, 8px) - 1px);
+	border-bottom-left-radius: calc(var(--cobudget-table-radius) - 1px);
 }
 
 .data-table tbody tr:last-child td:last-child {
-	border-bottom-right-radius: calc(var(--border-radius-large, 8px) - 1px);
+	border-bottom-right-radius: calc(var(--cobudget-table-radius) - 1px);
 }
 
 th.col-date {
@@ -749,7 +750,7 @@ th.col-paymentPartner {
 }
 
 .data-table td {
-	padding: 0px 5px 0px 10px;
+	padding: var(--cobudget-table-payment-padding);
 	border-bottom: 1px solid var(--cobudget-border, #ddd);
 	vertical-align: middle;
 	font-size: var(--cobudget-font-sm);
@@ -838,7 +839,7 @@ th.col-paymentPartner {
 }
 
 .clickable-row:hover {
-	background: var(--cobudget-surface-muted, #f6f6f6);
+	background: var(--cobudget-table-row-hover);
 }
 
 .clickable-row.is-highlight-review {
@@ -907,7 +908,7 @@ th.col-paymentPartner {
 }
 
 .sortable:hover {
-	background: var(--cobudget-surface-strong, #eee);
+	background: var(--cobudget-table-sort-hover);
 }
 
 .sort-icon {

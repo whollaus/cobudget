@@ -1,0 +1,18 @@
+/* Opt-in surfaces. Reports and payment rows retain their dedicated layouts.
+ * Hover belongs only to interactive cards, not every container with a border. */
+[data-cobudget-card] {
+	box-sizing: border-box;
+	padding: var(--cobudget-card-padding);
+	border: 1px solid var(--cobudget-border);
+	border-radius: var(--cobudget-card-radius);
+	background: var(--cobudget-surface);
+	box-shadow: none;
+}
+
+[data-cobudget-card="compact"] {
+	padding: var(--cobudget-card-padding-compact);
+}
+
+[data-cobudget-card="flush"] {
+	padding: 0;
+}

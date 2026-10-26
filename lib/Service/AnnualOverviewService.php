@@ -148,12 +148,50 @@ class AnnualOverviewService {
 		return $next->setTime(9, 0, 0)->getTimestamp();
 	}
 
-	public function build(iterable $entries, int $year, \DateTimeZone $timezone, string $grouping, int $month = 0, bool $byQuarter = false, bool $byWeek = false, bool $byDay = false): array {
+	/** Calendar buckets are clipped to the inclusive selected dates, including partial weeks. */
+	public function periods(string $dateFrom, string $dateTo, \DateTimeZone $timezone, string $breakdown): array {
+		$from = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateFrom, $timezone);
+		$to = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateTo, $timezone);
+		if (!$from || !$to || $from->format('Y-m-d') !== $dateFrom || $to->format('Y-m-d') !== $dateTo || $dateFrom < '1970-01-01' || $dateTo > '9999-12-31' || $from > $to) {
+			throw new \InvalidArgumentException('Invalid report dates');
+		}
+		$to = $to->setTime(23, 59, 59);
+		$cursor = match ($breakdown) {
+			'day' => $from,
+			'week' => $from->modify('monday this week'),
+			'quarter' => $from->setDate((int)$from->format('Y'), intdiv((int)$from->format('n') - 1, 3) * 3 + 1, 1),
+			default => $from->modify('first day of this month'),
+		};
+		$step = match ($breakdown) { 'day' => '+1 day', 'week' => '+1 week', 'quarter' => '+3 months', default => '+1 month' };
+		$periods = [];
+		while ($cursor <= $to) {
+			if (count($periods) >= 3660) throw new \InvalidArgumentException('Too many report columns');
+			$next = $cursor->modify($step);
+			$periods[] = ['dateFrom' => max($from->getTimestamp(), $cursor->getTimestamp()), 'dateTo' => min($to->getTimestamp(), $next->getTimestamp() - 1)];
+			$cursor = $next;
+		}
+		return $periods;
+	}
+
+	private function periodIndex(int $timestamp, array $periods): int {
+		$low = 0;
+		$high = count($periods) - 1;
+		while ($low <= $high) {
+			$middle = intdiv($low + $high, 2);
+			if ($timestamp < $periods[$middle]['dateFrom']) $high = $middle - 1;
+			elseif ($timestamp > $periods[$middle]['dateTo']) $low = $middle + 1;
+			else return $middle;
+		}
+		return -1;
+	}
+
+	public function build(iterable $entries, int $year, \DateTimeZone $timezone, string $grouping, int $month = 0, bool $byQuarter = false, bool $byWeek = false, bool $byDay = false, array $periods = []): array {
 		$daily = $month >= 1 && $month <= 12;
 		$quarterly = !$daily && $byQuarter;
 		$weekly = !$daily && !$quarterly && $byWeek;
 		$dailyYear = !$daily && !$quarterly && !$weekly && $byDay;
 		$buckets = $daily ? (int)(new \DateTimeImmutable('now', $timezone))->setDate($year, $month, 1)->format('t') : ($quarterly ? 4 : ($weekly ? $this->isoWeekCount($year, $timezone) : ($dailyYear ? $this->calendarDayCount($year, $timezone) : 12)));
+		if ($periods) $buckets = count($periods);
 		$groups = ['income' => [], 'expense' => []];
 		$totals = ['income' => $this->emptyRow($buckets), 'expense' => $this->emptyRow($buckets)];
 		foreach ($entries as $entry) {
@@ -162,7 +200,9 @@ class AnnualOverviewService {
 				continue;
 			}
 			$date = (new \DateTimeImmutable('@' . $entry['date']))->setTimezone($timezone);
-			if ($weekly) {
+			if ($periods) {
+				$bucket = $this->periodIndex((int)$entry['date'], $periods);
+			} elseif ($weekly) {
 				// Columns follow the ISO week-year, so late December and early January can leave the calendar year.
 				if ((int)$date->format('o') !== $year) {
 					continue;
@@ -373,6 +413,86 @@ class AnnualOverviewService {
 		}
 		unset($rows);
 		return $report;
+	}
+
+	/** Compare the same clipped calendar slice, never the full edge month or week. */
+	public function comparePeriods(array $report, array $entries, array $periods, \DateTimeImmutable $now, string $grouping, string $mode, string $breakdown): array {
+		$flatten = static function(array $data): array {
+			$result = [];
+			foreach ($data['totals'] as $type => $row) $result['total-' . $type] = $row;
+			foreach ($data['groups'] as $type => $rows) {
+				foreach ($rows as $row) {
+					$result[$type . '-' . $row['id']] = $row;
+					foreach ($row['children'] as $child) $result[$type . '-' . $row['id'] . '-' . $child['id']] = $child;
+					if (!$row['children']) $result[$type . '-' . $row['id'] . '-' . $row['id']] = $row;
+				}
+			}
+			return $result;
+		};
+		$comparisons = [];
+		$keys = array_keys($flatten($report));
+		$anchor = $now->setDate(2000, 1, 1)->setTime(0, 0);
+		foreach ($periods as $index => $period) {
+			$from = $now->setTimestamp($period['dateFrom']);
+			if ($from > $now) continue;
+			$to = $now->setTimestamp(min($period['dateTo'], $now->getTimestamp()));
+			$previousFrom = $this->shiftComparisonDate($from, $mode, $breakdown);
+			$previousTo = $this->shiftComparisonDate($to, $mode, $breakdown);
+			if ($previousFrom === null || $previousTo === null) continue;
+			$windows = ['current' => [], 'previous' => [], 'history' => []];
+			foreach ($entries as $entry) {
+				$date = (int)$entry['date'];
+				foreach (['current' => [$from, $to], 'previous' => [$previousFrom, $previousTo], 'history' => [null, $previousTo]] as $key => [$start, $end]) {
+					if (($start === null || $date >= $start->getTimestamp()) && $date <= $end->getTimestamp()) {
+						$windows[$key][] = array_replace($entry, ['date' => $anchor->getTimestamp()]);
+					}
+				}
+			}
+			$values = [];
+			foreach ($windows as $key => $rows) $values[$key] = $flatten($this->build($rows, 2000, $now->getTimezone(), $grouping));
+			foreach ($keys as $key) {
+				if (!($values[$mode === 'month' ? 'history' : 'previous'][$key]['totalCount'] ?? 0)) continue;
+				$value = $values['current'][$key]['total'] ?? 0;
+				$baseline = $values['previous'][$key]['total'] ?? 0;
+				$delta = $value - $baseline;
+				$comparisons[$key][$index] = [
+					'current' => $value, 'previous' => $baseline, 'delta' => $delta,
+					'percent' => $baseline !== 0 ? 100 * $delta / abs($baseline) : null,
+					'direction' => $baseline !== 0 && abs($delta) * 100 > abs($baseline) * 5 ? ($delta > 0 ? 'up' : 'down') : null,
+					'currentFrom' => $from->format('Y-m-d'), 'currentTo' => $to->format('Y-m-d'),
+					'previousFrom' => $previousFrom->format('Y-m-d'), 'previousTo' => $previousTo->format('Y-m-d'),
+				];
+			}
+		}
+		$attach = static function(array &$row, string $key) use ($comparisons, $periods): void {
+			$row['comparisons'] = array_replace(array_fill(0, count($periods), null), $comparisons[$key] ?? []);
+		};
+		foreach ($report['totals'] as $type => &$row) $attach($row, 'total-' . $type);
+		unset($row);
+		foreach ($report['groups'] as $type => &$rows) {
+			foreach ($rows as &$row) {
+				$attach($row, $type . '-' . $row['id']);
+				foreach ($row['children'] as &$child) $attach($child, $type . '-' . $row['id'] . '-' . $child['id']);
+				unset($child);
+			}
+			unset($row);
+		}
+		unset($rows);
+		return $report;
+	}
+
+	private function shiftComparisonDate(\DateTimeImmutable $date, string $mode, string $breakdown): ?\DateTimeImmutable {
+		if ($mode === 'month' && in_array($breakdown, ['week', 'day'], true)) return $date->modify($breakdown === 'week' ? '-1 week' : '-1 day');
+		if ($mode === 'year' && $breakdown === 'week') {
+			$year = (int)$date->format('o') - 1;
+			$week = (int)$date->format('W');
+			$shifted = $date->setISODate($year, $week, (int)$date->format('N'));
+			return (int)$shifted->format('o') === $year && (int)$shifted->format('W') === $week ? $shifted : null;
+		}
+		$month = $date->modify('first day of this month')->modify($mode === 'year' ? '-12 months' : ($breakdown === 'quarter' ? '-3 months' : '-1 month'));
+		$day = min((int)$date->format('j'), (int)$month->format('t'));
+		if ($breakdown === 'day' && $day !== (int)$date->format('j')) return null;
+		return $month->setDate((int)$month->format('Y'), (int)$month->format('n'), $day);
 	}
 
 	private function flagEnabled(mixed $value): bool {

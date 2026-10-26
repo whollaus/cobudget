@@ -1,15 +1,16 @@
 <template>
 	<NcPopover placement="bottom-start" :close-on-click-outside="true" :disabled="disabled">
 		<template #trigger>
-			<button class="icon-picker-btn" :class="{ 'has-icon': value, 'is-disabled': disabled }" type="button" @click.prevent
+			<button class="icon-picker-btn cobudget-focusable" :class="{ 'has-icon': value, 'is-disabled': disabled }" type="button" @click.prevent
+				:aria-label="disabled ? $texts.iconPicker.adminManaged() : $texts.iconPicker.selectIcon()"
 				:title="disabled ? $texts.iconPicker.adminManaged() : $texts.iconPicker.selectIcon()" :disabled="disabled">
 				<component :is="value || 'Shape'" :size="20" class="current-icon" />
 			</button>
 		</template>
 
 		<div class="icon-picker-grid">
-			<button v-for="icon in icons" :key="icon" class="icon-option-btn" :class="{ active: icon === value }"
-				type="button" @click="selectIcon(icon)" :title="icon">
+			<button v-for="icon in icons" :key="icon" class="icon-option-btn cobudget-focusable" :class="{ active: icon === value }"
+				type="button" @click="selectIcon(icon)" :title="icon" :aria-label="icon" :aria-pressed="icon === value">
 				<component :is="icon" :size="24" />
 			</button>
 		</div>
@@ -99,20 +100,20 @@ export default {
 	align-items: center;
 	justify-content: center;
 	vertical-align: middle;
-	color: var(--color-primary, #01679e);
+	color: var(--cobudget-info-text);
 	border-radius: 999px;
-	background-color: var(--color-primary-light, rgb(211 224 236));
+	background-color: var(--cobudget-info-background);
 	padding: 5px;
 	cursor: pointer;
 	border: none;
 	width: 36px;
 	height: 36px;
-	transition: all 0.2s;
+	transition: background-color 0.15s ease;
 	margin-right: 10px !important;
 }
 
 .icon-picker-btn:hover:not(.is-disabled) {
-	opacity: 0.8;
+	background-color: var(--cobudget-surface-strong);
 }
 
 .icon-picker-btn.is-disabled,
@@ -128,21 +129,24 @@ export default {
 	display: grid;
 	grid-template-columns: repeat(6, 1fr);
 	gap: 8px;
-	padding: 12px;
+	padding: var(--cobudget-menu-padding);
 	background: var(--cobudget-page-background);
 }
 
 .icon-option-btn {
 	background: transparent;
 	border: 1px solid transparent;
-	border-radius: 4px;
+	border-radius: var(--cobudget-menu-item-radius);
 	padding: 6px;
+	min-width: var(--cobudget-menu-item-height);
+	min-height: var(--cobudget-menu-item-height);
+	margin: 0;
 	cursor: pointer;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	color: var(--color-text-maxcontrast);
-	transition: all 0.1s;
+	color: var(--cobudget-text-muted);
+	transition: background-color 0.15s ease;
 }
 
 .icon-option-btn:hover {
@@ -150,8 +154,16 @@ export default {
 }
 
 .icon-option-btn.active {
-	background: var(--color-primary-light);
-	color: var(--color-primary);
-	border-color: var(--color-primary);
+	background: var(--cobudget-info-background);
+	color: var(--cobudget-info-text);
+	border-color: var(--cobudget-primary);
+}
+@media (max-width: 768px) {
+	.icon-picker-btn,
+	.icon-option-btn {
+		min-width: var(--cobudget-mobile-touch-size);
+		min-height: var(--cobudget-mobile-touch-size);
+	}
+	.icon-picker-grid { gap: 4px; }
 }
 </style>

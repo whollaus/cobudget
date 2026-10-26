@@ -10,14 +10,14 @@
 						v-model="localFilters.search" 
 						@input="debouncedEmit"
 						:placeholder="$texts.filters.search()" 
-						class="form-control search-input"
+						class="form-control search-input" data-cobudget-field="compact"
 					>
 				</div>
 			</div>
 
 			<!-- 2. Typ Dropdown -->
 			<div class="filter-group" v-if="$enableIncomes">
-				<select v-model="localFilters.type" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.type" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option value="all">{{ $texts.filters.incomeAndExpense() }}</option>
 					<option value="income">{{ $texts.filters.onlyIncome() }}</option>
 					<option value="expense">{{ $texts.filters.onlyExpense() }}</option>
@@ -26,7 +26,7 @@
 
 			<!-- 3. Zeitraum Dropdown -->
 			<div class="filter-group" v-if="localFilters.tags !== 'future'">
-				<select v-model="localFilters.timeRange" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.timeRange" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option value="all">{{ $texts.filters.allTime() }}</option>
 					<option v-if="localFilters.timeRange === 'custom'" value="custom">{{ $texts.annual.selectedPeriod() }}</option>
 					<option value="currentMonth">{{ $texts.filters.currentMonth() }}</option>
@@ -45,7 +45,7 @@
 
 			<!-- 3. Kategorie Dropdown -->
 			<div class="filter-group">
-				<select v-model="localFilters.categoryId" @change="localFilters.includeSubcategories = false; emitFilters()" class="form-control">
+				<select v-model="localFilters.categoryId" @change="localFilters.includeSubcategories = false; emitFilters()" class="form-control" data-cobudget-field="compact">
 					<option :value="null">{{ $texts.filters.allCategories() }}</option>
 					<option :value="0">{{ $texts.annual.noCategory() }}</option>
 					<option v-for="cat in filteredCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
@@ -59,7 +59,7 @@
 
 			<!-- 3. Von / An Dropdown -->
 			<div class="filter-group" v-if="paymentPartners && (paymentPartners.length > 0 || localFilters.paymentPartnerId === 0)">
-				<select v-model="localFilters.paymentPartnerId" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.paymentPartnerId" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option :value="null">{{ $texts.filters.allPaymentPartners() }}</option>
 					<option :value="0">{{ $texts.annual.noPartner() }}</option>
 					<option v-for="p in filteredPaymentPartners" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -68,15 +68,15 @@
             
 			<!-- 4. Bereiche Dropdown -->
 			<div class="filter-group" v-if="projects && projects.length > 0">
-				<select v-model="localFilters.projectId" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.projectId" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option :value="null">{{ $texts.filters.allAreas() }}</option>
-					<option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+					<option v-for="p in sortedProjects" :key="p.id" :value="p.id">{{ p.name }}</option>
 				</select>
 			</div>
 
 			<!-- 4. Freie Hashtags aus Beschreibungen -->
 			<div class="filter-group" v-if="hashtags && hashtags.length > 0">
-				<select v-model="localFilters.hashtagId" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.hashtagId" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option :value="null">{{ $texts.filters.allHashtags() }}</option>
 					<option v-for="tag in hashtags" :key="tag.id" :value="tag.id">#{{ tag.displayName || tag.name }}</option>
 				</select>
@@ -84,7 +84,7 @@
 
 			<!-- 4. Status Dropdown -->
 			<div class="filter-group" v-if="showStatusFilter">
-				<select v-model="localFilters.status" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.status" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option value="active">{{ $texts.filters.openEntries() }}</option>
 					<option value="settled">{{ $texts.filters.settledEntries() }}</option>
 					<option value="all">{{ $texts.filters.allEntries() }}</option>
@@ -93,7 +93,7 @@
 
 			<!-- 5. Tags Dropdown -->
 			<div class="filter-group">
-				<select v-model="localFilters.tags" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.tags" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option value="all">{{ $texts.filters.allLabels() }}</option>
 					<option v-if="$enableImportantPayments" value="important">{{ $texts.filters.onlyImportant() }}</option>
 					<option v-if="$enableReviewPayments" value="review">{{ $texts.filters.onlyReview() }}</option>
@@ -108,7 +108,7 @@
 
 			<!-- 6. Erinnerung Dropdown -->
 			<div class="filter-group">
-				<select v-model="localFilters.hasReminder" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.hasReminder" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option value="all">{{ $texts.filters.allReminders() }}</option>
 					<option value="true">{{ $texts.filters.onlyWithReminders() }}</option>
 				</select>
@@ -116,7 +116,7 @@
 
 			<!-- 7. Belege Dropdown -->
 			<div class="filter-group" v-if="$enableReceipts">
-				<select v-model="localFilters.hasAttachment" @change="emitFilters" class="form-control">
+				<select v-model="localFilters.hasAttachment" @change="emitFilters" class="form-control" data-cobudget-field="compact">
 					<option value="all">{{ $texts.filters.allReceipts() }}</option>
 					<option value="true">{{ $texts.filters.onlyWithReceipt() }}</option>
 					<option value="false">{{ $texts.filters.onlyWithoutReceipt() }}</option>
@@ -134,6 +134,7 @@
 
 <script>
 import { getAppLocale } from '../utils/formatMoney'
+import { sortAreasByName } from '../utils/areaSorting'
 export default {
 	name: 'TableFilters',
 	props: {
@@ -184,6 +185,7 @@ export default {
 		}
 	},
 	computed: {
+		sortedProjects() { return sortAreasByName(this.projects) },
 		customPeriodLabel() {
 			const format = value => value === null ? '' : new Date(value * 1000).toLocaleDateString(getAppLocale())
 			return `${format(this.localFilters.dateFrom)} – ${format(this.localFilters.dateTo)}`
@@ -270,22 +272,29 @@ export default {
 .annual-filter-option { display: flex; align-items: center; gap: 8px; }
 .custom-period { margin: 0; font-variant-numeric: tabular-nums; }
 .table-filters {
-	background: var(--cobudget-surface-muted, #f9f9f9);
+	/* The native popover or mobile sheet owns the surface. */
+	background: transparent;
 	border: none;
 	border-radius: var(--border-radius-large, 8px);
-	padding: 16px;
-	width: 320px;
+	padding: var(--cobudget-content-gap);
+	box-sizing: border-box;
+	width: min(320px, calc(100vw - 32px));
 }
 
 .filter-column {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: var(--cobudget-content-gap);
 	width: 100%;
 }
 
 .filter-group {
 	width: 100%;
+}
+
+.filter-group .form-control[data-cobudget-field] {
+	/* The column gap owns spacing between fields. */
+	margin-block: 0;
 }
 
 .search-group {
@@ -308,22 +317,6 @@ export default {
 	padding-left: 35px !important;
 }
 
-.form-control {
-	width: 100%;
-	height: 38px;
-	padding: 8px 12px;
-	border: 1px solid var(--cobudget-border-strong, #ccc);
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-base);
-	background: var(--cobudget-page-background, #fff);
-	color: var(--color-main-text, #222);
-}
-
-.form-control:focus {
-	border-color: var(--color-primary, #0082c9);
-	outline: none;
-}
-
 .filter-actions {
 	display: flex;
 	justify-content: flex-end;
@@ -334,13 +327,21 @@ export default {
 	border: none;
 	color: var(--color-text-maxcontrast, #888);
 	cursor: pointer;
-	font-size: var(--cobudget-font-compact);
+	font-size: var(--cobudget-font-body);
+	min-height: var(--cobudget-control-height-compact);
 	padding: 4px 8px;
-	border-radius: var(--border-radius, 4px);
+	border-radius: var(--cobudget-control-radius);
 }
 
 .btn-clear-text:hover {
-	background: var(--color-background-dark, #eee);
-	color: var(--color-main-text, #222);
+	background: var(--cobudget-surface-strong);
+	color: var(--cobudget-text);
+}
+.btn-clear-text:focus-visible {
+	outline: var(--cobudget-focus-outline);
+	outline-offset: var(--cobudget-focus-offset);
+}
+@media (max-width: 768px) {
+	.btn-clear-text { min-height: var(--cobudget-mobile-touch-size); }
 }
 </style>

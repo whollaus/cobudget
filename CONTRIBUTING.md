@@ -43,6 +43,18 @@ npm run test
 - Keep user-facing strings translatable.
 - Do not expose raw internal exception messages to clients.
 
+## UI Changes and New Modules
+
+Read the [CoBudget Design System](docs/design-system.md) before adding or changing
+UI. It defines component selection, shared style hooks and tokens, interaction
+states, responsive behavior and the intentional CoBudget variants that should
+remain consistent across modules. It also includes implementation examples and
+a verification checklist.
+
+Reuse a documented role before introducing a new variant. Update the design
+guide in the same change when a shared rule or deliberate exception changes.
+Historical task-specific design audits are evidence, not additional design rules.
+
 ## Release Checklist
 
 Before creating a release package:

@@ -83,7 +83,7 @@ return [
 			'src/views/ProjectDetail.vue',
 			'src/views/ProjectSettlementsView.vue',
 			'src/views/BudgetGoalsView.vue',
-			'src/views/AnalyticsView.vue',
+			'src/views/AnnualOverviewView.vue',
 		] as $view) {
 			$source = $t->read($view);
 			$t->assertContains('addEventListener(REMOTE_DATA_CHANGED_EVENT', $source, $view . ' should subscribe to relevant remote changes');

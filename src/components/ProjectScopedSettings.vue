@@ -5,15 +5,12 @@
 				<h3>{{ $texts.projectScoped.categories() }}</h3>
 				<p class="settings-hint">{{ $texts.projectScoped.categoriesHint() }}</p>
 
-				<div class="tabs-container" v-if="$enableIncomes">
-					<button class="tab-button" :class="{ active: categoryTab === 'expense' }" type="button" @click.prevent="categoryTab = 'expense'">{{ $texts.common.expense() }}</button>
-					<button class="tab-button" :class="{ active: categoryTab === 'income' }" type="button" @click.prevent="categoryTab = 'income'">{{ $texts.common.income() }}</button>
-				</div>
+				<CbTypeTabs v-if="$enableIncomes" v-model="categoryTab" :label="$texts.projectScoped.categories()" />
 
 				<form class="add-form" @submit.prevent="addCategory">
 					<IconPicker v-model="newCategoryIcon" />
-					<input v-model="newCategory" class="form-control" type="text" :placeholder="$texts.projectScoped.newCategory()" required>
-					<NcButton type="primary" native-type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()">
+					<input v-model="newCategory" class="form-control" data-cobudget-field="compact" type="text" :placeholder="$texts.projectScoped.newCategory()" required>
+					<NcButton variant="primary" type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()">
 						{{ $texts.common.add() }}
 					</NcButton>
 				</form>
@@ -29,7 +26,7 @@
 								<small v-if="category.code" class="category-list-code">{{ category.code }}</small>
 								<span>{{ category.name }}</span>
 							</div>
-							<span v-if="category.is_global" class="badge-global">{{ $texts.common.global() }}</span>
+							<span v-if="category.is_global" class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
 						</div>
 						<SettingsItemActions
 							class="settings-list-actions"
@@ -50,14 +47,11 @@
 				<h3>{{ $texts.projectScoped.paymentPartners() }}</h3>
 				<p class="settings-hint">{{ $texts.projectScoped.paymentPartnersHint() }}</p>
 
-				<div class="tabs-container" v-if="$enableIncomes">
-					<button class="tab-button" :class="{ active: paymentPartnerTab === 'expense' }" type="button" @click.prevent="paymentPartnerTab = 'expense'">{{ $texts.common.expense() }}</button>
-					<button class="tab-button" :class="{ active: paymentPartnerTab === 'income' }" type="button" @click.prevent="paymentPartnerTab = 'income'">{{ $texts.common.income() }}</button>
-				</div>
+				<CbTypeTabs v-if="$enableIncomes" v-model="paymentPartnerTab" :label="$texts.projectScoped.paymentPartners()" />
 
 				<form class="add-form" @submit.prevent="addPaymentPartner">
-					<input v-model="newPaymentPartner" class="form-control" type="text" :placeholder="paymentPartnerPlaceholder" required>
-					<NcButton type="primary" native-type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()">
+					<input v-model="newPaymentPartner" class="form-control" data-cobudget-field="compact" type="text" :placeholder="paymentPartnerPlaceholder" required>
+					<NcButton variant="primary" type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()">
 						{{ $texts.common.add() }}
 					</NcButton>
 				</form>
@@ -90,20 +84,20 @@
 				@click.self="closeRenameModal"
 				@keydown.esc.stop.prevent="closeRenameModal">
 				<div
-					class="settings-modal"
+					class="settings-modal cobudget-dialog cobudget-dialog--contained"
 					:class="{ 'settings-modal--payment-partner': renameType === 'paymentPartner' }"
 					role="dialog"
 					aria-modal="true"
 					aria-labelledby="project-scoped-rename-title">
-					<div class="modal-header">
+					<div class="modal-header cobudget-dialog-header">
 						<h2 id="project-scoped-rename-title">{{ renameTitle }}</h2>
 						<button
 							type="button"
-							class="settings-modal-close-button"
+							class="settings-modal-close-button cobudget-dialog-close cobudget-focusable"
 							:aria-label="$texts.common.close()"
 							:title="$texts.common.close()"
 							@click="closeRenameModal">
-							<CloseIcon :size="22" aria-hidden="true" />
+							<CloseIcon :size="24" aria-hidden="true" />
 						</button>
 					</div>
 					<p class="modal-note">
@@ -120,7 +114,7 @@
 										id="project-scoped-category-code"
 										ref="renameCodeInput"
 										v-model="renameCode"
-										class="form-control"
+										class="form-control" data-cobudget-field="compact"
 										type="text"
 										maxlength="128"
 										autocomplete="off"
@@ -128,7 +122,7 @@
 								</div>
 								<div class="form-group">
 									<label for="project-scoped-name">{{ $texts.common.name() }}</label>
-									<input id="project-scoped-name" ref="renameInput" v-model="renameName" class="form-control" type="text" maxlength="128" required>
+									<input id="project-scoped-name" ref="renameInput" v-model="renameName" class="form-control" data-cobudget-field="compact" type="text" maxlength="128" required>
 								</div>
 							</div>
 							<div class="form-group category-parent-field">
@@ -136,7 +130,7 @@
 								<select
 									id="project-scoped-category-parent"
 									v-model="renameParentCategoryId"
-									class="form-control"
+									class="form-control" data-cobudget-field="compact"
 									:disabled="!!renameItem.has_children">
 									<option value="">{{ $texts.common.noParentMainCategory() }}</option>
 									<option
@@ -184,6 +178,7 @@
 </template>
 
 <script>
+import CbTypeTabs from './CbTypeTabs.vue'
 import { defineAsyncComponent } from 'vue'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -208,6 +203,7 @@ const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobud
 export default {
 	name: 'ProjectScopedSettings',
 	components: {
+		CbTypeTabs,
 		NcButton,
 		IconPicker,
 		ConfirmModal,
@@ -580,24 +576,13 @@ export default {
 
 .project-settings-column h3 {
 	margin-top: 0;
+	font-size: var(--cobudget-font-section-title);
 }
 
 .settings-hint {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 	margin-top: 0;
 	margin-bottom: 16px;
-}
-
-.form-control {
-	width: 100%;
-	height: 34px;
-	padding: 0 12px;
-	border: 1px solid var(--cobudget-border-strong, #888);
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-ui);
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	box-sizing: border-box;
 }
 
 .settings-list-info {
@@ -623,24 +608,8 @@ export default {
 	overflow-wrap: anywhere;
 }
 
-.badge-global {
-	background-color: #e0f0ff;
-	border-radius: 10px;
-	color: #006aa6;
-	font-size: var(--cobudget-font-xxs);
-	font-weight: bold;
-	margin-left: 8px;
-	padding: 2px 6px;
-	text-transform: uppercase;
-}
-
 :deep(.settings-list-item.is-hidden) .settings-list-info {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-}
-
-.form-control:focus {
-	border-color: var(--color-primary, #0082c9);
-	outline: none;
 }
 
 .add-form {
@@ -654,51 +623,6 @@ export default {
 	flex: 1;
 }
 
-.tabs-container {
-	display: flex;
-	gap: 4px;
-	width: 100%;
-	margin: 18px 0 18px;
-	padding: 4px;
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	background: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
-	box-sizing: border-box;
-}
-
-.tab-button {
-	flex: 1;
-	min-width: 0;
-	background: transparent;
-	border: none;
-	border-radius: calc(var(--border-radius-large, 8px) - 3px);
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	cursor: pointer;
-	font-size: var(--cobudget-font-base);
-	font-weight: 600;
-	line-height: 1.3;
-	padding: 9px 12px;
-	text-align: center;
-	transition: background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
-}
-
-.tab-button:hover {
-	background-color: var(--cobudget-surface-muted, #f6f6f6);
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.tab-button.active {
-	background: var(--cobudget-surface, var(--cobudget-page-background, #fff));
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-	color: var(--color-primary, #0076a8);
-	cursor: default;
-}
-
-.tab-button.active:hover {
-	background: var(--cobudget-surface, var(--cobudget-page-background, #fff));
-	color: var(--color-primary, #0076a8);
-}
-
 .settings-modal-backdrop {
 	--color-main-text: var(--cobudget-text);
 	--color-text-maxcontrast: var(--cobudget-text-muted);
@@ -710,7 +634,8 @@ export default {
 
 	position: fixed;
 	inset: 0;
-	background: rgba(0, 0, 0, 0.45);
+	background: var(--cobudget-dialog-backdrop);
+	backdrop-filter: blur(2px);
 	z-index: 10000;
 	display: flex;
 	align-items: center;
@@ -722,9 +647,9 @@ export default {
 	width: min(560px, 100%);
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	color: var(--cobudget-text, var(--color-main-text, #222));
-	border-radius: var(--border-radius-large, 8px);
-	padding: 28px;
-	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+	border-radius: var(--cobudget-dialog-radius);
+	padding: var(--cobudget-dialog-padding);
+	box-shadow: var(--cobudget-dialog-shadow);
 }
 
 .settings-modal.settings-modal--payment-partner {
@@ -732,52 +657,6 @@ export default {
 	max-height: calc(100vh - 40px);
 	overflow-y: auto;
 	width: min(760px, 100%);
-}
-
-.modal-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	margin: -4px 0 20px;
-	padding-bottom: 14px;
-	border-bottom: 1px solid var(--cobudget-border, var(--color-border, #ddd));
-}
-
-.modal-header h2 {
-	margin: 0;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.settings-modal-close-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: var(--cobudget-icon-button-size, 44px);
-	height: var(--cobudget-icon-button-size, 44px);
-	min-width: var(--cobudget-icon-button-size, 44px);
-	padding: 0;
-	border: 0;
-	border-radius: var(--cobudget-radius-sm, 8px);
-	background: transparent;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	cursor: pointer;
-}
-
-.settings-modal-close-button:hover,
-.settings-modal-close-button:focus-visible {
-	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
-	outline: none;
-}
-
-.settings-modal-close-button:focus-visible {
-	box-shadow: var(--cobudget-focus-ring, 0 0 0 2px var(--color-primary, #0082c9));
-}
-
-.settings-modal-close-button :deep(.material-design-icon),
-.settings-modal-close-button :deep(.material-design-icon__svg) {
-	display: block;
 }
 
 .modal-note {
@@ -815,8 +694,8 @@ export default {
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
+  font-size: var(--cobudget-font-label);
+  letter-spacing: normal;
 
 }
 

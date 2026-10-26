@@ -2,7 +2,27 @@
 
 All notable changes to CoBudget are documented in this file.
 
-## [Unreleased]
+## [0.7.0] - 2026-10-26
+
+Statistics has been completely rebuilt as **Reports**, bringing the former
+statistics and report views together in one module.
+
+### Added
+
+- Explore income, expenses and balances through interactive development charts, period totals, averages, comparisons, period-end forecasts and the largest saved payments. Compare areas using personal shares or full amounts.
+- Choose preset or custom date ranges independently of daily, weekly, monthly or quarterly grouping. Apply category, payment-partner, area, label and tag filters, with optional future payments.
+- Open shareable detail pages and drill down through categories, payment partners, areas, labels and tags. Keep the selected dates, filters and financial perspective while inspecting charts, comparisons and matching payments, including editing and history.
+- Print reports and detail pages with charts and payment tables. Export whole reports or individual sections as CSV, save them in Nextcloud Files or copy them to the clipboard.
+
+### Changed
+
+- Unify forms, buttons, dialogs, menus, tabs, cards, tables, typography, icons and status indicators across modules. Bring selection, hover and focus states closer to Nextcloud, with consistent light/dark themes, keyboard access and mobile layouts, while preserving financial colors and intentional CoBudget variants.
+- Improve payment entry with clearer label and area selection, consistent amount-field feedback and automatic focus/scroll when expanding receipts, recurrence and reminders.
+- Use a consistent natural alphabetical order for areas throughout the app. Preserve existing report and Statistics links and remember report views and section preferences.
+
+### Fixed
+
+- Keep report totals, averages, comparisons, recurring projections and forecasts consistent across dates, filters and personal/shared perspectives. Refresh results reliably after selection changes and avoid counting shared payments or overlapping labels and tags twice.
 
 ## [0.6.1] - 2026-10-22
 

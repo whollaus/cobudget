@@ -79,9 +79,9 @@ export default {
 	align-items: center;
 	justify-content: center;
 	vertical-align: middle;
-	color: var(--color-primary, #01679e);
+	color: var(--cobudget-info-text);
 	border-radius: 999px;
-	background-color: var(--color-primary-light, rgb(211 224 236));
+	background-color: var(--cobudget-info-background);
 	padding: 5px;
 	margin-right: 8px;
 }

@@ -1,6 +1,6 @@
 const LABEL_KEYS = ['important', 'review', 'fixedCost', 'childRelated', 'subscription', 'taxRelevant', 'insurance']
 const FILTER_LIMIT = 50
-const ANNUAL_SECTIONS = ['income', 'expense', 'total', 'chart']
+const ANNUAL_SECTIONS = ['income', 'expense', 'total', 'areas', 'chart', 'forecast', 'detail-chart', 'detail-forecast', 'detail-metrics', 'detail-averages', 'detail-comparisons', 'detail-breakdown', 'detail-payments']
 
 function annualSectionStorageKey() {
 	let userId = ''
@@ -31,14 +31,28 @@ export function readAnnualSectionOpen(section) {
 }
 
 export function rememberAnnualSection(section, open) {
-	if (!ANNUAL_SECTIONS.includes(section) || typeof window === 'undefined' || !window.localStorage) return
+	if (!ANNUAL_SECTIONS.includes(section)) return
 	try {
+		if (typeof window === 'undefined' || !window.localStorage) return
 		const saved = readAnnualSectionPreference()
 		saved[section] = open === true
 		window.localStorage.setItem(annualSectionStorageKey(), JSON.stringify(saved))
 	} catch {
 		// The choice still applies until the page is left.
 	}
+}
+
+export function readAnnualChartView(section = 'chart') {
+	return readAnnualSectionPreference()[`${section}-view`] === 'forecast' ? 'forecast' : 'development'
+}
+
+export function rememberAnnualChartView(section, view) {
+	if (!['chart', 'detail-chart'].includes(section)) return
+	try {
+		const saved = readAnnualSectionPreference()
+		saved[`${section}-view`] = view === 'forecast' ? 'forecast' : 'development'
+		window.localStorage.setItem(annualSectionStorageKey(), JSON.stringify(saved))
+	} catch { /* Keep the local choice when storage is unavailable. */ }
 }
 
 function queryText(value) {
@@ -150,6 +164,84 @@ function calendarToday(now = new Date()) {
 	return { year: now.getFullYear(), month: now.getMonth() + 1 }
 }
 
+export function reportDate(date) {
+	return `${String(date.getFullYear()).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+export function parseReportDate(value) {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return null
+	const [year, month, day] = String(value).split('-').map(Number)
+	if (year < 1970 || year > 9999) return null
+	const date = new Date(year, month - 1, day)
+	return reportDate(date) === value ? date : null
+}
+
+const REPORT_RANGES = ['year', 'current-year', 'last-year', 'current-month', 'last-month', 'last-12-months', 'custom']
+
+export function reportRange(query, now = new Date()) {
+	const year = Number(query.year) || now.getFullYear()
+	let from, to
+	switch (query.timeRange) {
+		case 'current-month': from = new Date(now.getFullYear(), now.getMonth(), 1); to = new Date(now.getFullYear(), now.getMonth() + 1, 0); break
+		case 'last-month': from = new Date(now.getFullYear(), now.getMonth() - 1, 1); to = new Date(now.getFullYear(), now.getMonth(), 0); break
+		case 'last-12-months': from = new Date(now.getFullYear(), now.getMonth() - 11, 1); to = new Date(now.getFullYear(), now.getMonth() + 1, 0); break
+		case 'custom': return { dateFrom: firstText(query.dateFrom), dateTo: firstText(query.dateTo) }
+		default: {
+			const selected = query.timeRange === 'last-year' ? now.getFullYear() - 1 : query.timeRange === 'current-year' ? now.getFullYear() : year
+			from = new Date(selected, 0, 1); to = new Date(selected, 11, 31)
+		}
+	}
+	return { dateFrom: reportDate(from), dateTo: reportDate(to) }
+}
+
+export function reportRangeError(selection) {
+	const from = parseReportDate(selection.dateFrom), to = parseReportDate(selection.dateTo)
+	if (!from || !to || from > to) return 'dates'
+	const days = Math.round((Date.UTC(to.getFullYear(), to.getMonth(), to.getDate()) - Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())) / 86400000) + 1
+	const months = (to.getFullYear() - from.getFullYear()) * 12 + to.getMonth() - from.getMonth() + 1
+	const columns = selection.period === 'day' ? days : selection.period === 'week' ? Math.ceil((days + (from.getDay() + 6) % 7) / 7) : selection.period === 'quarter' ? Math.floor((to.getFullYear() * 12 + to.getMonth()) / 3) - Math.floor((from.getFullYear() * 12 + from.getMonth()) / 3) + 1 : months
+	return columns > 3660 ? 'columns' : ''
+}
+
+export function reportContainsToday(selection, now = new Date()) {
+	if (!selection.timeRange) return annualPeriodContainsToday(selection.year, selection.period, selection.month, now)
+	const today = reportDate(now)
+	return selection.dateFrom <= today && today <= selection.dateTo
+}
+
+// Old bookmarks retain their exact dates; new visits use independent range and breakdown controls.
+export function annualReportSelection(query = {}) {
+	if (REPORT_RANGES.includes(query.timeRange)) return annualSelection(query)
+	const legacy = annualSelection(query)
+	if (legacy.period === 'day') {
+		const from = new Date(legacy.year, legacy.month >= 1 ? legacy.month - 1 : 0, 1)
+		const to = legacy.month >= 1 ? new Date(legacy.year, legacy.month, 0) : new Date(legacy.year, 11, 31)
+		return annualSelection({ ...query, timeRange: 'custom', period: 'day', dateFrom: reportDate(from), dateTo: reportDate(to) })
+	}
+	if (legacy.period === 'week') {
+		const from = isoWeekStart(legacy.year, 1), next = isoWeekStart(legacy.year + 1, 1)
+		return annualSelection({ ...query, timeRange: 'custom', dateFrom: reportDate(from), dateTo: reportDate(new Date(next.getFullYear(), next.getMonth(), next.getDate() - 1)) })
+	}
+	return annualSelection({ ...query, timeRange: query.year ? 'year' : 'current-year' })
+}
+
+export function reportSelectionWithDates(selection, dates) {
+	const changed = dates.dateFrom !== selection.dateFrom || dates.dateTo !== selection.dateTo
+	return annualSelection({ ...selection, ...dates, period: changed ? undefined : selection.period })
+}
+
+// The heading describes the applied dates, including custom full months or years.
+export function reportPeriodLabel(selection, formatMonth, formatDate) {
+	const { dateFrom, dateTo } = selection.timeRange ? selection : annualReportSelection(selection)
+	const from = parseReportDate(dateFrom), to = parseReportDate(dateTo)
+	if (!from || !to || from > to) return ''
+	const sameYear = from.getFullYear() === to.getFullYear()
+	if (sameYear && from.getMonth() === 0 && from.getDate() === 1 && to.getMonth() === 11 && to.getDate() === 31) return String(from.getFullYear())
+	const monthEnd = new Date(to.getFullYear(), to.getMonth() + 1, 0).getDate()
+	if (sameYear && from.getMonth() === to.getMonth() && from.getDate() === 1 && to.getDate() === monthEnd) return formatMonth(from, { month: 'long', year: 'numeric' })
+	return `${formatDate(from)} – ${formatDate(to)}`
+}
+
 function isoWeekParts(date) {
 	const utc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
 	const day = utc.getUTCDay() || 7
@@ -228,6 +320,13 @@ export function annualSelection(query = {}) {
 	}
 	const sections = annualFilterSections(grouping)
 	const containsToday = annualPeriodContainsToday(selectedYear, period, month)
+	const range = REPORT_RANGES.includes(query.timeRange) ? reportRange({ ...query, year: selectedYear }) : null
+	let rangePeriod = ['year', 'quarter', 'week', 'day'].includes(query.period) ? query.period : null
+	if (range && !rangePeriod) {
+		const from = parseReportDate(range.dateFrom), to = parseReportDate(range.dateTo)
+		const days = from && to ? Math.round((to - from) / 86400000) + 1 : 1
+		rangePeriod = query.timeRange === 'current-month' || query.timeRange === 'last-month' || (query.timeRange === 'custom' && days <= 45) ? 'day' : query.timeRange === 'custom' && days <= 120 ? 'week' : 'year'
+	}
 	return {
 		year: selectedYear,
 		period,
@@ -235,6 +334,8 @@ export function annualSelection(query = {}) {
 		quarter,
 		grouping,
 		projectId: Number.isSafeInteger(projectId) && projectId > 0 ? projectId : null,
+		...(query.withoutArea === true || query.withoutArea === 'true' ? { withoutArea: true } : {}),
+		entryScope: Number.isSafeInteger(projectId) && projectId > 0 && query.entryScope === 'shared' ? 'shared' : 'personal',
 		includeFuturePayments: annualPeriodIsFuture(selectedYear, period, month) || (containsToday && (query.includeFuturePayments === true || query.includeFuturePayments === 'true')),
 		categories: sections.categories ? parseIdList(query.categories, true) : [],
 		partners: sections.partners ? parseIdList(query.partners, true) : [],
@@ -242,11 +343,21 @@ export function annualSelection(query = {}) {
 		hashtags: parseIdList(query.hashtags, false),
 		amountMin,
 		amountMax,
+		...(typeof query.reportFilters === 'string' && query.reportFilters ? { reportFilters: query.reportFilters } : {}),
+		...(range ? {
+			timeRange: query.timeRange,
+			...range,
+			period: rangePeriod,
+			month: 0,
+			includeFuturePayments: range.dateFrom > reportDate(new Date()) || (reportContainsToday({ ...range, timeRange: query.timeRange }) && (query.includeFuturePayments === true || query.includeFuturePayments === 'true')),
+		} : {}),
 	}
 }
 
 function filterQuery(value) {
 	return {
+		...(value.reportFilters ? { reportFilters: value.reportFilters } : {}),
+		...(value.withoutArea ? { withoutArea: 'true' } : {}),
 		...(value.categories.length ? { categories: value.categories.join(',') } : {}),
 		...(value.partners.length ? { partners: value.partners.join(',') } : {}),
 		...(value.labels.length ? { labels: value.labels.join(',') } : {}),
@@ -258,6 +369,15 @@ function filterQuery(value) {
 
 export function annualRouteQuery(selection) {
 	const value = annualSelection(selection)
+	if (value.timeRange) return {
+		year: String(value.year), timeRange: value.timeRange, grouping: value.grouping,
+		period: value.period,
+		...(value.timeRange === 'custom' ? { dateFrom: value.dateFrom, dateTo: value.dateTo } : {}),
+		...(value.projectId ? { projectId: String(value.projectId) } : {}),
+		...(value.entryScope === 'shared' ? { entryScope: 'shared' } : {}),
+		...(value.includeFuturePayments ? { includeFuturePayments: 'true' } : {}),
+		...filterQuery(value),
+	}
 	return {
 		year: String(value.year),
 		grouping: value.grouping,
@@ -265,6 +385,7 @@ export function annualRouteQuery(selection) {
 		...(value.period === 'week' ? { period: 'week' } : {}),
 		...(value.period === 'day' ? { period: 'day', month: value.month >= 1 ? String(value.month) : 'all' } : {}),
 		...(value.projectId ? { projectId: String(value.projectId) } : {}),
+		...(value.entryScope === 'shared' ? { entryScope: 'shared' } : {}),
 		...(value.includeFuturePayments ? { includeFuturePayments: 'true' } : {}),
 		...filterQuery(value),
 	}
@@ -272,6 +393,12 @@ export function annualRouteQuery(selection) {
 
 export function annualRequestParams(selection, extra = {}) {
 	const value = annualSelection({ ...selection, ...extra })
+	if (value.timeRange) return {
+		year: value.year, period: value.period, dateFrom: value.dateFrom, dateTo: value.dateTo,
+		grouping: value.grouping, projectId: value.projectId, entryScope: value.entryScope, includeFuturePayments: value.includeFuturePayments,
+		...(extra.comparison && extra.comparison !== 'none' ? { comparison: extra.comparison } : {}),
+		...filterQuery(value),
+	}
 	return {
 		year: value.year,
 		grouping: value.grouping,
@@ -279,6 +406,7 @@ export function annualRequestParams(selection, extra = {}) {
 		...(value.period === 'week' ? { period: 'week' } : {}),
 		...(value.period === 'day' ? { period: 'day', ...(value.month >= 1 ? { month: value.month } : {}) } : {}),
 		projectId: value.projectId,
+		entryScope: value.entryScope,
 		includeFuturePayments: value.includeFuturePayments,
 		...(extra.comparison && extra.comparison !== 'none' ? { comparison: extra.comparison } : {}),
 		...filterQuery(value),
@@ -311,6 +439,11 @@ function appendNarrowing(query, value) {
 
 export function annualPaymentRoute(selection, period = null, type = 'all', row = null) {
 	const value = annualSelection(selection)
+	if (!period && value.timeRange && !reportRangeError(value)) {
+		const end = parseReportDate(value.dateTo)
+		end.setHours(23, 59, 59, 0)
+		period = { dateFrom: parseReportDate(value.dateFrom).getTime() / 1000, dateTo: end.getTime() / 1000 }
+	}
 	const query = {
 		timeRange: period ? 'custom' : 'all',
 		...(period ? { dateFrom: String(period.dateFrom), dateTo: String(period.dateTo) } : {}),
@@ -326,9 +459,9 @@ export function annualPaymentRoute(selection, period = null, type = 'all', row =
 		query[value.grouping === 'categories' ? 'categoryId' : 'paymentPartnerId'] = String(row.id)
 		if (value.grouping === 'categories' && row.children?.length) query.includeSubcategories = 'true'
 	}
-	return value.projectId
+	return value.projectId && value.entryScope === 'shared'
 		? { name: 'project-payments', params: { id: String(value.projectId) }, query: appendNarrowing(query, value) }
-		: { name: 'payments', query: appendNarrowing(query, value) }
+		: { name: 'payments', query: appendNarrowing({ ...query, ...(value.projectId ? { projectId: String(value.projectId) } : {}) }, value) }
 }
 
 function choiceName(map, id, fallback) {
@@ -442,7 +575,7 @@ function csvAmount(cents) {
 }
 
 // Semicolon and a decimal comma match German Excel. Empty payment cells stay blank.
-export function buildAnnualOverviewCsv({ labelHeading, columns, sections }) {
+export function buildAnnualOverviewCsv({ labelHeading, columns, sections, metadata = [] }) {
 	const width = columns.length + 1
 	const pad = cells => {
 		const line = cells.slice(0, width)
@@ -462,7 +595,8 @@ export function buildAnnualOverviewCsv({ labelHeading, columns, sections }) {
 			})]))
 		}
 	}
-	return `\uFEFF${lines.map(line => line.map((value, index) => csvField(value, index === 0)).join(';')).join('\r\n')}\r\n`
+	const prefix = metadata.length ? [...metadata.map(row => pad(row).map(value => csvField(value, true)).join(';')), pad([]).join(';')] : []
+	return `\uFEFF${[...prefix, ...lines.map(line => line.map((value, index) => csvField(value, index === 0)).join(';'))].join('\r\n')}\r\n`
 }
 
 export function downloadTextFile(filename, contents, type = 'text/csv;charset=utf-8') {

@@ -15,7 +15,7 @@
 							<div style="flex: 1; max-width: 100px;">
 								<NcTextField v-model="currency" :placeholder="$texts.settings.currencyPlaceholder()" />
 							</div>
-							<NcButton type="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
+							<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
 								style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
 						</div>
 					</div>
@@ -24,7 +24,7 @@
 						<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.startPage() }}</label>
 						<p class="setting-desc">{{ $texts.settings.startPageDescription() }}</p>
 						<div style="display: flex; gap: 8px; align-items: center;">
-							<select v-model="defaultStartPage" class="form-control select-control" style="flex: 1; max-width: 320px;">
+							<select v-model="defaultStartPage" class="form-control select-control" data-cobudget-field="compact" style="flex: 1; max-width: 320px;">
 								<option value="personal">{{ $texts.settings.myFinances() }}</option>
 								<option value="currentYear">{{ $texts.settings.currentYear() }}</option>
 								<option v-if="enableProjects" value="projects">{{ $texts.settings.myAreas() }}</option>
@@ -34,7 +34,7 @@
 									</option>
 								</optgroup>
 							</select>
-							<NcButton type="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
+							<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
 								style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
 						</div>
 					</div>
@@ -43,10 +43,10 @@
 						<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.entriesPerPage() }}</label>
 						<p class="setting-desc">{{ $texts.settings.entriesPerPageDescription() }}</p>
 						<div style="display: flex; gap: 8px; align-items: center;">
-							<select v-model.number="entryPageSize" class="form-control select-control" style="flex: 1; max-width: 200px;">
+							<select v-model.number="entryPageSize" class="form-control select-control" data-cobudget-field="compact" style="flex: 1; max-width: 200px;">
 								<option v-for="option in entryPageSizeOptions" :key="option" :value="option">{{ option }}</option>
 							</select>
-							<NcButton type="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
+							<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
 								style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
 						</div>
 					</div>
@@ -55,12 +55,12 @@
 						<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.themeMode() }}</label>
 						<p class="setting-desc">{{ $texts.settings.themeModeDescription() }}</p>
 						<div style="display: flex; gap: 8px; align-items: center;">
-							<select v-model="themeMode" class="form-control select-control" style="flex: 1; max-width: 260px;" @change="applyLocalThemeMode">
+							<select v-model="themeMode" class="form-control select-control" data-cobudget-field="compact" style="flex: 1; max-width: 260px;" @change="applyLocalThemeMode">
 								<option value="auto">{{ $texts.settings.themeModeAuto() }}</option>
 								<option value="light">{{ $texts.settings.themeModeLight() }}</option>
 								<option value="dark">{{ $texts.settings.themeModeDark() }}</option>
 							</select>
-							<NcButton type="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
+							<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
 								style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
 						</div>
 					</div>
@@ -103,8 +103,8 @@
 							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.storageFolder() }}</label>
 							<p class="setting-desc">{{ $texts.settings.receiptStorageFolderDescription() }}</p>
 							<div style="display: flex; gap: 8px; align-items: center;">
-								<input type="text" class="form-control" v-model="receiptStorageFolder" :placeholder="$texts.settings.receiptStorageFolderPlaceholder()" style="flex: 1;" />
-								<NcButton type="primary" @click="saveGeneralSettings" :disabled="loading || !receiptStorageFolder.trim()" :aria-label="$texts.common.save()"
+								<input type="text" class="form-control" data-cobudget-field="compact" v-model="receiptStorageFolder" :placeholder="$texts.settings.receiptStorageFolderPlaceholder()" style="flex: 1;" />
+								<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading || !receiptStorageFolder.trim()" :aria-label="$texts.common.save()"
 									style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
 							</div>
 						</div>
@@ -112,12 +112,12 @@
 							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.folderGrouping() }}</label>
 							<p class="setting-desc">{{ $texts.settings.folderGroupingDescription() }}</p>
 							<div style="display: flex; gap: 8px; align-items: center;">
-								<select v-model="receiptFolderGrouping" class="form-control select-control" style="flex: 1; max-width: 260px;">
+								<select v-model="receiptFolderGrouping" class="form-control select-control" data-cobudget-field="compact" style="flex: 1; max-width: 260px;">
 									<option value="none">{{ $texts.settings.noSubfolders() }}</option>
 									<option value="year">{{ $texts.settings.byYear() }}</option>
 									<option value="year_month">{{ $texts.settings.byYearAndMonth() }}</option>
 								</select>
-								<NcButton type="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
+								<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
 									style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
 							</div>
 						</div>
@@ -323,15 +323,12 @@
 				<h3>{{ $texts.settings.categories() }}</h3>
 				<p class="settings-hint">{{ $texts.settings.categoriesHint() }}</p>
 				
-				<div class="tabs-container" v-if="$enableIncomes">
-					<button class="tab-button" :class="{ active: categoryTab === 'expense' }" @click.prevent="categoryTab = 'expense'">{{ $texts.common.expense() }}</button>
-					<button class="tab-button" :class="{ active: categoryTab === 'income' }" @click.prevent="categoryTab = 'income'">{{ $texts.common.income() }}</button>
-				</div>
+				<CbTypeTabs v-if="$enableIncomes" v-model="categoryTab" :label="$texts.settings.categories()" />
 
 				<form @submit.prevent="addCategory" class="add-form">
 					<IconPicker v-model="newCategoryIcon" />
-					<input type="text" class="form-control" v-model="newCategory" :placeholder="$texts.settings.newCategory()" style="flex: 1;" required />
-					<NcButton type="primary" native-type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()"
+					<input type="text" class="form-control" data-cobudget-field="compact" v-model="newCategory" :placeholder="$texts.settings.newCategory()" style="flex: 1;" required />
+					<NcButton variant="primary" type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()"
 						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
 				</form>
 				<SettingsList :items="filteredCategories" :empty-text="$texts.settings.noCategories()">
@@ -342,7 +339,7 @@
 									<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>
 									<span>{{ cat.name }}</span>
 								</div>
-							<span v-if="cat.is_global" class="badge-global">{{ $texts.common.global() }}</span>
+							<span v-if="cat.is_global" class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
 						</div>
 						<SettingsItemActions
 							class="settings-list-actions"
@@ -363,14 +360,11 @@
 				<h3>{{ $texts.settings.paymentPartners() }}</h3>
 				<p class="settings-hint">{{ $texts.settings.paymentPartnersHint() }}</p>
 
-				<div class="tabs-container" v-if="$enableIncomes">
-					<button class="tab-button" :class="{ active: paymentPartnerTab === 'expense' }" @click.prevent="paymentPartnerTab = 'expense'">{{ $texts.common.expense() }}</button>
-					<button class="tab-button" :class="{ active: paymentPartnerTab === 'income' }" @click.prevent="paymentPartnerTab = 'income'">{{ $texts.common.income() }}</button>
-				</div>
+				<CbTypeTabs v-if="$enableIncomes" v-model="paymentPartnerTab" :label="$texts.settings.paymentPartners()" />
 
 				<form @submit.prevent="addPaymentPartner" class="add-form">
-					<input type="text" class="form-control" v-model="newPaymentPartner" :placeholder="paymentPartnerPlaceholder" style="flex: 1;" required />
-					<NcButton type="primary" native-type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()"
+					<input type="text" class="form-control" data-cobudget-field="compact" v-model="newPaymentPartner" :placeholder="paymentPartnerPlaceholder" style="flex: 1;" required />
+					<NcButton variant="primary" type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()"
 						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
 				</form>
 				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
@@ -380,7 +374,7 @@
 								<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>
 								<span>{{ paymentPartner.name }}</span>
 							</div>
-							<span v-if="paymentPartner.is_global" class="badge-global">{{ $texts.common.global() }}</span>
+							<span v-if="paymentPartner.is_global" class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
 						</div>
 						<SettingsItemActions
 							class="settings-list-actions"
@@ -433,17 +427,17 @@
 				<div class="setting-item">
 					<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.backupFolder() }}</label>
 					<p class="setting-desc">{{ $texts.settings.backupFolderDescription() }}</p>
-					<input type="text" class="form-control" v-model="backupStorageFolder" placeholder="CoBudget/Export" />
+					<input type="text" class="form-control" data-cobudget-field="compact" v-model="backupStorageFolder" placeholder="CoBudget/Export" />
 				</div>
 				<div class="setting-item">
 					<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.retainCount() }}</label>
 					<p class="setting-desc">{{ $texts.settings.retainCountDescription() }}</p>
-					<input type="number" class="form-control" v-model.number="backupRetentionCount" min="1" max="100" step="1" />
+					<input type="number" class="form-control" data-cobudget-field="compact" v-model.number="backupRetentionCount" min="1" max="100" step="1" />
 				</div>
 				<div class="setting-item">
 					<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.automaticBackups() }}</label>
 					<p class="setting-desc">{{ $texts.settings.automaticBackupsDescription() }}</p>
-					<select class="form-control select-control" v-model="backupSchedule">
+					<select class="form-control select-control" data-cobudget-field="compact" v-model="backupSchedule">
 						<option value="none">{{ $texts.common.no() }}</option>
 						<option value="daily">{{ $texts.settings.daily() }}</option>
 						<option value="weekly">{{ $texts.settings.weekly() }}</option>
@@ -451,14 +445,14 @@
 					</select>
 				</div>
 				<div class="backup-save-action">
-					<NcButton type="primary" @click="saveBackupSettings(true)" :disabled="loading || backupCreating || !backupStorageFolder.trim()">
+					<NcButton variant="primary" @click="saveBackupSettings(true)" :disabled="loading || backupCreating || !backupStorageFolder.trim()">
 						{{ $texts.common.save() }}
 					</NcButton>
 				</div>
 			</div>
 
 			<div class="backup-manual-actions">
-				<NcButton class="backup-create-button" type="primary" @click="createBackup" :disabled="loading || backupCreating || !backupStorageFolder.trim()">
+				<NcButton class="backup-create-button" variant="primary" @click="createBackup" :disabled="loading || backupCreating || !backupStorageFolder.trim()">
 					{{ backupCreating ? $texts.settings.backupCreating() : $texts.settings.createBackupNow() }}
 				</NcButton>
 			</div>
@@ -478,7 +472,7 @@
 						</div>
 						<div class="backup-item-actions">
 							<NcButton
-								type="error"
+								variant="error"
 								:aria-label="$texts.settings.deleteBackupAria(backup.file_name)"
 								:title="$texts.settings.deleteBackupAria(backup.file_name)"
 								:disabled="backupActionsDisabled"
@@ -518,7 +512,7 @@
 			</p>
 			<NcButton
 				class="reset-danger-button"
-				type="error"
+				variant="error"
 				:disabled="loading || resetRunning"
 				@click="resetAllData">
 				{{ resetRunning ? $texts.settings.resetRunning() : $texts.settings.resetButton() }}
@@ -534,20 +528,20 @@
 				@click.self="closeRenameSettingsItemModal"
 				@keydown.esc.stop.prevent="closeRenameSettingsItemModal">
 				<div
-					class="settings-modal"
+					class="settings-modal cobudget-dialog cobudget-dialog--contained"
 					:class="{ 'settings-modal--payment-partner': renameSettingsItemType === 'paymentPartner' && enableAdvancedMasterData }"
 					role="dialog"
 					aria-modal="true"
 					aria-labelledby="settings-rename-title">
-					<div class="modal-header">
+					<div class="modal-header cobudget-dialog-header">
 						<h2 id="settings-rename-title">{{ renameSettingsItemTitle }}</h2>
 						<button
 							type="button"
-							class="settings-modal-close-button"
+							class="settings-modal-close-button cobudget-dialog-close cobudget-focusable"
 							:aria-label="$texts.common.close()"
 							:title="$texts.common.close()"
 							@click="closeRenameSettingsItemModal">
-							<CloseIcon :size="22" aria-hidden="true" />
+							<CloseIcon :size="24" aria-hidden="true" />
 						</button>
 					</div>
 					<p class="modal-note">
@@ -567,7 +561,7 @@
 										id="settings-category-code"
 										ref="renameSettingsItemCodeInput"
 										v-model="renameSettingsItemCode"
-										class="form-control"
+										class="form-control" data-cobudget-field="compact"
 										type="text"
 										maxlength="128"
 										autocomplete="off"
@@ -576,7 +570,7 @@
 								<div class="form-group">
 									<label for="settings-rename-name">{{ $texts.common.name() }}</label>
 									<input id="settings-rename-name" ref="renameSettingsItemInput"
-										v-model="renameSettingsItemName" class="form-control" type="text" maxlength="128" required />
+										v-model="renameSettingsItemName" class="form-control" data-cobudget-field="compact" type="text" maxlength="128" required />
 								</div>
 							</div>
 							<div class="form-group category-parent-field">
@@ -584,7 +578,7 @@
 								<select
 									id="settings-category-parent"
 									v-model="renameSettingsItemParentId"
-									class="form-control select-control"
+									class="form-control select-control" data-cobudget-field="compact"
 									:disabled="!!renameSettingsItem.has_children">
 									<option value="">{{ $texts.common.noParentMainCategory() }}</option>
 									<option
@@ -613,7 +607,7 @@
 								id="settings-rename-name"
 								ref="renameSettingsItemInput"
 								v-model="renameSettingsItemName"
-								class="form-control"
+								class="form-control" data-cobudget-field="compact"
 								type="text"
 								maxlength="128"
 								required />
@@ -647,7 +641,7 @@
 				<input
 					id="settings-confirm-text"
 					v-model="confirmDialog.confirmationText"
-					class="form-control"
+					class="form-control" data-cobudget-field="compact"
 					type="text"
 					autocomplete="off"
 					spellcheck="false"
@@ -658,6 +652,7 @@
 </template>
 
 <script>
+import CbTypeTabs from '../components/CbTypeTabs.vue'
 import { getAppLocale } from '../utils/formatMoney'
 import { defineAsyncComponent } from 'vue'
 import axios from '../services/http'
@@ -670,6 +665,7 @@ import { applyThemeMode, normalizeThemeMode } from '../services/themeMode'
 import { applyNextcloudHeaderVisibility } from '../services/nextcloudHeader'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
 import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
+import { sortAreasByName } from '../utils/areaSorting'
 import {
 	createPaymentPartnerDetails,
 	isValidPaymentPartnerEmail,
@@ -695,6 +691,7 @@ const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobud
 export default {
 	name: 'SettingsView',
 	components: {
+		CbTypeTabs,
 		NcTextField,
 		NcButton,
 		IconPicker,
@@ -781,10 +778,7 @@ export default {
 			return !!this.backupDeletingFileName || !!this.backupRestoringFileName;
 		},
 		activeProjects() {
-			return this.projects
-				.filter(project => !this.isArchivedProject(project))
-				.slice()
-				.sort((a, b) => a.name.localeCompare(b.name));
+			return sortAreasByName(this.projects.filter(project => !this.isArchivedProject(project)));
 		},
 		filteredCategories() {
 			const activeTab = this.$enableIncomes ? this.categoryTab : 'expense';
@@ -1630,7 +1624,6 @@ export default {
 				this.$root.$emit && this.$root.$emit('settings-changed');
 				
 
-
 				if (!this.enableSubscriptions && this.$route && this.$route.query.filter === 'subscription') {
 					window.location.hash = '#/';
 				} else if (!this.enableInsurance && this.$route && this.$route.query.filter === 'insurance') {
@@ -1670,9 +1663,9 @@ export default {
 <style scoped>
 .settings-section {
 	display: block;
-	margin: calc(var(--default-grid-baseline, 4px) * 7);
+	margin: var(--cobudget-form-inset);
 	margin-top: 0;
-	width: min(900px, calc(100% - var(--default-grid-baseline, 4px) * 7 * 2));
+	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
 	box-sizing: border-box;
 }
 .settings-general {
@@ -1683,7 +1676,7 @@ export default {
 	margin-top: 0 !important;
 }
 .settings-subsection {
-	margin-top: 30px;
+	margin-top: var(--cobudget-settings-section-gap);
 }
 .settings-hint {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
@@ -1692,7 +1685,7 @@ export default {
 }
 .settings-grid {
 	display: flex;
-	gap: 30px;
+	gap: var(--cobudget-settings-section-gap);
 }
 .settings-column {
 	flex: 1;
@@ -1722,7 +1715,7 @@ export default {
 }
 
 .settings-mini-section h4 {
-	font-size: var(--cobudget-font-md);
+	font-size: var(--cobudget-font-subheading);
 	font-weight: 700;
 	margin: 0 0 14px 0;
 }
@@ -1877,25 +1870,6 @@ export default {
 	font-size: var(--cobudget-font-compact);
 }
 
-.backup-create-button,
-:deep(.backup-create-button.button-vue),
-.backup-create-button :deep(.button-vue) {
-	background-color: var(--color-primary-element, var(--color-primary, #0082c9)) !important;
-	color: var(--color-primary-text, #fff) !important;
-	border-color: var(--color-primary-element, var(--color-primary, #0082c9)) !important;
-}
-
-.backup-create-button:hover,
-.backup-create-button:focus-visible,
-:deep(.backup-create-button.button-vue:hover),
-:deep(.backup-create-button.button-vue:focus-visible),
-.backup-create-button :deep(.button-vue:hover),
-.backup-create-button :deep(.button-vue:focus-visible) {
-	background-color: var(--color-primary-hover, var(--color-primary, #0082c9)) !important;
-	color: var(--color-primary-text, #fff) !important;
-	border-color: var(--color-primary-hover, var(--color-primary, #0082c9)) !important;
-}
-
 .backup-list {
 	margin-top: 22px;
 }
@@ -2033,19 +2007,6 @@ export default {
 	margin-bottom: 8px;
 }
 
-.form-control {
-	width: 100%;
-	height: 34px;
-	padding: 0 12px;
-	border: 1px solid var(--cobudget-border-strong, #888);
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-ui);
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	box-sizing: border-box;
-	transition: border-color 0.2s;
-}
-
 .backup-settings-grid .form-control,
 .backup-settings-grid input,
 .backup-settings-grid select,
@@ -2053,7 +2014,6 @@ export default {
 .settings-modal select,
 .settings-modal textarea {
 	background-color: var(--cobudget-surface, var(--color-main-background, #fff)) !important;
-	border-color: var(--cobudget-border-strong, var(--color-border-dark, #ccc)) !important;
 	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 }
 
@@ -2091,11 +2051,6 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
 
-.form-control:focus {
-	border-color: var(--color-primary, #0082c9);
-	outline: none;
-}
-
 .select-control {
 	appearance: auto;
 	-webkit-appearance: auto;
@@ -2110,17 +2065,6 @@ export default {
 	margin-bottom: 20px;
 	margin-top: 10px;
 	align-items: center;
-}
-
-.badge-global {
-	font-size: var(--cobudget-font-xxs);
-	background-color: #e0f0ff;
-	color: #006aa6;
-	padding: 2px 6px;
-	border-radius: 10px;
-	margin-left: 8px;
-	text-transform: uppercase;
-	font-weight: bold;
 }
 
 /* Custom Toggle Switch */
@@ -2187,7 +2131,8 @@ input:checked + .toggle-slider:before {
 	left: 0;
 	width: 100vw;
 	height: 100vh;
-	background: rgba(0, 0, 0, 0.4);
+	background: var(--cobudget-dialog-backdrop);
+	backdrop-filter: blur(2px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -2252,11 +2197,11 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 
 .settings-modal {
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	border-radius: var(--border-radius-large, 8px);
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+	border-radius: var(--cobudget-dialog-radius);
+	box-shadow: var(--cobudget-dialog-shadow);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	max-width: 520px;
-	padding: 24px;
+	padding: var(--cobudget-dialog-padding);
 	width: 90%;
 }
 
@@ -2265,53 +2210,6 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 	max-height: calc(100vh - 32px);
 	max-width: 760px;
 	overflow-y: auto;
-}
-
-.modal-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	margin: -4px 0 20px;
-	padding-bottom: 14px;
-	border-bottom: 1px solid var(--cobudget-border, var(--color-border, #ddd));
-}
-
-.modal-header h2 {
-	font-size: var(--cobudget-font-xl);
-	margin: 0;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.settings-modal-close-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: var(--cobudget-icon-button-size, 44px);
-	height: var(--cobudget-icon-button-size, 44px);
-	min-width: var(--cobudget-icon-button-size, 44px);
-	padding: 0;
-	border: 0;
-	border-radius: var(--cobudget-radius-sm, 8px);
-	background: transparent;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	cursor: pointer;
-}
-
-.settings-modal-close-button:hover,
-.settings-modal-close-button:focus-visible {
-	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
-	outline: none;
-}
-
-.settings-modal-close-button:focus-visible {
-	box-shadow: var(--cobudget-focus-ring, 0 0 0 2px var(--color-primary, #0082c9));
-}
-
-.settings-modal-close-button :deep(.material-design-icon),
-.settings-modal-close-button :deep(.material-design-icon__svg) {
-	display: block;
 }
 
 .modal-note {
@@ -2355,8 +2253,8 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
+  font-size: var(--cobudget-font-label);
+  letter-spacing: normal;
 }
 
 .modal-error {
@@ -2403,57 +2301,6 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 
 	.rename-fields.has-category-number {
 		grid-template-columns: minmax(0, 1fr);
-	}
-}
-
-.tabs-container {
-	display: flex;
-	gap: 4px;
-	width: 100%;
-	margin: 18px 0 18px;
-	padding: 4px;
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	background: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
-	box-sizing: border-box;
-}
-
-.tab-button {
-	flex: 1;
-	min-width: 0;
-	background: transparent;
-	border: none;
-	border-radius: calc(var(--border-radius-large, 8px) - 3px);
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	cursor: pointer;
-	font-size: var(--cobudget-font-base);
-	font-weight: 600;
-	line-height: 1.3;
-	padding: 9px 12px;
-	text-align: center;
-	transition: background-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
-}
-
-.tab-button:hover {
-	background-color: var(--cobudget-surface-muted, #f6f6f6);
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.tab-button.active {
-	background: var(--cobudget-surface, var(--cobudget-page-background, #fff));
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-	color: var(--color-primary, #0076a8);
-	cursor: default;
-}
-
-.tab-button.active:hover {
-	background: var(--cobudget-surface, var(--cobudget-page-background, #fff));
-	color: var(--color-primary, #0076a8);
-}
-
-@media (max-width: 480px) {
-	.tab-button {
-		padding: 8px 10px;
 	}
 }
 </style>

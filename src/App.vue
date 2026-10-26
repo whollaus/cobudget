@@ -101,18 +101,6 @@
 					</template>
 				</NcAppNavigationItem>
 
-				<NcAppNavigationItem :name="$texts.annual.title()" :active="$route.name === 'annual-overview'"
-					@click.prevent="navigateTo('/annual-overview')">
-					<template #icon><CalendarIcon :size="20" /></template>
-				</NcAppNavigationItem>
-
-				<NcAppNavigationItem :name="$texts.analytics.title()" :active="$route.name === 'analytics'"
-					@click.prevent="navigateTo('/analytics')">
-					<template #icon>
-						<ChartLineIcon :size="20" />
-					</template>
-				</NcAppNavigationItem>
-
 				<NcAppNavigationItem v-if="$enableBudgetGoals" :name="$texts.budgetGoals.title()"
 					:active="['budgets', 'budget-new', 'budget-edit'].includes($route.name)"
 					@click.prevent="navigateTo('/budgets')">
@@ -121,18 +109,28 @@
 					</template>
 				</NcAppNavigationItem>
 
-				<div v-if="showWorkspaceSwitcher" class="workspace-switcher" style="margin-top: auto;">
-					<div class="workspace-current" @click.stop="showWorkspaceMenu = !showWorkspaceMenu">
+				<NcAppNavigationItem :name="$texts.annual.title()" :active="$route.name === 'annual-overview'"
+					@click.prevent="navigateTo('/annual-overview')">
+					<template #icon><ChartLineIcon :size="20" /></template>
+				</NcAppNavigationItem>
+
+				<div v-if="showWorkspaceSwitcher" class="workspace-switcher" style="margin-top: auto;"
+					@keydown.esc.stop.prevent="showWorkspaceMenu = false; $refs.workspaceToggle.focus()">
+					<button ref="workspaceToggle" type="button" class="workspace-current cobudget-focusable"
+						:aria-expanded="showWorkspaceMenu" aria-controls="cobudget-workspace-menu"
+						@click.stop="showWorkspaceMenu = !showWorkspaceMenu">
 						<SwapHorizontalIcon :size="20" />
 						<span class="workspace-label">{{ workspaceSwitcherLabel }}</span>
 						<ChevronDownIcon :size="16" />
-					</div>
-					<ul v-if="showWorkspaceMenu" class="workspace-menu">
-						<li v-for="w in visibleWorkspaces" :key="w.id"
-							:class="{ active: w.id === activeWorkspaceId }"
-							@click="switchWorkspace(w)">
+					</button>
+					<ul v-if="showWorkspaceMenu" id="cobudget-workspace-menu" class="workspace-menu">
+						<li v-for="w in visibleWorkspaces" :key="w.id">
+							<button type="button" class="workspace-menu-item cobudget-focusable"
+								:aria-current="w.id === activeWorkspaceId ? 'true' : undefined"
+								@click="switchWorkspace(w)">
 							{{ w.name }}
 							<span v-if="w.is_default" style="font-size: var(--cobudget-font-xxs); opacity: 0.6;">({{ $texts.workspaces.base() }})</span>
+							</button>
 						</li>
 					</ul>
 				</div>
@@ -194,13 +192,13 @@
 			<router-link
 				:to="mobileReportsRoute"
 				class="mobile-bottom-navigation__item"
-				:class="{ 'mobile-bottom-navigation__item--active': mobileAnalyticsActive }"
-				:aria-current="mobileAnalyticsActive ? 'page' : undefined"
+				:class="{ 'mobile-bottom-navigation__item--active': mobileReportsActive }"
+				:aria-current="mobileReportsActive ? 'page' : undefined"
 				@click="closeMobileNavigation">
 				<span class="mobile-bottom-navigation__icon" aria-hidden="true">
 					<ChartLineIcon :size="24" />
 				</span>
-				<span class="mobile-bottom-navigation__label">{{ $texts.mobileNavigation.analytics() }}</span>
+				<span class="mobile-bottom-navigation__label">{{ $texts.annual.title() }}</span>
 			</router-link>
 		</nav>
 
@@ -219,8 +217,9 @@ import { defineAsyncComponent } from 'vue'
 import axios from './services/http'
 import { REMOTE_DATA_CHANGED_EVENT, startDataSync } from './services/dataSync'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
-import { isReportView, mobileReportLocation, readMobileReportView, rememberMobileReportView } from './services/mobileReports'
+import { isReportView, reportLocation } from './services/reportNavigation'
 import { shouldCloseEntrySidebarForRequest } from './utils/entrySidebarToggle'
+import { sortAreasByName } from './utils/areaSorting'
 import { hasPersonalEntryListRouteState, hasProjectEntryListRouteState } from './services/entryListRoute'
 import { generateUrl } from '@nextcloud/router'
 import { emit as emitNextcloudEvent } from '@nextcloud/event-bus'
@@ -290,7 +289,6 @@ export default {
 				insurance: 0
 			},
 			activeWorkspaceId: readWorkspaceId(),
-			mobileReportView: readMobileReportView(),
 			showWorkspaceMenu: false,
 			entrySidebarReady: false,
 			entrySidebarWideMedia: null,
@@ -302,7 +300,7 @@ export default {
 	},
 	computed: {
 		entryViewProps() {
-			return ['personal', 'payments', 'project-detail', 'project-payments'].includes(this.$route?.name)
+			return ['personal', 'payments', 'project-detail', 'project-payments', 'annual-overview'].includes(this.$route?.name)
 				? {
 					selectedEntryId: this.selectedEntryId,
 					hideNewPaymentAction: this.entrySidebarCreatingNew
@@ -310,7 +308,7 @@ export default {
 				: {};
 		},
 		activeProjects() {
-			return this.projects.filter(p => !p.is_archived);
+			return sortAreasByName(this.projects.filter(p => !p.is_archived));
 		},
 		activeWorkspaceName() {
 			const ws = this.workspaces.find(w => w.id === this.activeWorkspaceId);
@@ -332,11 +330,11 @@ export default {
 		mobileAreasActive() {
 			return ['projects', 'project-detail', 'project-payments', 'project-settings', 'project-settlements'].includes(this.$route?.name);
 		},
-		mobileAnalyticsActive() {
+		mobileReportsActive() {
 			return isReportView(this.$route?.name);
 		},
 		mobileReportsRoute() {
-			return mobileReportLocation(this.$route, this.mobileReportView);
+			return reportLocation(this.$route);
 		},
 		hasIncomes() {
 			return this.$enableIncomes && this.tagCounts.income > 0;
@@ -367,13 +365,6 @@ export default {
 		}
 	},
 	watch: {
-		'$route.name': {
-			immediate: true,
-			handler(name) {
-				const remembered = rememberMobileReportView(name);
-				if (remembered) this.mobileReportView = remembered;
-			}
-		},
 		async $route() {
 			this.showWorkspaceMenu = false;
 			await this.syncEntrySidebarForRoute();
@@ -1140,20 +1131,7 @@ export default {
 	transform: none !important;
 }
 
-.entry-badge {
-	display: inline-block;
-	padding: 2px 6px;
-	border-radius: 4px;
-	font-size: var(--cobudget-font-xs);
-	font-weight: 600;
-	vertical-align: middle;
-}
 
-.badge-abo, .badge-fixed {
-	background: var(--color-primary-light, #e0f2fe);
-	color: var(--color-primary, #0082c9);
-	border: 1px solid var(--color-primary, #0082c9);
-}
 
 /* Workspace Switcher */
 .workspace-switcher {
@@ -1164,6 +1142,11 @@ export default {
 	border-top: 1px solid var(--cobudget-border, #ddd);
 }
 .workspace-current {
+	margin: 0;
+	border: 0;
+	background: transparent;
+	color: var(--cobudget-text);
+	text-align: start;
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -1194,21 +1177,33 @@ export default {
 	background: var(--cobudget-page-background, #fff);
 	border: 1px solid var(--cobudget-border, #ddd);
 	border-radius: var(--border-radius-large, 8px);
-	box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+	box-shadow: var(--cobudget-shadow-md);
 	list-style: none;
-	padding: 6px 0;
+	padding: var(--cobudget-menu-padding);
 	margin: 0 0 4px 0;
 	z-index: 1000;
 }
-.workspace-menu li {
-	padding: 10px 14px;
+.workspace-menu-item {
+	width: 100%;
+	min-height: var(--cobudget-menu-item-height);
+	margin: 0;
+	border: 0;
+	border-radius: var(--cobudget-menu-item-radius);
+	background: transparent;
+	color: var(--cobudget-text);
+	font-weight: 400;
+	text-align: start;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	padding: 8px 12px;
 	cursor: pointer;
 	font-size: var(--cobudget-font-base);
 }
-.workspace-menu li:hover {
+.workspace-menu-item:hover,
+.workspace-menu-item:focus-visible {
 	background: var(--cobudget-surface-muted, #f0f0f0);
 }
-.workspace-menu li.active {
+.workspace-menu-item[aria-current="true"] {
 	font-weight: bold;
 	color: var(--color-primary, #0082c9);
 }

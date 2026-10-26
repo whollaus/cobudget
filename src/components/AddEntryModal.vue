@@ -412,16 +412,13 @@
 											:key="option.key"
 											type="button"
 											class="area-choice"
-											:class="{
-												'area-choice--project': option.id !== null,
-											}"
 											:style="areaChoiceStyle(option)"
 											role="radio"
 											:aria-checked="isAreaSelected(option.id) ? 'true' : 'false'"
 											@click="selectArea(option.id)">
 											<span class="area-choice__icon" aria-hidden="true">
 												<WalletIcon v-if="option.id === null" :size="22" />
-												<FolderIcon v-else :size="22" :fillColor="option.color || 'currentColor'" />
+												<FolderIcon v-else :size="22" :fillColor="isAreaSelected(option.id) ? 'currentColor' : option.color || 'currentColor'" />
 											</span>
 											<span class="area-choice__label">{{ option.name }}</span>
 										</button>
@@ -465,8 +462,8 @@
 
 					</div>
 
-					<details class="planning-section" :open="showPlanningOptions" @toggle="showPlanningOptions = $event.target.open">
-						<summary>
+					<details class="planning-section" :open="showPlanningOptions" ref="planningSection" tabindex="-1" @toggle="showPlanningOptions = $event.target.open">
+						<summary @click.prevent="togglePlanningOptions">
 							<span>{{ showAttachmentSection ? $texts.entry.planningWithReceipts() : $texts.entry.planning() }}</span>
 							<span
 								v-if="!showPlanningOptions && planningStatusItems.length"
@@ -601,7 +598,8 @@ import ModalActions from './ModalActions.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import { showRequestError, showToast } from '../services/notifications'
 import { readWorkspaceId } from '../services/workspaceStorage'
-import { getAreaColorPalette } from '../utils/areaColor'
+import { getAreaSelectionPalette } from '../utils/areaColor'
+import { sortAreasByName } from '../utils/areaSorting'
 import { categoryParentId, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 import { localDateKey, millisecondsUntilNextLocalDay, shouldRefreshDefaultEntryDate } from '../utils/entryDefaultDate'
 import { hasEntryFormChanges, snapshotEntryForm } from '../utils/entryFormState'
@@ -915,7 +913,7 @@ export default {
 			if (!this.$enableProjects) {
 				return [];
 			}
-			return this.projects.filter(p => !p.is_archived);
+			return sortAreasByName(this.projects.filter(p => !p.is_archived));
 		},
 		useDirectAreaSelection() {
 			return this.activeProjects.length <= 5;
@@ -1206,16 +1204,49 @@ export default {
 		updateWideViewport(event) {
 			this.isWideViewport = !!event?.matches;
 		},
+		async togglePlanningOptions() {
+			this.showPlanningOptions = !this.showPlanningOptions;
+			if (!this.showPlanningOptions) {
+				return;
+			}
+
+			await this.$nextTick();
+			const section = this.$refs.planningSection;
+			const body = this.$refs.modalBody;
+			if (!this.isOpen || !this.showPlanningOptions || !section?.open || !body) {
+				return;
+			}
+
+			// Focus the group without opening a mobile keyboard or scrolling the shell.
+			section.focus({ preventScroll: true });
+			const inset = parseFloat(window.getComputedStyle(body).paddingTop) || 0;
+			body.scrollTo({
+				top: Math.max(0, body.scrollTop + section.getBoundingClientRect().top - body.getBoundingClientRect().top - inset),
+				behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+			});
+		},
 		areaChoiceStyle(option) {
-			if (option.id === null || !this.isAreaSelected(option.id)) {
+			if (!this.isAreaSelected(option.id)) {
 				return {};
 			}
 
-			const palette = getAreaColorPalette(option.color);
+			// CSS theme colors cannot be parsed by the hex-only area palette.
+			// Resolve the default in CSS so it follows Nextcloud's active accent.
+			if (!/^#?(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(option.color || ''))) {
+				return {
+					'--area-choice-selected-background': 'var(--cobudget-primary)',
+					'--area-choice-selected-text': 'var(--cobudget-primary-text)',
+					'--area-choice-selected-border': 'var(--cobudget-primary)',
+					'--area-choice-selected-hover': 'var(--cobudget-primary-hover)'
+				};
+			}
+
+			const palette = getAreaSelectionPalette(option.color);
 			return {
 				'--area-choice-selected-background': palette.background,
 				'--area-choice-selected-text': palette.foreground,
-				'--area-choice-selected-border': palette.foreground
+				'--area-choice-selected-border': palette.background,
+				'--area-choice-selected-hover': palette.hover
 			};
 		},
 		isAreaSelected(projectId) {
@@ -2898,6 +2929,7 @@ export default {
 <style scoped>
 .entry-sidebar {
 	--entry-sidebar-content-padding: 4px;
+	--entry-sidebar-control-radius: var(--cobudget-control-radius);
 	--entry-sidebar-header-action-gap: var(--default-grid-baseline, 4px);
 	--entry-sidebar-header-save-width: calc(var(--default-grid-baseline, 4px) * 15);
 	overflow: hidden;
@@ -3057,22 +3089,34 @@ export default {
 }
 
 .planning-section summary {
+	margin: -8px -12px -12px;
+	padding: 8px 12px 12px;
+	border-radius: var(--cobudget-control-radius);
 	cursor: pointer;
   font-weight: 600;
   font-size: var(--cobudget-font-compact);
   color: var(--cobudget-text, var(--color-main-text, #333));
 }
 
+.planning-section[open] summary {
+	margin-bottom: 0;
+}
+
 .planning-section summary:focus-visible {
-	outline: 2px solid var(--color-primary, #0082c9);
-	outline-offset: 2px;
-	border-radius: var(--border-radius, 6px);
+	outline: var(--cobudget-focus-outline);
+	outline-offset: -2px;
+	border-radius: var(--cobudget-control-radius);
+}
+
+.planning-section:focus-visible {
+	outline: var(--cobudget-focus-outline);
+	outline-offset: -2px;
 }
 
 .planning-summary-status {
 	margin-inline-start: 8px;
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #6b6b6b));
-	font-size: var(--cobudget-font-small);
+	font-size: var(--cobudget-font-caption);
 	font-weight: 400;
 }
 
@@ -3105,9 +3149,9 @@ export default {
 }
 
 .area-choice {
-	--area-choice-state-background: var(--color-main-background, #fff);
-	--area-choice-state-border: var(--cobudget-border-strong, var(--color-border-dark, #ccc));
-	--area-choice-state-text: var(--cobudget-text, var(--color-main-text, #222));
+	--area-choice-state-background: var(--color-primary-element-light, var(--cobudget-primary-light));
+	--area-choice-state-border: var(--color-primary-element-light-hover, var(--cobudget-primary-light));
+	--area-choice-state-text: var(--color-primary-element-light-text, var(--cobudget-text));
 
 	display: grid;
 	grid-template-columns: 24px minmax(0, 1fr);
@@ -3119,7 +3163,7 @@ export default {
 	margin: 0;
 	padding: 8px 5px;
 	border: 2px solid var(--area-choice-state-border) !important;
-  border-radius: var(--border-radius, 6px);
+  border-radius: var(--cobudget-control-radius);
 	background: var(--area-choice-state-background) !important;
 	box-shadow: none !important;
   font-weight: normal;
@@ -3140,11 +3184,6 @@ export default {
 }
 
 .area-choice[aria-checked='true'] {
-	--area-choice-state-border: var(--color-primary-element, #00679e);
-	--area-choice-state-background: var(--color-primary-element-light, #e5f1f8);
-}
-
-.area-choice--project[aria-checked='true'] {
 	--area-choice-state-border: var(--area-choice-selected-border);
 	--area-choice-state-background: var(--area-choice-selected-background);
 	--area-choice-state-text: var(--area-choice-selected-text);
@@ -3162,9 +3201,6 @@ export default {
 .area-choice__label {
 	min-width: 0;
 	overflow-wrap: anywhere;
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
-  color: var(--cobudget-text-muted, #888);
 }
 
 .project-assignment-row.has-project-payer,
@@ -3216,7 +3252,7 @@ button.lookup-trigger:focus,
 button.lookup-trigger:focus-visible {
 	background: var(--cobudget-surface, var(--color-main-background, #fff)) !important;
 	border-width: 2px !important;
-	border-color: var(--color-primary, #0082c9) !important;
+	border-color: var(--cobudget-control-focus-border) !important;
 	outline: none !important;
 	box-shadow: none !important;
 }
@@ -3309,7 +3345,11 @@ button.lookup-trigger:focus-visible {
 .lookup-clear-button:focus-visible {
 	background: var(--cobudget-surface-muted, var(--color-background-hover, #f2f2f2));
 	color: var(--cobudget-text, var(--color-main-text, #222));
-	outline: none;
+}
+
+.lookup-clear-button:focus-visible {
+	outline: var(--cobudget-focus-outline);
+	outline-offset: -2px;
 }
 
 .lookup-clear-button :deep(svg) {
@@ -3326,11 +3366,11 @@ button.lookup-trigger:focus-visible {
 	left: 0;
 	right: 0;
 	overflow: hidden;
-	padding: 6px 0 0;
+	padding: var(--cobudget-menu-padding) 0 0;
 	border: 1px solid var(--cobudget-border, #ddd);
 	border-radius: var(--border-radius-large, 8px);
 	background: var(--cobudget-surface, #fff);
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+	box-shadow: var(--cobudget-shadow-md);
 }
 
 .lookup-menu--above {
@@ -3353,13 +3393,13 @@ button.lookup-trigger:focus-visible {
 }
 
 .lookup-options {
-	padding: 0 6px 6px;
+	padding: 0 var(--cobudget-menu-padding) var(--cobudget-menu-padding);
 }
 
 .lookup-create {
 	position: relative;
 	z-index: 1;
-	padding: 0 6px;
+	padding: 0 var(--cobudget-menu-padding);
 }
 
 .lookup-add-button {
@@ -3371,7 +3411,7 @@ button.lookup-trigger:focus-visible {
 	margin: 0;
 	padding: 0 10px;
 	border: 0;
-	border-radius: var(--border-radius, 6px);
+	border-radius: var(--cobudget-control-radius);
 	background: transparent;
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	font-size: var(--cobudget-font-base);
@@ -3386,7 +3426,7 @@ button.lookup-trigger:focus-visible {
 }
 
 .lookup-add-button:focus-visible {
-	outline: 2px solid var(--color-primary-element, var(--color-primary, #0082c9));
+	outline: var(--cobudget-focus-outline);
 	outline-offset: -2px;
 }
 
@@ -3408,7 +3448,7 @@ button.lookup-trigger:focus-visible {
 	margin: 0;
 	padding: 0 14px;
 	border: 0;
-	border-radius: var(--border-radius, 6px);
+	border-radius: var(--cobudget-control-radius);
 	background: var(--cobudget-surface-muted, var(--color-background-hover, #f2f2f2));
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	font-weight: 600;
@@ -3448,11 +3488,6 @@ button.lookup-trigger:focus-visible {
 	position: relative;
 	z-index: 1;
 	padding: 8px 10px 4px;
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	font-size: var(--cobudget-font-xs);
-	font-weight: 700;
-	letter-spacing: 0;
-	text-transform: uppercase;
 }
 
 .lookup-group-label:not(:first-child) {
@@ -3472,7 +3507,7 @@ button.lookup-trigger:focus-visible {
 	min-height: 36px;
 	padding: 8px 10px;
 	border: none;
-	border-radius: var(--border-radius, 6px);
+	border-radius: var(--cobudget-control-radius);
 	background: transparent;
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	font-size: var(--cobudget-font-base);
@@ -3533,7 +3568,7 @@ button.lookup-trigger:focus-visible {
 	margin: 0;
 	padding: 12px;
 	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius, 6px);
+	border-radius: var(--cobudget-control-radius);
 	background: var(--cobudget-surface, #fff);
 }
 
@@ -3575,7 +3610,7 @@ button.lookup-trigger:focus-visible {
 }
 
 .lookup-option:focus-visible {
-	outline: 2px solid var(--color-primary-element, var(--color-primary, #0082c9));
+	outline: var(--cobudget-focus-outline);
 	outline-offset: 2px;
 }
 
@@ -3585,18 +3620,24 @@ button.lookup-trigger:focus-visible {
 
 .form-group label {
 	display: block;
-  color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
+}
+
+.form-group label,
+.lookup-group-label {
+	color: var(--cobudget-text-muted);
+	font-size: var(--cobudget-font-label);
+	font-weight: 400;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .form-control {
 	width: 100%;
-	height: 44px !important;
+	height: var(--cobudget-control-height) !important;
 	padding: 10px 12px;
-	border: 2px solid var(--cobudget-border-strong, #ccc);
-	border-radius: var(--border-radius, 6px);
-	font-size: var(--cobudget-font-ui);
+	border: var(--cobudget-control-border) solid var(--cobudget-border-strong, #ccc);
+	border-radius: var(--cobudget-control-radius);
+	font-size: var(--cobudget-font-base);
 	background: var(--cobudget-surface, #fff);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	box-sizing: border-box;
@@ -3625,8 +3666,9 @@ button.lookup-trigger:focus-visible {
 
 .form-control:not(.amount-input):focus:not(:disabled),
 .form-control:not(.amount-input):focus-visible:not(:disabled) {
-	border: 2px solid var(--color-primary, #0082c9) !important;
+	border-color: var(--cobudget-control-focus-border) !important;
 	background: var(--cobudget-surface, var(--color-main-background, #fff)) !important;
+	/* Keep focus inside the field; the sidebar clips an outside ring. */
 	outline: none !important;
 	box-shadow: none !important;
 }
@@ -3670,7 +3712,7 @@ button.lookup-trigger:focus-visible {
 	height: 44px;
 	margin-block: 3px;
 	border: 2px solid var(--cobudget-border-strong, #ccc);
-	border-radius: var(--border-radius, 6px);
+	border-radius: var(--entry-sidebar-control-radius);
 	box-sizing: border-box;
 	overflow: visible;
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
@@ -3690,12 +3732,14 @@ button.lookup-trigger:focus-visible {
 	background: var(--cobudget-success-light);
 }
 
-.amount-input-wrap:hover {
-	border-color: var(--color-border-dark, var(--cobudget-border-strong, #ccc));
+@media (hover: hover) and (pointer: fine) {
+	.amount-input-wrap:hover {
+		border-color: var(--amount-accent);
+	}
 }
 
 .amount-input-wrap:focus-within {
-	border-color: var(--color-primary-element, var(--color-primary, #0082c9));
+	border-color: var(--amount-accent);
 	outline: none;
 	box-shadow: none;
 }
@@ -3724,7 +3768,7 @@ button.lookup-trigger:focus-visible {
 	overflow: hidden;
 	border: 0;
 	border-inline-end: 1px solid color-mix(in srgb, var(--amount-accent) 38%, transparent);
-	border-radius: calc(var(--border-radius, 6px) - 2px) 0 0 calc(var(--border-radius, 6px) - 2px);
+	border-radius: calc(var(--entry-sidebar-control-radius) - 2px) 0 0 calc(var(--entry-sidebar-control-radius) - 2px);
 	background: transparent;
 	color: inherit;
 	box-shadow: none;
@@ -3784,7 +3828,7 @@ button.lookup-trigger:focus-visible {
 	justify-content: flex-start;
 	padding: 0 8px !important;
 	border: 0;
-	border-radius: var(--border-radius, 6px);
+	border-radius: var(--cobudget-control-radius);
 	background: transparent;
 	box-shadow: none;
 }
@@ -3863,7 +3907,7 @@ button.lookup-trigger:focus-visible {
 .date-col :deep(input) {
 	height: 44px !important;
 	line-height: 40px !important;
-	font-size: var(--cobudget-font-ui) !important;
+	font-size: var(--cobudget-font-base) !important;
   border-radius: var(--entry-sidebar-control-radius);
 	box-sizing: border-box;
 	border: 2px solid var(--cobudget-border-strong, #ccc) !important;
@@ -3905,15 +3949,21 @@ button.lookup-trigger:focus-visible {
 	width: 0;
 }
 
+.area-choice__label,
+.tag-btn {
+	font-size: var(--cobudget-font-caption);
+	font-weight: 600;
+	letter-spacing: normal;
+	color: inherit;
+}
+
 .tag-btn {
 	display: inline-block;
 	padding: 5px 10px;
-	background: var(--cobudget-surface-muted, var(--color-background-hover, #eee));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	border-radius: 4px;
-	font-size: var(--cobudget-font-xs);
-	font-weight: 600;
-	border: 2px solid var(--cobudget-border-strong, var(--color-border-dark, #ccc));
+	background: var(--color-primary-element-light, var(--cobudget-primary-light));
+	color: var(--color-primary-element-light-text, var(--cobudget-text));
+	border-radius: var(--cobudget-badge-radius);
+	border: 1px solid var(--color-primary-element-light-hover, var(--cobudget-primary-light));
 	cursor: pointer;
 }
 
@@ -3926,6 +3976,34 @@ button.lookup-trigger:focus-visible {
 	background: var(--cobudget-primary, var(--color-primary-element, #0082c9));
 	color: var(--color-primary-element-text, var(--cobudget-primary-text, #fff));
 	border-color: var(--cobudget-primary, var(--color-primary, #0082c9));
+}
+
+/* Hover is transient pointer feedback, independent of checked/radio state.
+ * Touch taps must not leave a hover fill on an unselected option. */
+@media (hover: hover) and (pointer: fine) {
+	.tag-toggle:hover input:not(:disabled):not(:checked) + .tag-btn {
+		background: var(--color-primary-element-light-hover, var(--cobudget-primary-light));
+		border-color: var(--cobudget-primary);
+	}
+
+	.tag-toggle:hover input:not(:disabled):checked + .tag-btn {
+		background: var(--cobudget-primary-hover);
+		border-color: var(--cobudget-primary-hover);
+	}
+
+	.area-choice:hover:not(:disabled):not([aria-checked='true']) {
+		--area-choice-state-background: var(--color-primary-element-light-hover, var(--cobudget-primary-light));
+		--area-choice-state-border: var(--cobudget-primary);
+	}
+
+	.area-choice[aria-checked='true']:hover:not(:disabled) {
+		--area-choice-state-background: var(--area-choice-selected-hover);
+		--area-choice-state-border: var(--area-choice-selected-hover);
+	}
+
+	.planning-section summary:hover {
+		background: var(--cobudget-surface-strong);
+	}
 }
 
 .attachments-inline {
@@ -3957,7 +4035,7 @@ button.lookup-trigger:focus-visible {
 	align-items: center;
 	min-height: 34px;
 	padding: 0 12px;
-	border-radius: var(--border-radius, 6px);
+	border-radius: var(--cobudget-control-radius);
 	background: var(--cobudget-surface-muted, #f7f7f7);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	font-size: var(--cobudget-font-compact);
@@ -3970,7 +4048,7 @@ button.lookup-trigger:focus-visible {
 }
 
 .attachment-upload-btn:focus-within {
-	outline: 2px solid var(--color-primary, #0082c9);
+	outline: var(--cobudget-focus-outline);
 	outline-offset: 2px;
 }
 
@@ -4046,7 +4124,11 @@ button.lookup-trigger:focus-visible {
 .attachment-remove:focus-visible {
 	background: var(--cobudget-error-light);
 	color: var(--cobudget-error);
-	outline: none;
+}
+
+.attachment-remove:focus-visible {
+	outline: var(--cobudget-focus-outline);
+	outline-offset: -2px;
 }
 
 .form-actions {
@@ -4076,7 +4158,7 @@ button.lookup-trigger:focus-visible {
 }
 
 .form-actions :deep(.cobudget-button--secondary:focus-visible:not(:disabled)) {
-	outline: 2px solid var(--color-primary-element, var(--color-primary, #0082c9));
+	outline: var(--cobudget-focus-outline);
 	outline-offset: 2px;
 }
 
@@ -4412,5 +4494,8 @@ button.lookup-trigger:focus-visible {
 	.amount-input.bg-income::placeholder {
 		opacity: 0.85;
 	}
+}
+@media (max-width: 768px) {
+	.lookup-option { min-height: var(--cobudget-mobile-touch-size); }
 }
 </style>

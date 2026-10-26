@@ -12,14 +12,14 @@
 		</AppPageHeader>
 
 		<div v-if="activeProjects.length > 0" class="projects-grid">
-			<div v-for="project in activeProjects" :key="project.id" class="project-card" @click="$emit('open-project', project.id)">
+			<div v-for="project in activeProjects" :key="project.id" class="project-card cobudget-interactive-card cobudget-focusable" data-cobudget-card="" role="link" tabindex="0" @click="$emit('open-project', project.id)" @keydown.enter.prevent="$emit('open-project', project.id)" @keydown.space.prevent="$emit('open-project', project.id)">
 				<div class="project-card-header">
 					<span class="project-icon"><FolderIcon :size="20" :fillColor="project.color || 'var(--color-primary, #0082c9)'" /></span>
 					<strong class="project-name">{{ project.name }}</strong>
 				</div>
 				<div class="project-card-meta">
-					<span v-if="isSharedProject(project)" style="display:flex; align-items:center; gap:4px; pointer-events: none;"><AccountMultipleIcon :size="14" /> {{ memberCountLabel(project.member_count) }}</span>
-					<span v-else style="display:flex; align-items:center; gap:4px; pointer-events: none;"><AccountIcon :size="14" /> {{ $texts.areas.personalArea() }}</span>
+					<span v-if="isSharedProject(project)" style="display:flex; align-items:center; gap:4px; pointer-events: none;"><AccountMultipleIcon :size="16" aria-hidden="true" /> {{ memberCountLabel(project.member_count) }}</span>
+					<span v-else style="display:flex; align-items:center; gap:4px; pointer-events: none;"><AccountIcon :size="16" aria-hidden="true" /> {{ $texts.areas.personalArea() }}</span>
 				</div>
 				<div v-if="isSharedProject(project)" class="project-card-balance" style="margin-top: 8px; font-size: var(--cobudget-font-compact); font-weight: 600;">
 					<span v-if="project.personal_balance > 0" class="project-balance-positive">
@@ -53,14 +53,14 @@
 		<details v-if="archivedProjects.length > 0" class="archived-projects-section">
 			<summary>{{ $texts.areas.archivedAreas(archivedProjects.length) }}</summary>
 			<div class="projects-grid archived-grid">
-				<div v-for="project in archivedProjects" :key="project.id" class="project-card archived-card" @click="$emit('open-project', project.id)">
+				<div v-for="project in archivedProjects" :key="project.id" class="project-card archived-card cobudget-interactive-card cobudget-focusable" data-cobudget-card="" role="link" tabindex="0" @click="$emit('open-project', project.id)" @keydown.enter.prevent="$emit('open-project', project.id)" @keydown.space.prevent="$emit('open-project', project.id)">
 					<div class="project-card-header">
 						<span class="project-icon"><FolderIcon :size="20" :fillColor="project.color || 'currentColor'" /></span>
 						<strong class="project-name">{{ project.name }}</strong>
 					</div>
 					<div class="project-card-meta">
-						<span v-if="isSharedProject(project)" style="display:flex; align-items:center; gap:4px;"><AccountMultipleIcon :size="14" /> {{ memberCountLabel(project.member_count) }}</span>
-						<span v-else style="display:flex; align-items:center; gap:4px;"><AccountIcon :size="14" /> {{ $texts.areas.personalArea() }}</span>
+						<span v-if="isSharedProject(project)" style="display:flex; align-items:center; gap:4px;"><AccountMultipleIcon :size="16" aria-hidden="true" /> {{ memberCountLabel(project.member_count) }}</span>
+						<span v-else style="display:flex; align-items:center; gap:4px;"><AccountIcon :size="16" aria-hidden="true" /> {{ $texts.areas.personalArea() }}</span>
 					</div>
 				</div>
 			</div>
@@ -74,24 +74,24 @@
 				tabindex="-1"
 				@click.self="closeCreateModal"
 				@keydown.esc.stop.prevent="closeCreateModal">
-				<div class="project-create-modal" role="dialog" aria-modal="true" aria-labelledby="project-create-modal-title">
+				<div class="project-create-modal cobudget-dialog" role="dialog" aria-modal="true" aria-labelledby="project-create-modal-title">
 					<form class="project-create-modal-form" @submit.prevent="createProject">
-						<div class="project-create-modal-header">
+						<div class="project-create-modal-header cobudget-dialog-header cobudget-dialog-header--padded">
 							<h2 id="project-create-modal-title" class="project-create-modal-title">{{ $texts.areas.createTitle() }}</h2>
 							<button
 								type="button"
-								class="project-create-modal-close"
+								class="project-create-modal-close cobudget-dialog-close cobudget-focusable"
 								:aria-label="$texts.common.close()"
 								:title="$texts.common.close()"
 								@click="closeCreateModal">
-								<CloseIcon :size="22" aria-hidden="true" />
+								<CloseIcon :size="24" aria-hidden="true" />
 							</button>
 						</div>
 
 						<div class="project-create-modal-body">
 							<div class="form-group">
 								<label>{{ $texts.areas.name() }}</label>
-								<input type="text" ref="newProjectNameInput" v-model="newProject.name" class="form-control" :placeholder="$texts.areas.namePlaceholder()" required>
+								<input type="text" ref="newProjectNameInput" v-model="newProject.name" class="form-control" data-cobudget-field="compact" :placeholder="$texts.areas.namePlaceholder()" required>
 							</div>
 
 							<div class="form-group">
@@ -101,7 +101,7 @@
 										<input type="color" class="sr-only" :value="newProject.color || '#cccccc'" @input="colorChanged" />
 									</label>
 									<button type="button" @click="newProject.color = ''" :disabled="!newProject.color" class="btn-secondary color-clear-btn">
-										<BackspaceIcon :size="18" /> {{ $texts.areas.removeColor() }}
+										<BackspaceIcon :size="20" aria-hidden="true" /> {{ $texts.areas.removeColor() }}
 									</button>
 								</div>
 							</div>
@@ -138,6 +138,7 @@ import MemberSearch from '../components/MemberSearch.vue'
 import ModalActions from '../components/ModalActions.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import { showRequestError, showToast } from '../services/notifications'
+import { sortAreasByName } from '../utils/areaSorting'
 
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -183,10 +184,10 @@ export default {
 	},
 	computed: {
 		activeProjects() {
-			return this.projects.filter(p => !p.is_archived);
+			return sortAreasByName(this.projects.filter(p => !p.is_archived));
 		},
 		archivedProjects() {
-			return this.projects.filter(p => p.is_archived);
+			return sortAreasByName(this.projects.filter(p => p.is_archived));
 		}
 	},
 	methods: {
@@ -262,29 +263,20 @@ export default {
 }
 
 .projects-grid {
-	margin-top: 0px;
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-	gap: 14px;
-	margin-top: 20px;
+	gap: var(--cobudget-card-gap);
+	margin-top: var(--cobudget-section-gap);
 }
 .project-card {
-	background: var(--cobudget-surface, var(--cobudget-page-background, #fff));
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
 	color: var(--cobudget-text, var(--color-main-text, #222));
-	padding: 18px;
 	cursor: pointer;
 	transition: box-shadow 0.2s, border-color 0.2s;
-}
-.project-card:hover {
-	box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-	border-color: var(--color-primary, #0082c9);
 }
 .project-card-header {
 	display: flex;
 	align-items: center;
-	gap: 10px;
+	gap: var(--cobudget-content-gap);
 	margin-bottom: 8px;
 }
 .project-icon {
@@ -292,7 +284,7 @@ export default {
 }
 .project-name {
 	flex-grow: 1;
-	font-size: var(--cobudget-font-md);
+	font-size: var(--cobudget-font-card-title);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
@@ -341,7 +333,7 @@ export default {
 	left: 0;
 	width: 100vw;
 	height: 100vh;
-	background: rgba(0,0,0,0.6);
+	background: var(--cobudget-dialog-backdrop);
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -413,10 +405,10 @@ body.theme--dark:not(.cobudget-theme-light) .project-create-modal-backdrop {
 	position: relative;
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	color: var(--cobudget-text, var(--color-main-text, #222));
-	border-radius: var(--border-radius-large, 10px);
+	border-radius: var(--cobudget-dialog-radius);
 	width: min(640px, calc(100vw - 48px));
 	max-width: 95vw;
-	box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+	box-shadow: var(--cobudget-dialog-shadow);
 	overflow: visible;
 }
 
@@ -427,72 +419,10 @@ body.theme--dark:not(.cobudget-theme-light) .project-create-modal-backdrop {
 	margin: 0;
 }
 
-.project-create-modal-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	padding: 10px 20px;
-	background: var(--cobudget-surface-muted, #f9f9f9);
-	border-bottom: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 10px) var(--border-radius-large, 10px) 0 0;
-}
-
-.project-create-modal-title {
-	margin: 0;
-	font-size: var(--cobudget-font-lg);
-	font-weight: 700;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.project-create-modal-close {
-	appearance: none;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: var(--cobudget-icon-button-size) !important;
-	height: var(--cobudget-icon-button-size) !important;
-	min-width: var(--cobudget-icon-button-size) !important;
-	min-height: var(--cobudget-icon-button-size) !important;
-	max-width: var(--cobudget-icon-button-size) !important;
-	max-height: var(--cobudget-icon-button-size) !important;
-	border: 0 !important;
-	border-radius: var(--cobudget-radius-sm);
-	background: transparent !important;
-	color: var(--cobudget-text) !important;
-	cursor: pointer;
-	font-size: 0;
-	line-height: 0;
-	margin: 0 !important;
-	padding: 0 !important;
-	box-shadow: none !important;
-}
-
-.project-create-modal-close:hover,
-.project-create-modal-close:focus-visible {
-	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5)) !important;
-	outline: none;
-}
-
-.project-create-modal-close:focus-visible {
-	box-shadow: var(--cobudget-focus-ring, 0 0 0 2px var(--color-primary, #0082c9));
-}
-
-.project-create-modal-close .material-design-icon,
-.project-create-modal-close .material-design-icon__svg {
-	display: block;
-	flex: 0 0 auto;
-	width: 22px;
-	height: 22px;
-	color: currentColor;
-	fill: currentColor !important;
-}
-
 .project-create-modal-body {
 	flex-grow: 1;
 	overflow-y: auto;
-	padding: 20px;
+	padding: var(--cobudget-dialog-padding);
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
@@ -502,7 +432,7 @@ body.theme--dark:not(.cobudget-theme-light) .project-create-modal-backdrop {
 	align-items: center;
 	flex-shrink: 0;
 	border-top: 1px solid var(--cobudget-border, #ddd);
-	padding: 10px 20px;
+	padding: 12px var(--cobudget-dialog-padding);
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	border-radius: 0 0 var(--border-radius-large, 10px) var(--border-radius-large, 10px);
@@ -513,23 +443,8 @@ body.theme--dark:not(.cobudget-theme-light) .project-create-modal-backdrop {
 .form-group label {
 	display: block;
   color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
-}
-.form-control {
-	width: 100%;
-	padding: 10px;
-	border: 1px solid var(--cobudget-border, #ccc);
-	border-radius: var(--border-radius, 4px);
-	font-size: var(--cobudget-font-md);
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	box-sizing: border-box;
-}
-
-.form-control::placeholder {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-	opacity: 1;
+  font-size: var(--cobudget-font-label);
+  letter-spacing: normal;
 }
 
 .project-create-modal input,
@@ -557,15 +472,11 @@ body.theme--dark:not(.cobudget-theme-light) .project-create-modal-backdrop {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 	opacity: 1;
 }
-.form-control:focus {
-	border-color: var(--color-primary, #0082c9);
-	outline: none;
-}
 .btn-secondary {
 	background-color: var(--cobudget-surface-muted, var(--color-background-hover, transparent));
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	border: 1px solid transparent;
-	padding: 10px 20px;
+	padding: 12px var(--cobudget-dialog-padding);
 	border-radius: var(--border-radius, 4px);
 	font-weight: bold;
 	cursor: pointer;

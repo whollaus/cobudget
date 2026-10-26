@@ -1,52 +1,72 @@
 <template>
-	<NcModal :show="true" size="normal" :name="detail.label" :close-on-click-outside="true" @close="$emit('close')">
-		<div class="annual-details">
-			<table class="annual-details-table annual-details-basics">
+		<div class="annual-details" :class="{ 'annual-details--embedded': embedded }">
+			<table v-if="!embedded" class="annual-details-table annual-details-basics">
 				<tbody>
-					<tr><th scope="row">{{ $texts.annual.year() }}</th><td>{{ selection.year }}</td></tr>
-					<tr v-if="selection.period === 'quarter' && !metrics.yearly"><th scope="row">{{ $texts.annual.quarterLabel() }}</th><td>{{ $texts.annual.quarter(detail.index + 1) }}</td></tr>
-					<tr v-if="selection.period === 'week' && !metrics.yearly"><th scope="row">{{ $texts.annual.weekLabel() }}</th><td>{{ $texts.annual.week(detail.index + 1) }}</td></tr>
-					<tr v-if="selection.period === 'month' || dailyMonth || (selection.period !== 'quarter' && selection.period !== 'week' && selection.period !== 'day' && !metrics.yearly)"><th scope="row">{{ $texts.budgetGoals.month() }}</th><td>{{ monthLabel }}</td></tr>
-					<tr v-if="(selection.period === 'month' || selection.period === 'day') && !metrics.yearly"><th scope="row">{{ $texts.annual.day() }}</th><td>{{ dayLabel }}</td></tr>
+					<tr v-if="report.range"><th scope="row">{{ $texts.annual.selectedPeriod() }}</th><td>{{ rangeLabel }}</td></tr>
+					<tr v-if="!report.range"><th scope="row">{{ $texts.annual.year() }}</th><td>{{ selection.year }}</td></tr>
+					<tr v-if="!report.range && (selection.period === 'quarter' && !metrics.yearly)"><th scope="row">{{ $texts.annual.quarterLabel() }}</th><td>{{ $texts.annual.quarter(detail.index + 1) }}</td></tr>
+					<tr v-if="!report.range && (selection.period === 'week' && !metrics.yearly)"><th scope="row">{{ $texts.annual.weekLabel() }}</th><td>{{ $texts.annual.week(detail.index + 1) }}</td></tr>
+					<tr v-if="!report.range && (selection.period === 'month' || dailyMonth || (selection.period !== 'quarter' && selection.period !== 'week' && selection.period !== 'day' && !metrics.yearly))"><th scope="row">{{ $texts.budgetGoals.month() }}</th><td>{{ monthLabel }}</td></tr>
+					<tr v-if="!report.range && ((selection.period === 'month' || selection.period === 'day') && !metrics.yearly)"><th scope="row">{{ $texts.annual.day() }}</th><td>{{ dayLabel }}</td></tr>
 					<tr><th scope="row">{{ $texts.analytics.area() }}</th><td>{{ scopeLabel }}</td></tr>
 					<tr v-if="!detail.total"><th scope="row">{{ dimensionLabel }}</th><td>{{ detail.label }}</td></tr>
 					<tr><th scope="row">{{ $texts.analytics.bookingsColumn() }}</th><td>{{ paymentsLabel }}</td></tr>
 				</tbody>
 			</table>
-			<table class="annual-details-table">
-				<tbody>
-					<tr class="annual-details-total"><th scope="row">{{ $texts.analytics.total() }}</th><td :class="{ 'negative-balance': metrics.amount < 0 }">{{ $formatMoneyFromCents(metrics.amount) }}</td></tr>
-					<template v-if="metrics.balance">
-						<tr><th scope="row">{{ $texts.annual.income() }}</th><td>{{ $formatMoneyFromCents(metrics.income) }}</td></tr>
-						<tr><th scope="row">{{ $texts.annual.expenses() }}</th><td>{{ $formatMoneyFromCents(metrics.expense) }}</td></tr>
-					</template>
-					<tr v-if="metrics.yearly && selection.period === 'quarter'"><th scope="row">{{ $texts.annual.averagePerQuarter() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerQuarter) }}</td></tr>
-					<tr v-if="metrics.yearly && selection.period === 'week'"><th scope="row">{{ $texts.annual.averagePerWeek() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerWeek) }}</td></tr>
-					<tr v-if="metrics.yearly && selection.period !== 'month' && selection.period !== 'quarter' && selection.period !== 'week' && selection.period !== 'day'"><th scope="row">{{ $texts.annual.averagePerMonth() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerMonth) }}</td></tr>
-					<tr v-if="metrics.yearly && (selection.period === 'month' || selection.period === 'day')"><th scope="row">{{ $texts.annual.averagePerDay() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerDay) }}</td></tr>
-					<tr v-if="metrics.share !== null"><th scope="row">{{ shareLabel }}</th><td>{{ percentage }}</td></tr>
-					<tr><th scope="row">{{ $texts.annual.paymentCount() }}</th><td>{{ metrics.count }}</td></tr>
-					<tr v-if="!metrics.yearly && metrics.averagePerPayment !== null"><th scope="row">{{ $texts.annual.averagePerPayment() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerPayment) }}</td></tr>
-					<tr v-for="comparison in comparisons" :key="comparison.mode" class="annual-details-comparison">
-						<th scope="row">{{ comparisonLabel(comparison.mode) }}<span class="annual-comparison-period">{{ comparisonPeriod(comparison.value) }}</span></th>
-						<td><AnnualComparison :value="comparison.value" :type="detail.row.type" /></td>
-					</tr>
-					<tr v-if="comparisonLoading"><td colspan="2" class="annual-comparison-status" role="status">{{ $texts.annual.comparisonsLoading() }}</td></tr>
-					<tr v-else-if="comparisonError"><td colspan="2" class="annual-comparison-status" role="alert">{{ $texts.annual.comparisonsError() }} <NcButton variant="tertiary" @click="loadComparisons">{{ $texts.annual.retry() }}</NcButton></td></tr>
-				</tbody>
-			</table>
-			<div class="annual-details-actions">
+			<ReportDetailSection class="report-detail-metrics" section-key="detail-metrics" :title="$texts.analytics.keyFigures()">
+				<table class="annual-details-table">
+					<tbody>
+						<tr class="annual-details-total"><th scope="row">{{ totalLabel }}</th><td :class="{ 'negative-balance': metrics.amount < 0 }">{{ $formatMoneyFromCents(metrics.amount) }}</td></tr>
+						<template v-if="metrics.balance">
+							<tr><th scope="row">{{ $texts.annual.income() }}</th><td>{{ $formatMoneyFromCents(metrics.income) }}</td></tr>
+							<tr><th scope="row">{{ $texts.annual.expenses() }}</th><td>{{ $formatMoneyFromCents(metrics.expense) }}</td></tr>
+						</template>
+						<tr v-if="annualTotal" class="annual-details-year-total"><th scope="row">{{ $texts.annual.yearTotal(annualTotal.year) }}</th><td :class="{ 'negative-balance': annualTotal.amount < 0 }">{{ $formatMoneyFromCents(annualTotal.amount) }}</td></tr>
+						<tr v-if="metrics.share !== null"><th scope="row">{{ shareLabel }}</th><td>{{ percentage }}</td></tr>
+						<tr><th scope="row">{{ $texts.annual.paymentCount() }}</th><td>{{ metrics.count }}</td></tr>
+					</tbody>
+				</table>
+			</ReportDetailSection>
+			<ReportDetailSection v-if="hasAverages" class="report-detail-averages" section-key="detail-averages" :title="$texts.annual.averages()">
+				<table class="annual-details-table">
+					<tbody>
+						<tr v-for="average in averages" :key="average.id" class="annual-details-average" :data-average-id="average.id"><th scope="row">{{ comparisonLabel(average.id) }}</th><td :class="{ 'negative-balance': average.fullAverage < 0 }">{{ $formatMoneyFromCents(average.fullAverage) }}</td></tr>
+						<template v-if="comparisonData === null">
+							<tr v-if="metrics.yearly && selection.period === 'quarter'"><th scope="row">{{ $texts.annual.averagePerQuarter() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerQuarter) }}</td></tr>
+							<tr v-if="metrics.yearly && selection.period === 'week'"><th scope="row">{{ $texts.annual.averagePerWeek() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerWeek) }}</td></tr>
+							<tr v-if="metrics.yearly && selection.period !== 'month' && selection.period !== 'quarter' && selection.period !== 'week' && selection.period !== 'day'"><th scope="row">{{ $texts.annual.averagePerMonth() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerMonth) }}</td></tr>
+							<tr v-if="metrics.yearly && (selection.period === 'month' || selection.period === 'day')"><th scope="row">{{ $texts.annual.averagePerDay() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerDay) }}</td></tr>
+						</template>
+						<tr v-if="!metrics.yearly && metrics.averagePerPayment !== null"><th scope="row">{{ $texts.annual.averagePerPayment() }}</th><td>{{ $formatMoneyFromCents(metrics.averagePerPayment) }}</td></tr>
+					</tbody>
+				</table>
+			</ReportDetailSection>
+			<ReportDetailSection v-if="comparisons.length || comparisonLoading || comparisonsLoading || comparisonError || comparisonsError" class="report-detail-comparisons" section-key="detail-comparisons" :title="$texts.annual.comparisons()">
+				<table class="annual-details-table">
+					<tbody>
+						<tr v-for="comparison in comparisons" :key="comparison.mode" class="annual-details-comparison">
+							<th scope="row">{{ comparisonLabel(comparison.mode) }}<span class="annual-comparison-period">{{ comparisonPeriod(comparison.value) }}</span></th>
+							<td class="annual-details-reference">
+								<span v-if="comparison.value.kind" class="annual-reference-amount">{{ $formatMoneyFromCents(comparison.value.previous) }}</span><AnnualComparison :value="comparison.value" :type="detail.row.type" />
+							</td>
+						</tr>
+						<tr v-if="comparisonLoading || comparisonsLoading"><td colspan="2" class="annual-comparison-status" role="status">{{ $texts.annual.comparisonsLoading() }}</td></tr>
+						<tr v-else-if="comparisonError || comparisonsError"><td colspan="2" class="annual-comparison-status" role="alert">{{ $texts.annual.comparisonsError() }} <NcButton variant="tertiary" @click="comparisonData === null ? loadComparisons() : $emit('retry')">{{ $texts.annual.retry() }}</NcButton></td></tr>
+					</tbody>
+				</table>
+			</ReportDetailSection>
+			<div v-if="!embedded" class="annual-details-actions">
 				<NcButton class="annual-details-payments" variant="tertiary" @click="showPayments">{{ $texts.analytics.showPayments() }}</NcButton>
 				<NcButton variant="secondary" @click="$emit('close')">{{ $texts.common.close() }}</NcButton>
 			</div>
 		</div>
-	</NcModal>
 </template>
 
 <script>
-import NcModal from '@nextcloud/vue/components/NcModal'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import AnnualComparison from './AnnualComparison.vue'
+import ReportDetailSection from './ReportDetailSection.vue'
+import { reportComparisonLabel, reportComparisonRange } from '../services/reportComparisons'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
 import { annualRequestParams, isoWeekNumber, isoWeekYear } from '../services/annualOverview'
@@ -56,14 +76,17 @@ import { getAppLocale } from '../utils/formatMoney'
 
 export default {
 	name: 'AnnualOverviewDetails',
-	components: { NcModal, NcButton, AnnualComparison },
+	components: { NcButton, AnnualComparison, ReportDetailSection },
 	props: {
 		detail: { type: Object, required: true },
 		report: { type: Object, required: true },
 		selection: { type: Object, required: true },
 		scopeLabel: { type: String, required: true },
+		embedded: { type: Boolean, default: false },
+		annualTotal: { type: Object, default: null },
+		comparisonData: { type: Array, default: null }, comparisonsLoading: { type: Boolean, default: false }, comparisonsError: { type: Boolean, default: false },
 	},
-	emits: ['close'],
+	emits: ['close', 'retry'],
 	data: () => ({ comparisonReports: {}, comparisonLoading: false, comparisonError: false, comparisonRequest: 0 }),
 	watch: {
 		detail: { handler: 'loadComparisons', deep: true },
@@ -73,7 +96,9 @@ export default {
 	beforeUnmount() { this.comparisonRequest++ },
 	methods: {
 		comparisonPeriod(value) {
+			if (value.kind) return reportComparisonRange(value, formatCalendarLabel)
 			const formatDay = date => formatCalendarLabel(new Date(`${date}T12:00:00`), { day: 'numeric', month: 'short', year: 'numeric' })
+			if (this.report?.range) return value.previousFrom === value.previousTo ? formatDay(value.previousFrom) : `${formatDay(value.previousFrom)} – ${formatDay(value.previousTo)}`
 			if (this?.selection?.period === 'week') {
 				const start = new Date(`${value.previousFrom}T12:00:00`)
 				const end = new Date(`${value.previousTo}T12:00:00`)
@@ -106,6 +131,8 @@ export default {
 			return `${formatDay(value.previousFrom)} – ${formatDay(value.previousTo)}`
 		},
 		comparisonLabel(mode) {
+			const value = this.comparisonData?.find(item => item.id === mode)
+			if (value) return reportComparisonLabel(value, this.$texts, formatCalendarLabel)
 			const monthly = this.selection.period === 'month'
 			const quarterly = this.selection.period === 'quarter'
 			const weekly = this.selection.period === 'week'
@@ -122,6 +149,7 @@ export default {
 			return this.$texts.annual.changeFromPreviousYear()
 		},
 		async loadComparisons() {
+			if (this.comparisonData !== null && this.comparisonData !== undefined) return
 			const request = ++this.comparisonRequest
 			this.comparisonReports = {}
 			this.comparisonError = false
@@ -148,13 +176,34 @@ export default {
 		},
 	},
 	computed: {
+		totalLabel() {
+			const period = this.report.periods[this.detail.index]
+			const from = new Date(period.dateFrom * 1000), to = new Date(period.dateTo * 1000)
+			const next = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1)
+			const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+			if (from.getMonth() === 0 && from.getDate() === 1 && sameDay(next, new Date(from.getFullYear() + 1, 0, 1))) return this.$texts.annual.yearTotal(from.getFullYear())
+			if (from.getDate() === 1 && sameDay(next, new Date(from.getFullYear(), from.getMonth() + 1, 1))) return this.$texts.annual.periodTotal(formatCalendarLabel(from, { month: 'long', year: 'numeric' }))
+			if (from.getDate() === 1 && from.getMonth() % 3 === 0 && sameDay(next, new Date(from.getFullYear(), from.getMonth() + 3, 1))) return this.$texts.annual.periodTotal(`${this.$texts.annual.quarter(Math.floor(from.getMonth() / 3) + 1)} ${from.getFullYear()}`)
+			if (from.getDay() === 1 && sameDay(next, new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7))) return this.$texts.annual.weekTotal(isoWeekNumber(from), isoWeekYear(from))
+			const format = date => formatCalendarLabel(date, { day: 'numeric', month: 'short', year: 'numeric' })
+			return this.$texts.annual.periodTotal(sameDay(from, to) ? format(from) : `${format(from)} – ${format(to)}`)
+		},
+		averages() { return this.comparisonData?.filter(value => value.available && ['selection-average', 'reference-average'].includes(value.kind)) ?? [] },
+		hasAverages() { return this.averages.length > 0 || (this.comparisonData === null && this.metrics.yearly) || (!this.metrics.yearly && this.metrics.averagePerPayment !== null) },
 		comparisons() {
+			if (this.comparisonData !== null) return this.comparisonData.filter(value => value.available && value.kind === 'period').map(value => ({ mode: value.id, value }))
 			return ['month', 'year'].map(mode => ({ mode, value: annualDetailComparison(this.comparisonReports[mode], this.detail) })).filter(comparison => comparison.value)
 		},
 		dimensionLabel() {
 			if (this.selection.grouping === 'paymentPartners') return this.$texts.analytics.paymentPartner()
 			if (this.selection.grouping === 'labelsAndTags') return this.detail.row?.kind === 'hashtag' ? this.$texts.analytics.hashtag() : this.$texts.annual.label()
 			return this.$texts.analytics.category()
+		},
+		rangeLabel() {
+			const period = this.report.periods[this.detail.index]
+			if (!period) return ''
+			const format = timestamp => formatCalendarLabel(new Date(timestamp * 1000), { day: 'numeric', month: 'long', year: 'numeric' })
+			return `${format(period.dateFrom)} – ${format(period.dateTo)}`
 		},
 		metrics() { return annualCellDetails(this.detail, this.report, this.selection) },
 		dailyMonth() { return this.selection.period === 'day' && this.selection.month >= 1 && this.selection.month <= 12 },
@@ -176,6 +225,7 @@ export default {
 			const daily = this.selection.period === 'day'
 			const monthShare = monthly || (daily && this.selection.month >= 1 && this.selection.month <= 12)
 			const income = this.detail.row.type === 'income'
+			if (this.report?.range && this.metrics.yearly) return income ? this.$texts.annual.periodIncomeShare() : this.$texts.annual.periodExpenseShare()
 			if (income) {
 				if (this.metrics.yearly) return monthShare ? this.$texts.annual.monthIncomeShare() : this.$texts.annual.yearIncomeShare()
 				if (weekly) return this.$texts.annual.weekIncomeShare()
@@ -203,6 +253,9 @@ export default {
 
 <style scoped>
 .annual-details { padding: 52px 24px 24px; overflow-wrap: anywhere; }
+.annual-details.annual-details--embedded { padding: 0; }
+.annual-details--embedded .annual-details-table { font-size: var(--default-font-size, 15px); }
+.annual-details--embedded .annual-details-table th, .annual-details--embedded .annual-details-table td { padding-block: calc(var(--default-grid-baseline, 4px) * 2); }
 .annual-details-table { width: 100%; table-layout: fixed; margin: 0; border-collapse: separate; border-spacing: 0; border: 1px solid var(--cobudget-border, #ddd); border-radius: var(--border-radius-large, 8px); font-size: var(--cobudget-font-sm); }
 .annual-details-table th, .annual-details-table td { height: auto; padding: 4px 10px; border-bottom: 1px solid var(--cobudget-border, #ddd); font-weight: 400; line-height: 1.5; }
 .annual-details-table th { width: 48%; text-align: start; white-space: normal; overflow-wrap: anywhere; color: var(--cobudget-text-muted, #888); letter-spacing: 0.5px; background: var(--cobudget-surface-muted, #f9f9f9); }
@@ -216,7 +269,11 @@ export default {
 .annual-details-table tr:last-child th { border-end-start-radius: calc(var(--border-radius-large, 8px) - 1px); }
 .annual-details-table tr:last-child td { border-end-end-radius: calc(var(--border-radius-large, 8px) - 1px); }
 .annual-details-table .annual-details-total > * { color: var(--cobudget-text); font-weight: 600; }
-.annual-details-table .annual-details-total td.negative-balance { color: var(--cobudget-error); }
+.annual-details-table .annual-details-total td.negative-balance,
+.annual-details-table .annual-details-average td.negative-balance,
+.annual-details-table .annual-details-year-total td.negative-balance { color: var(--cobudget-error); }
+.annual-reference-amount { display: block; margin-bottom: var(--default-grid-baseline, 4px); color: var(--cobudget-text); }
+.annual-details-table .annual-details-reference { white-space: normal; }
 .annual-comparison-period { display: block; font-size: var(--cobudget-font-xs, 12px); letter-spacing: normal; }
 .annual-details-table .annual-comparison-status { white-space: normal; text-align: start; color: var(--cobudget-text-muted); }
 .annual-details-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }

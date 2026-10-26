@@ -32,6 +32,6 @@ export default {
 	justify-content: center;
 	width: 24px;
 	height: 24px;
-	color: var(--color-primary-element, #0082c9);
+	color: var(--cobudget-info-text);
 }
 </style>

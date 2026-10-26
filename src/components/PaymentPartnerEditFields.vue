@@ -5,7 +5,7 @@
 				<label :for="`${idPrefix}-number`">{{ $texts.common.number() }}</label>
 				<input
 					:id="`${idPrefix}-number`"
-					class="form-control"
+					class="form-control" data-cobudget-field="compact"
 					type="text"
 					maxlength="128"
 					:value="detailValue('number')"
@@ -18,7 +18,7 @@
 				<input
 					:id="`${idPrefix}-display-name`"
 					ref="displayNameInput"
-					class="form-control"
+					class="form-control" data-cobudget-field="compact"
 					type="text"
 					maxlength="128"
 					:value="name"
@@ -45,7 +45,7 @@
 					<textarea
 						v-if="field.multiline"
 						:id="fieldId(field)"
-						class="form-control payment-partner-textarea"
+						class="form-control payment-partner-textarea" data-cobudget-field="compact"
 						:maxlength="field.maxLength"
 						:value="detailValue(field.key)"
 						rows="3"
@@ -53,7 +53,7 @@
 					<input
 						v-else
 						:id="fieldId(field)"
-						class="form-control"
+						class="form-control" data-cobudget-field="compact"
 						:class="{ 'is-invalid': field.key === 'email' && emailInvalid }"
 						:type="field.type || 'text'"
 						:maxlength="field.maxLength"
@@ -230,25 +230,7 @@ export default {
 	display: block;
 	color: var(--cobudget-text-muted, var(--color-text-light));
 	font-size: var(--cobudget-font-sm);
-	letter-spacing: 0.5px;
-}
-
-.form-control {
-	box-sizing: border-box;
-	width: 100%;
-	height: 34px;
-	padding: 0 12px;
-	border: 1px solid var(--cobudget-border-strong, var(--color-border-dark));
-	border-radius: var(--border-radius, 6px);
-	background: var(--cobudget-surface, var(--color-main-background));
-	color: var(--cobudget-text, var(--color-main-text));
-	font-size: var(--cobudget-font-ui);
-	transition: border-color 0.2s;
-}
-
-.form-control:focus {
-	border-color: var(--color-primary);
-	outline: none;
+	letter-spacing: normal;
 }
 
 .form-control.is-invalid {
@@ -277,7 +259,7 @@ export default {
 .payment-partner-group {
 	overflow: clip;
 	border: 1px solid var(--cobudget-border, var(--color-border));
-	border-radius: var(--border-radius-large);
+	border-radius: var(--cobudget-card-radius);
 	background: var(--cobudget-surface, var(--color-main-background));
 	color: var(--cobudget-text, var(--color-main-text));
 }
@@ -287,7 +269,7 @@ export default {
 	align-items: center;
 	gap: 8px;
 	list-style: none;
-	padding: 11px 14px;
+	padding: 12px 16px;
 	background: var(--cobudget-surface-muted, var(--color-background-hover));
 	color: var(--cobudget-text, var(--color-main-text));
 	cursor: pointer;
@@ -312,11 +294,11 @@ export default {
 }
 
 .payment-partner-group summary:hover {
-	background: var(--color-background-dark);
+	background: var(--cobudget-surface-strong);
 }
 
 .payment-partner-group summary:focus-visible {
-	outline: 2px solid var(--color-primary);
+	outline: var(--cobudget-focus-outline);
 	outline-offset: -2px;
 }
 

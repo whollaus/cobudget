@@ -79,7 +79,11 @@ assert.equal(padded.series[0].points.at(-1).x, 280, 'Reserve space for half of t
 assert.deepEqual(annualChartTicks(31, 40), [0], 'Extremely narrow plots can omit labels instead of overlapping them')
 
 const { descriptor } = parse(source('src/components/AnnualOverviewChart.vue'))
-const bindings = { ...charts, ...annual, ChevronDownIcon: { render: () => Vue.h('span') }, ChevronRightIcon: { render: () => Vue.h('span') } }
+const slotComponent = tag => ({ setup: (_, { slots }) => () => Vue.h(tag, [slots.icon?.(), slots.default?.()]) })
+const bindings = { ...charts, ...annual, reportExportMoney: cents => ({ cents }), reportExportDisplayedValue: display => ({ display }), DownloadIcon: slotComponent('span'), CloudUploadOutlineIcon: slotComponent('span'), ClipboardTextOutlineIcon: slotComponent('span'), ChevronDownIcon: slotComponent('span'), ChevronUpIcon: slotComponent('span'), NcActions: slotComponent('div'), NcActionButton: slotComponent('button'), NcActionSeparator: { render: () => Vue.h('li', { role: 'separator' }) } }
+const menuDescriptor = parse(source('src/components/ReportSectionMenu.vue')).descriptor
+bindings.ReportSectionMenu = new Function(...Object.keys(bindings), menuDescriptor.script.content.replace(/^import .*$/gm, '').replace('export default', 'return'))(...Object.values(bindings))
+bindings.ReportSectionMenu.render = new Function('Vue', compile(menuDescriptor.template.content, { mode: 'function', prefixIdentifiers: true }).code)(Vue)
 const script = descriptor.script.content.replace(/^import .*$/gm, '').replace('export default', 'return')
 const Chart = new Function(...Object.keys(bindings), script)(...Object.values(bindings))
 Chart.render = new Function('Vue', compile(descriptor.template.content, { mode: 'function', prefixIdentifiers: true }).code)(Vue)
@@ -87,7 +91,7 @@ const texts = {
 	analytics: { development: () => 'Development', income: () => 'Income', expenses: () => 'Expenses', balance: () => 'Balance' },
 	annual: { income: () => 'Income', chartDisplay: () => 'Chart display', chartPerPeriod: () => 'Individual amounts', chartCumulative: () => 'Running total', chartPerPeriodHint: () => 'Each period', chartCumulativeHint: () => 'Running total', chartKeyboardHint: () => 'Arrow keys, Home, End and Escape' },
 }
-Object.assign(texts.annual, { chartHideSeries: series => `Hide ${series}`, chartShowSeries: series => `Show ${series}`, chartKeepOneSeries: () => 'At least one curve must remain visible.' })
+Object.assign(texts.annual, { sectionActions: () => 'Section actions', collapseSection: () => 'Collapse section', expandSection: () => 'Expand section', chartHideSeries: series => `Hide ${series}`, chartShowSeries: series => `Show ${series}`, chartKeepOneSeries: () => 'At least one curve must remain visible.' })
 const renderChart = async (props = {}, state = {}) => {
 	const app = Vue.createSSRApp({ ...Chart, data() { return { ...Chart.data.call(this), ...state } } }, { report, labels: ['January', 'February', 'March'], formatCents: cents => `${(cents / 100).toFixed(2)} EUR`, ...props })
 	app.config.globalProperties.$texts = texts
@@ -98,7 +102,7 @@ assert.equal((markup.match(/class="annual-chart-line"/g) || []).length, 3, 'All 
 assert.ok(markup.includes('aria-label="Chart display"') && markup.includes('value="cumulative"'))
 assert.ok(markup.includes('tabindex="0"') && markup.includes('aria-live="polite"'))
 assert.ok(markup.includes('aria-label="Development – Running total"'), 'The chart starts with running totals')
-assert.ok(markup.includes('class="annual-chart-toggle" aria-expanded="true" aria-controls='), 'Development is a collapsible section with an accessible content association')
+assert.ok(markup.includes('annual-chart-menu') && markup.includes('Collapse section') && markup.includes('aria-controls='), 'Development has a section menu associated with its content')
 assert.ok(markup.includes('text-anchor="middle"'), 'Time labels are centered on their data points')
 const expensesMarkup = await renderChart({ incomeEnabled: false })
 assert.equal((expensesMarkup.match(/class="annual-chart-line"/g) || []).length, 1)
@@ -161,7 +165,7 @@ assert.equal(collapse.hasFocus, false)
 assert.equal(Chart.data().open, false, 'The same user reopens the annual view with the chart collapsed')
 const closedMarkup = await renderChart()
 const bodyId = closedMarkup.match(/aria-controls="([^"]+)"/)[1]
-assert.ok(closedMarkup.includes('aria-expanded="false"'))
+assert.ok(closedMarkup.includes('Expand section'))
 assert.match(closedMarkup.match(new RegExp(`<div[^>]*id="${bodyId}"[^>]*>`))?.[0] || '', /style="[^"]*display:\s*none(?:;|")/, 'The entire chart body is hidden when collapsed')
 globalThis.window.OC.getCurrentUser = () => ({ uid: 'grace' })
 assert.equal(Chart.data().open, true, 'Another account keeps its own collapse preference')
@@ -184,3 +188,20 @@ const tab = key('Tab')
 Chart.methods.inspectKey.call(state, tab)
 assert.equal(tab.prevented, undefined, 'Tab can leave the chart normally')
 console.log('Annual chart tests passed: exact cents, running totals, feature flags, cutoff, dense periods, label spacing, collapse preferences, interactive legend, automatic scaling, rendering and keyboard inspection.')
+
+const exportedCurves = Chart.methods.exportData.call({
+ customSeries: null, modeLabel: 'Einzelbeträge', labels: ['Okt', 'Nov'], labelTitles: ['Oktober 2026', 'November 2026'],
+ visibleSeries: [{ id: 'expense', values: [100, null] }, { id: 'average-selection', values: [3240, 3240] }],
+ seriesLabel: id => id, $texts: { analytics: { development: () => 'Entwicklung' }, annual: { selectedPeriod: () => 'Zeitraum' } },
+})[0]
+assert.deepEqual(exportedCurves.columns, ['Zeitraum', 'expense', 'average-selection'], 'Exports contain the visible curves, including selected comparisons')
+assert.deepEqual(exportedCurves.rows, [['Oktober 2026', { cents: 100 }, { cents: 3240 }], ['November 2026', '', { cents: 3240 }]], 'Exports retain exact benchmark amounts, true period labels and unknown values')
+console.log('Chart exports passed: selected series, full comparison references, exact cents and missing values.')
+
+const displayedCurves = Chart.methods.exportData.call({
+ customSeries: null, modeLabel: 'Einzelbeträge', labels: ['Januar', 'Februar'], axisLabels: ['Jan', 'Feb'], labelTitles: ['1. Januar – 31. Januar 2026', '1. Februar – 28. Februar 2026'],
+ visibleSeries: [{ id: 'expense', values: [100000, null] }], seriesLabel: id => id,
+ formatCents: cents => cents === 100000 ? '€\u00a01.000,00' : 'unexpected',
+ $texts: { analytics: { development: () => 'Entwicklung' }, annual: { selectedPeriod: () => 'Zeitraum' } },
+}, { display: true })[0]
+assert.deepEqual(displayedCurves.rows, [['Jan', { display: '€\u00a01.000,00' }], ['Feb', '–']], 'Section charts copy displayed axis labels, formatted currency values and missing-value dashes')

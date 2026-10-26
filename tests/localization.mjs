@@ -20,22 +20,28 @@ const loadModule = relative => import(moduleUrl(relative))
 const { texts } = await loadModule('src/l10n/texts.js')
 const { getAppLocale, formatMoney } = await loadModule('src/utils/formatMoney.js')
 const { formatCalendarLabel, formatPeriodLabel, getAppLanguage } = await loadModule('src/utils/formatDate.js')
+const { reportComparisonLabel } = await loadModule('src/services/reportComparisons.js')
 const catalog = JSON.parse(read('l10n/de.json')).translations
 const frenchCatalog = JSON.parse(read('l10n/fr.json')).translations
 const spanishCatalog = JSON.parse(read('l10n/es.json')).translations
 
 // Validate the new annual table's actual translation helper references, not only catalog keys.
 const annualTextHelpers = new Set()
-for (const file of ['src/views/AnnualOverviewView.vue', 'src/components/AnnualOverviewChart.vue', 'src/components/AnnualOverviewTable.vue', 'src/components/AnnualOverviewDetails.vue', 'src/components/AnnualOverviewFilters.vue', 'src/components/AnnualComparison.vue', 'src/components/MobileReportSwitch.vue', 'src/components/TableFilters.vue']) {
+for (const [, section, key] of (read('src/components/ReportForecast.vue') + read('src/components/ReportDevelopment.vue') + read('src/components/ReportSectionMenu.vue')).matchAll(/\$texts\.(\w+)\.(\w+)\(/g)) {
+	assert.equal(typeof texts[section]?.[key], 'function', `Missing forecast text helper ${section}.${key}`)
+	annualTextHelpers.add(`${section}.${key}`)
+}
+for (const file of ['src/components/ReportPaymentSection.vue', 'src/components/ReportTopPayments.vue', 'src/components/ReportAreaOverview.vue', 'src/components/ReportAreaDetailView.vue', 'src/components/ReportBreakdown.vue', 'src/components/ReportComparisonPicker.vue', 'src/components/ReportPeriodPicker.vue', 'src/components/ReportSummary.vue', 'src/components/ReportDetailView.vue', 'src/components/ReportPayments.vue', 'src/views/AnnualOverviewView.vue', 'src/components/AnnualOverviewChart.vue', 'src/components/AnnualOverviewTable.vue', 'src/components/AnnualOverviewDetails.vue', 'src/components/AnnualOverviewFilters.vue', 'src/components/AnnualComparison.vue', 'src/components/TableFilters.vue']) {
 	for (const [, section, key] of read(file).matchAll(/\$texts\.(\w+)\.(\w+)\(/g)) {
 		assert.equal(typeof texts[section]?.[key], 'function', `Missing text helper ${section}.${key} in ${file}`)
 		if (file !== 'src/components/TableFilters.vue' || section === 'annual') annualTextHelpers.add(`${section}.${key}`)
 	}
 }
 annualTextHelpers.add('annual.back')
-for (const [language, translations, incomeHeading] of [
-	['en', {}, 'Income payments'], ['de', catalog, 'Einnahmen'],
-	['fr', frenchCatalog, 'Revenus'], ['es', spanishCatalog, 'Ingresos'],
+for (const [, key] of read('src/services/reportComparisons.js').matchAll(/texts\.annual\.(\w+)/g)) annualTextHelpers.add(`annual.${key}`)
+for (const [language, translations, incomeHeading, reportHeading] of [
+	['en', {}, 'Income payments', 'Reports'], ['de', catalog, 'Einnahmen', 'Auswertungen'],
+	['fr', frenchCatalog, 'Revenus', 'Rapports'], ['es', spanishCatalog, 'Ingresos', 'Informes'],
 ]) {
 	setLanguage(language)
 	setLocale('de_AT')
@@ -47,11 +53,17 @@ for (const [language, translations, incomeHeading] of [
 		const sourceText = helper.toString().match(/tx\('([^']+)'/)?.[1]
 		assert.ok(sourceText, `${helperPath}: expected a translation key`)
 		if (language !== 'en') assert.ok(Object.hasOwn(translations, sourceText), `${language}: missing annual overview translation for ${helperPath}`)
-		const values = { label: 'Test category', date: 'Test category', period: 'Test month', amount: '123,45 €', number: 'Test category', series: 'Test category' }
+		const values = { label: 'Test category', date: 'Test category', year: 'Test category', period: 'Test month', amount: '123,45 €', currency: 'EUR', number: 'Test category', series: 'Test category', from: 'Test category', to: 'Test month', total: '123,45 €', days: 10 }
 		const expected = (translations[sourceText] ?? sourceText).replace(/\{(\w+)\}/g, (_, name) => values[name])
-		assert.equal(helper(values.label, values.period, values.amount), expected, `${language}: ${helperPath} uses its translation, including placeholders`)
+		const args = helperPath === 'entry.tableAmount' ? [values.currency] : helperPath === 'annual.forecastBasis' ? [values.days, values.from, values.to] : helperPath === 'annual.periodTotal' ? [values.period] : helperPath === 'annual.weekTotal' ? [values.number, values.year] : [values.label, values.period, values.amount]
+		assert.equal(helper(...args), expected, `${language}: ${helperPath} uses its translation, including placeholders`)
 	}
 	assert.equal(texts.annual.income(), incomeHeading, `${language}: annual income heading refers to the whole group`)
+	assert.equal(texts.annual.title(), reportHeading, `${language}: the unified Reports module uses a plural title`)
+	assert.equal(reportComparisonLabel({ kind: 'selection-average', unit: 'week', referenceUnit: 'year', referenceYear: 2026 }, texts, formatCalendarLabel), `${texts.annual.averagePerWeek()} · 2026`, `${language}: yearly means identify their unit and year`)
+	assert.equal(reportComparisonLabel({ kind: 'reference-average', unit: 'week', referenceUnit: 'month', referenceFrom: '2026-09-01' }, texts, formatCalendarLabel), `${texts.annual.averagePerWeek()} · ${new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric' }).format(new Date(2026, 8, 1))}`, `${language}: source months follow the interface language`)
+	assert.equal(reportComparisonLabel({ kind: 'reference-average', unit: 'month', referenceUnit: 'quarter', referenceYear: 2026, referenceNumber: 3 }, texts, formatCalendarLabel), `${texts.annual.averagePerMonth()} · ${texts.annual.quarter(3)} 2026`, `${language}: prior-quarter means identify the actual quarter`)
+	assert.equal(reportComparisonLabel({ kind: 'reference-average', unit: 'day', referenceUnit: 'week', referenceYear: 2020, referenceNumber: 53 }, texts, formatCalendarLabel), `${texts.annual.averagePerDay()} · ${texts.annual.week(53)} 2020`, `${language}: weekly sources retain their ISO year`)
 	assert.ok(texts.annual.showPayments('Home & family', 'October', '123 €').includes('Home & family'), 'Payment labels must not double-escape user-provided names')
 	for (let month = 0; month < 12; month++) {
 		for (const length of ['long', 'short']) {

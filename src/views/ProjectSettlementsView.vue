@@ -33,7 +33,7 @@
 			<details
 				v-for="settlement in settlements"
 				:key="settlement.id"
-				class="settlement-card"
+				class="settlement-card" data-cobudget-card="flush"
 				:data-settlement-id="settlement.id"
 				:open="openSettlementId === settlement.id"
 				@toggle="handleSettlementToggle(settlement.id, $event)">
@@ -627,7 +627,7 @@ export default {
 .settlement-list {
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
+	gap: var(--cobudget-card-gap);
 	width: calc(100% - var(--default-grid-baseline, 4px) * 14);
 	margin: 0 calc(var(--default-grid-baseline, 4px) * 7);
 	box-sizing: border-box;
@@ -696,9 +696,6 @@ export default {
 }
 
 .settlement-card {
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	background: var(--cobudget-page-background, #fff);
 	overflow: hidden;
 	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -717,7 +714,7 @@ export default {
 	justify-content: space-between;
 	align-items: flex-start;
 	gap: 16px;
-	padding: 14px 16px;
+	padding: var(--cobudget-card-padding-compact);
 	cursor: pointer;
 	font-weight: 700;
 	transition: background-color 0.15s ease;
@@ -739,8 +736,8 @@ export default {
 
 .settlement-card summary:focus-visible {
 	background: var(--cobudget-surface-muted, #f7f7f7);
-	box-shadow: inset 0 0 0 2px var(--color-primary-element, var(--color-primary, #0082c9));
-	outline: none;
+	outline: var(--cobudget-focus-outline);
+	outline-offset: -2px;
 }
 
 .settlement-summary-title {
@@ -752,8 +749,8 @@ export default {
 .settlement-card-content {
 	display: flex;
 	flex-direction: column;
-	gap: 18px;
-	padding: 0 16px 16px;
+	gap: var(--cobudget-card-gap);
+	padding: 0 var(--cobudget-card-padding-compact) var(--cobudget-card-padding-compact);
 }
 
 .settlement-subsection h3 {

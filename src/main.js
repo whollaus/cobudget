@@ -9,8 +9,13 @@ import { applyNextcloudHeaderVisibility } from './services/nextcloudHeader'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { formatInputAmount, formatMoney, formatMoneyFromCents, formatSignedMoney, parseAmount } from './utils/formatMoney'
 import { installTexts } from './l10n/texts'
+import { legacyAnalyticsLocation } from './services/reportNavigation'
 import '@nextcloud/dialogs/style.css'
 import './styles/tokens.css'
+import './styles/surfaces.css'
+import './styles/status.css'
+import './styles/controls.css'
+import './styles/dialogs.css'
 
 const TransactionsView = () => import(/* webpackChunkName: "cobudget-view-transactions" */ './views/TransactionsView.vue')
 const ProjectList = () => import(/* webpackChunkName: "cobudget-view-project-list" */ './views/ProjectList.vue')
@@ -20,7 +25,6 @@ const ProjectSettlementsView = () => import(/* webpackChunkName: "cobudget-view-
 const BudgetGoalsView = () => import(/* webpackChunkName: "cobudget-view-budgets" */ './views/BudgetGoalsView.vue')
 const BudgetGoalFormView = () => import(/* webpackChunkName: "cobudget-view-budget-form" */ './views/BudgetGoalFormView.vue')
 const AnnualOverviewView = () => import(/* webpackChunkName: "cobudget-view-annual-overview" */ './views/AnnualOverviewView.vue')
-const AnalyticsView = () => import(/* webpackChunkName: "cobudget-view-analytics" */ './views/AnalyticsView.vue')
 const SettingsView = () => import(/* webpackChunkName: "cobudget-view-settings" */ './views/SettingsView.vue')
 
 const routes = [
@@ -35,7 +39,7 @@ const routes = [
 	{ path: '/budgets/new', name: 'budget-new', component: BudgetGoalFormView },
 	{ path: '/budgets/:id', name: 'budget-edit', component: BudgetGoalFormView, props: true },
 	{ path: '/annual-overview', name: 'annual-overview', component: AnnualOverviewView },
-	{ path: '/analytics', name: 'analytics', component: AnalyticsView },
+	{ path: '/analytics', name: 'analytics', redirect: legacyAnalyticsLocation },
 	{ path: '/settings', name: 'settings', component: SettingsView },
 	{ path: '/workspaces', redirect: '/settings' }
 ]
