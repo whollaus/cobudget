@@ -127,6 +127,13 @@ namespace CoBudget\Tests {
 	);
 
 	return [
+        'Independent reminders allow an omitted description and link to the organizer' => function(TestRunner $t) use ($createNotifier): void {
+            $notification = new NotifierTestNotification('cobudget', 'organizer_reminder', ['title'=>'Cancel subscription', 'id'=>42, 'description'=>'']);
+            $createNotifier()->prepare($notification, 'en');
+            $t->assertSame('CoBudget reminder: Cancel subscription', $notification->parsedSubject, 'Reminder title is readable');
+            $t->assertNull($notification->parsedMessage, 'Empty descriptions are omitted');
+            $t->assertSame('https://cloud.example.test/index.php/apps/cobudget/#/reminders?reminder=42', $notification->link, 'Reminder links open the personal organizer');
+        },
 		'Notifier accepts incomplete legacy shared-area notifications' => function(TestRunner $t) use ($createNotifier): void {
 			$notification = new NotifierTestNotification('cobudget', 'project_entry_created', [
 				'projectId' => ['invalid legacy value'],

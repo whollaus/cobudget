@@ -2,12 +2,26 @@
 	<div
 		class="personal-dashboard"
 		:class="{ 'personal-dashboard--table-only': isPaymentsView }">
-		<AppPageHeader class="payments-page-header">
+		<AppPageHeader class="payments-page-header cobudget-filter-toolbar">
+			<template v-if="!isPaymentsView" #creation>
+				<NcButton
+					variant="primary"
+					class="new-payment-main-button"
+					:aria-label="newPaymentActionLabel"
+					:title="newPaymentActionLabel"
+					@click="$emit('open-entry-sidebar', { forceNew: true, isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
+					<template #icon>
+						<PlusIcon :size="20" />
+					</template>
+					<span class="creation-label-desktop">{{ $texts.common.newItem() }}</span>
+					<span class="btn-text">{{ newPaymentActionLabel }}</span>
+				</NcButton>
+			</template>
 			<template #title>
 				<span v-if="isPaymentsView" class="cobudget-page-title-with-back">
 					<NcButton
 						variant="tertiary"
-						class="cobudget-header-back-button"
+						class="cobudget-native-button cobudget-header-back-button"
 						:aria-label="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.payments.backToFinances())"
 						:title="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.payments.backToFinances())"
 						@click="goBackToFinances">
@@ -15,112 +29,79 @@
 							<ArrowLeftIcon :size="20" />
 						</template>
 					</NcButton>
-					<span>{{ $texts.payments.title() }}</span>
+					<ReportPeriodPicker navigation-only :period-enabled="false" :title="$texts.payments.title()" label="" />
 				</span>
-				<span v-else>{{ pageTitle }}</span>
+				<ReportPeriodPicker v-else navigation-only force-navigation :period-enabled="false" :title="pageTitle" :selection="paymentPeriodSelection" label="" :quick-labels="quickLabels" @quick-label="selectQuickLabel" />
 			</template>
 			<template #actions>
-				<NcButton
-					v-if="canExportEntries"
-					:aria-label="$texts.common.exportCsv()"
-					:title="isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv()"
-					variant="tertiary"
-					class="cobudget-toolbar-icon-button mobile-header-action"
-					:disabled="isExporting"
-					@click="exportEntries">
-					<template #icon>
-						<DownloadIcon :size="20" />
+				<ReportPeriodPicker class="payment-toolbar-period" calendar-multiple :selection="paymentPeriodSelection" :years="paymentYears" :label="paymentPeriodLabel" @change="selectPaymentPeriod" />
+				<PaymentFilterBar :filters="filters" :reset-time-range="isPaymentsView ? 'all' : 'currentYear'" :period-selection="paymentPeriodSelection" :period-years="paymentYears" :period-chip-label="paymentPeriodChipLabel" :default-time-range="defaultFilterTimeRange" :categories="categories" :projects="projects"
+					:payment-partners="paymentPartners" :hashtags="hashtags" :label-counts="navigationTagCounts || tagCounts" :review-count="tagCounts.review"
+					:filter-availability="filterAvailability" @update:filters="onFiltersUpdate" />
+				<NcActions class="cobudget-action-menu" variant="tertiary" force-menu placement="bottom-end" :aria-label="$texts.filters.listActions()" @close="csvMenuOpen = false">
+					<template v-if="csvMenuOpen && canExportEntries">
+						<NcActionButton key="csv-back" ref="csvBack" class="cobudget-action-menu-option" :close-after-click="false" @click="showCsvMenu(false)">
+							<template #icon><ArrowLeftIcon :size="20" /></template>
+							{{ $texts.common.exportCsv() }}
+						</NcActionButton>
+						<NcActionButton key="csv-download" class="cobudget-action-menu-option" close-after-click :disabled="isExporting" :description="$texts.annual.downloadCsvHint()" @click="exportEntries">
+							<template #icon><DownloadIcon :size="20" /></template>
+							{{ $texts.common.download() }}
+						</NcActionButton>
+						<NcActionButton key="csv-save" class="cobudget-action-menu-option" close-after-click :disabled="isExporting" :description="$texts.annual.saveInNextcloudHint()" @click="saveEntriesInNextcloud">
+							<template #icon><CloudUploadOutlineIcon :size="20" /></template>
+							{{ $texts.annual.saveInNextcloud() }}
+						</NcActionButton>
+						<NcActionButton key="csv-copy" class="cobudget-action-menu-option" close-after-click :disabled="isExporting || !canCopyEntriesToClipboard" :description="clipboardExportDescription" @click="copyEntriesToClipboard">
+							<template #icon><ClipboardTextOutlineIcon :size="20" /></template>
+							{{ $texts.common.copyToClipboard() }}
+						</NcActionButton>
 					</template>
-				</NcButton>
-				<NcButton
-					:aria-label="$texts.filters.search()"
-					:title="$texts.filters.search()"
-					variant="tertiary"
-					class="cobudget-toolbar-icon-button mobile-header-action"
-					:class="{ 'is-active': hasActiveFilters }"
-					@click="showFilterPanel = true">
-					<template #icon>
-						<MagnifyIcon :size="20" />
+					<template v-else>
+						<NcActionButton v-if="canExportEntries" key="csv-trigger" ref="csvTrigger" class="cobudget-action-menu-option" is-menu :close-after-click="false" :disabled="isExporting" @click="showCsvMenu(true)">
+							<template #icon><DownloadIcon :size="20" /></template>
+							{{ $texts.common.exportCsv() }}
+						</NcActionButton>
+						<NcActionButton v-if="canExportEntries" key="print" class="cobudget-action-menu-option" close-after-click :disabled="isPrinting" @click="printEntries">
+							<template #icon><PrinterIcon :size="20" /></template>
+							{{ $texts.analytics.print() }}
+						</NcActionButton>
+						<NcActionButton class="cobudget-action-menu-option" close-after-click @click="openMasterDataSettings('categories')">
+							<template #icon><ShapeOutlineIcon :size="20" /></template>
+							{{ $texts.settings.manageCategories() }}
+						</NcActionButton>
+						<NcActionButton class="cobudget-action-menu-option" close-after-click @click="openMasterDataSettings('payment-partners')">
+							<template #icon><AccountOutlineIcon :size="20" /></template>
+							{{ $texts.settings.managePaymentPartners() }}
+						</NcActionButton>
 					</template>
-				</NcButton>
-				<NcButton v-if="canExportEntries" :aria-label="$texts.common.exportCsv()" :title="isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv()" variant="tertiary" class="filter-toggle-btn cobudget-toolbar-icon-button desktop-header-action" :disabled="isExporting" @click="exportEntries">
-					<template #icon>
-						<DownloadIcon :size="20" />
-					</template>
-				</NcButton>
-				<NcPopover placement="bottom-end" class="desktop-header-action">
-					<template #trigger>
-						<NcButton :aria-label="$texts.filters.search()" :title="$texts.filters.search()" variant="tertiary" class="filter-toggle-btn cobudget-toolbar-text-button desktop-search-button" :class="{ 'is-active': hasActiveFilters }">
-							<template #icon>
-								<MagnifyIcon :size="20" />
-							</template>
-							<span class="desktop-search-button__label">{{ $texts.filters.search() }}</span>
-						</NcButton>
-					</template>
-					<div class="filter-popover-content">
-						<TableFilters 
-							ref="tableFilters"
-							:showStatusFilter="false"
-							:categories="categories" 
-							:projects="projects"
-							:paymentPartners="paymentPartners"
-							:hashtags="hashtags"
-							:initialFilters="filters"
-							@update:filters="onFiltersUpdate"
-						/>
-					</div>
-				</NcPopover>
-				<NcButton
-					v-if="!isPaymentsView && !hideNewPaymentAction"
-					variant="primary"
-					class="new-payment-main-button"
-					:aria-label="filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment()"
-					:title="filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment()"
-					@click="$emit('open-entry-sidebar', { isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
-					<template #icon>
-						<PlusIcon :size="20" />
-					</template>
-					<span class="btn-text">{{ filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment() }}</span>
-				</NcButton>
+				</NcActions>
 			</template>
 		</AppPageHeader>
 
-		<Teleport to="body">
-			<div
-				v-if="showFilterPanel"
-				class="cobudget-filter-sheet-backdrop"
-				role="presentation"
-				@keydown.esc.stop.prevent="showFilterPanel = false"
-				@click.self="showFilterPanel = false">
-				<section class="cobudget-filter-sheet" role="dialog" aria-modal="true" :aria-label="$texts.filters.search()">
-					<div class="cobudget-filter-sheet__header">
-						<h3>{{ $texts.filters.search() }}</h3>
-						<NcButton :aria-label="$texts.common.close()" :title="$texts.common.close()" variant="tertiary" class="cobudget-toolbar-icon-button" @click="showFilterPanel = false">
-							<template #icon>
-								<CloseIcon :size="22" />
-							</template>
-						</NcButton>
-					</div>
-					<TableFilters
-						:showStatusFilter="false"
-						:categories="categories"
-						:projects="projects"
-						:paymentPartners="paymentPartners"
-						:hashtags="hashtags"
-						:initialFilters="filters"
-						@update:filters="onFiltersUpdate"
-					/>
-				</section>
-			</div>
-		</Teleport>
-
 		<MobileFinanceSummary
 			v-if="!isPaymentsView"
-			:periods="mobilePeriodCards"
+			:periods="reminderSummaryCard ? [reminderSummaryCard, ...mobilePeriodCards] : mobilePeriodCards"
 			:metrics="mobileAdditionalMetrics" />
 
-		<DraggableScroller v-if="!isPaymentsView" class="stats-row desktop-summary-cards">
-			<div class="stat-card current-month-card" data-cobudget-card="compact">
+		<div v-if="!isPaymentsView" class="summary-strip desktop-summary-cards">
+			<DraggableScroller allow-link-drag class="stats-row desktop-summary-cards">
+			<RouterLink v-if="reminderSummaryCard" class="stat-card reminder-summary-card" data-cobudget-card="compact" :to="reminderSummaryCard.route">
+				<div class="stat-header">
+					<div class="stat-title-group">
+						<div class="stat-icon"><BellOutlineIcon :size="20" class="period-card-icon" /></div>
+						<span class="stat-label">{{ reminderSummaryCard.label }}</span>
+					</div>
+					<span class="stat-value">{{ reminderSummaryCard.value }}</span>
+				</div>
+				<div class="stat-sub-info">
+					<div v-for="detail in reminderSummaryCard.details" :key="detail.key" class="stat-sub-line">
+						<span class="reminder-summary-title" :title="detail.label">{{ detail.label }}</span>
+						<span>{{ detail.value }}</span>
+					</div>
+				</div>
+			</RouterLink>
+			<RouterLink class="stat-card current-month-card" data-cobudget-card="compact" :to="summaryLocation('current-month')" v-if="showCurrentMonthCard">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><CalendarMonthIcon :size="20" class="period-card-icon" /></div>
@@ -143,42 +124,9 @@
 						<span>{{ formatNegativeMetric(currentMonthExpense) }}</span>
 					</div>
 				</div>
-			</div>
+			</RouterLink>
 
-			<div class="stat-card current-year-card" data-cobudget-card="compact">
-				<div class="stat-header">
-					<div class="stat-title-group">
-						<div class="stat-icon"><CalendarIcon :size="20" class="period-card-icon" /></div>
-						<span class="stat-label">{{ currentYearLabel }}</span>
-					</div>
-					<div class="stat-value-group">
-						<span class="stat-value-label">{{ $texts.dashboard.balance() }}</span>
-						<span class="stat-value" :class="currentYearBalance >= 0 ? 'positive' : 'negative'">
-							{{ formatSignedMetric(currentYearBalance) }}
-						</span>
-					</div>
-				</div>
-				<div class="stat-sub-info">
-					<div v-if="$enableIncomes" class="stat-sub-line">
-						<span>{{ $texts.dashboard.incomes() }}</span>
-						<span>{{ formatPositiveMetric(currentYearIncome) }}</span>
-					</div>
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.expenses() }}</span>
-						<span>{{ formatNegativeMetric(currentYearExpense) }}</span>
-					</div>
-				</div>
-			</div>
-
-			<div
-				v-if="showBudgetCard"
-				class="stat-card budget-card clickable-budget-card cobudget-interactive-card cobudget-focusable" data-cobudget-card="compact"
-				role="link"
-				tabindex="0"
-				:aria-label="$texts.budgetGoals.title()"
-				@click="openBudgetGoals"
-				@keydown.enter.prevent="openBudgetGoals"
-				@keydown.space.prevent="openBudgetGoals">
+			<RouterLink v-if="showBudgetCard" class="stat-card budget-card" data-cobudget-card="compact" :to="summaryLocation('budget-goals')">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><WalletIcon :size="20" fillColor="#2563eb" /></div>
@@ -197,49 +145,9 @@
 						</div>
 					</div>
 				</div>
-			</div>
+			</RouterLink>
 
-			<div class="stat-card income-card" data-cobudget-card="compact" v-if="showIncomeCard">
-				<div class="stat-header">
-					<div class="stat-title-group">
-						<div class="stat-icon"><TrendingUpIcon :size="20" fillColor="var(--cobudget-success)" /></div>
-						<span class="stat-label">{{ $texts.dashboard.income() }}</span>
-					</div>
-					<span class="stat-value positive">{{ formatPositiveMetric(totalIncome) }}</span>
-				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
-						<span>{{ formatPositiveMetric(averageIncome) }}</span>
-					</div>
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.currentMonth() }}</span>
-						<span>{{ formatPositiveMetric(currentMonthIncome) }}</span>
-					</div>
-				</div>
-			</div>
-			
-			<div class="stat-card expense-card" data-cobudget-card="compact">
-				<div class="stat-header">
-					<div class="stat-title-group">
-						<div class="stat-icon"><TrendingDownIcon :size="20" fillColor="var(--cobudget-error)" /></div>
-						<span class="stat-label">{{ $texts.dashboard.expenses() }}</span>
-					</div>
-					<span class="stat-value negative">{{ formatNegativeMetric(totalExpense) }}</span>
-				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
-						<span>{{ formatNegativeMetric(averageExpense) }}</span>
-					</div>
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.currentMonth() }}</span>
-						<span>{{ formatNegativeMetric(currentMonthExpense) }}</span>
-					</div>
-				</div>
-			</div>
-			
-			<div class="stat-card total-card" data-cobudget-card="compact" v-if="$enableIncomes">
+			<RouterLink class="stat-card total-card" data-cobudget-card="compact" v-if="$enableIncomes" :to="summaryLocation('balance')">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><WalletIcon :size="20" fillColor="#0082c9" /></div>
@@ -249,19 +157,59 @@
 						{{ formatSignedMetric(balance) }}
 					</span>
 				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
 						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
 						<span>{{ formatSignedMetric(averageBalance) }}</span>
 					</div>
-					<div class="stat-sub-line">
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthBalance) }}</span>
 					</div>
 				</div>
-			</div>
+			</RouterLink>
 
-			<div class="stat-card important-card" data-cobudget-card="compact" v-if="showImportantCard">
+			<RouterLink class="stat-card income-card" data-cobudget-card="compact" v-if="showIncomeCard" :to="summaryLocation('income')">
+				<div class="stat-header">
+					<div class="stat-title-group">
+						<div class="stat-icon"><TrendingUpIcon :size="20" fillColor="var(--cobudget-success)" /></div>
+						<span class="stat-label">{{ $texts.dashboard.income() }}</span>
+					</div>
+					<span class="stat-value positive">{{ formatPositiveMetric(totalIncome) }}</span>
+				</div>
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
+						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
+						<span>{{ formatPositiveMetric(averageIncome) }}</span>
+					</div>
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
+						<span>{{ $texts.dashboard.currentMonth() }}</span>
+						<span>{{ formatPositiveMetric(currentMonthIncome) }}</span>
+					</div>
+				</div>
+			</RouterLink>
+
+			<RouterLink class="stat-card expense-card" data-cobudget-card="compact" :to="summaryLocation('expenses')">
+				<div class="stat-header">
+					<div class="stat-title-group">
+						<div class="stat-icon"><TrendingDownIcon :size="20" fillColor="var(--cobudget-error)" /></div>
+						<span class="stat-label">{{ $texts.dashboard.expenses() }}</span>
+					</div>
+					<span class="stat-value negative">{{ formatNegativeMetric(totalExpense) }}</span>
+				</div>
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
+						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
+						<span>{{ formatNegativeMetric(averageExpense) }}</span>
+					</div>
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
+						<span>{{ $texts.dashboard.currentMonth() }}</span>
+						<span>{{ formatNegativeMetric(currentMonthExpense) }}</span>
+					</div>
+				</div>
+			</RouterLink>
+
+			<RouterLink class="stat-card important-card" data-cobudget-card="compact" v-if="showImportantCard" :to="summaryLocation('important')">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><StarIcon :size="20" fillColor="#ffc92b" /></div>
@@ -269,19 +217,19 @@
 					</div>
 					<span class="stat-value" :class="signedMetricClass(totalImportantPayments)">{{ formatSignedMetric(totalImportantPayments) }}</span>
 				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
 						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
 						<span>{{ formatSignedMetric(averageImportantPayments) }}</span>
 					</div>
-					<div class="stat-sub-line">
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthImportantPayments) }}</span>
 					</div>
 				</div>
-			</div>
+			</RouterLink>
 
-			<div class="stat-card review-card" data-cobudget-card="compact" v-if="showReviewCard">
+			<RouterLink class="stat-card review-card" data-cobudget-card="compact" v-if="showReviewCard" :to="summaryLocation('review')">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><ClipboardCheckIcon :size="20" fillColor="var(--cobudget-error)" /></div>
@@ -289,79 +237,79 @@
 					</div>
 					<span class="stat-value" :class="signedMetricClass(totalReviewPayments)">{{ formatSignedMetric(totalReviewPayments) }}</span>
 				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
 						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
 						<span>{{ formatSignedMetric(averageReviewPayments) }}</span>
 					</div>
-					<div class="stat-sub-line">
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthReviewPayments) }}</span>
 					</div>
 				</div>
-			</div>
-			
-			<div class="stat-card fixed-costs-card" data-cobudget-card="compact" v-if="showFixedCostsCard">
+			</RouterLink>
+
+			<RouterLink class="stat-card fixed-costs-card" data-cobudget-card="compact" v-if="showFixedCostsCard" :to="summaryLocation('fixed-costs')">
 				<div class="stat-header">
 					<div class="stat-title-group">
-						<div class="stat-icon"><LockIcon :size="20" fillColor="#e67e22" /></div>
+						<div class="stat-icon"><BankOutlineIcon :size="20" fillColor="var(--cobudget-label-fixed-cost-color)" /></div>
 						<span class="stat-label">{{ $texts.labels.fixedCosts() }}</span>
 					</div>
 					<span class="stat-value negative">{{ formatNegativeMetric(totalFixedCosts) }}</span>
 				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
 						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
 						<span>{{ formatNegativeMetric(averageFixedCosts) }}</span>
 					</div>
-					<div class="stat-sub-line">
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatNegativeMetric(currentMonthFixedCosts) }}</span>
 					</div>
 				</div>
-			</div>
+			</RouterLink>
 
-			<div class="stat-card child-card" data-cobudget-card="compact" v-if="showChildRelatedCard">
+			<RouterLink class="stat-card child-card" data-cobudget-card="compact" v-if="showChildRelatedCard" :to="summaryLocation('children')">
 				<div class="stat-header">
 					<div class="stat-title-group">
-						<div class="stat-icon"><AccountChildIcon :size="20" fillColor="#0f766e" /></div>
+						<div class="stat-icon"><AccountChildIcon :size="20" fillColor="var(--cobudget-label-children-color)" /></div>
 						<span class="stat-label">{{ $texts.labels.children() }}</span>
 					</div>
 					<span class="stat-value" :class="signedMetricClass(totalChildRelated)">{{ formatSignedMetric(totalChildRelated) }}</span>
 				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
 						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
 						<span>{{ formatSignedMetric(averageChildRelated) }}</span>
 					</div>
-					<div class="stat-sub-line">
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthChildRelated) }}</span>
 					</div>
 				</div>
-			</div>
+			</RouterLink>
 
-			<div class="stat-card abos-card" data-cobudget-card="compact" v-if="showSubscriptionsCard">
+			<RouterLink class="stat-card abos-card" data-cobudget-card="compact" v-if="showSubscriptionsCard" :to="summaryLocation('subscriptions')">
 				<div class="stat-header">
 					<div class="stat-title-group">
-						<div class="stat-icon"><SyncIcon :size="20" fillColor="#8e44ad" /></div>
+						<div class="stat-icon"><SyncIcon :size="20" fillColor="var(--cobudget-label-subscription-color)" /></div>
 						<span class="stat-label">{{ $texts.labels.subscription() }}</span>
 					</div>
 					<span class="stat-value negative">{{ formatNegativeMetric(totalSubscriptions) }}</span>
 				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
 						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
 						<span>{{ formatNegativeMetric(averageSubscriptions) }}</span>
 					</div>
-					<div class="stat-sub-line">
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatNegativeMetric(currentMonthSubscriptions) }}</span>
 					</div>
 				</div>
-			</div>
+			</RouterLink>
 
-			<div class="stat-card tax-card" data-cobudget-card="compact" v-if="showTaxRelevantCard">
+			<RouterLink class="stat-card tax-card" data-cobudget-card="compact" v-if="showTaxRelevantCard" :to="summaryLocation('tax-relevant')">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon"><ReceiptTextCheckOutlineIcon :size="20" fillColor="#0082c9" /></div>
@@ -369,59 +317,43 @@
 					</div>
 					<span class="stat-value" :class="signedMetricClass(totalTaxRelevant)">{{ formatSignedMetric(totalTaxRelevant) }}</span>
 				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
 						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
 						<span>{{ formatSignedMetric(averageTaxRelevant) }}</span>
 					</div>
-					<div class="stat-sub-line">
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthTaxRelevant) }}</span>
 					</div>
 				</div>
-			</div>
-			<div class="stat-card insurance-card" data-cobudget-card="compact" v-if="showInsuranceCard">
+			</RouterLink>
+			<RouterLink class="stat-card insurance-card" data-cobudget-card="compact" v-if="showInsuranceCard" :to="summaryLocation('insurance')">
 				<div class="stat-header">
 					<div class="stat-title-group">
-						<div class="stat-icon"><ShieldCheckOutlineIcon :size="20" fillColor="var(--color-primary-element)" /></div>
+						<div class="stat-icon"><ShieldCheckOutlineIcon :size="20" fillColor="var(--cobudget-label-insurance-color)" /></div>
 						<span class="stat-label">{{ $texts.labels.insurance() }}</span>
 					</div>
 					<span class="stat-value" :class="signedMetricClass(totalInsurance)">{{ formatSignedMetric(totalInsurance) }}</span>
 				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
+				<div v-if="showMonthlyAverage || showCurrentMonthSummary" class="stat-sub-info">
+					<div v-if="showMonthlyAverage" class="stat-sub-line">
 						<span>{{ $texts.dashboard.averagePerMonth() }}</span>
 						<span>{{ formatSignedMetric(averageInsurance) }}</span>
 					</div>
-					<div class="stat-sub-line">
+					<div v-if="showCurrentMonthSummary" class="stat-sub-line">
 						<span>{{ $texts.dashboard.currentMonth() }}</span>
 						<span>{{ formatSignedMetric(currentMonthInsurance) }}</span>
 					</div>
 				</div>
-			</div>
+			</RouterLink>
 
-			<div class="stat-card future-card" data-cobudget-card="compact" v-if="showFutureCard">
-				<div class="stat-header">
-					<div class="stat-title-group">
-						<div class="stat-icon"><CalendarSyncIcon :size="20" fillColor="#2563eb" /></div>
-						<span class="stat-label">{{ $texts.dashboard.planned() }}</span>
-					</div>
-					<span class="stat-value" :class="totalFutureBalance >= 0 ? 'positive' : 'negative'">
-						{{ formatSignedMetric(totalFutureBalance) }}
-					</span>
-				</div>
-				<div class="stat-sub-info">
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.incomeColon() }}</span>
-						<span>{{ formatPositiveMetric(totalFutureIncome) }}</span>
-					</div>
-					<div class="stat-sub-line">
-						<span>{{ $texts.dashboard.expensesColon() }}</span>
-						<span>{{ formatNegativeMetric(totalFutureExpense) }}</span>
-					</div>
-				</div>
-			</div>
 		</DraggableScroller>
+		</div>
+
+		<PaymentFilterBar ref="filterChips" chips-only :filters="filters" :period-chip-label="paymentPeriodChipLabel" :default-time-range="defaultFilterTimeRange" :categories="categories" :projects="projects" :payment-partners="paymentPartners"
+			:hashtags="hashtags" :label-counts="navigationTagCounts || tagCounts"
+			:filter-availability="filterAvailability" @update:filters="onFiltersUpdate" />
 
 		<div class="recent-activities">
 
@@ -431,6 +363,7 @@
 				mode="personal"
 				:entries="entries"
 				:date-groups="dateGroups"
+				:group-report-resolver="groupReportLocation"
 				:currency="$currency"
 				:date-label="filters.tags === 'future' ? $texts.entry.tablePlannedPayment() : $texts.entry.tableDate()"
 				:sort-by="sortBy"
@@ -446,6 +379,7 @@
 				:amount-resolver="getEntryPersonalAmount"
 				:project-name-resolver="getProjectName"
 				:project-style-resolver="getProjectTagStyle"
+				:project-color-resolver="getProjectColor"
 				:is-shared-project-resolver="isSharedProject"
 				@sort="toggleSort"
 				@row-click="onRowClick"
@@ -461,14 +395,14 @@
 								'pagination-footer--single': pagination.total <= pagination.limit,
 								'pagination-footer--dashboard': !isPaymentsView,
 							}">
-							<NcButton v-if="pagination.total > pagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: pagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevPage">
-								<ArrowLeftIcon class="pagination-icon" :size="16" aria-hidden="true" />
+							<NcButton :aria-label="$texts.common.previous()" v-if="pagination.total > pagination.limit" variant="tertiary" class="btn-page" :style="{ visibility: pagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevPage">
+								<template #icon><ArrowLeftIcon :size="20" /></template>
 								<span class="pagination-label">{{ $texts.common.previous() }}</span>
 							</NcButton>
 							<span class="page-info">{{ paginationInfo }}</span>
-							<NcButton v-if="pagination.total > pagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: pagination.offset + pagination.limit < pagination.total ? 'visible' : 'hidden' }" @click="nextPage">
+							<NcButton :aria-label="$texts.common.next()" alignment="center-reverse" v-if="pagination.total > pagination.limit" variant="tertiary" class="btn-page" :style="{ visibility: pagination.offset + pagination.limit < pagination.total ? 'visible' : 'hidden' }" @click="nextPage">
 								<span class="pagination-label">{{ $texts.common.next() }}</span>
-								<ArrowRightIcon class="pagination-icon" :size="16" aria-hidden="true" />
+								<template #icon><ArrowRightIcon :size="20" /></template>
 							</NcButton>
 						</div>
 						<div
@@ -493,68 +427,92 @@
 				</template>
 				<template #action>
 					<NcButton v-if="hasActiveFilters" variant="secondary" @click="resetFilters">
-						{{ $texts.common.resetFilters() }}
+						{{ $texts.filters.resetAll() }}
 					</NcButton>
-					<NcButton v-else-if="!isPaymentsView && !hideNewPaymentAction" variant="primary" class="new-payment-main-button" @click="$emit('open-entry-sidebar', { isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
+					<NcButton v-else-if="!isPaymentsView" variant="primary" class="new-payment-main-button" @click="$emit('open-entry-sidebar', { forceNew: true, isFuture: filters.tags === 'future', defaultType: defaultEntryType })">
 						<template #icon>
 							<PlusIcon :size="20" />
 						</template>
-						{{ filters.tags === 'future' ? $texts.entry.planPayment() : $texts.areaDetail.newPayment() }}
+						{{ newPaymentActionLabel }}
 					</NcButton>
 				</template>
 			</NcEmptyContent>
 		</div>
-		<EntryHistoryModal
-			v-if="entryHistoryOpen"
-			:history="entryHistoryRows"
-			:loading="entryHistoryLoading"
-			@close="closeEntryHistory" />
-		<ConfirmModal
-			:show="!!confirmDialog"
-			:title="confirmDialog ? confirmDialog.title : ''"
-			:message="confirmDialog ? confirmDialog.message : ''"
-			:confirm-label="confirmDialog ? confirmDialog.confirmLabel : ''"
-			:confirm-variant="confirmDialog ? confirmDialog.confirmVariant : 'primary'"
-			@confirm="resolveConfirm(true)"
-			@cancel="resolveConfirm(false)" />
+		<DialogTransition :show="!!(entryHistoryOpen)" v-slot="{ returnFocus }">
+			<EntryHistoryModal :container="null" :set-return-focus="returnFocus"
+				:history="entryHistoryRows"
+				:loading="entryHistoryLoading"
+				:error="entryHistoryError"
+				@retry="openEntryHistory(entryHistoryEntry)"
+				@close="closeEntryHistory" />
+		</DialogTransition>
+		<DialogTransition :show="!!(confirmDialog)" v-slot="{ returnFocus }">
+			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog cobudget-standard-dialog payment-delete-dialog"
+				:name="confirmDialog.title" :no-close="confirmDialog.busy" :close-on-click-outside="!confirmDialog.busy"
+				@closing="closeActionConfirm">
+				<p class="payment-delete-message">{{ confirmDialog.message }}</p>
+				<NcNoteCard v-if="confirmDialog.error" type="error" :text="confirmDialog.error" />
+				<template #actions>
+					<NcButton variant="tertiary" class="cobudget-native-button" :disabled="confirmDialog.busy" @click="closeActionConfirm">{{ $texts.common.cancel() }}</NcButton>
+					<NcButton variant="error" :disabled="confirmDialog.busy" @click="confirmAction">
+						<template v-if="confirmDialog.busy" #icon><NcLoadingIcon :size="20" /></template>
+						{{ confirmDialog.busy ? $texts.common.waitBusy() : confirmDialog.confirmLabel }}
+					</NcButton>
+				</template>
+			</NcDialog>
+		</DialogTransition>
 	</div>
 </template>
 
 <script>
+import DialogTransition from '../components/DialogTransition.vue'
 import { annualReturnRoute } from '../services/annualOverview'
 import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
-import MagnifyIcon from 'vue-material-design-icons/Magnify.vue'
 import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'
 import TrendingDownIcon from 'vue-material-design-icons/TrendingDown.vue'
-import WalletIcon from 'vue-material-design-icons/Wallet.vue'
+import WalletIcon from 'vue-material-design-icons/WalletOutline.vue'
 import SyncIcon from 'vue-material-design-icons/Sync.vue'
-import LockIcon from 'vue-material-design-icons/Lock.vue'
-import StarIcon from 'vue-material-design-icons/Star.vue'
-import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
-import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
+import BankOutlineIcon from 'vue-material-design-icons/BankOutline.vue'
+import StarIcon from 'vue-material-design-icons/StarOutline.vue'
+import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheckOutline.vue'
+import AccountChildIcon from 'vue-material-design-icons/AccountChildOutline.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
 import ShieldCheckOutlineIcon from 'vue-material-design-icons/ShieldCheckOutline.vue'
-import CalendarIcon from 'vue-material-design-icons/Calendar.vue'
-import CalendarMonthIcon from 'vue-material-design-icons/CalendarMonth.vue'
-import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
+import CalendarIcon from 'vue-material-design-icons/CalendarOutline.vue'
+import CalendarMonthIcon from 'vue-material-design-icons/CalendarMonthOutline.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
+import CloudUploadOutlineIcon from 'vue-material-design-icons/CloudUploadOutline.vue'
+import ClipboardTextOutlineIcon from 'vue-material-design-icons/ClipboardTextOutline.vue'
+import PrinterIcon from 'vue-material-design-icons/Printer.vue'
+import ShapeOutlineIcon from 'vue-material-design-icons/ShapeOutline.vue'
+import AccountOutlineIcon from 'vue-material-design-icons/AccountOutline.vue'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import ArrowRightIcon from 'vue-material-design-icons/ArrowRight.vue'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
-import NcPopover from '@nextcloud/vue/components/NcPopover'
-import TableFilters from '../components/TableFilters.vue'
+import PaymentFilterBar from '../components/PaymentFilterBar.vue'
 import DraggableScroller from '../components/DraggableScroller.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import EntryTable from '../components/EntryTable.vue'
 import EntryHistoryModal from '../components/EntryHistoryModal.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
+import BellOutlineIcon from 'vue-material-design-icons/BellOutline.vue'
+import { upcomingOpenReminders } from '../services/reminderSummary'
 import MobileFinanceSummary from '../components/MobileFinanceSummary.vue'
+import ReportPeriodPicker from '../components/ReportPeriodPicker.vue'
+import { reportPeriodLabel } from '../services/annualOverview'
+import { formatCalendarLabel } from '../utils/formatDate'
+import { RouterLink } from 'vue-router'
+import { paymentCalendarIncludesMonth, paymentPeriodBounds, paymentPeriodBudgetGoals, paymentPeriodIsCurrentMonth, paymentPeriodIsSingleMonth, paymentPickerFilters, paymentPickerSelection, paymentPeriodYear, defaultPaymentPeriod, paymentSummaryTarget, paymentGroupReportTarget } from '../services/paymentSummary'
 import { normalizeEntryPageSize, shouldIgnorePaginationKeydown } from '../services/pagination'
 import {
 	createPersonalEntryFilters,
@@ -564,9 +522,14 @@ import {
 	parsePersonalEntryListRouteQuery,
 	personalEntryListQueriesEqual,
 	serializePersonalEntryListRouteQuery,
+	withPaymentLabels,
 } from '../services/entryListRoute'
-import { showRequestError, showToast } from '../services/notifications'
-import { downloadBlobResponse } from '../services/downloads'
+import { extractError, showRequestError, showToast } from '../services/notifications'
+import { ENTRY_CLIPBOARD_EXPORT_LIMIT, csvToClipboardText, downloadBlobResponse, filenameFromDisposition } from '../services/downloads'
+import { copyReportText, saveReportExport } from '../services/reportExportActions'
+import { loadReportPayments } from '../services/reportPayments'
+import { printPaymentsOverview } from '../services/paymentPrint'
+import { PRINT_REPORT_EVENT } from '../services/keyboardShortcuts'
 import { getAreaColorStyle } from '../utils/areaColor'
 
 const calendarMonthKeys = [
@@ -650,63 +613,76 @@ const normalizeTagCounts = counts => {
 export default {
 	name: 'TransactionsView',
 	props: {
+		navigationTagCounts: { type: Object, default: null },
 		selectedEntryId: {
 			type: [Number, String],
 			default: null
-		},
-		hideNewPaymentAction: {
-			type: Boolean,
-			default: false
 		}
 	},
-	emits: ['open-entry-sidebar', 'selected-entry-missing'],
-	components: {
+	emits: ['open-entry-sidebar'],
+	components: { DialogTransition,
 		NcButton,
 		NcEmptyContent,
-		TableFilters,
+		PaymentFilterBar,
 		PlusIcon,
-		MagnifyIcon,
 		TrendingUpIcon,
 		TrendingDownIcon,
 		WalletIcon,
 		SyncIcon,
-		LockIcon,
+		BankOutlineIcon,
 		StarIcon,
 		ClipboardCheckIcon,
 		AccountChildIcon,
 		ReceiptTextCheckOutlineIcon,
 		ShieldCheckOutlineIcon,
 		CalendarIcon,
-		CalendarMonthIcon,
-		CalendarSyncIcon,
+		CalendarMonthIcon, BellOutlineIcon,
 		CloseIcon,
 		DownloadIcon,
+		CloudUploadOutlineIcon,
+		ClipboardTextOutlineIcon,
+		PrinterIcon,
+		ShapeOutlineIcon,
+		AccountOutlineIcon,
+		NcActions,
+		NcActionButton,
 		ArrowLeftIcon,
 		ArrowRightIcon,
-		NcPopover,
 		DraggableScroller,
-		ConfirmModal,
+		NcDialog, NcNoteCard, NcLoadingIcon,
 		EntryTable,
 		EntryHistoryModal,
 		AppPageHeader,
-		MobileFinanceSummary,
+		MobileFinanceSummary, ReportPeriodPicker, RouterLink,
 	},
 	data() {
 		const currentPeriodDate = new Date()
 		return {
-			showFilterPanel: false,
 			isExporting: false,
+			isPrinting: false,
+			printRequestId: 0,
+			csvMenuOpen: false,
 			userName: '',
 			entries: [],
+			filterAvailability: null,
+			filterAvailabilityKey: '',
 			dateGroups: null,
 			dashboardMetrics: emptyDashboardMetrics(),
 			dashboardTagCounts: emptyTagCounts(),
 			budgetGoals: [],
+			summaryReminders: [],
+			reminderSummaryNow: Date.now(),
+			reminderSummaryTimer: null,
+			reminderSummaryRequest: 0,
+			paymentYears: [],
 			projects: [],
 			categories: [],
 			paymentPartners: [],
 			hashtags: [],
 			entryHistoryOpen: false,
+			entryHistoryError: '',
+			entryHistoryEntry: null,
+			entryHistoryRequestId: 0,
 			entryHistoryLoading: false,
 			entryHistoryRows: [],
 			filters: createPersonalEntryFilters(),
@@ -725,6 +701,53 @@ export default {
 		}
 	},
 	computed: {
+		quickLabels() {
+			const counts = this.navigationTagCounts || this.tagCounts
+			return [
+				{ id: 'important', label: this.$texts.labels.important(), enabled: this.$enableImportantPayments },
+				{ id: 'review', label: this.$texts.labels.review(), enabled: this.$enableReviewPayments },
+				{ id: 'fixedCost', countKey: 'fixedCosts', label: this.$texts.labels.fixedCosts(), enabled: this.$enableFixedCosts },
+				{ id: 'childRelated', label: this.$texts.labels.children(), enabled: this.$enableChildRelated },
+				{ id: 'subscription', countKey: 'subscriptions', label: this.$texts.labels.subscriptionPayments(), enabled: this.$enableSubscriptions },
+				{ id: 'taxRelevant', label: this.$texts.labels.taxRelevant(), enabled: this.$enableTaxRelevant },
+				{ id: 'insurance', label: this.$texts.labels.insurance(), enabled: this.$enableInsurance },
+			].filter(item => item.enabled && counts[item.countKey || item.id] > 0)
+		},
+		defaultFilterTimeRange() { return this.isPaymentsView || this.filters.tags === 'future' ? 'all' : 'currentYear' },
+		selectedPaymentYear() { return paymentPeriodYear(this.filters, this.currentPeriodDate) },
+		paymentPeriodSelection() { return paymentPickerSelection(this.filters, this.currentPeriodDate) },
+		paymentPeriodLabel() {
+			if (this.filters.timeRange === 'all') return this.$texts.filters.allTime()
+			if (this.filters.timeRange === 'calendarSelection') {
+				const { periodYears, periodMonths } = this.paymentPeriodSelection
+				const years = periodYears.join(', ')
+				const formatter = new Intl.DateTimeFormat(getAppLocale(), { month: 'short' })
+				const months = periodMonths.map(month => formatter.format(new Date(2020, month - 1, 1))).join(', ')
+				return [years, months].filter(Boolean).join(' · ')
+			}
+			const dateFormat = new Intl.DateTimeFormat(getAppLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' })
+			return reportPeriodLabel(this.paymentPeriodSelection, formatCalendarLabel, date => dateFormat.format(date)) || this.$texts.annual.selectedPeriod()
+		},
+		paymentPeriodChipLabel() {
+			const { timeRange, periodYears, periodMonths } = this.filters
+			if (timeRange === this.defaultFilterTimeRange) return ''
+			if (this.defaultFilterTimeRange === 'currentYear') {
+				const currentYear = this.currentPeriodDate.getFullYear()
+				const isCurrentCalendarYear = timeRange === 'calendarSelection' && !periodMonths && periodYears === String(currentYear)
+				if (isCurrentCalendarYear || this.selectedPaymentYear === currentYear) return ''
+			}
+			return this.paymentPeriodLabel
+		},
+		showCurrentMonthCard() {
+			return this.showCurrentMonthSummary
+		},
+		showMonthlyAverage() {
+			return !paymentPeriodIsSingleMonth(this.filters, this.currentPeriodDate)
+		},
+		showCurrentMonthSummary() {
+			const range = paymentPeriodBounds(this.filters, this.currentPeriodDate), today = this.currentPeriodDate.getTime() / 1000
+			return !paymentPeriodIsCurrentMonth(this.filters, this.currentPeriodDate) && this.filters.tags !== 'future' && paymentCalendarIncludesMonth(this.filters, this.currentPeriodDate) && (range.dateFrom == null || range.dateFrom <= today) && (range.dateTo == null || range.dateTo >= today)
+		},
 		isPaymentsView() {
 			return this.$route.name === 'payments'
 		},
@@ -746,18 +769,18 @@ export default {
 		},
 		hasActiveFilters() {
 			return this.filters.search !== '' || 
-				   this.filters.type !== 'all' || 
 				   this.filters.status !== 'all' ||
 				   this.filters.categoryId !== null ||
 				   this.filters.projectId !== null ||
 				   this.filters.paymentPartnerId !== null ||
 				   this.filters.hashtagId !== null ||
-				   this.filters.timeRange !== 'all' ||
-				   this.filters.tags !== 'all' ||
-				   this.filters.hasReminder !== 'all' ||
+				   this.filters.timeRange !== this.defaultFilterTimeRange || this.filters.type !== 'all' ||
+				   (this.filters.tags !== 'all' && this.filters.tags !== 'future') ||
+				   (this.$enableReminders !== false && this.filters.hasReminder !== 'all') ||
 				   this.filters.hasAttachment !== 'all' ||
 				   Boolean(this.filters.narrowCategories) ||
 				   Boolean(this.filters.narrowPartners) ||
+				   Boolean(this.filters.narrowProjects) ||
 				   Boolean(this.filters.narrowLabels) ||
 				   Boolean(this.filters.narrowHashtags) ||
 				   Boolean(this.filters.amountMin) ||
@@ -774,9 +797,6 @@ export default {
 		},
 		dashboardCurrentYearMetrics() {
 			return normalizeMetricGroup(this.dashboardMetrics.currentYear)
-		},
-		dashboardFutureMetrics() {
-			return normalizeMetricGroup(this.dashboardMetrics.future)
 		},
 		tagCounts() {
 			return normalizeTagCounts(this.dashboardTagCounts)
@@ -810,15 +830,6 @@ export default {
 		},
 		totalInsurance() {
 			return this.dashboardTotalMetrics.insurance
-		},
-		totalFutureIncome() {
-			return this.dashboardFutureMetrics.income
-		},
-		totalFutureExpense() {
-			return this.dashboardFutureMetrics.expense
-		},
-		totalFutureBalance() {
-			return this.dashboardFutureMetrics.balance
 		},
 		currentMonthName() {
 			const key = calendarMonthKeys[this.currentPeriodDate.getMonth()]
@@ -866,7 +877,19 @@ export default {
 		currentYearBalance() {
 			return this.dashboardCurrentYearMetrics.balance
 		},
+		reminderSummaryCard() {
+			if (!this.$enableReminders) return null
+			const rows = upcomingOpenReminders(this.summaryReminders, new Date(this.reminderSummaryNow))
+			if (!rows.length) return null
+			return {
+				key: 'reminders', route: { name: 'reminders' }, icon: BellOutlineIcon,
+				iconColor: 'var(--cobudget-primary, var(--color-primary-element))',
+				label: this.$texts.reminders.sidebar(), value: rows.length, valueClass: 'muted',
+				details: rows.slice(0, 2).map(row => ({ key: row.id, label: row.title || this.$texts.reminders.sidebar(), value: this.formatDate(row.remind_at) })),
+			}
+		},
 		mobilePeriodCards() {
+			if (!this.showCurrentMonthCard) return []
 			const details = (income, expense) => [
 				...(this.$enableIncomes ? [{
 					key: 'income',
@@ -885,21 +908,13 @@ export default {
 			return [
 				{
 					key: 'current-month',
+					route: this.summaryLocation('current-month'),
 					icon: CalendarMonthIcon,
 					iconColor: 'var(--cobudget-primary, var(--color-primary-element))',
 					label: this.currentMonthName,
 					value: this.formatSignedMetric(this.currentMonthBalance),
 					valueClass: this.signedMetricClass(this.currentMonthBalance),
 					details: details(this.currentMonthIncome, this.currentMonthExpense),
-				},
-				{
-					key: 'current-year',
-					icon: CalendarIcon,
-					iconColor: 'var(--cobudget-primary, var(--color-primary-element))',
-					label: this.currentYearLabel,
-					value: this.formatSignedMetric(this.currentYearBalance),
-					valueClass: this.signedMetricClass(this.currentYearBalance),
-					details: details(this.currentYearIncome, this.currentYearExpense),
 				},
 			]
 		},
@@ -999,8 +1014,8 @@ export default {
 			if (this.showFixedCostsCard) {
 				metrics.push({
 					key: 'fixed-costs',
-					icon: LockIcon,
-					iconColor: '#e67e22',
+					icon: BankOutlineIcon,
+					iconColor: 'var(--cobudget-label-fixed-cost-color)',
 					label: this.$texts.labels.fixedCosts(),
 					value: this.formatNegativeMetric(this.totalFixedCosts),
 					valueClass: 'negative',
@@ -1012,7 +1027,7 @@ export default {
 				metrics.push({
 					key: 'children',
 					icon: AccountChildIcon,
-					iconColor: '#0f766e',
+					iconColor: 'var(--cobudget-label-children-color)',
 					label: this.$texts.labels.children(),
 					value: this.formatSignedMetric(this.totalChildRelated),
 					valueClass: this.signedMetricClass(this.totalChildRelated),
@@ -1024,7 +1039,7 @@ export default {
 				metrics.push({
 					key: 'subscriptions',
 					icon: SyncIcon,
-					iconColor: '#8e44ad',
+					iconColor: 'var(--cobudget-label-subscription-color)',
 					label: this.$texts.labels.subscription(),
 					value: this.formatNegativeMetric(this.totalSubscriptions),
 					valueClass: 'negative',
@@ -1047,7 +1062,7 @@ export default {
 				metrics.push({
 					key: 'insurance',
 					icon: ShieldCheckOutlineIcon,
-					iconColor: 'var(--cobudget-primary, var(--color-primary-element))',
+					iconColor: 'var(--cobudget-label-insurance-color)',
 					label: this.$texts.labels.insurance(),
 					value: this.formatSignedMetric(this.totalInsurance),
 					valueClass: this.signedMetricClass(this.totalInsurance),
@@ -1055,32 +1070,9 @@ export default {
 				})
 			}
 
-			if (this.showFutureCard) {
-				metrics.push({
-					key: 'planned',
-					icon: CalendarSyncIcon,
-					iconColor: '#2563eb',
-					label: this.$texts.dashboard.planned(),
-					value: this.formatSignedMetric(this.totalFutureBalance),
-					valueClass: this.signedMetricClass(this.totalFutureBalance),
-					details: [
-						{
-							key: 'income',
-							label: this.$texts.dashboard.incomeColon(),
-							value: this.formatPositiveMetric(this.totalFutureIncome),
-							valueClass: 'positive',
-						},
-						{
-							key: 'expenses',
-							label: this.$texts.dashboard.expensesColon(),
-							value: this.formatNegativeMetric(this.totalFutureExpense),
-							valueClass: 'negative',
-						},
-					],
-				})
-			}
-
-			return metrics
+			const balanceIndex = metrics.findIndex(metric => metric.key === 'balance')
+			if (balanceIndex >= 0) { const [balance] = metrics.splice(balanceIndex, 1); metrics.splice(this.showBudgetCard ? 1 : 0, 0, balance) }
+			return metrics.map(metric => ({ ...metric, route: this.summaryLocation(metric.key), details: metric.details.filter(detail => (detail.key !== 'current-month' || this.showCurrentMonthSummary) && (detail.key !== 'average' || this.showMonthlyAverage)) }))
 		},
 		averageStats() {
 			return this.dashboardAverageMetrics
@@ -1118,9 +1110,6 @@ export default {
 		showIncomeCard() {
 			return this.$enableIncomes && this.tagCounts.income > 0;
 		},
-		showFutureCard() {
-			return this.$enableFuturePayments && this.tagCounts.future > 0;
-		},
 		showImportantCard() {
 			return this.$enableImportantPayments && this.tagCounts.important > 0;
 		},
@@ -1142,12 +1131,15 @@ export default {
 		showInsuranceCard() {
 			return this.$enableInsurance && this.tagCounts.insurance > 0;
 		},
+		periodBudgetGoals() {
+			return paymentPeriodBudgetGoals(this.budgetGoals, this.filters, this.currentPeriodDate)
+		},
 		showBudgetCard() {
-			return this.$enableBudgetGoals && this.budgetGoals.length > 0;
+			return this.$enableBudgetGoals && this.periodBudgetGoals.length > 0;
 		},
 		visibleBudgetGoals() {
 			const statusRank = { exceeded: 0, warning: 1, ok: 2 };
-			return [...this.budgetGoals]
+			return [...this.periodBudgetGoals]
 				.sort((a, b) => {
 					const statusDiff = (statusRank[a.evaluation?.status] ?? 3) - (statusRank[b.evaluation?.status] ?? 3);
 					if (statusDiff !== 0) return statusDiff;
@@ -1158,7 +1150,7 @@ export default {
 				.slice(0, 3);
 		},
 		budgetWarningCount() {
-			return this.budgetGoals.filter(goal => ['warning', 'exceeded'].includes(goal.evaluation?.status)).length;
+			return this.periodBudgetGoals.filter(goal => ['warning', 'exceeded'].includes(goal.evaluation?.status)).length;
 		},
 		budgetStatusLabel() {
 			if (this.budgetWarningCount === 0) {
@@ -1170,20 +1162,16 @@ export default {
 			return this.budgetWarningCount === 0 ? 'positive' : 'negative';
 		},
 		pageTitle() {
-			if (this.filters.type === 'income' || this.$route.query.filter === 'income') return this.$texts.labels.incomePayments();
-			if (this.filters.tags === 'subscription') return this.$texts.labels.subscriptionPayments();
-			if (this.filters.tags === 'taxRelevant' && this.filters.hasAttachment === 'false') return this.$texts.labels.taxRelevantWithoutReceipt();
-			if (this.filters.tags === 'taxRelevant') return this.$texts.labels.taxRelevantPayments();
-			if (this.filters.tags === 'insurance') return this.$texts.labels.insurancePayments();
-			if (this.filters.tags === 'fixedCost') return this.$texts.labels.fixedCostPayments();
-			if (this.filters.tags === 'childRelated') return this.$texts.labels.childPayments();
-			if (this.filters.tags === 'important') return this.$texts.labels.importantPayments();
-			if (this.filters.tags === 'review' && this.filters.hasAttachment === 'false') return this.$texts.labels.reviewWithoutReceipt();
-			if (this.filters.tags === 'review') return this.$texts.labels.reviewPayments();
-			if (this.filters.tags === 'future') return this.$texts.filters.futurePayments();
-			if (this.filters.hasReminder === 'true') return this.$texts.filters.activeReminders();
-			if (this.filters.timeRange === 'currentYear') return this.$texts.settings.currentYear();
-			return this.$texts.settings.myFinances();
+			if (this.filters.tags === 'future') return this.$texts.dashboard.planned()
+			if (this.filters.type === 'income') return this.$texts.labels.incomePayments()
+			if (this.filters.type === 'expense') return this.$texts.dashboard.expenses()
+			return this.$texts.labels.allPayments()
+		},
+		newPaymentActionLabel() {
+			if (this.filters.tags === 'future') return this.$texts.entry.planPayment();
+			return this.$enableIncomes && this.defaultEntryType === 'income'
+				? this.$texts.entry.newIncome()
+				: this.$texts.areaDetail.newPayment();
 		},
 		defaultEntryType() {
 			return this.filters.type === 'income' || this.$route.query.filter === 'income'
@@ -1192,9 +1180,25 @@ export default {
 		},
 		canExportEntries() {
 			return Number(this.pagination.total || 0) > 0;
+		},
+		canCopyEntriesToClipboard() {
+			const total = Number(this.pagination.total || 0);
+			return total > 0 && total <= ENTRY_CLIPBOARD_EXPORT_LIMIT;
+		},
+		clipboardExportLimitLabel() {
+			return new Intl.NumberFormat(getAppLocale()).format(ENTRY_CLIPBOARD_EXPORT_LIMIT);
+		},
+		clipboardExportDescription() {
+			if (!this.canExportEntries || this.canCopyEntriesToClipboard) {
+				return undefined;
+			}
+			return this.$texts.payments.clipboardExportLimitHint(this.clipboardExportLimitLabel);
 		}
 	},
 	mounted() {
+		this.fetchReminderSummary()
+		this.reminderSummaryTimer = window.setInterval(() => { this.reminderSummaryNow = Date.now() }, 60000)
+		window.addEventListener('cobudget-reminders-changed', this.fetchReminderSummary)
 		this.handleRouteQueryChange()
 		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
 			this.mobilePaginationMedia = window.matchMedia('(max-width: 768px)')
@@ -1204,26 +1208,61 @@ export default {
 		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.addEventListener('settings-closed', this.onSettingsClosed);
 		window.addEventListener('keydown', this.onPaginationKeydown)
+		window.addEventListener(PRINT_REPORT_EVENT, this.printEntries)
 		window.addEventListener('focus', this.handleCurrentPeriodResume)
 		document.addEventListener('visibilitychange', this.handleCurrentPeriodVisibilityChange)
 		this.scheduleCurrentPeriodRefresh()
 	},
 	beforeUnmount() {
+		this.reminderSummaryRequest++
+		this.printRequestId++
+		this.isPrinting = false
+		window.clearInterval(this.reminderSummaryTimer)
+		window.removeEventListener('cobudget-reminders-changed', this.fetchReminderSummary)
+		this.confirmDialog = null
+		this.closeEntryHistory()
 		window.removeEventListener('entry-saved', this.onEntrySaved)
 		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.removeEventListener('settings-closed', this.onSettingsClosed);
 		window.removeEventListener('keydown', this.onPaginationKeydown)
+		window.removeEventListener(PRINT_REPORT_EVENT, this.printEntries)
 		window.removeEventListener('focus', this.handleCurrentPeriodResume)
 		document.removeEventListener('visibilitychange', this.handleCurrentPeriodVisibilityChange)
 		this.mobilePaginationMedia?.removeEventListener?.('change', this.onMobilePaginationViewportChange)
 		this.clearCurrentPeriodRefreshTimer()
 	},
 	watch: {
-		'$route.fullPath': 'handleRouteQueryChange',
-		selectedEntryId: 'notifySelectedEntryVisibility',
-		entries: 'notifySelectedEntryVisibility'
+		'$enableReminders': 'fetchReminderSummary',
+		'$route.fullPath': 'handleRouteQueryChange'
 	},
 	methods: {
+		async fetchReminderSummary() {
+			const request = ++this.reminderSummaryRequest
+			this.reminderSummaryNow = Date.now()
+			if (!this.$enableReminders) { this.summaryReminders = []; return }
+			try {
+				const response = await axios.get(generateUrl('/apps/cobudget/api/reminders'), { skipWorkspaceHeader: true })
+				if (request === this.reminderSummaryRequest) this.summaryReminders = response.data.reminders || []
+			} catch (error) {
+				if (request !== this.reminderSummaryRequest) return
+				this.summaryReminders = []
+				showRequestError(error, this.$texts.reminders.loadError(), 'Failed to fetch reminder summary')
+			}
+		},
+		selectQuickLabel(label) {
+			this.onFiltersUpdate(withPaymentLabels(this.filters, [label]))
+		},
+		selectPaymentPeriod(selection) {
+			this.onFiltersUpdate(paymentPickerFilters(this.filters, selection))
+		},
+		groupReportLocation(group) {
+			return paymentGroupReportTarget(group, this.filters, {}, this.currentPeriodDate)
+		},
+		summaryLocation(key) {
+			const target = paymentSummaryTarget(key, this.filters, this.currentPeriodDate)
+			if (!target.filters) return target
+			return { name: target.name, query: { ...serializePersonalEntryListRouteQuery({ filters: target.filters, sortBy: this.sortBy, sortDir: this.sortDir }), timeRange: target.filters.timeRange } }
+		},
 		annualReturnRoute,
 		currentPeriodKey(date) {
 			const year = String(date.getFullYear()).padStart(4, '0')
@@ -1254,6 +1293,7 @@ export default {
 			}, delay)
 		},
 		refreshCurrentPeriod(now = new Date()) {
+			this.fetchReminderSummary()
 			const periodChanged = this.currentPeriodKey(now) !== this.currentPeriodKey(this.currentPeriodDate)
 			this.currentPeriodDate = now
 			this.scheduleCurrentPeriodRefresh(now)
@@ -1262,40 +1302,53 @@ export default {
 			}
 		},
 		async openEntryHistory(entry) {
+			if (!entry) return
+			const requestId = ++this.entryHistoryRequestId
+			this.entryHistoryEntry = entry
+			this.entryHistoryError = ''
 			this.entryHistoryOpen = true
 			this.entryHistoryLoading = true
 			this.entryHistoryRows = []
 			try {
 				const response = await axios.get(generateUrl(`/apps/cobudget/api/entries/${entry.id}/history`))
+				if (requestId !== this.entryHistoryRequestId) return
 				this.entryHistoryRows = Array.isArray(response.data?.history) ? response.data.history : []
 			} catch (error) {
-				showRequestError(error, this.$texts.entry.historyFetchError(), 'Failed to fetch entry history')
+				if (requestId === this.entryHistoryRequestId) this.entryHistoryError = extractError(error, this.$texts.entry.historyFetchError())
 			} finally {
-				this.entryHistoryLoading = false
+				if (requestId === this.entryHistoryRequestId) this.entryHistoryLoading = false
 			}
 		},
 		closeEntryHistory() {
+			this.entryHistoryRequestId++
+			this.entryHistoryError = ''
+			this.entryHistoryEntry = null
 			this.entryHistoryOpen = false
 			this.entryHistoryLoading = false
 			this.entryHistoryRows = []
 		},
-		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary' }) {
-			return new Promise(resolve => {
-				this.confirmDialog = {
-					title,
-					message,
-					confirmLabel,
-					confirmVariant,
-					resolve
-				};
-			});
+		openConfirm({ title, message, confirmLabel, action, errorMessage }) {
+			if (this.confirmDialog) return
+			this.confirmDialog = { title, message, confirmLabel, action, errorMessage, route: this.$route.fullPath, busy: false, error: '' }
 		},
-		resolveConfirm(confirmed) {
-			const resolver = this.confirmDialog?.resolve;
-			this.confirmDialog = null;
-			if (resolver) {
-				resolver(confirmed);
+		closeActionConfirm() {
+			if (!this.confirmDialog?.busy) this.confirmDialog = null
+		},
+		async confirmAction() {
+			const dialog = this.confirmDialog
+			if (!dialog || dialog.busy) return
+			if (dialog.route !== this.$route.fullPath) {
+				this.confirmDialog = null
+				return
 			}
+			dialog.busy = true
+			dialog.error = ''
+			try {
+				await dialog.action(dialog)
+				if (this.confirmDialog === dialog) this.confirmDialog = null
+			} catch (error) {
+				if (this.confirmDialog === dialog) dialog.error = extractError(error, dialog.errorMessage)
+			} finally { dialog.busy = false }
 		},
 		openBudgetGoals() {
 			this.$router.push({ name: 'budgets' })
@@ -1341,19 +1394,18 @@ export default {
 			this.fetchData();
 		},
 		handleRouteQueryChange() {
+			this.printRequestId++
+			this.isPrinting = false
+			this.confirmDialog = null
+			this.closeEntryHistory()
 			const routeState = parsePersonalEntryListRouteQuery(this.$route.query, this.$entriesPerPage)
-			this.filters = routeState.filters
+			this.filters = defaultPaymentPeriod(this.$route.query, routeState.filters, this.isPaymentsView)
 			this.sortBy = routeState.sortBy
 			this.sortDir = routeState.sortDir
 			this.applyEntryPageSize(this.isPaymentsView ? routeState.limit : this.$entriesPerPage)
 			if (this.isPaymentsView) {
 				this.pagination.offset = entryOffsetFromPage(routeState.page, this.pagination.limit)
 			}
-			this.$nextTick(() => {
-				if (this.$refs.tableFilters) {
-					this.$refs.tableFilters.localFilters = { ...this.filters }
-				}
-			})
 			this.fetchData()
 		},
 		updateDateRangeFilters() {
@@ -1400,7 +1452,7 @@ export default {
 			let needsReview = null;
 			let isTaxRelevant = null;
 			let isInsurance = null;
-			let hasReminder = this.filters.hasReminder === 'true' ? true : null;
+			let hasReminder = this.$enableReminders !== false && this.filters.hasReminder === 'true' ? true : null;
 			let hasAttachment = null;
 			if (this.filters.hasAttachment === 'true') hasAttachment = true;
 			if (this.filters.hasAttachment === 'false') hasAttachment = false;
@@ -1452,6 +1504,11 @@ export default {
 			try {
 				this.userName = window.OC && window.OC.currentUser ? window.OC.currentUser.displayName || window.OC.currentUser.uid : 'User'
 				const params = this.buildEntryQueryParams(true);
+				const availabilityKey = JSON.stringify({ ...params, limit: null, offset: null, sortBy: null, sortDir: null, hasReminder: null, hasAttachment: null })
+				if (this.filterAvailabilityKey !== availabilityKey) {
+					this.filterAvailability = null
+					this.filterAvailabilityKey = availabilityKey
+				}
 
 				const dashboardRes = await axios.get(generateUrl('/apps/cobudget/api/dashboard'), { params });
 				if (requestId !== this.fetchRequestId) {
@@ -1461,6 +1518,7 @@ export default {
 				const lookups = dashboardData.lookups || {};
 
 				this.entries = dashboardData.entries || [];
+				this.filterAvailability = dashboardData.filterAvailability || null;
 				this.dateGroups = dashboardData.dateGroups || null;
 				this.pagination.total = dashboardData.total || 0;
 				if (this.isPaymentsView && this.currentPage > this.totalPages) {
@@ -1468,6 +1526,7 @@ export default {
 					return
 				}
 				this.dashboardMetrics = normalizeDashboardMetrics(dashboardData.metrics || {});
+				this.paymentYears = Array.isArray(dashboardData.years) ? dashboardData.years : [];
 				this.dashboardTagCounts = normalizeTagCounts(dashboardData.tagCounts || {});
 
 				if (Array.isArray(lookups.categories)) {
@@ -1491,6 +1550,10 @@ export default {
 				}
 			}
 		},
+		showCsvMenu(open) {
+			this.csvMenuOpen = open
+			this.$nextTick(() => this.$refs[open ? 'csvBack' : 'csvTrigger']?.$el?.querySelector('button')?.focus())
+		},
 		async exportEntries() {
 			if (this.isExporting) {
 				return
@@ -1509,6 +1572,126 @@ export default {
 				this.isExporting = false
 			}
 		},
+		async saveEntriesInNextcloud() {
+			if (this.isExporting) {
+				return
+			}
+			const exportParams = { ...this.buildEntryQueryParams(false) }
+			this.isExporting = true
+			try {
+				await saveReportExport(
+					'cobudget-zahlungen.csv',
+					async () => {
+						const response = await axios.get(generateUrl('/apps/cobudget/api/entries/export'), {
+							params: exportParams,
+							responseType: 'text',
+						})
+						return {
+							filename: filenameFromDisposition(response?.headers?.['content-disposition'], 'cobudget-zahlungen.csv'),
+							contents: String(response?.data ?? ''),
+						}
+					},
+					this.$texts,
+				)
+			} catch (e) {
+				showRequestError(e, this.$texts.payments.saveInNextcloudError(), 'Failed to export entries')
+			} finally {
+				this.isExporting = false
+			}
+		},
+		async copyEntriesToClipboard() {
+			if (this.isExporting) {
+				return
+			}
+			if (!this.canCopyEntriesToClipboard) {
+				showToast(this.$texts.payments.clipboardExportLimitError(this.clipboardExportLimitLabel), 'error')
+				return
+			}
+			const exportParams = {
+				...this.buildEntryQueryParams(false),
+				clipboard: true,
+			}
+			this.isExporting = true
+			try {
+				const contents = axios.get(generateUrl('/apps/cobudget/api/entries/export'), {
+					params: exportParams,
+					responseType: 'text',
+				}).then(response => csvToClipboardText(response?.data))
+				await copyReportText(contents)
+				showToast(this.$texts.common.copiedToClipboard())
+			} catch (e) {
+				showRequestError(e, this.$texts.payments.copyToClipboardError(), 'Failed to export entries')
+			} finally {
+				this.isExporting = false
+			}
+		},
+		openMasterDataSettings(section) {
+			this.$router.push({ name: 'settings', query: { section } })
+		},
+		printFilterLabels() {
+			const chips = this.$refs.filterChips?.chips
+			if (!Array.isArray(chips)) {
+				return []
+			}
+			return chips
+				.filter(chip => chip && chip.key !== 'timeRange' && chip.label)
+				.map(chip => chip.label)
+		},
+		async printEntries() {
+			if (this.isPrinting || !this.canExportEntries) {
+				return
+			}
+			const requestId = ++this.printRequestId
+			const printParams = { ...this.buildEntryQueryParams(false) }
+			const title = this.headerTitle
+			const periodLabel = this.paymentPeriodLabel
+			const filterLabels = this.printFilterLabels()
+			const typeFilter = this.filters.type
+			const isFutureFilter = this.filters.tags === 'future'
+			const sortBy = this.sortBy
+			this.isPrinting = true
+			try {
+				const entries = await loadReportPayments(printParams, () => requestId === this.printRequestId)
+				if (!Array.isArray(entries) || requestId !== this.printRequestId) {
+					return
+				}
+				await printPaymentsOverview(document, {
+					title,
+					periodLabel,
+					filterLabels,
+					entries,
+					currency: this.$currency,
+					enableIncomes: this.$enableIncomes,
+					enableProjects: this.$enableProjects,
+					typeFilter,
+					isFutureFilter,
+					sortBy,
+					projects: this.projects,
+					labelSettings: {
+						important: this.$enableImportantPayments,
+						review: this.$enableReviewPayments,
+						fixedCosts: this.$enableFixedCosts,
+						childRelated: this.$enableChildRelated,
+						subscriptions: this.$enableSubscriptions,
+						taxRelevant: this.$enableTaxRelevant,
+						insurance: this.$enableInsurance,
+					},
+					amountResolver: entry => this.getEntryPersonalAmount(entry),
+					formatMoney: amount => this.$formatMoney(amount),
+					formatSignedMoney: amount => this.$formatSignedMoney(amount),
+					texts: this.$texts,
+					locale: getAppLocale(),
+				})
+			} catch (e) {
+				if (requestId === this.printRequestId) {
+					showRequestError(e, this.$texts.payments.printError(), 'Failed to print entries')
+				}
+			} finally {
+				if (requestId === this.printRequestId) {
+					this.isPrinting = false
+				}
+			}
+		},
 		async fetchBudgetGoals() {
 			if (!this.$enableBudgetGoals) {
 				this.budgetGoals = []
@@ -1523,14 +1706,18 @@ export default {
 			}
 		},
 		onEntrySaved() {
+			this.fetchReminderSummary()
 			this.fetchData();
 		},
 		onRemoteDataChanged(event) {
+			if (changeTouches(event?.detail, ['reminders', 'entries', 'projects'])) this.fetchReminderSummary()
 			if (changeTouches(event?.detail, ['entries', 'projects', 'budgets'])) {
 				this.fetchData()
 			}
 		},
 		onFiltersUpdate(newFilters) {
+			this.printRequestId++
+			this.isPrinting = false
 			this.filters = {
 				...createPersonalEntryFilters(),
 				...newFilters,
@@ -1540,9 +1727,13 @@ export default {
 			this.replaceEntryListRoute({ page: 1 })
 		},
 		resetFilters() {
-			this.onFiltersUpdate({ ...createPersonalEntryFilters(), annualReturn: this.filters.annualReturn })
+			this.onFiltersUpdate({ ...createPersonalEntryFilters(), annualReturn: this.filters.annualReturn,
+				timeRange: this.isPaymentsView ? 'all' : 'currentYear',
+			})
 		},
 		toggleSort(col) {
+			this.printRequestId++
+			this.isPrinting = false
 			if (this.sortBy === col) {
 				this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc'
 			} else {
@@ -1584,7 +1775,8 @@ export default {
 				limit: this.pagination.limit,
 				includePagination: this.isPaymentsView,
 			})
-			if (personalEntryListQueriesEqual(this.$route.query, query)) {
+			query.timeRange = this.filters.timeRange
+			if (personalEntryListQueriesEqual(this.$route.query, query) && this.$route.query.timeRange === query.timeRange) {
 				this.fetchData()
 				return
 			}
@@ -1609,7 +1801,7 @@ export default {
 				limit: this.pagination.limit,
 				includePagination: true,
 			})
-			this.$router.push({ name: 'payments', query })
+			this.$router.push({ name: 'payments', query: { ...query, timeRange: this.filters.timeRange } })
 				.then(() => this.$nextTick(this.scrollPageToTop))
 		},
 		goBackToFinances() {
@@ -1623,7 +1815,7 @@ export default {
 				sortBy: this.sortBy,
 				sortDir: this.sortDir,
 			})
-			this.$router.push({ name: 'personal', query })
+			this.$router.push({ name: 'personal', query: { ...query, timeRange: this.filters.timeRange } })
 				.then(() => this.$nextTick(this.scrollPageToTop))
 		},
 		scrollEntriesToTop() {
@@ -1710,16 +1902,7 @@ export default {
 				this.editEntry(entry);
 			}
 		},
-		notifySelectedEntryVisibility() {
-			if (this.selectedEntryId === null) {
-				return;
-			}
 
-			const isVisible = this.entries.some(entry => String(entry.id) === String(this.selectedEntryId));
-			if (!isVisible) {
-				this.$emit('selected-entry-missing', this.selectedEntryId);
-			}
-		},
 		async resolveEntrySource(entry) {
 			if (!entry.is_locked || !(entry.editable_entry_id || entry.source_entry_id)) {
 				return entry
@@ -1749,44 +1932,37 @@ export default {
 			if (!entryToDuplicate) return
 			this.$emit('open-entry-sidebar', { entryToDuplicate, projectId: entryToDuplicate.project_id || null, isFuture: this.filters.tags === 'future' })
 		},
-		async deleteEntry(entry) {
-			const isFuture = this.filters.tags === 'future';
-			const msg = isFuture 
-				? this.$texts.entry.disableFuturePaymentMessage()
-				: this.$texts.entry.deleteEntryMessage();
-				
-			const confirmed = await this.openConfirm({
+		deleteEntry(entry) {
+			const isFuture = this.filters.tags === 'future' && Number(entry.original_date ?? entry.date ?? 0) <= Date.now() / 1000
+			const entryId = entry.id
+			const deleteId = Number(entry.editable_entry_id || entry.source_entry_id || entryId)
+			this.openConfirm({
 				title: isFuture ? this.$texts.entry.disableFuturePaymentTitle() : this.$texts.entry.deleteEntryTitle(),
-				message: msg,
+				message: isFuture ? this.$texts.entry.disableFuturePaymentMessage() : this.$texts.entry.deleteEntryMessage(),
 				confirmLabel: isFuture ? this.$texts.entry.disablePayment() : this.$texts.entry.deleteEntry(),
-				confirmVariant: 'danger'
-			});
-			if (confirmed) {
-				try {
+				errorMessage: isFuture ? this.$texts.entry.futurePaymentDisableError() : this.$texts.entry.entryDeleteError(),
+				action: async (dialog) => {
 					if (isFuture) {
-						await axios.post(generateUrl(`/apps/cobudget/api/entries/${entry.id}/stop-recurrence`));
-						showToast(this.$texts.entry.futurePaymentDisabled());
+						await axios.post(generateUrl(`/apps/cobudget/api/entries/${entryId}/stop-recurrence`))
+						showToast(this.$texts.entry.futurePaymentDisabled())
 					} else {
-						const deleteId = Number(entry.editable_entry_id || entry.source_entry_id || entry.id);
-						await axios.delete(generateUrl(`/apps/cobudget/api/entries/${deleteId}`));
-						showToast(this.$texts.entry.entryDeleted());
+						await axios.delete(generateUrl(`/apps/cobudget/api/entries/${deleteId}`))
+						showToast(this.$texts.entry.entryDeleted())
 					}
-					this.entries = this.entries.filter(e => e.id !== entry.id)
-					window.dispatchEvent(new CustomEvent('cobudget-data-changed'));
-					this.fetchData(); // Refresh totals
-				} catch (error) {
-					const fallback = isFuture
-						? this.$texts.entry.futurePaymentDisableError()
-						: this.$texts.entry.entryDeleteError();
-					showRequestError(error, fallback, 'Failed to delete/stop entry')
+					window.dispatchEvent(new CustomEvent('cobudget-data-changed'))
+					if (this.confirmDialog === dialog && dialog.route === this.$route.fullPath) {
+						this.entries = this.entries.filter(e => e.id !== entryId)
+						this.fetchData()
+					}
 				}
-			}
+			})
 		}
 	}
 }
 </script>
 
 <style scoped>
+.payment-delete-message { margin: 0; white-space: pre-line; }
 .personal-dashboard {
 	min-width: 0;
 	width: 100%;
@@ -1824,8 +2000,6 @@ export default {
 		box-sizing: border-box;
 		min-width: 0;
 		min-height: 0;
-		border-start-start-radius: var(--border-radius-large, 8px);
-		border-start-end-radius: var(--border-radius-large, 8px);
 		overflow: auto;
 		overscroll-behavior: contain;
 		scrollbar-color: transparent transparent;
@@ -1857,10 +2031,11 @@ export default {
 		background: var(--color-border-dark, var(--color-border));
 	}
 
-	.recent-activities :deep(.data-table thead th) {
+	.recent-activities :deep(.data-table thead) {
 		position: sticky;
 		top: 0;
 		z-index: 2;
+		background: var(--cobudget-surface);
 	}
 
 	.recent-activities :deep(.pagination-footer) {
@@ -1873,23 +2048,24 @@ export default {
 	}
 }
 
-@media (min-width: 1025px) {
+@media (min-width: 769px) {
 	.personal-dashboard {
 		box-sizing: border-box;
-		width: calc(100% + var(--cobudget-content-inline-padding) + var(--cobudget-content-inline-padding));
-		margin-inline: calc(0px - var(--cobudget-content-inline-padding));
-		padding-inline: var(--cobudget-content-inline-padding);
+		width: calc(100% + var(--cobudget-content-inset-start) + var(--cobudget-content-inset-end));
+		margin-inline-start: calc(0px - var(--cobudget-content-inset-start));
+		margin-inline-end: calc(0px - var(--cobudget-content-inset-end));
+		padding-inline-start: var(--cobudget-content-inset-start);
+		padding-inline-end: var(--cobudget-content-inset-end);
 	}
-
 	.recent-activities {
-		width: calc(100% + var(--payment-table-scrollbar-size));
+		width: calc(100% + var(--cobudget-content-inset-start) + var(--cobudget-content-inset-end));
 		max-width: none;
-		margin-inline-end: calc(0px - var(--payment-table-scrollbar-size));
+		margin-inline-start: calc(0px - var(--cobudget-content-inset-start));
+		margin-inline-end: calc(0px - var(--cobudget-content-inset-end));
 	}
-
 	.recent-activities :deep(.pagination-footer) {
 		box-sizing: border-box;
-		padding-inline-end: var(--payment-table-scrollbar-size);
+		padding-inline: calc(var(--default-grid-baseline, 4px) * 2);
 	}
 }
 
@@ -1897,9 +2073,74 @@ export default {
 	margin-right: 4px;
 }
 
-.mobile-header-action {
-	display: none !important;
+.payments-page-header {
+	--payment-toolbar-font-weight: var(--font-weight-element, 500);
+	container: payments-toolbar / inline-size;
 }
+.payment-toolbar-period { max-inline-size: 10rem; font-weight: var(--payment-toolbar-font-weight); }
+.payment-toolbar-period :deep(.report-period-caption) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container payments-toolbar (max-width: 840px) {
+	.payments-page-header :deep(.payment-partner-shortcut) { display: none; }
+}
+@media (min-width: 769px) {
+	@container payments-toolbar (max-width: 940px) {
+		.payments-page-header.app-page-header--has-creation :deep(.payment-partner-shortcut) { display: none; }
+	}
+}
+@container payments-toolbar (max-width: 620px) {
+	.payments-page-header :deep(.payment-category-shortcut) { display: none; }
+}
+@container payments-toolbar (max-width: 460px) {
+	.payment-toolbar-period { display: none; }
+}
+@container payments-toolbar (max-width: 400px) {
+	.payments-page-header :deep(.payment-filter-caption) { display: none; }
+}
+@media (min-width: 769px) {
+	@container payments-toolbar (max-width: 720px) {
+		.payments-page-header.app-page-header--has-creation :deep(.payment-category-shortcut) { display: none; }
+	}
+	@container payments-toolbar (max-width: 560px) {
+		.payments-page-header.app-page-header--has-creation .payment-toolbar-period { display: none; }
+	}
+	@container payments-toolbar (max-width: 500px) {
+		.payments-page-header.app-page-header--has-creation :deep(.payment-filter-caption) { display: none; }
+	}
+}
+
+@container payments-toolbar (max-width: 720px) {
+	.payments-page-header:has(.payment-review-shortcut) :deep(.payment-category-shortcut) { display: none; }
+}
+@container payments-toolbar (max-width: 600px) {
+	.payments-page-header :deep(.payment-review-caption) { display: none; }
+}
+@container payments-toolbar (max-width: 510px) {
+	.payments-page-header:has(.payment-review-shortcut) .payment-toolbar-period { display: none; }
+}
+@container payments-toolbar (max-width: 450px) {
+	.payments-page-header:has(.payment-review-shortcut) :deep(.payment-filter-caption) { display: none; }
+}
+@container payments-toolbar (max-width: 350px) {
+	.payments-page-header :deep(.payment-review-shortcut) { display: none; }
+}
+@media (min-width: 769px) {
+	@container payments-toolbar (max-width: 820px) {
+		.payments-page-header.app-page-header--has-creation:has(.payment-review-shortcut) :deep(.payment-category-shortcut) { display: none; }
+	}
+	@container payments-toolbar (max-width: 700px) {
+		.payments-page-header.app-page-header--has-creation :deep(.payment-review-caption) { display: none; }
+	}
+	@container payments-toolbar (max-width: 610px) {
+		.payments-page-header.app-page-header--has-creation:has(.payment-review-shortcut) .payment-toolbar-period { display: none; }
+	}
+	@container payments-toolbar (max-width: 550px) {
+		.payments-page-header.app-page-header--has-creation:has(.payment-review-shortcut) :deep(.payment-filter-caption) { display: none; }
+	}
+	@container payments-toolbar (max-width: 450px) {
+		.payments-page-header.app-page-header--has-creation :deep(.payment-review-shortcut) { display: none; }
+	}
+}
+
 
 .mobile-more-payments-button,
 .mobile-more-payments-button.button-vue {
@@ -1910,32 +2151,6 @@ export default {
 	display: none;
 }
 
-.desktop-search-button,
-.desktop-search-button.button-vue {
-	min-height: var(--cobudget-button-height, 44px) !important;
-	height: var(--cobudget-button-height, 44px) !important;
-	padding-inline: calc(var(--default-grid-baseline, 4px) * 3) !important;
-	border-color: transparent !important;
-	background-color: transparent !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text, var(--color-main-text)) !important;
-}
-
-.desktop-search-button:hover:not(:disabled),
-.desktop-search-button:focus-visible:not(:disabled),
-.desktop-search-button.button-vue:hover:not(:disabled),
-.desktop-search-button.button-vue:focus-visible:not(:disabled) {
-	border-color: transparent !important;
-	background-color: var(--cobudget-surface-muted, var(--color-background-hover)) !important;
-	box-shadow: none !important;
-}
-
-.desktop-search-button.is-active,
-.desktop-search-button.button-vue.is-active {
-	border-color: transparent !important;
-	background-color: var(--cobudget-surface-muted, var(--color-background-hover)) !important;
-	color: var(--cobudget-primary, var(--color-primary-element)) !important;
-}
 
 :deep(.v-popper__arrow-container),
 :deep(.v-popper__arrow),
@@ -1949,27 +2164,36 @@ export default {
 	font-size: var(--cobudget-font-base);
 }
 
-.stats-row {
-	display: flex;
-	gap: var(--cobudget-card-gap);
-	margin-bottom: var(--cobudget-section-gap);
-	flex-wrap: nowrap;
-	padding: 2px 2px 12px;
+.payments-page-header :deep(.app-page-header__title) { white-space: nowrap; overflow: visible; }
+.payments-page-header :deep(.app-page-header__title :is(.report-period-caption, .report-period-static)) {
+	min-inline-size: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
-
-.stat-card {
-	flex: 0 0 300px;
-	width: 300px;
-	min-width: 300px;
+.summary-strip { display: flex; flex: 0 0 auto; align-items: center; min-width: 0; margin-inline: calc(-2 * var(--default-grid-baseline, 4px)); margin-bottom: var(--cobudget-content-gap); }
+.personal-dashboard:has(> .payment-filter-bar--chips) > :is(.summary-strip, .mobile-finance-summary) { margin-block-end: 0; }
+.stats-row { display: flex; flex: 1 1 auto; min-width: 0; gap: var(--cobudget-summary-card-gap); flex-wrap: nowrap; padding: 2px 0 8px; }
+.stat-card[data-cobudget-card] {
+	box-sizing: border-box;
+	flex: 0 0 var(--cobudget-summary-card-width);
+	width: var(--cobudget-summary-card-width);
+	min-width: var(--cobudget-summary-card-width);
 	display: flex;
 	flex-direction: column;
-	gap: var(--cobudget-content-gap);
-}
-
-.clickable-budget-card {
+	gap: 8px;
+	padding: calc(var(--default-grid-baseline, 4px) * 2);
+	border: 0;
+	border-radius: var(--border-radius-element);
+	background: transparent;
+	box-shadow: none;
+	color: inherit;
+	text-decoration: none;
 	cursor: pointer;
-	transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
+.stat-card:hover, .stat-card:focus-visible { background: var(--color-background-hover); }
+.stat-card:focus-visible { outline: var(--cobudget-focus-outline); outline-offset: -2px; }
+.stat-card * { cursor: inherit; }
 
 .stat-header {
 	display: flex;
@@ -2000,13 +2224,14 @@ export default {
 }
 
 .stat-icon {
-	width: 32px;
-	height: 32px;
+	position: relative;
+	inset-inline-start: calc(var(--default-grid-baseline, 4px) * -0.5);
+	width: calc(var(--default-grid-baseline, 4px) * 5);
+	height: calc(var(--default-grid-baseline, 4px) * 5);
+	flex-shrink: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: var(--cobudget-surface-muted, #f5f5f5);
-	border-radius: 50%;
 }
 
 .period-card-icon {
@@ -2041,8 +2266,6 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
-	border-top: 1px solid var(--cobudget-border, #eee);
-	padding-top: 10px;
 }
 
 .stat-sub-line {
@@ -2053,6 +2276,10 @@ export default {
 	color: var(--cobudget-text, var(--color-main-text));
 }
 
+.reminder-summary-card .stat-value { color: var(--color-text-maxcontrast, #888); }
+
+.reminder-summary-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .stat-sub-line span:last-child {
 	white-space: nowrap;
 	font-variant-numeric: tabular-nums;
@@ -2062,9 +2289,7 @@ export default {
 .budget-summary-list {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
-	border-top: 1px solid var(--cobudget-border, #eee);
-	padding-top: 10px;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
 }
 
 .budget-summary-line {
@@ -2126,7 +2351,7 @@ export default {
 	font-size: var(--cobudget-font-base);
 	font-weight: 600;
 	cursor: pointer;
-	transition: background 0.2s;
+	transition: background-color var(--cobudget-hover-duration) linear;
 	margin-bottom: 30px;
 }
 
@@ -2217,7 +2442,7 @@ th.col-desc {
 }
 
 .sortable:hover {
-	background: #eee;
+	background: var(--cobudget-table-sort-hover);
 }
 
 .sort-icon {
@@ -2227,72 +2452,19 @@ th.col-desc {
 }
 
 .pagination-footer {
-	display: flex;
-	justify-content: space-between;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 	align-items: center;
-  padding-top: 10px;
+	padding: calc(var(--default-grid-baseline, 4px) * 2);
 	background: var(--cobudget-page-background, #fff);
 }
 
-.pagination-footer--single {
-	justify-content: center;
-}
+.pagination-footer--single { grid-template-columns: 1fr; }
+.pagination-footer > .btn-page:first-child { justify-self: start; }
+.pagination-footer > .btn-page:last-child { justify-self: end; }
+.pagination-footer > .page-info { text-align: center; }
 
-.btn-page {
-	min-width: 0 !important;
-	border-color: transparent !important;
-  background: var(--cobudget-surface-muted) !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text) !important;
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
-}
-
-.btn-page:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
-.btn-page:hover:not(:disabled) {
-	background: var(--cobudget-surface-strong) !important;
-	border-color: transparent !important;
-	box-shadow: none !important;
-	outline: none !important;
-}
-
-.btn-page :deep(.button-vue__wrapper),
-.btn-page :deep(.button-vue__text) {
-	display: inline-flex !important;
-	align-items: center !important;
-	justify-content: center !important;
-	gap: 8px;
-	line-height: 1 !important;
-}
-
-.pagination-label {
-	display: inline-flex;
-	align-items: center;
-	white-space: nowrap;
-}
-
-.pagination-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: 16px;
-	height: 16px;
-	line-height: 0;
-}
-
-.pagination-icon :deep(.material-design-icon),
-.pagination-icon :deep(.material-design-icon__svg) {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	line-height: 1;
-	bottom: auto;
-}
+.pagination-label { white-space: nowrap; }
 
 .page-info {
 	font-size: var(--cobudget-font-compact);
@@ -2335,11 +2507,11 @@ th.col-desc {
 
 .clickable-row {
 	cursor: pointer;
-	transition: background-color 0.15s ease;
+	transition: background-color var(--cobudget-hover-duration) linear;
 }
 
 .clickable-row:hover {
-	background: var(--cobudget-surface-muted, #f6f6f6);
+	background: var(--cobudget-table-row-hover);
 }
 
 .date-cell {
@@ -2401,7 +2573,7 @@ th.col-desc {
 	padding: 40px;
 	text-align: center;
 	color: var(--color-text-maxcontrast, #888);
-	background: var(--cobudget-surface-muted, #f6f6f6);
+	background: var(--cobudget-table-row-hover);
 	border-radius: var(--border-radius-large, 8px);
 	border: 1px dashed var(--cobudget-border-strong, #ccc);
 }
@@ -2411,13 +2583,9 @@ th.col-desc {
 }
 
 @media (max-width: 768px) {
-	.desktop-header-action {
-		display: none !important;
-	}
+	.payments-page-header :deep(.app-page-header__title:not(:has(.cobudget-page-title-with-back))) { padding-block: 0; }
 
-	.mobile-header-action {
-		display: inline-flex !important;
-	}
+	.payment-toolbar-period { max-inline-size: min(27vw, 10rem); }
 
 	.pagination-footer--dashboard {
 		display: none;
@@ -2546,10 +2714,7 @@ th.col-desc {
 	}
 
 	.btn-page {
-		min-width: var(--cobudget-icon-button-size) !important;
-		width: var(--cobudget-icon-button-size) !important;
-		padding-inline: 0 !important;
-		justify-content: center;
+		--default-clickable-area: var(--cobudget-mobile-touch-size, 44px);
 	}
 
 	.personal-dashboard--table-only .pagination-footer {
@@ -2569,13 +2734,6 @@ th.col-desc {
 		display: inline-flex;
 	}
 
-	.personal-dashboard--table-only .btn-page,
-	.personal-dashboard--table-only .btn-page.button-vue {
-		width: auto !important;
-		min-width: 0 !important;
-		padding-inline: calc(var(--default-grid-baseline, 4px) * 2) !important;
-		background: transparent !important;
-	}
 
 }
 
@@ -2612,4 +2770,5 @@ th.col-desc {
 	font-weight: 600;
 }
 
+.clickable-row:is(:focus-within, .is-selected) { transition: none; }
 </style>

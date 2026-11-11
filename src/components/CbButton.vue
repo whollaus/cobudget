@@ -94,12 +94,12 @@ export default {
 	line-height: 1.2;
 	letter-spacing: 0;
 	white-space: nowrap;
-	transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s, opacity 0.2s;
+	transition: background-color var(--cobudget-hover-duration) linear, border-color var(--cobudget-hover-duration) linear, color var(--cobudget-hover-duration) linear;
 	transform: none !important;
 }
 
 .cobudget-button:hover:not(:disabled) {
-  background: var(--cobudget-surface-muted);
+  background: var(--cobudget-interaction-hover);
   border: 1px solid transparent;
 	transform: none !important;
 }
@@ -160,15 +160,15 @@ export default {
 }
 
 .cobudget-button--secondary {
-	background: var(--cobudget-surface-muted);
+	background: var(--color-primary-element-light);
 	border-color: transparent;
-	color: var(--cobudget-text);
+	color: var(--color-primary-element-light-text);
 }
 
 .cobudget-button--secondary:hover:not(:disabled) {
-	background: var(--cobudget-surface-strong);
+	background: var(--color-primary-element-light-hover);
 	border-color: transparent;
-	color: var(--cobudget-text);
+	color: var(--color-primary-element-light-text);
 }
 
 .cobudget-button--soft {
@@ -214,7 +214,7 @@ export default {
 }
 
 .cobudget-button--ghost:hover:not(:disabled) {
-	background: var(--cobudget-surface-muted);
+	background: var(--cobudget-interaction-hover);
 }
 
 .cobudget-button__icon {
@@ -233,4 +233,5 @@ export default {
 	color: currentColor !important;
 	fill: currentColor !important;
 }
+.cobudget-button:is(:focus-visible, :active, :disabled) { transition: none; }
 </style>

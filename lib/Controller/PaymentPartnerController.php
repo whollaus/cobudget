@@ -70,8 +70,8 @@ class PaymentPartnerController extends Controller {
 		$this->initWorkspace();
 	}
 
-	private function paymentPartnerDetailsFromRequest(array $paymentPartner): array {
-		$params = $this->request->getParams();
+	private function paymentPartnerDetailsFromRequest(array $paymentPartner, ?array $detailsPayload = null): array {
+		$params = $detailsPayload ?? $this->request->getParams();
 		$details = [];
 		foreach (self::PAYMENT_PARTNER_DETAIL_FIELDS as $requestField => $definition) {
 			$column = $definition['column'];
@@ -106,8 +106,8 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	private function validatePaymentPartnerEmail(array $details): ?DataResponse {
-		if (!array_key_exists('email', $this->request->getParams())) {
+	private function validatePaymentPartnerEmail(array $details, bool $validateEmail): ?DataResponse {
+		if (!$validateEmail) {
 			return null;
 		}
 
@@ -197,8 +197,7 @@ class PaymentPartnerController extends Controller {
 			if ($workspaceId === null) {
 				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 			}
-			$hiddenJson = $this->config->getUserValue($this->userId, 'cobudget', 'hidden_payment_partners', '[]');
-			$hiddenIds = json_decode($hiddenJson, true) ?: [];
+			$hiddenIds = $this->hiddenIdsForScope($projectId);
 
 			$qb = $this->db->getQueryBuilder();
 			$globalScope = $qb->expr()->andX(
@@ -251,64 +250,41 @@ class PaymentPartnerController extends Controller {
 			if ($workspaceId === null) {
 				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 			}
-			$hiddenJson = $this->config->getUserValue($this->userId, 'cobudget', 'hidden_payment_partners', '[]');
-			$hiddenIds = json_decode($hiddenJson, true) ?: [];
+			$hiddenIds = $this->hiddenIdsForScope($projectId);
 
 			$qb = $this->db->getQueryBuilder();
-			if ($projectId !== null) {
-				$qb->select('*')
-					->from('cobudget_payment_partners')
-					->where($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-					->andWhere($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
-					->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
-			} else {
-				$globalScope = $qb->expr()->andX(
-					$qb->expr()->eq('is_global', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)),
-					$qb->expr()->eq('is_hidden', $qb->createNamedParameter(false, \PDO::PARAM_BOOL))
+			$globalScope = $qb->expr()->andX(
+				$qb->expr()->eq('is_global', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)),
+				$qb->expr()->eq('is_hidden', $qb->createNamedParameter(false, \PDO::PARAM_BOOL))
+			);
+			$localScope = $projectId !== null
+				? $qb->expr()->andX(
+					$qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)),
+					$qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT))
+				)
+				: $qb->expr()->andX(
+					$qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)),
+					$qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)),
+					$qb->expr()->isNull('project_id')
 				);
 			$qb->select('*')
 				->from('cobudget_payment_partners')
 				->where(
 					$qb->expr()->orX(
 						$globalScope,
-							$qb->expr()->andX(
-								$qb->expr()->eq('user_id', $qb->createNamedParameter($this->userId)),
-								$qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)),
-								$qb->expr()->isNull('project_id')
-							)
+						$localScope
 					)
 				);
-			}
 
 			$result = $qb->executeQuery();
 			$paymentPartners = $result->fetchAll();
 			$result->closeCursor();
 
-			$qbUsed = $this->db->getQueryBuilder();
-			$qbUsed->select('payment_partner_id')
-				->from('cobudget_entries')
-				->where($qbUsed->expr()->isNotNull('payment_partner_id'))
-				->andWhere($qbUsed->expr()->eq('workspace_id', $qbUsed->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-				->groupBy('payment_partner_id');
-			if ($projectId !== null) {
-				$qbUsed
-					->andWhere($qbUsed->expr()->eq('entry_kind', $qbUsed->createNamedParameter('shared')))
-					->andWhere($qbUsed->expr()->eq('project_id', $qbUsed->createNamedParameter($projectId, \PDO::PARAM_INT)));
-			} else {
-				$qbUsed
-					->andWhere($qbUsed->expr()->eq('entry_kind', $qbUsed->createNamedParameter('personal')))
-					->andWhere($qbUsed->expr()->eq('user_id', $qbUsed->createNamedParameter($this->userId)));
-			}
-			$usedEntries = $qbUsed->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
-
-			$usedPaymentPartnerIds = array_unique($usedEntries);
-
 			foreach ($paymentPartners as &$paymentPartner) {
 				$paymentPartner['is_hidden'] = in_array((int)$paymentPartner['id'], $hiddenIds);
-				$paymentPartner['in_use'] = in_array((int)$paymentPartner['id'], $usedPaymentPartnerIds);
 			}
 
-			return new DataResponse($paymentPartners);
+			return new DataResponse($this->addMasterDataUsage($paymentPartners, 'payment_partner_id'));
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
 		}
@@ -365,7 +341,7 @@ class PaymentPartnerController extends Controller {
 	}
 
 	#[NoAdminRequired]
-	public function update(int $id, string $name = ''): DataResponse {
+	public function update(int $id, string $name = '', ?array $details = null): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
 					return $error;
@@ -385,8 +361,9 @@ class PaymentPartnerController extends Controller {
 				return $this->errorResponse('Payment partner not found or not editable', Http::STATUS_NOT_FOUND);
 			}
 			$workspaceId = (int)$paymentPartner['workspace_id'];
-			$details = $this->paymentPartnerDetailsFromRequest($paymentPartner);
-			if ($emailError = $this->validatePaymentPartnerEmail($details)) {
+			$validateEmail = array_key_exists('email', $details ?? $this->request->getParams());
+			$details = $this->paymentPartnerDetailsFromRequest($paymentPartner, $details);
+			if ($emailError = $this->validatePaymentPartnerEmail($details, $validateEmail)) {
 				return $emailError;
 			}
 
@@ -426,56 +403,78 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	#[NoAdminRequired]
-	public function hide(int $id): DataResponse {
-			try {
-				if ($error = $this->authErrorResponse()) {
-					return $error;
-				}
+	private function removeProjectHiddenPaymentPartnerReference(int $partnerId): void {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id', 'hidden_payment_partner_ids')
+			->from('cobudget_projects');
+		$result = $qb->executeQuery();
+		$projects = $result->fetchAll();
+		$result->closeCursor();
 
-				if ($validationError = $this->validatePositiveId($id)) {
-					return $validationError;
-				}
-
-				if (!$this->paymentPartnerAvailableInActiveWorkspace($id)) {
-					return $this->errorResponse('Payment partner not found', Http::STATUS_NOT_FOUND);
-				}
-
-			$hiddenJson = $this->config->getUserValue($this->userId, 'cobudget', 'hidden_payment_partners', '[]');
-			$hiddenIds = json_decode($hiddenJson, true) ?: [];
-			if (!in_array($id, $hiddenIds)) {
-				$hiddenIds[] = $id;
-				$this->config->setUserValue($this->userId, 'cobudget', 'hidden_payment_partners', json_encode($hiddenIds));
+		foreach ($projects as $project) {
+			$hiddenIds = array_map('intval', json_decode((string)($project['hidden_payment_partner_ids'] ?? '[]'), true) ?: []);
+			if (!in_array($partnerId, $hiddenIds, true)) {
+				continue;
 			}
-			return new DataResponse(['status' => 'success']);
-		} catch (\Exception $e) {
-			return $this->loggedErrorResponse($e);
+
+			$hiddenIds = array_values(array_filter(
+				$hiddenIds,
+				static fn(int $hiddenId): bool => $hiddenId !== $partnerId
+			));
+			$update = $this->db->getQueryBuilder();
+			$update->update('cobudget_projects')
+				->set('hidden_payment_partner_ids', $update->createNamedParameter(json_encode($hiddenIds) ?: '[]'))
+				->where($update->expr()->eq('id', $update->createNamedParameter((int)$project['id'], \PDO::PARAM_INT)));
+			$update->executeStatement();
 		}
 	}
 
-	#[NoAdminRequired]
-	public function unhide(int $id): DataResponse {
-			try {
-				if ($error = $this->authErrorResponse()) {
-					return $error;
-				}
+	private function hiddenIdsForScope(?int $projectId): array {
+		$json = $projectId === null
+			? $this->config->getUserValue((string)$this->userId, 'cobudget', 'hidden_payment_partners', '[]')
+			: ($this->projectVisibleForCurrentUser($projectId)['hidden_payment_partner_ids'] ?? '[]');
+		return array_values(array_unique(array_map('intval', json_decode((string)$json, true) ?: [])));
+	}
 
-				if ($validationError = $this->validatePositiveId($id)) {
-					return $validationError;
-				}
-
-				if (!$this->paymentPartnerAvailableInActiveWorkspace($id)) {
-					return $this->errorResponse('Payment partner not found', Http::STATUS_NOT_FOUND);
-				}
-
-			$hiddenJson = $this->config->getUserValue($this->userId, 'cobudget', 'hidden_payment_partners', '[]');
-			$hiddenIds = json_decode($hiddenJson, true) ?: [];
-			$hiddenIds = array_values(array_filter($hiddenIds, fn($hid) => $hid !== $id));
-			$this->config->setUserValue($this->userId, 'cobudget', 'hidden_payment_partners', json_encode($hiddenIds));
-			return new DataResponse(['status' => 'success']);
-		} catch (\Exception $e) {
-			return $this->loggedErrorResponse($e);
+	private function setVisibility(int $id, ?int $projectId, bool $hidden): DataResponse {
+		if ($error = $this->authErrorResponse()) { return $error; }
+		if ($error = $this->requireProjectOwnerForScopedMutation($projectId)) { return $error; }
+		if (!$this->paymentPartnerAvailableInActiveWorkspace($id, $projectId)) {
+			return $this->errorResponse('Payment partner not found', Http::STATUS_NOT_FOUND);
 		}
+		$ids = array_values(array_filter($this->hiddenIdsForScope($projectId), static fn(int $value): bool => $value !== $id));
+		if ($hidden) { $ids[] = $id; }
+		$json = json_encode($ids);
+		if ($projectId === null) {
+			$this->config->setUserValue((string)$this->userId, 'cobudget', 'hidden_payment_partners', $json);
+		} else {
+			$project = $this->projectOwnerForCurrentUser($projectId);
+			if ($project === null) { return $this->errorResponse('Area not found', Http::STATUS_FORBIDDEN); }
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('cobudget_projects')
+				->set('hidden_payment_partner_ids', $qb->createNamedParameter($json))
+				->where($qb->expr()->eq('id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter((int)$project['workspace_id'], \PDO::PARAM_INT)))
+				->andWhere($qb->expr()->eq('owner_id', $qb->createNamedParameter((string)$this->userId)));
+			$qb->executeStatement();
+		}
+		return new DataResponse(['status' => 'success']);
+	}
+
+	#[NoAdminRequired]
+	public function hide(int $id, ?int $projectId = null): DataResponse {
+		try {
+			if ($error = $this->authErrorResponse()) { return $error; }
+			return $this->setVisibility($id, $projectId, true); }
+		catch (\Exception $e) { return $this->loggedErrorResponse($e); }
+	}
+
+	#[NoAdminRequired]
+	public function unhide(int $id, ?int $projectId = null): DataResponse {
+		try {
+			if ($error = $this->authErrorResponse()) { return $error; }
+			return $this->setVisibility($id, $projectId, false); }
+		catch (\Exception $e) { return $this->loggedErrorResponse($e); }
 	}
 
 	#[NoAdminRequired]
@@ -523,6 +522,7 @@ class PaymentPartnerController extends Controller {
 				$qb3->andWhere($qb3->expr()->eq('project_id', $qb3->createNamedParameter($projectId, \PDO::PARAM_INT)));
 			}
 			$qb3->executeStatement();
+			$this->removeProjectHiddenPaymentPartnerReference($id);
 			return new DataResponse(['status' => 'success']);
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
@@ -559,7 +559,7 @@ class PaymentPartnerController extends Controller {
 			$result = $qb->executeQuery();
 			$paymentPartners = $result->fetchAll();
 			$result->closeCursor();
-			return new DataResponse($paymentPartners);
+			return new DataResponse($this->addMasterDataUsage($paymentPartners, 'payment_partner_id', true));
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
 		}
@@ -605,7 +605,7 @@ class PaymentPartnerController extends Controller {
 		}
 	}
 
-	public function adminUpdate(int $id, string $name = ''): DataResponse {
+	public function adminUpdate(int $id, string $name = '', ?array $details = null): DataResponse {
 		try {
 			if ($adminError = $this->requireAdmin()) {
 				return $adminError;
@@ -623,8 +623,9 @@ class PaymentPartnerController extends Controller {
 			if (!$paymentPartner) {
 				return $this->errorResponse('Payment partner not found', Http::STATUS_NOT_FOUND);
 			}
-			$details = $this->paymentPartnerDetailsFromRequest($paymentPartner);
-			if ($emailError = $this->validatePaymentPartnerEmail($details)) {
+			$validateEmail = array_key_exists('email', $details ?? $this->request->getParams());
+			$details = $this->paymentPartnerDetailsFromRequest($paymentPartner, $details);
+			if ($emailError = $this->validatePaymentPartnerEmail($details, $validateEmail)) {
 				return $emailError;
 			}
 
@@ -739,6 +740,7 @@ class PaymentPartnerController extends Controller {
 				->where($qb3->expr()->eq('id', $qb3->createNamedParameter($id)))
 				->andWhere($qb3->expr()->eq('is_global', $qb3->createNamedParameter(true, \PDO::PARAM_BOOL)));
 			$qb3->executeStatement();
+			$this->removeProjectHiddenPaymentPartnerReference($id);
 			return new DataResponse(['status' => 'success']);
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);

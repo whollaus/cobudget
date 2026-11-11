@@ -7,7 +7,7 @@ export const REMOTE_DATA_CHANGED_EVENT = 'cobudget-remote-data-changed'
 const PUSH_EVENT = 'cobudget_data_changed'
 const REFRESH_DELAY_MS = 300
 const POLL_INTERVAL_MS = 30_000
-const FALLBACK_DOMAINS = ['entries', 'projects', 'settlements', 'budgets', 'analytics']
+const FALLBACK_DOMAINS = ['reminders', 'entries', 'projects', 'settlements', 'budgets', 'analytics']
 
 let started = false
 let initialRevisionKnown = false

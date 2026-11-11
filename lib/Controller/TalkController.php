@@ -33,13 +33,16 @@ class TalkController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 10, period: 60)]
-	public function update(bool $enabled): DataResponse {
+	public function update(bool $enabled, string $channel = 'payments'): DataResponse {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
 			return new DataResponse(['error' => $this->l10n->t('Not authenticated')], 401);
 		}
+		if (!in_array($channel, ['payments', 'reminders', 'planned'], true)) {
+			return new DataResponse(['error' => $this->l10n->t('Invalid notification channel')], 400);
+		}
 		try {
-			return new DataResponse($this->talk->setEnabled($user->getUID(), $enabled));
+			return new DataResponse($this->talk->setEnabled($user->getUID(), $enabled, $channel));
 		} catch (\Throwable $e) {
 			return new DataResponse(['error' => $this->l10n->t('Personal Talk notifications could not be configured. Check that Talk is available or contact your administrator.')], 503);
 		}

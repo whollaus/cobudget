@@ -40,6 +40,10 @@ export const snapshotEntryForm = (entry = {}) => JSON.stringify({
 	hasReminder: Boolean(entry.hasReminder),
 	reminderDate: normalizedDateTime(entry.reminderDate),
 	reminderText: normalizedText(entry.reminderText),
+	reminderDescription: normalizedText(entry.reminderDetails?.description),
+	reminderLabels: [...(entry.reminderDetails?.labels || [])].sort(),
+	reminderCompleted: Boolean(entry.reminderDetails?.completed),
+	reminderArchived: Boolean(entry.reminderDetails?.archived),
 })
 
 export const hasEntryFormChanges = (baseline, entry, pendingAttachmentCount = 0) => {

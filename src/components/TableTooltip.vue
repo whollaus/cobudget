@@ -4,16 +4,17 @@
 		class="table-tooltip-trigger"
 		:aria-label="text || null"
 		:aria-describedby="isVisible ? tooltipId : null"
-		tabindex="0"
-		@mouseenter="showTooltip"
-		@mouseleave="hideTooltip"
-		@focus="showTooltip"
-		@blur="hideTooltip"
+		:tabindex="passive ? undefined : 0"
+		@mouseenter="visibility.enter()"
+		@mouseleave="visibility.leave()"
+		@focusin="visibility.focus()"
+		@focusout="visibility.blur()"
 		@mousedown.stop
 		@touchstart.stop
-		@click.stop.prevent="toggleTooltip"
-		@keydown.enter.stop.prevent="toggleTooltip"
-		@keydown.space.stop.prevent="toggleTooltip">
+		@click="toggleTooltip"
+		@keydown.enter="toggleTooltip"
+		@keydown.space="toggleTooltip"
+		@keydown.esc.stop.prevent="visibility.hide()">
 		<slot />
 	</span>
 	<Teleport to="body">
@@ -21,7 +22,7 @@
 			v-if="isVisible && text"
 			:id="tooltipId"
 			ref="tooltip"
-			class="table-tooltip"
+			class="table-tooltip cobudget-tooltip-surface"
 			role="tooltip"
 			:style="tooltipStyle">
 			<div
@@ -37,11 +38,13 @@
 </template>
 
 <script>
+import { createTooltipVisibility } from '../services/tooltipVisibility'
 let nextTooltipId = 0
 
 export default {
 	name: 'TableTooltip',
 	props: {
+		passive: { type: Boolean, default: false },
 		text: {
 			type: String,
 			default: ''
@@ -50,6 +53,7 @@ export default {
 	data() {
 		return {
 			isVisible: false,
+			visibility: null,
 			tooltipId: `table-tooltip-${++nextTooltipId}`,
 			tooltipStyle: {
 				left: '0px',
@@ -75,7 +79,14 @@ export default {
 				})
 		}
 	},
+	created() {
+		this.visibility = createTooltipVisibility({
+			isVisible: () => this.isVisible,
+			setVisible: value => value ? this.showTooltip() : this.hideTooltip(),
+		})
+	},
 	beforeUnmount() {
+		this.visibility.dispose()
 		this.detachListeners()
 	},
 	methods: {
@@ -85,6 +96,7 @@ export default {
 			}
 			this.isVisible = true
 			this.$nextTick(() => {
+				if (!this.isVisible || !this.$refs.tooltip) return
 				this.updatePosition()
 				this.attachListeners()
 			})
@@ -93,17 +105,11 @@ export default {
 			this.isVisible = false
 			this.detachListeners()
 		},
-		toggleTooltip() {
-			if (!this.text) {
-				return
-			}
-
-			if (this.isVisible) {
-				this.hideTooltip()
-				return
-			}
-
-			this.showTooltip()
+		toggleTooltip(event) {
+			if (this.passive) return
+			event?.stopPropagation()
+			event?.preventDefault()
+			this.visibility.toggle()
 		},
 		attachListeners() {
 			window.addEventListener('resize', this.updatePosition)
@@ -152,7 +158,7 @@ export default {
 .table-tooltip-trigger:focus-visible {
 	border-radius: var(--border-radius, 4px);
 	outline: var(--cobudget-focus-outline);
-	outline-offset: var(--cobudget-focus-offset);
+	outline-offset: -2px;
 }
 
 .table-tooltip {
@@ -162,13 +168,7 @@ export default {
 	max-width: min(520px, calc(100vw - 16px));
 	padding: 6px 10px;
 	border-radius: var(--border-radius, 6px);
-	background: var(--cobudget-text);
-	color: var(--cobudget-page-background, #fff);
-	font-size: var(--cobudget-font-sm);
-	font-weight: 600;
-	line-height: 1.35;
 	pointer-events: none;
-	box-shadow: var(--cobudget-shadow-md);
 }
 
 .table-tooltip-line {
@@ -189,10 +189,6 @@ export default {
 
 .table-tooltip-label {
 	min-width: 0;
-}
-
-.table-tooltip-line:first-child .table-tooltip-label {
-	font-weight: 800;
 }
 
 .table-tooltip-value {

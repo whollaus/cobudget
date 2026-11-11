@@ -12,6 +12,7 @@
 import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'
 import TrendingDownIcon from 'vue-material-design-icons/TrendingDown.vue'
 import { formatCalendarLabel } from '../utils/formatDate'
+import { reportComparisonRange } from '../services/reportComparisons'
 import { getAppLocale } from '../utils/formatMoney'
 
 export default {
@@ -31,8 +32,8 @@ export default {
 		tooltipText() {
 			const value = this.value
 			return [
-				`${this.period(value.currentFrom, value.currentTo)}: ${this.$formatMoneyFromCents(value.current)}`,
-				`${this.period(value.previousFrom, value.previousTo)}: ${this.$formatMoneyFromCents(value.previous)}`,
+				`${value.currentPeriods ? reportComparisonRange(value, formatCalendarLabel, 'current') : this.period(value.currentFrom, value.currentTo)}: ${this.$formatMoneyFromCents(value.current)}`,
+				`${value.currentPeriods ? reportComparisonRange(value, formatCalendarLabel) : this.period(value.previousFrom, value.previousTo)}: ${this.$formatMoneyFromCents(value.previous)}`,
 				`${this.$texts.annual.difference()}: ${this.difference}${value.percent !== null ? ` · ${this.percentage}` : ''}`,
 				...(value.percent === null ? [this.$texts.annual.zeroBaseline()] : []),
 			].join('\n')

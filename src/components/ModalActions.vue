@@ -2,13 +2,13 @@
 	<div
 		class="modal-actions"
 		:class="{
-			'has-left-actions': hasLeftActions,
+			'has-left-actions': dangerLabel || $slots.left,
 			'is-flush': flush,
 			'is-equal-width': equalWidth,
 			'is-danger-row': dangerRow,
 			'is-inline-mobile': inlineMobile
 		}">
-		<div v-if="hasLeftActions" class="modal-actions-left">
+		<div v-if="dangerLabel || $slots.left" class="modal-actions-left">
 			<slot name="left">
 				<CbButton
 					v-if="dangerLabel"
@@ -31,14 +31,15 @@
 				@click="$emit('extra')">
 				{{ extraBusy ? extraBusyLabel : extraLabel }}
 			</CbButton>
-			<CbButton
+			<NcButton
 				v-if="showCancel"
 				type="button"
-				variant="secondary"
+				variant="tertiary"
+				class="modal-cancel-button cobudget-native-button"
 				:disabled="cancelDisabled"
 				@click="$emit('cancel')">
 				{{ cancelLabel }}
-			</CbButton>
+			</NcButton>
 			<CbSplitButton
 				v-if="primaryLabel && hasPrimaryMenu"
 				:type="primaryType"
@@ -51,26 +52,30 @@
 				:menu-aria-label="$texts.actions.moreSaveOptions()"
 				@click="$emit('primary')"
 				@select="$emit('primary-menu', $event)" />
-			<CbButton
+			<NcButton
 				v-else-if="primaryLabel"
+				class="modal-primary-button cobudget-native-button"
 				:type="primaryType"
-				:variant="primaryVariant"
+				:variant="primaryVariant === 'danger' ? 'error' : 'primary'"
+				:aria-busy="primaryBusy || undefined"
 				:disabled="primaryDisabled || primaryBusy"
 				@click="$emit('primary')">
 				{{ primaryBusy ? primaryBusyLabel : primaryLabel }}
-			</CbButton>
+			</NcButton>
 		</div>
 	</div>
 </template>
 
 <script>
 import CbButton from './CbButton.vue'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import CbSplitButton from './CbSplitButton.vue'
 import { texts } from '../l10n/texts'
 
 export default {
 	name: 'ModalActions',
 	components: {
+		NcButton,
 		CbButton,
 		CbSplitButton
 	},
@@ -175,9 +180,6 @@ export default {
 	},
 	emits: ['cancel', 'danger', 'extra', 'primary', 'primary-menu'],
 	computed: {
-		hasLeftActions() {
-			return Boolean(this.dangerLabel || this.$slots.left);
-		},
 		hasPrimaryMenu() {
 			return this.primaryMenuItems.length > 0;
 		}
@@ -221,6 +223,7 @@ export default {
 	}
 
 @media (max-width: 768px) {
+	.modal-actions { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
 	.modal-actions,
 	.modal-actions.has-left-actions {
 		align-items: stretch;
@@ -256,7 +259,9 @@ export default {
 		margin-left: 0;
 	}
 
-	.modal-actions.is-equal-width :deep(.cobudget-button) {
+	.modal-actions.is-equal-width :deep(.cobudget-button),
+	.modal-actions.is-equal-width .modal-cancel-button,
+	.modal-actions.is-equal-width .modal-primary-button {
 		min-width: 0;
 		width: 100%;
 	}
@@ -265,7 +270,9 @@ export default {
 		width: 100%;
 	}
 
-	.modal-actions :deep(.cobudget-button) {
+	.modal-actions :deep(.cobudget-button),
+	.modal-actions .modal-cancel-button,
+	.modal-actions .modal-primary-button {
 		width: 100%;
 	}
 
@@ -295,6 +302,8 @@ export default {
 		margin-left: auto;
 	}
 
+	.modal-actions.is-inline-mobile .modal-cancel-button,
+	.modal-actions.is-inline-mobile .modal-primary-button,
 	.modal-actions.is-inline-mobile :deep(.cobudget-button),
 	.modal-actions.is-inline-mobile :deep(.cobudget-split-button) {
 		width: auto;

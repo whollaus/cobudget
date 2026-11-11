@@ -23,7 +23,7 @@ export function reportSelectionAverage(report, type, breakdown) {
 // count just as they do in the existing per-unit annual detail metric.
 export function reportAnnualAverages(report, type, defaultUnit) {
 	const range = report?.periods?.at(-1)
-	if (!range) return []
+	if (!range || report.periods.slice(0, -1).some((item, index, items) => index > 0 && item.dateFrom > items[index - 1].dateTo + 1)) return []
 	const from = calendarDate(range.dateFrom), to = calendarDate(range.dateTo)
 	if (from.getMonth() !== 0 || from.getDate() !== 1 || to.getMonth() !== 11 || to.getDate() !== 31 || from.getFullYear() !== to.getFullYear()) return []
 	const row = report.totals[type === 'all' ? 'balance' : type]
@@ -101,10 +101,25 @@ export function reportComparisonLabel(value, texts, format = (date, options) => 
 	return ({ month: texts.annual.comparisonPreviousMonth, year: texts.annual.comparisonPreviousYear, quarter: texts.annual.comparisonPreviousQuarter, week: texts.annual.comparisonPreviousWeek, day: texts.annual.comparisonPreviousDay, range: texts.annual.comparisonPreviousRange }[value.unit])()
 }
 
-export function reportComparisonRange(value, format) {
-	if (!value.previousFrom || !value.previousTo) return ''
+export function reportComparisonRange(value, format, side = 'previous') {
+	const from = value[`${side}From`], to = value[`${side}To`]
+	if (!from || !to) return ''
 	const date = day => format(new Date(`${day}T12:00:00`), { day: 'numeric', month: 'short', year: 'numeric' })
-	return value.previousFrom === value.previousTo ? date(value.previousFrom) : `${date(value.previousFrom)} – ${date(value.previousTo)}`
+	const label = (start, end) => start === end ? date(start) : `${date(start)} – ${date(end)}`
+	const periods = side === 'current' ? value.currentPeriods : value.periods
+	if (value.currentPeriods && periods) {
+		const cutoff = new Date(`${to}T23:59:59`).getTime() / 1000
+		const ranges = []
+		for (const period of periods) {
+			const end = Math.min(period.dateTo, cutoff)
+			if (period.dateFrom > end) continue
+			const last = ranges.at(-1)
+			if (last && period.dateFrom <= last.dateTo + 1) last.dateTo = Math.max(last.dateTo, end)
+			else ranges.push({ dateFrom: period.dateFrom, dateTo: end })
+		}
+		return ranges.map(range => label(dateKey(calendarDate(range.dateFrom)), dateKey(calendarDate(range.dateTo)))).join('; ')
+	}
+	return label(from, to)
 }
 
 export function reportComparisonSeries(comparisons, selected, count, cumulative, texts, format) {

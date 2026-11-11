@@ -201,7 +201,9 @@ return [
 			$t->assertContains('return this.hasAdditionalProjectMembers;', $projectView, 'Members and settlement controls are hidden for one-member areas');
 			$t->assertContains('this.project?.is_shared !== undefined', $projectView, 'The area UI prefers the server-side shared-state flag');
 		$t->assertContains("entryScope: this.hasAdditionalProjectMembers ? 'shared' : 'personal'", $projectView, 'The area table asks for the correct payment representation');
-		$t->assertContains('v-if="!memberManagementLocked"', $projectSettings, 'Area settings hide the complete member and split section while structural changes are blocked');
+		$t->assertContains(':disabled="memberManagementLocked || hasFormerMembers || busy"', $projectSettings, 'Area settings disable split changes while structural changes are blocked');
+		$t->assertContains(':disabled="memberManagementLocked || busy"', $projectSettings, 'Area settings disable member changes while structural changes are blocked');
+		$t->assertContains('v-if="memberManagementLocked" type="info" :text="memberManagementLockHint"', $projectSettings, 'The visible member section explains blocked structural changes');
 		$t->assertContains('member_management_lock_reason', $projectSettings, 'Area settings choose a contextual lock explanation from the server reason');
 	},
 
@@ -295,8 +297,8 @@ return [
 		$t->assertContains("gt('future_visibility_share.amount_cents'", $visible, 'Zero-percent members do not receive a planned personal row');
 		$t->assertContains('buildVisibleEntriesQuery($workspaceId, $isFuture)', $aggregate, 'Planned dashboard totals use the future-aware visibility query');
 		$t->assertContains('buildVisibleEntriesQuery($workspaceId, $isFuture)', $rows, 'Planned dashboard rows use the same future-aware visibility query');
-		$t->assertContains('COALESCE(e.recurrence_next_date, e.date)', $ordering, 'Planned rows sort by the next occurrence instead of the source date');
-		$t->assertContains('COALESCE(e.recurrence_next_date, e.date)', $filters, 'Planned date filters use the next occurrence instead of the source date');
+		$t->assertContains('plannedDateExpression($qb)', $ordering, 'Planned rows sort by the next occurrence instead of the source date');
+		$t->assertContains('plannedDateExpression($qb)', $filters, 'Planned date filters use the next occurrence instead of the source date');
 
 		$t->assertContains("isNull('e.source_entry_id')", $upcoming, 'Analytics upcoming entries exclude linked personal projections');
 		$t->assertContains("eq('e.entry_kind', \$qb->createNamedParameter('shared'))", $upcoming, 'Analytics upcoming entries use shared recurrence sources');

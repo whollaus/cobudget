@@ -6,6 +6,8 @@ use OCP\IDBConnection;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Notification\IManager;
 use OCA\CoBudget\Service\ParticipantService;
+use OCA\CoBudget\Service\TalkNotificationService;
+use OCP\IConfig;
 use Psr\Log\LoggerInterface;
 
 class RemindersJob extends TimedJob {
@@ -17,7 +19,7 @@ class RemindersJob extends TimedJob {
 	private IManager $notificationManager;
 	private ParticipantService $participantService;
 
-	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, IManager $notificationManager, ParticipantService $participantService) {
+	public function __construct(ITimeFactory $timeFactory, IDBConnection $db, LoggerInterface $logger, IManager $notificationManager, ParticipantService $participantService, private IConfig $config, private TalkNotificationService $talkNotifications, private \OCA\CoBudget\Service\PlannedPaymentNotificationService $plannedNotifications, private \OCA\CoBudget\Service\CalendarReminderService $calendarReminders, private \OCA\CoBudget\Service\ReminderService $reminders) {
 		parent::__construct($timeFactory);
 		$this->db = $db;
 		$this->logger = $logger;
@@ -29,7 +31,13 @@ class RemindersJob extends TimedJob {
 	}
 
 	protected function run($argument) {
-		$now = time();
+		$now = $this->time->getTime();
+		$this->plannedNotifications->processDue($now);
+		try {
+			$this->calendarReminders->syncAll();
+		} catch (\Throwable $e) {
+			$this->logger->warning('CoBudget calendar reconciliation failed', ['app' => 'cobudget', 'exceptionType' => get_class($e)]);
+		}
 		
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('e.*', 'c.name AS category_name', 'p.name AS payment_partner_name')
@@ -47,31 +55,43 @@ class RemindersJob extends TimedJob {
 		foreach ($entries as $entry) {
 			try {
 				foreach ($this->reminderRecipientUserIds($entry) as $recipientUserId) {
-					$notification = $this->notificationManager->createNotification();
-					$notification->setApp('cobudget')
-						->setUser($recipientUserId)
-						->setDateTime(new \DateTime())
-						->setObject('entry', $entry['id'])
-						->setSubject('reminder', [
-							'title' => $this->reminderTitle($entry),
-							'description' => $entry['description'] ?: '',
-							'type' => $this->entryTypeLabel($entry),
-							'amount' => $this->formatAmount($entry),
-							'currency' => $entry['currency'] ?: 'EUR',
-							'category' => $entry['category_name'] ?? '',
-							'paymentPartner' => $entry['payment_partner_name'] ?: ($entry['paymentPartner'] ?? ''),
-							'entryDate' => $this->formatTimestamp((int)$entry['date']),
-							'reminderDate' => $this->formatTimestamp((int)$entry['reminder_date']),
-						]);
-
-					$this->notificationManager->notify($notification);
+					$personalReminder = null;
+					foreach ($this->reminders->rows($recipientUserId, true) as $candidate) if ($candidate['entry_id'] === (int)$entry['id']) { $personalReminder = $candidate; break; }
+					if (!$personalReminder || $personalReminder['dismissed'] || $personalReminder['status'] !== 'active' || $personalReminder['notified']) continue;
+					$params = [
+						'organizerId' => $personalReminder['id'],
+						'title' => $personalReminder['title'] ?: $this->reminderTitle($entry),
+						'description' => $personalReminder['description'] ?: '',
+						'type' => $this->entryTypeLabel($entry),
+						'amount' => $this->formatAmount($entry),
+						'currency' => $entry['currency'] ?: 'EUR',
+						'category' => $entry['category_name'] ?? '',
+						'paymentPartner' => $entry['payment_partner_name'] ?: ($entry['paymentPartner'] ?? ''),
+						'entryDate' => $this->formatTimestamp((int)$entry['date']),
+						'reminderDate' => $this->formatTimestamp((int)$entry['reminder_date']),
+					];
+					if ($this->config->getUserValue($recipientUserId, 'cobudget', 'notify_reminders', 'yes') === 'yes') {
+						$notification = $this->notificationManager->createNotification();
+						$notification->setApp('cobudget')
+							->setUser($recipientUserId)
+							->setDateTime(new \DateTime())
+							->setObject('entry', (string)$entry['id'])
+							->setSubject('reminder', $params);
+						$this->notificationManager->notify($notification);
+					}
+					$this->talkNotifications->notifyReminder($recipientUserId, $params + [
+						'reminderText' => $entry['reminder_text'] ?? '',
+						'projectId' => ($entry['entry_kind'] ?? 'personal') === 'shared' ? $entry['project_id'] : null,
+					]);
+					$this->reminders->markNotified($recipientUserId, $personalReminder['id'], $personalReminder['remind_at']);
 				}
 
 				$updateQb = $this->db->getQueryBuilder();
 				$updateQb->update('cobudget_entries')
 					->set('reminder_notified', $updateQb->createNamedParameter(true, \PDO::PARAM_BOOL))
 					->where($updateQb->expr()->eq('id', $updateQb->createNamedParameter($entry['id'], \PDO::PARAM_INT)))
-					->andWhere($updateQb->expr()->eq('user_id', $updateQb->createNamedParameter($entry['user_id'])));
+					->andWhere($updateQb->expr()->eq('user_id', $updateQb->createNamedParameter($entry['user_id'])))
+					->andWhere($updateQb->expr()->eq('reminder_date', $updateQb->createNamedParameter((int)$entry['reminder_date'], \PDO::PARAM_INT)));
 				if (($entry['workspace_id'] ?? null) === null) {
 					$updateQb->andWhere($updateQb->expr()->isNull('workspace_id'));
 				} else {
@@ -79,10 +99,34 @@ class RemindersJob extends TimedJob {
 				}
 				$updateQb->executeStatement();
 
-			} catch (\Exception $e) {
-				$this->logger->error('Failed to process reminder for entry ' . $entry['id'] . ': ' . $e->getMessage(), ['app' => 'cobudget']);
+			} catch (\Throwable $e) {
+				$this->logger->error('Failed to process CoBudget reminder', ['app' => 'cobudget', 'entryId' => (int)$entry['id'], 'exceptionType' => get_class($e)]);
 			}
 		}
+		$this->processStandalone($now);
+	}
+
+	private function processStandalone(int $now): void {
+		foreach ($this->reminders->users() as $uid) {
+            try {
+                $rows = $this->reminders->rows($uid);
+            } catch (\Throwable $e) {
+                $this->logger->warning('CoBudget reminder reconciliation failed', ['app' => 'cobudget', 'exceptionType' => get_class($e)]);
+                continue;
+            }
+            foreach ($rows as $r) {
+			if ($r['entry_id'] !== null || $r['notified'] || $r['status'] !== 'active' || $r['remind_at'] > $now) continue;
+			try {
+				if ($this->config->getUserValue($uid, 'cobudget', 'notify_reminders', 'yes') === 'yes') {
+					$n = $this->notificationManager->createNotification();
+					$n->setApp('cobudget')->setUser($uid)->setDateTime(new \DateTime())->setObject('reminder', (string)$r['id'])->setSubject('organizer_reminder', ['title'=>$r['title'], 'description'=>$r['description'], 'id'=>$r['id']]);
+					$this->notificationManager->notify($n);
+				}
+				$this->talkNotifications->notifyOrganizerReminder($uid, $r);
+				$this->reminders->markNotified($uid, $r['id'], $r['remind_at']);
+			} catch (\Throwable $e) { $this->logger->warning('CoBudget reminder delivery failed', ['app'=>'cobudget','exceptionType'=>get_class($e)]); }
+		}
+        }
 	}
 
 	/** @return string[] */

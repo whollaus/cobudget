@@ -1,4 +1,4 @@
-import { annualFilterChips, annualFilterNameMaps } from './annualOverview'
+import { annualFilterChips, annualFilterNameMaps, reportCalendarRanges, parseReportDate } from './annualOverview'
 
 export function reportFilterLabels(selection, context) {
 	const { texts, categoryChoices = [], partnerChoices = [], hashtagChoices = [], filterChoices = {}, incomes = true, formatCents = String } = context
@@ -6,6 +6,8 @@ export function reportFilterLabels(selection, context) {
 	const partners = annualFilterNameMaps(partnerChoices, [...(filterChoices.partnerIds || []), ...(selection.partners || [])], { incomes })
 	return annualFilterChips(selection, {
 		categoryNames: categories.names, categoryTypes: categories.types, partnerNames: partners.names, partnerTypes: partners.types,
+		categoryGroupLabels: { income: texts.filters?.allIncomeCategories?.(), expense: texts.filters?.allExpenseCategories?.() },
+		partnerGroupLabels: { income: texts.filters?.allIncomePartners?.(), expense: texts.filters?.allExpensePartners?.() },
 		hashtagNames: new Map(hashtagChoices.map(tag => [Number(tag.id), tag.displayName || tag.name])),
 		labelNames: { important: texts.labels?.important?.(), review: texts.labels?.review?.(), fixedCost: texts.labels?.fixedCosts?.(), childRelated: texts.labels?.children?.(), subscription: texts.labels?.subscription?.(), taxRelevant: texts.labels?.taxRelevant?.(), insurance: texts.labels?.insurance?.() },
 		noCategory: texts.annual.noCategory(), noPartner: texts.annual.noPartner(), or: texts.annual.or(), atLeast: texts.annual.atLeast(), atMost: texts.annual.atMost(), formatMoney: formatCents,
@@ -15,8 +17,10 @@ export function reportFilterLabels(selection, context) {
 export function reportExportMetadata(selection, context) {
 	const { report, scopeLabel, groupingLabel, breakdownLabel, currency, texts, formatDate } = context
 	const period = context.period || report.periods.at(-1)
+	const wholeCalendar = selection.timeRange === 'calendar-selection' && period.dateFrom === report.periods.at(-1).dateFrom && period.dateTo === report.periods.at(-1).dateTo
+	const periodText = wholeCalendar ? reportCalendarRanges(selection).map(range => `${formatDate(parseReportDate(range.dateFrom).getTime() / 1000)} – ${formatDate(parseReportDate(range.dateTo).getTime() / 1000)}`).join('; ') : `${formatDate(period.dateFrom)} – ${formatDate(period.dateTo)}`
 	const metadata = [
-		[texts.annual.selectedPeriod(), `${formatDate(period.dateFrom)} – ${formatDate(period.dateTo)}`],
+		[texts.annual.selectedPeriod(), periodText],
 		[texts.analytics.area(), scopeLabel],
 		[texts.annual.amountScope(), [selection.entryScope === 'shared' ? texts.annual.wholeArea() : texts.annual.personalShare(), currency].filter(Boolean).join(' · ')],
 		[texts.annual.dataCutoff(), formatDate(Math.min(Number(report.cutoff ?? period.dateTo), period.dateTo))],
@@ -67,9 +71,11 @@ export function reportDisplayedTableExport(table, title) {
 	const window = table.ownerDocument.defaultView
 	const visible = node => !node.hidden && node.style?.display !== 'none' && window?.getComputedStyle(node).display !== 'none'
 	const text = cell => {
+		if (cell.hasAttribute('data-report-export-label')) return cell.getAttribute('data-report-export-label')
 		const copy = cell.cloneNode(true)
 		const originals = [...cell.querySelectorAll('*')], copies = [...copy.querySelectorAll('*')]
 		originals.forEach((node, index) => { if (!visible(node)) copies[index].remove() })
+		copy.querySelectorAll('[data-report-export-label]').forEach(node => { node.textContent = node.getAttribute('data-report-export-label') })
 		copy.querySelectorAll('.sort-icon, .annual-comparison-icon, svg, .material-design-icon, .no-print, .visually-hidden, .report-payments-pagination').forEach(node => node.remove())
 		// Template whitespace is incidental; preserve nonbreaking currency spaces.
 		return copy.textContent.replace(/[\t\r\n ]+/g, ' ').trim()
@@ -87,10 +93,13 @@ export function reportAmountExportSection({ title, firstHeading, columns, rows, 
 	const amounts = row => [...(row.months || []), row.total].map((value, index, values) =>
 		row.type !== 'all' && index < values.length - 1 && Number(row.counts?.[index] ?? (value === 0 ? 0 : 1)) === 0 ? '' : reportExportMoney(value))
 	const result = []
-	for (const row of rows) {
-		result.push([row.label ?? row.name, ...amounts(row)])
-		for (const child of row.children || []) result.push([`${row.label ?? row.name} · ${child.direct ? texts.common.mainCategory() : child.name}`, ...amounts(child)])
+	const visit = (row, prefix = '') => {
+		const label = row.label ?? (row.areaId === 0 ? texts.annual.withoutArea() : row.direct ? texts.common.mainCategory() : row.name)
+		const fullLabel = prefix ? `${prefix} · ${label}` : label
+		result.push([fullLabel, ...amounts(row)])
+		for (const child of row.children?.length ? row.children : row.areas || []) visit(child, fullLabel)
 	}
+	for (const row of rows) visit(row)
 	if (totalRow) result.push([totalLabel || texts.entry.groupTotal(totalRow.label), ...amounts(totalRow)])
 	return { title, columns: [firstHeading, ...columns], rows: result }
 }

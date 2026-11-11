@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import App from './App.vue'
+import { installReactiveSettings } from './services/settingsState'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import axios from './services/http'
 import { generateUrl } from '@nextcloud/router'
@@ -19,6 +20,7 @@ import './styles/dialogs.css'
 
 const TransactionsView = () => import(/* webpackChunkName: "cobudget-view-transactions" */ './views/TransactionsView.vue')
 const ProjectList = () => import(/* webpackChunkName: "cobudget-view-project-list" */ './views/ProjectList.vue')
+const ProjectCreateView = () => import(/* webpackChunkName: "cobudget-view-project-create" */ './views/ProjectCreateView.vue')
 const ProjectDetail = () => import(/* webpackChunkName: "cobudget-view-project-detail" */ './views/ProjectDetail.vue')
 const ProjectSettingsView = () => import(/* webpackChunkName: "cobudget-view-project-settings" */ './views/ProjectSettingsView.vue')
 const ProjectSettlementsView = () => import(/* webpackChunkName: "cobudget-view-project-settlements" */ './views/ProjectSettlementsView.vue')
@@ -27,10 +29,14 @@ const BudgetGoalFormView = () => import(/* webpackChunkName: "cobudget-view-budg
 const AnnualOverviewView = () => import(/* webpackChunkName: "cobudget-view-annual-overview" */ './views/AnnualOverviewView.vue')
 const SettingsView = () => import(/* webpackChunkName: "cobudget-view-settings" */ './views/SettingsView.vue')
 
+const RemindersView = () => import(/* webpackChunkName: "cobudget-view-reminders" */ './views/RemindersView.vue')
+
 const routes = [
+	{ path: '/reminders', name: 'reminders', component: RemindersView },
 	{ path: '/', name: 'personal', component: TransactionsView },
 	{ path: '/payments', name: 'payments', component: TransactionsView },
 	{ path: '/projects', name: 'projects', component: ProjectList },
+	{ path: '/projects/new', name: 'project-new', component: ProjectCreateView },
 	{ path: '/projects/:id/payments', name: 'project-payments', component: ProjectDetail, props: true },
 	{ path: '/projects/:id/settings', name: 'project-settings', component: ProjectSettingsView, props: true },
 	{ path: '/projects/:id/settlements', name: 'project-settlements', component: ProjectSettlementsView, props: true },
@@ -50,7 +56,7 @@ const router = createRouter({
 })
 
 const projectStartPagePattern = /^project:(\d+)$/
-const projectRouteNames = ['projects', 'project-detail', 'project-payments', 'project-settings', 'project-settlements']
+const projectRouteNames = ['projects', 'project-new', 'project-detail', 'project-payments', 'project-settings', 'project-settlements']
 const budgetRouteNames = ['budgets', 'budget-new', 'budget-edit']
 
 const isRootHash = hash => hash === '' || hash === '#/'
@@ -75,10 +81,6 @@ async function resolveProjectStartRoute(defaultStartPage) {
 }
 
 async function resolveDefaultStartRoute(defaultStartPage, enableProjects = true) {
-	if (defaultStartPage === 'currentYear') {
-		return { path: '/', query: { filter: 'currentYear' } }
-	}
-
 	if (!enableProjects && (defaultStartPage === 'projects' || projectStartPagePattern.test(defaultStartPage || ''))) {
 		return null
 	}
@@ -154,6 +156,7 @@ async function prepareWorkspaceContext(enableWorkspaces) {
 
 async function init() {
 	const app = createApp(App)
+	installReactiveSettings(app)
 	app.use(router)
 	installTexts(app)
 	app.config.globalProperties.$formatMoney = function(amount, currency = null, options = {}) {
@@ -179,7 +182,9 @@ async function init() {
 		app.config.globalProperties.$enableTaxRelevant = res.data.enable_tax_relevant ?? true
 		app.config.globalProperties.$enableInsurance = res.data.enable_insurance ?? true
 		app.config.globalProperties.$enableFuturePayments = res.data.enable_future_payments ?? true
+		app.config.globalProperties.$enableReminders = res.data.enable_reminders ?? true
 		app.config.globalProperties.$enableBudgetGoals = res.data.enable_budget_goals ?? true
+		app.config.globalProperties.$enableAdvancedMasterData = res.data.enable_advanced_master_data ?? false
 		app.config.globalProperties.$enableIncomes = res.data.enable_incomes ?? true
 		app.config.globalProperties.$enableProjects = res.data.enable_projects ?? true
 		app.config.globalProperties.$enableSharedProjects = res.data.enable_shared_projects ?? true
@@ -198,6 +203,9 @@ async function init() {
 		await prepareWorkspaceContext(app.config.globalProperties.$enableWorkspaces)
 
 		router.beforeEach(to => {
+			if (!app.config.globalProperties.$enableReminders && to.name === 'reminders') {
+				return { name: 'personal' }
+			}
 			if (!app.config.globalProperties.$enableProjects && projectRouteNames.includes(to.name)) {
 				return { name: 'personal' }
 			}
@@ -223,7 +231,9 @@ async function init() {
 		app.config.globalProperties.$enableTaxRelevant = true
 		app.config.globalProperties.$enableInsurance = true
 		app.config.globalProperties.$enableFuturePayments = true
+		app.config.globalProperties.$enableReminders = true
 		app.config.globalProperties.$enableBudgetGoals = true
+		app.config.globalProperties.$enableAdvancedMasterData = false
 		app.config.globalProperties.$enableIncomes = true
 		app.config.globalProperties.$enableProjects = true
 		app.config.globalProperties.$enableSharedProjects = true
@@ -238,6 +248,11 @@ async function init() {
 		app.config.globalProperties.$showNextcloudHeaderMobile = headerVisibility.showMobile
 	}
 
+	// Initial hash navigation may finish before the settings request.
+	await router.isReady()
+	if (app.config.globalProperties.$enableReminders === false && router.currentRoute.value.name === 'reminders') {
+		await router.replace({ name: 'personal' })
+	}
 	app.mount('#cobudget-app')
 }
 

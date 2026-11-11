@@ -16,3 +16,58 @@
 [data-cobudget-card="flush"] {
 	padding: 0;
 }
+
+/* Borderless overview entries shared by budget goals and areas. The neutral
+ * hover follows Files recent changes; separators stay outside rounded surfaces. */
+.cobudget-overview-section {
+	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
+	margin: 0 var(--cobudget-form-inset) var(--cobudget-settings-section-gap);
+}
+
+.cobudget-overview-list {
+	margin-inline: calc(0px - var(--cobudget-card-padding));
+	display: flex;
+	flex-direction: column;
+	gap: var(--cobudget-card-gap);
+}
+
+.cobudget-overview-entry {
+	transition: background-color var(--cobudget-hover-duration) linear;
+	position: relative;
+	padding: var(--cobudget-card-padding);
+	border-radius: var(--border-radius-element);
+	cursor: pointer;
+}
+
+.cobudget-overview-entry + .cobudget-overview-entry::before {
+	content: '';
+	position: absolute;
+	inset-inline: var(--cobudget-card-padding);
+	inset-block-start: calc(var(--cobudget-card-gap) / -2);
+	border-block-start: 1px solid var(--cobudget-border);
+	pointer-events: none;
+}
+
+.cobudget-overview-entry:hover,
+.cobudget-overview-entry:focus-visible {
+	background-color: var(--color-background-hover);
+}
+
+.cobudget-overview-entry * { cursor: inherit; }
+
+@media (max-width: 768px) {
+	.cobudget-overview-list {
+		--cobudget-card-padding: var(--cobudget-mobile-content-padding, 10px);
+		margin-inline: calc(0px - var(--cobudget-card-padding));
+	}
+	.cobudget-overview-entry {
+		padding-block: calc(var(--default-grid-baseline, 4px) * 4);
+	}
+
+	.cobudget-overview-section {
+		width: 100%;
+		margin: 0 0 30px;
+	}
+}
+
+.cobudget-overview-entry:is(:focus-visible, :active) { transition: none; }

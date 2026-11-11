@@ -1,9 +1,9 @@
 <template>
 	<div ref="printSource" class="report-detail">
 		<AppPageHeader class="report-detail-header" :title="detail.label" :subtitle="subtitle">
-			<template #title><span class="report-detail-title"><NcButton variant="tertiary" class="report-detail-back" :aria-label="$texts.annual.back()" :title="$texts.annual.back()" @click="$emit('back')"><template #icon><ArrowLeftIcon :size="20" /></template></NcButton><span>{{ detail.label }}</span></span></template>
+			<template #title><span class="report-detail-title"><NcButton variant="tertiary" class="cobudget-native-button report-detail-back" :aria-label="$texts.annual.back()" :title="$texts.annual.back()" @click="$emit('back')"><template #icon><ArrowLeftIcon :size="20" /></template></NcButton><ReportPeriodPicker navigation-only force-navigation :period-enabled="false" :title="detail.label" :selection="selection" label="" /></span></template>
 			<template #subtitle><span v-for="(part, index) in subtitleParts" :key="index" class="report-detail-context"><span v-if="index" class="report-detail-context-separator" aria-hidden="true"> · </span>{{ part }}</span></template>
-			<template #actions><NcButton variant="tertiary" class="cobudget-toolbar-icon-button" :disabled="printing || chartLoading || chartError" :aria-label="$texts.analytics.print()" :title="$texts.analytics.print()" @click="printReport"><template #icon><PrinterIcon :size="20" /></template></NcButton></template>
+			<template #actions><NcButton variant="tertiary" class="cobudget-report-action" :disabled="printing || chartLoading || chartError" :aria-label="$texts.analytics.print()" :title="$texts.analytics.print()" @click="printReport"><template #icon><PrinterIcon :size="20" /></template>{{ $texts.analytics.print() }}</NcButton></template>
 		</AppPageHeader>
 		<p v-if="chartLoading && !wholePeriod" role="status">{{ $texts.common.loading() }}</p>
 		<div v-else-if="chartError && !wholePeriod" role="alert"><p>{{ $texts.annual.loadError() }}</p><NcButton @click="loadChart">{{ $texts.annual.retry() }}</NcButton></div>
@@ -23,6 +23,7 @@
 import NcButton from '@nextcloud/vue/components/NcButton'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import PrinterIcon from 'vue-material-design-icons/Printer.vue'
+import ReportPeriodPicker from './ReportPeriodPicker.vue'
 import AppPageHeader from './AppPageHeader.vue'
 import ReportDevelopment from './ReportDevelopment.vue'
 import AnnualOverviewDetails from './AnnualOverviewDetails.vue'
@@ -32,7 +33,7 @@ import ReportComparisonPicker from './ReportComparisonPicker.vue'
 import { reportComparisonSeries, reportSelectionAverage, reportAnnualAverages, reportAnnualAverageBasis, reportMatchesAverageBasis, reportAverageForPeriod } from '../services/reportComparisons'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
-import { annualRequestParams, annualSelection } from '../services/annualOverview'
+import { annualRequestParams, annualSelection, reportPeriodLabel } from '../services/annualOverview'
 import { reportAnnualTotal, reportChartLabels, reportDetailRow } from '../services/reportDetails'
 import { formatCalendarLabel } from '../utils/formatDate'
 import { printAnnualOverview } from '../services/annualOverviewPrint'
@@ -41,7 +42,7 @@ import { showRequestError, showToast } from '../services/notifications'
 
 export default {
 	name: 'ReportDetailView',
-	components: { NcButton, ArrowLeftIcon, PrinterIcon, AppPageHeader, ReportDevelopment, AnnualOverviewDetails, ReportPayments, ReportBreakdown, ReportComparisonPicker },
+	components: { ReportPeriodPicker, NcButton, ArrowLeftIcon, PrinterIcon, AppPageHeader, ReportDevelopment, AnnualOverviewDetails, ReportPayments, ReportBreakdown, ReportComparisonPicker },
 	props: {
 		detail: { type: Object, required: true }, report: { type: Object, required: true }, selection: { type: Object, required: true },
 		scopeLabel: { type: String, required: true }, projects: { type: Array, default: () => [] }, selectedEntryId: { type: [Number, String], default: null },
@@ -58,13 +59,14 @@ export default {
 	data: () => ({ printing: false, printRequest: 0, chartMode: 'period', selectedComparisons: ['average-selection'], hiddenSeries: [], chartLoading: false, chartError: false, focusedReport: null, focusedSelection: null, averageBasis: null, averageReport: null, chartRequest: 0 }),
 	computed: {
 		wholePeriod() { return this.detail.index === this.report.periods.length - 1 },
-		chartKey() { return `${this.detail.row.type}:${this.detail.row.id ?? 'total'}:${this.detail.row.direct || false}:${this.detail.index}` },
+		chartKey() { return `${this.detail.row.type}:${this.detail.row.reportKey ?? this.detail.row.id ?? 'total'}:${this.detail.row.direct || false}:${this.detail.index}` },
 		subtitleParts() {
 			const period = this.report.periods[this.detail.index]
 			const format = timestamp => formatCalendarLabel(new Date(timestamp * 1000), { day: 'numeric', month: 'short', year: 'numeric' })
 			const type = this.detail.row.type === 'income' ? this.$texts.annual.income() : this.detail.row.type === 'expense' ? this.$texts.annual.expenses() : this.$texts.analytics.balance()
 			const cutoff = !this.selection.includeFuturePayments && this.report.cutoff < period.dateTo ? ` · ${this.$texts.annual.paymentsUntilToday()}` : ''
-			return [`${this.detail.total ? '' : `${type} · `}${format(period.dateFrom)} – ${format(period.dateTo)}`, `${this.scopeLabel}${cutoff}`]
+			const label = this.wholePeriod && this.selection.timeRange === 'calendar-selection' ? reportPeriodLabel(this.selection, formatCalendarLabel, date => format(date.getTime() / 1000)) : `${format(period.dateFrom)} – ${format(period.dateTo)}`
+			return [`${this.detail.total ? '' : `${type} · `}${label}`, `${this.scopeLabel}${cutoff}`]
 		},
 		subtitle() { return this.subtitleParts.join(' · ') },
 		chartData() {
@@ -146,7 +148,7 @@ export default {
 			try {
 				const url = generateUrl('/apps/cobudget/api/annual-overview')
 				const focused = futurePeriod ? Promise.resolve({ data: this.focusedReport })
-					: axios.get(url, { params: { ...annualRequestParams(this.focusedSelection, { comparison: 'detail' }), detailType: this.detail.row.type, detailId: this.detail.total ? 'total' : String(this.detail.row.id), detailDirect: Boolean(this.detail.row.direct), detailAverageUnit: this.averageBasis?.unit || ({ year: 'month', quarter: 'quarter', week: 'week', day: 'day', month: 'day' })[this.selection.period] } })
+					: axios.get(url, { params: { ...annualRequestParams(this.focusedSelection, { comparison: 'detail' }), detailType: this.detail.row.type, detailId: this.detail.total ? 'total' : String(this.detail.row.reportKey ?? this.detail.row.id), detailDirect: Boolean(this.detail.row.direct), detailAverageUnit: this.averageBasis?.unit || ({ year: 'month', quarter: 'quarter', week: 'week', day: 'day', month: 'day' })[this.selection.period] } })
 				const average = this.averageBasis && !this.averageReport
 					? axios.get(url, { params: annualRequestParams(annualSelection({ ...this.selection, ...this.averageBasis, timeRange: 'custom', month: 0 })) })
 					: Promise.resolve({ data: this.averageReport })
@@ -169,13 +171,13 @@ export default {
 	/* Keep navigation on the first row and give both context lines the full width. */
 	.report-detail-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--default-grid-baseline, 4px); padding-block-end: calc(var(--default-grid-baseline, 4px) * 2); }
 	.report-detail-header :deep(.app-page-header__content) { display: contents; }
-	.report-detail-header :deep(.app-page-header__title) { grid-area: 1 / 1; padding-inline-start: calc(var(--default-grid-baseline, 4px) * 8.5); }
+	.report-detail-header :deep(.app-page-header__title) { grid-area: 1 / 1; padding-inline-start: calc(var(--default-grid-baseline, 4px) * 8.5); padding-block: 0; }
 	.report-detail-header :deep(.app-page-header__title > *) { flex: 1 1 auto; }
 	.report-detail-header :deep(.app-page-header__actions) { grid-area: 1 / 2; }
 	.report-detail-header :deep(.app-page-header__subtitle) { grid-area: 2 / 1 / 3 / -1; display: flex; flex-direction: column; gap: var(--default-grid-baseline, 4px); margin: 0; padding-inline: var(--default-grid-baseline, 4px); white-space: normal; overflow-wrap: anywhere; }
 	.report-detail-context-separator { display: none; }
-	.report-detail-title { align-items: flex-start; }
-	.report-detail-title > span { padding-block: calc(var(--default-grid-baseline, 4px) * 2.5); line-height: calc(var(--default-grid-baseline, 4px) * 6); }
+	.report-detail-title { align-items: center; }
+	.report-detail-title > span { padding-block: 0; line-height: 1.5; }
 	.report-detail-back.button-vue { flex: 0 0 var(--cobudget-mobile-touch-size, 44px); min-width: var(--cobudget-mobile-touch-size, 44px); width: var(--cobudget-mobile-touch-size, 44px); min-height: var(--cobudget-mobile-touch-size, 44px); height: var(--cobudget-mobile-touch-size, 44px); margin: 0; padding: 0; }
 }
 </style>

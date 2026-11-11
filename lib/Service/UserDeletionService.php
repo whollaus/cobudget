@@ -68,6 +68,7 @@ class UserDeletionService {
 			}
 
 			$step = 'removing standalone personal data';
+			$this->deleteRowsByStringColumn('cobudget_reminders', 'user_id', $userId);
 			$personalEntryIds = $this->personalEntryIds($userId);
 			$report['deleted_entries'] += count($personalEntryIds);
 			$this->deleteEntryRows($personalEntryIds);

@@ -1,0 +1,48 @@
+/* Shared disclosure layout for report period tables and detail composition. */
+.report-tree-table {
+	--report-tree-step: max(calc(var(--default-grid-baseline, 4px) * 8), var(--report-tree-toggle));
+	--report-tree-toggle: var(--cobudget-button-height, 34px);
+}
+.report-tree-table tbody th:first-child { padding-inline-start: 0; padding-block: 0; }
+.report-tree-table .report-tree-label {
+	position: relative;
+	display: flex;
+	align-items: center;
+	min-height: max(var(--report-tree-toggle), calc(var(--cobudget-payment-table-row-height) - 1px));
+	padding-inline-start: calc(var(--report-tree-depth) * var(--report-tree-step));
+}
+.report-tree-gutter { display: flex; flex: 0 0 var(--report-tree-toggle); align-self: stretch; align-items: center; }
+.report-tree-table .report-tree-gutter > .button-vue {
+	flex: 0 0 var(--report-tree-toggle);
+	width: var(--report-tree-toggle);
+	min-width: var(--report-tree-toggle);
+	min-height: var(--report-tree-toggle);
+	margin: 0;
+}
+.report-tree-child::before, .report-tree-child:not(.report-tree-last)::after, .report-tree-guide {
+	content: '';
+	position: absolute;
+	inset-inline-start: calc((var(--report-tree-depth) - 1) * var(--report-tree-step) + var(--report-tree-toggle) / 2);
+	border-inline-start: 1px solid var(--cobudget-text-muted);
+	pointer-events: none;
+}
+.report-tree-child::before {
+	inset-block-start: 0;
+	height: 50%;
+	width: calc(var(--report-tree-step) - var(--report-tree-toggle) / 2 - var(--default-grid-baseline, 4px));
+	border-block-end: 1px solid var(--cobudget-text-muted);
+}
+.report-tree-child:not(.report-tree-last)::after { inset-block-start: 50%; inset-block-end: -1px; }
+.report-tree-guide { inset-inline-start: calc(var(--report-tree-level) * var(--report-tree-step) + var(--report-tree-toggle) / 2); inset-block: 0 -1px; }
+
+/* Same compact, background-free symbols as the master-data table. */
+.report-tree-label .report-category-label { display: flex; align-items: center; gap: calc(var(--default-grid-baseline, 4px) * 2); min-width: 0; }
+.report-tree-label .report-category-label > .category-icon { flex: 0 0 auto; padding: calc(var(--default-grid-baseline, 4px) * 0.75); margin: 0; }
+.report-category-label > span:last-child { min-width: 0; }
+
+/* Disclosure controls sit in compact, clipped table cells. Keep native outline
+ * contrast, but draw the complete ring inside the control like table links. */
+.report-tree-table .report-tree-gutter > .button-vue:focus-visible {
+	outline-offset: -2px;
+	box-shadow: none !important;
+}

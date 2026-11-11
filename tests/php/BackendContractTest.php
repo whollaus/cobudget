@@ -7,6 +7,31 @@ namespace CoBudget\Tests;
 use CoBudget\Tests\Support\TestRunner;
 
 return [
+	'Payment area multi-selection applies to lists, summaries and exports without replacing access scope' => function(TestRunner $t): void {
+		foreach (['index', 'dashboard', 'exportCsv'] as $method) {
+			$body = $t->methodBody('lib/Controller/EntryController.php', $method);
+			$t->assertContains('$this->paymentProjectIds = $this->parseAnnualIdList($projects, true)', $body, 'Parse area selections in ' . $method);
+			$t->assertContains('$this->normalizeEntryScope($entryScope, $projectId)', $body, 'The original explicit scope remains mandatory in ' . $method);
+		}
+		$filters = $t->methodBody('lib/Controller/EntryController.php', 'applyFilters');
+		$t->assertContains('$this->applyAnnualIdChoice($qb, $this->paymentProjectIds, \'e.project_id\', \'e.project_id\', null, $areaParts)', $filters, 'Area choices narrow the already authorized query');
+		$t->assertContains("isNotNull('e.project_id')", $filters, 'The assigned-area group matches payments with an area');
+	},
+
+	'Payment filter availability uses authorized unpaginated rows and excludes its own toggles' => function(TestRunner $t): void {
+		$body = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryListPayload');
+		$start = strpos($body, '$availabilityQuery =');
+		$end = strpos($body, '$payload =', $start);
+		$query = substr($body, $start, $end - $start);
+		$t->assertContains('$this->buildVisibleEntriesQuery($workspaceId, $isFuture)', $query, 'Availability must retain personal/shared visibility');
+		$t->assertContains('$dateFrom, $dateTo, $type, $projectId, $isSettled', $query, 'Availability uses the requested period and area context');
+		$t->assertContains('$isTaxRelevant, null, null, $hashtagId', $query, 'Reminder and receipt choices must not suppress each other');
+		$t->assertNotContains('setMaxResults', $query, 'Availability must not depend on the current page');
+		$t->assertNotContains('setFirstResult', $query, 'Availability must not depend on the current offset');
+		$t->assertContains('MAX(CASE WHEN e.reminder_date IS NOT NULL', $query, 'Only actual reminders enable the choice');
+		$t->assertContains('MAX(CASE WHEN available_attachment.id IS NOT NULL', $query, 'Only actual receipt links enable the choice, without duplicate counting');
+	},
+
 	'Routes point to existing controller methods and have unique verb/url pairs' => function(TestRunner $t): void {
 		$config = require $t->path('appinfo/routes.php');
 		$t->assertTrue(isset($config['routes']) && is_array($config['routes']), 'routes.php should return a routes array');
@@ -71,7 +96,7 @@ return [
 		}
 
 		$entryFilters = $t->methodBody('lib/Controller/EntryController.php', 'applyFilters');
-		$t->assertContains("iLike('c.code'", $entryFilters, 'Payment list search should match category numbers');
+		$t->assertContains("iLike('c.code'", $t->methodBody('lib/Controller/EntryController.php', 'applyEntrySearch'), 'Payment list search should match category numbers');
 		$t->assertContains("'code',", $t->read('lib/Service/BackupService.php'), 'Backups should preserve category numbers');
 		$t->assertContains("'code' => \$insert->createNamedParameter(", $t->read('lib/Service/EntryProjectionService.php'), 'Personal payment projections should copy area category numbers');
 		$t->assertContains("\$values['code'] = \$insert->createNamedParameter(", $t->read('lib/Service/UserResetService.php'), 'Category transfers should preserve category numbers');
@@ -97,13 +122,13 @@ return [
 		}
 		foreach (['update', 'adminUpdate'] as $method) {
 			$body = $t->methodBody('lib/Controller/PaymentPartnerController.php', $method);
-			$t->assertContains('paymentPartnerDetailsFromRequest($paymentPartner)', $body, $method . ' should normalize optional payment partner details');
-			$t->assertContains('validatePaymentPartnerEmail($details)', $body, $method . ' should reject an explicitly submitted invalid email address');
+			$t->assertContains('paymentPartnerDetailsFromRequest($paymentPartner, $details)', $body, $method . ' should normalize optional payment partner details');
+			$t->assertContains('validatePaymentPartnerEmail($details, $validateEmail)', $body, $method . ' should reject an explicitly submitted invalid email address');
 			$t->assertContains('applyPaymentPartnerDetails($qb, $details)', $body, $method . ' should persist optional payment partner details');
 			$t->assertContains('paymentPartnerResponse([', $body, $method . ' should return the saved detail values');
 		}
 		$emailValidation = $t->methodBody('lib/Controller/PaymentPartnerController.php', 'validatePaymentPartnerEmail');
-		$t->assertContains("array_key_exists('email', \$this->request->getParams())", $emailValidation, 'Email validation should leave omitted legacy values untouched');
+		$t->assertContains('if (!$validateEmail)', $emailValidation, 'Email validation should leave omitted legacy values untouched');
 		$t->assertContains('filter_var($email, FILTER_VALIDATE_EMAIL)', $emailValidation, 'Payment partner emails should use PHP email-format validation');
 		$t->assertContains('Http::STATUS_BAD_REQUEST', $emailValidation, 'Invalid payment partner emails should return a client error');
 		$t->assertNotContains('paymentPartnerDetailsFromRequest', $t->methodBody('lib/Controller/PaymentPartnerController.php', 'create'), 'Payment partner creation should remain name-only');
@@ -230,13 +255,13 @@ return [
 		$backup = $t->read('lib/Service/BackupService.php');
 		$t->assertContains("'hidden_category_ids',", $backup, 'Backups should preserve area category visibility');
 		$t->assertContains('pendingProjectCategoryVisibility', $backup, 'Generated-id restores should reconnect hidden category ids after category insertion');
-		$t->assertContains('remapProjectHiddenCategorySetting(', $backup, 'Personal restores should keep only target categories that remain global in area visibility');
+		$t->assertContains('remapProjectHiddenCategorySetting(', $backup, 'Personal restores should remap global and local category visibility');
 		$t->assertContains("update('cobudget_projects')", $backup, 'Generated-id restores should write remapped category visibility back to the area');
 		$t->assertContains('assertProjectCategoryVisibilityConsistency($tables)', $backup, 'Restores should reject invalid area category visibility');
 
 		$t->assertContains('removeProjectHiddenCategoryReference($id)', $t->methodBody('lib/Controller/CategoryController.php', 'adminDestroy'), 'Deleting a global category should remove stale area visibility references');
 		$integrity = $t->methodBody('lib/Service/DataIntegrityService.php', 'mergeDuplicate');
-		$t->assertContains('replaceProjectHiddenCategoryReferences($keepId, $mergeIds)', $integrity, 'Merging global category duplicates should remap shared area visibility');
+		$t->assertContains("replaceProjectHiddenLookupReferences('hidden_category_ids', \$keepId, \$mergeIds)", $integrity, 'Merging global category duplicates should remap shared area visibility');
 	},
 
 	'User-data API route methods check authentication and workspace header errors' => function(TestRunner $t): void {
@@ -255,6 +280,7 @@ return [
 			'payment_partner#adminUpdate' => true,
 			'payment_partner#adminHide' => true,
 			'payment_partner#adminUnhide' => true,
+			'master_data#adminSave' => true,
 			'payment_partner#adminDestroy' => true,
 			'integrity#inspect' => true,
 			'integrity#repair' => true,
@@ -275,7 +301,8 @@ return [
 
 			[$controller, $method] = explode('#', $route['name'], 2);
 			$body = $t->methodBody('lib/Controller/' . $controllerClassName($controller) . 'Controller.php', $method);
-			if ($controller === 'talk') {
+			if ($controller === 'master_data') { $body .= $t->methodBody('lib/Controller/MasterDataController.php', 'apply'); }
+			if (in_array($controller, ['talk', 'calendar', 'reminder'], true)) {
 				$t->assertContains('$this->userSession->getUser()', $body, 'Personal Talk settings use only the authenticated account');
 				$t->assertContains('$user === null', $body, 'Personal Talk settings reject unauthenticated requests');
 				$t->assertContains('401', $body, 'Personal Talk settings return unauthorized');
@@ -445,6 +472,10 @@ return [
 			$migrationTables = array_merge($migrationTables, $matches[1] ?? []);
 		}
 		foreach (array_values(array_unique($migrationTables)) as $table) {
+			if ($table === 'cobudget_calendar_links') {
+				$t->assertContains('calendarReminders->resetConnections()', $command, 'Calendar cleanup retains failed external deletions for retry');
+				continue;
+			}
 			$t->assertContains("'" . $table . "'", $command, 'Global reset should include every migrated CoBudget table: ' . $table);
 		}
 
@@ -550,7 +581,7 @@ return [
 		foreach (['total', 'average', 'currentMonth', 'currentYear', 'future', 'future30Days'] as $bucket) {
 			$t->assertContains("'" . $bucket . "'", $metrics, 'Dashboard metrics should include ' . $bucket);
 		}
-		$t->assertContains("\$currentYear['monthlyMetrics'][\$this->calendarDate()->format('Y-m')]", $metrics, 'Dashboard should derive the browser-local current month from the current-year aggregate');
+		$t->assertContains("\$main['monthlyMetrics'][\$this->calendarDate()->format('Y-m')]", $metrics, 'Dashboard should derive the browser-local current month from the filtered aggregate');
 
 		$summarize = $t->methodBody('lib/Controller/EntryController.php', 'accumulateDashboardMetrics');
 		$t->assertContains('$signedAmount = $amount;', $summarize, 'Dashboard Kennzeichen metrics should treat income as positive');
@@ -621,6 +652,9 @@ return [
 		$t->assertContains('authErrorResponse()', $export, 'Entry CSV export should check auth and workspace headers');
 		$t->assertContains('$this->getWorkspaceId()', $export, 'Entry CSV export should use the active workspace');
 		$t->assertContains('fetchEntryRows($workspaceId, self::EXPORT_LIMIT, 0', $export, 'Entry CSV export should reuse the filtered entry row query without page offset');
+		$t->assertContains('fetchEntryRows($workspaceId, self::CLIPBOARD_EXPORT_LIMIT + 1, 0', $export, 'Entry clipboard export should bound row fetching to CLIPBOARD_EXPORT_LIMIT + 1');
+		$t->assertContains('if ($clipboard && count($entries) > self::CLIPBOARD_EXPORT_LIMIT)', $export, 'Entry clipboard export should reject results exceeding CLIPBOARD_EXPORT_LIMIT');
+		$t->assertContains('$this->settlementBelongsToProject($settlementId, (int)$projectId, $workspaceId)', $export, 'Settlement CSV export should verify that the settlement belongs to the authorized area');
 		$t->assertContains('buildEntriesCsv($entries, $projectShareBasisPoints)', $export, 'Entry CSV export should build a CSV from filtered rows');
 		$t->assertContains('new DataDownloadResponse($csv, $filename, \'text/csv; charset=UTF-8\')', $export, 'Entry CSV export should return a CSV download');
 
@@ -1084,6 +1118,12 @@ return [
 
 		$show = $t->methodBody('lib/Controller/ProjectController.php', 'show');
 		$t->assertContains("\$project['repaymentTransfers']", $show, 'Project detail response should include repayment suggestions');
+		$t->assertContains("\$project['settings_actions']", $show, 'Area settings expose action eligibility after membership validation');
+		$t->assertNotContains("\$project['settings_actions']", $t->methodBody('lib/Controller/ProjectController.php', 'index'), 'Action previews are scoped to the individual project detail, not the list');
+		$t->assertContains('projectHasLifecycleHistory($id)', $show, 'Delete preview includes retained history');
+		$t->assertContains('budgetGoalsReferenceProject($id, $workspaceId', $show, 'Delete preview includes budget references');
+		$t->assertContains('projectHasOpenSharedPayments($id, $workspaceId)', $show, 'Archive preview checks open shared sources, not solo payments');
+
 		$t->assertFalse(strpos($show, "\$project['settlements']") !== false, 'Project detail response should keep settlement history off the start page');
 
 		$routes = require $t->path('appinfo/routes.php');
@@ -1195,7 +1235,7 @@ return [
 			'PaymentPartnerController.php' => [
 				'entity' => 'PaymentPartner',
 				'editableGuard' => 'editablePaymentPartnerInActiveWorkspace($id)',
-				'availableGuard' => 'paymentPartnerAvailableInActiveWorkspace($id)',
+				'availableGuard' => 'paymentPartnerAvailableInActiveWorkspace($id, $projectId)',
 				'table' => 'cobudget_payment_partners',
 				'globalError' => 'A global payment partner with this name already exists.',
 			],
@@ -1250,6 +1290,7 @@ return [
 
 			foreach (['hide', 'unhide'] as $method) {
 				$body = $t->methodBody('lib/Controller/' . $file, $method);
+				if ($file === 'PaymentPartnerController.php') { $body .= $t->methodBody('lib/Controller/' . $file, 'setVisibility'); }
 				$t->assertContains($expectation['availableGuard'], $body, $expectation['entity'] . ' ' . $method . ' should only allow visible active-workspace rows');
 			}
 		}
@@ -1355,10 +1396,10 @@ return [
 			$t->assertContains("set('recurrence_series_id'", $deactivate, 'Recurring job should keep the previous head linked to its series');
 
 			$dueCutoff = $t->methodBody('lib/Cron/RecurringEntriesJob.php', 'recurrenceDueCutoff');
-			$t->assertContains('return $now;', $dueCutoff, 'Recurring job should process entries whose next recurrence timestamp is due now or in the past');
+			$t->assertContains("setTime(23, 59, 59)", $dueCutoff, 'Recurring job includes legacy times only on the due day');
 
 			$normalize = $t->methodBody('lib/Cron/RecurringEntriesJob.php', 'normalizeToRecurrenceTime');
-			$t->assertContains('setTime(self::RECURRENCE_HOUR, self::RECURRENCE_MINUTE, 0)', $normalize, 'Recurring job should normalize recurrence timestamps to 09:00');
+			$t->assertContains('setTime(self::RECURRENCE_HOUR, self::RECURRENCE_MINUTE, 0)', $normalize, 'Recurring job should normalize recurrence timestamps to 06:00');
 		},
 
 		'Reminder job runs on the same 5-minute cadence as the web cron' => function(TestRunner $t): void {
@@ -1450,7 +1491,7 @@ return [
 			$t->assertContains("'enable_workspaces' => 'no'", $service, 'Backup settings defaults should include the workspace feature flag');
 			$t->assertContains("'show_workspace_switcher' => 'yes'", $service, 'Backup settings defaults should include the workspace switcher flag');
 			$t->assertContains("'show_nextcloud_header_desktop' => 'yes'", $service, 'Backup settings defaults should show the Nextcloud header on desktop');
-			$t->assertContains("'show_nextcloud_header_mobile' => 'no'", $service, 'Backup settings defaults should hide the Nextcloud header on mobile');
+			$t->assertContains("'show_nextcloud_header_mobile' => 'yes'", $service, 'Backup settings defaults should show the Nextcloud header on mobile');
 			$t->assertContains("'hidden_workspaces' => '[]'", $service, 'Backup settings defaults should include hidden workspace ids');
 			$t->assertContains('settingsDefaultForUser($userId, $key)', $service, 'Personal export should export effective per-user settings defaults');
 			$t->assertContains("if (\$key === 'enable_workspaces' && \$this->userHasManagedWorkspaces(\$userId))", $service, 'Workspace backup default should stay enabled when extra workspaces exist');

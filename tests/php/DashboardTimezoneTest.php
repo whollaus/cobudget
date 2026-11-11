@@ -120,6 +120,19 @@ namespace CoBudget\Tests {
 				date_default_timezone_set($originalTimezone);
 			}
 		},
+		'Payment calendar selection combines years and months in the browser timezone' => function(TestRunner $t): void {
+			$controller = dashboardTimezoneController([], 'Europe/Vienna');
+			$ranges = (new \ReflectionMethod($controller, 'paymentCalendarRanges'))->invoke($controller, '2026,2025', '2,1');
+			$utc = new \DateTimeZone('UTC');
+			$formatted = array_map(static fn(array $range): array => array_map(
+				static fn(\DateTimeImmutable $date): string => $date->setTimezone($utc)->format('Y-m-d H:i'),
+				$range,
+			), $ranges);
+			$t->assertSame([
+				['2024-12-31 23:00', '2025-02-28 23:00'],
+				['2025-12-31 23:00', '2026-02-28 23:00'],
+			], $formatted, 'Consecutive months merge, with the gap between years excluded');
+		},
 		'Dashboard timezone fallback and monthly averages preserve calendar boundaries' => function(TestRunner $t): void {
 			$originalTimezone = date_default_timezone_get();
 			try {

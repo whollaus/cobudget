@@ -58,9 +58,11 @@ class BackupService {
 		'cobudget_settlement_transfers',
 		'cobudget_budget_goals',
 		'cobudget_budget_snapshots',
+		'cobudget_reminders',
 	];
 
 	private const BACKUP_TABLE_COLUMNS = [
+		'cobudget_reminders' => ['id', 'user_id', 'entry_id', 'title', 'description', 'remind_at', 'due_date', 'labels', 'keep_open', 'completed_at', 'archived_at', 'dismissed', 'notified', 'entry_signature', 'revision'],
 		'cobudget_deleted_users' => [
 			'id',
 			'tombstone_id',
@@ -83,6 +85,7 @@ class BackupService {
 				'is_archived',
 				'workspace_id',
 				'hidden_category_ids',
+				'hidden_payment_partner_ids',
 			],
 		'cobudget_members' => [
 			'id',
@@ -177,6 +180,8 @@ class BackupService {
 			'is_tax_relevant',
 			'is_insurance',
 			'reminder_date',
+			'planned_notified',
+			'planned_delivery',
 			'reminder_notified',
 			'reminder_text',
 			'workspace_id',
@@ -304,6 +309,7 @@ class BackupService {
 		'cobudget_members' => ['user_id'],
 		'cobudget_categories' => ['user_id'],
 		'cobudget_payment_partners' => ['user_id'],
+		'cobudget_reminders' => ['user_id'],
 		'cobudget_entries' => ['user_id', 'created_by', 'split_user_id'],
 		'cobudget_entry_shares' => ['user_id'],
 		'cobudget_entry_history' => ['changed_by'],
@@ -316,6 +322,7 @@ class BackupService {
 	];
 
 	private const BACKUP_INTERNAL_REFERENCES = [
+		['sourceTable' => 'cobudget_reminders', 'column' => 'entry_id', 'targetTable' => 'cobudget_entries'],
 		['sourceTable' => 'cobudget_projects', 'column' => 'workspace_id', 'targetTable' => 'cobudget_workspaces'],
 		['sourceTable' => 'cobudget_members', 'column' => 'project_id', 'targetTable' => 'cobudget_projects'],
 		['sourceTable' => 'cobudget_members', 'column' => 'personal_workspace_id', 'targetTable' => 'cobudget_workspaces'],
@@ -363,11 +370,16 @@ class BackupService {
 		'enable_tax_relevant',
 		'enable_insurance',
 		'enable_future_payments',
+		'enable_reminders',
 		'enable_budget_goals',
 		'enable_advanced_master_data',
 		'enable_incomes',
 		'enable_projects',
 		'enable_shared_projects',
+		'notify_planned_payments',
+		'notify_planned_payments_talk',
+		'notify_reminders',
+		'notify_reminders_talk',
 		'notify_project_entries',
 		'notify_project_entries_talk',
 		'notify_project_settlements',
@@ -400,11 +412,16 @@ class BackupService {
 		'enable_tax_relevant' => 'yes',
 		'enable_insurance' => 'yes',
 		'enable_future_payments' => 'yes',
+		'enable_reminders' => 'yes',
 		'enable_budget_goals' => 'yes',
 		'enable_advanced_master_data' => 'no',
 		'enable_incomes' => 'yes',
 		'enable_projects' => 'yes',
 		'enable_shared_projects' => 'yes',
+		'notify_planned_payments' => 'no',
+		'notify_planned_payments_talk' => 'no',
+		'notify_reminders' => 'yes',
+		'notify_reminders_talk' => 'no',
 		'notify_project_entries' => 'yes',
 		'notify_project_entries_talk' => 'no',
 		'notify_project_settlements' => 'yes',
@@ -415,7 +432,7 @@ class BackupService {
 		'entries_per_page' => '25',
 		'theme_mode' => 'auto',
 		'show_nextcloud_header_desktop' => 'yes',
-		'show_nextcloud_header_mobile' => 'no',
+		'show_nextcloud_header_mobile' => 'yes',
 		'receipt_storage_folder' => 'CoBudget/Belege',
 		'receipt_folder_grouping' => 'year',
 		'delete_receipts_with_entry' => 'no',
@@ -436,6 +453,7 @@ class BackupService {
 		private ParticipantService $participantService,
 		private DataIntegrityService $dataIntegrityService,
 		private IL10N $l10n,
+		private CalendarReminderService $calendarReminders,
 	) {
 	}
 
@@ -801,6 +819,7 @@ class BackupService {
 				throw $e;
 			}
 
+			$this->calendarReminders->resetConnections($userId);
 			return [
 				'scope' => 'user',
 				'user_id' => $userId,
@@ -853,6 +872,7 @@ class BackupService {
 				throw $e;
 			}
 
+			$this->calendarReminders->resetConnections();
 			return [
 				'scope' => 'system',
 				'storage_user_id' => $storageUserId,
@@ -1369,22 +1389,7 @@ class BackupService {
 	}
 
 	private function remapProjectHiddenCategorySetting(mixed $value, array $idAliases): string {
-		$mappedIds = json_decode($this->remapJsonIdSetting($value, $idAliases), true);
-		if (!is_array($mappedIds) || $mappedIds === []) {
-			return '[]';
-		}
-
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('id')
-			->from('cobudget_categories')
-			->where($qb->expr()->in('id', $qb->createNamedParameter($mappedIds, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
-			->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)));
-		$result = $qb->executeQuery();
-		$globalIds = array_map('intval', $result->fetchAll(\PDO::FETCH_COLUMN));
-		$result->closeCursor();
-		sort($globalIds, SORT_NUMERIC);
-
-		return json_encode(array_values(array_unique($globalIds)), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]';
+		return $this->remapJsonIdSetting($value, $idAliases);
 	}
 
 	private function remapDefaultStartPage(string $defaultStartPage, array $projectIdAliases): string {
@@ -1509,6 +1514,14 @@ class BackupService {
 
 		foreach ($tables as $table => &$rows) {
 			foreach ($rows as &$row) {
+				if ($table === 'cobudget_entries' && !empty($row['planned_delivery'])) {
+					$delivery = json_decode($row['planned_delivery'], true, 512, JSON_THROW_ON_ERROR);
+					$mapped = [];
+					foreach ($userMap as $source => $target) $mapped[hash('sha256', $source)] = hash('sha256', $target);
+					$state = [];
+					foreach ($delivery as $key => $channels) $state[$mapped[$key] ?? $key] = $channels;
+					$row['planned_delivery'] = json_encode($state, JSON_THROW_ON_ERROR);
+				}
 				foreach (self::USER_COLUMNS[$table] ?? [] as $column) {
 					$value = (string)($row[$column] ?? '');
 					if ($value !== '' && !ParticipantService::isReservedFormerId($value) && isset($userMap[$value])) {
@@ -1760,6 +1773,15 @@ class BackupService {
 			$row['is_settled'] = false;
 			$row['settled_at'] = null;
 			$row['settlement_id'] = null;
+			// Personal exports carry only this account's pending delivery progress.
+			if ($isSharedProjectEntry || $isProjectedPersonalEntry) {
+				$row['planned_notified'] = true;
+				$row['planned_delivery'] = null;
+			} elseif (!empty($row['planned_delivery'])) {
+				$delivery = json_decode($row['planned_delivery'], true, 512, JSON_THROW_ON_ERROR);
+				$key = hash('sha256', $sourceUserId);
+				$row['planned_delivery'] = json_encode(isset($delivery[$key]) ? [hash('sha256', $userId) => $delivery[$key]] : [], JSON_THROW_ON_ERROR);
+			}
 			$row['entry_kind'] = 'personal';
 			$row['source_entry_id'] = null;
 			$row['is_locked'] = false;
@@ -1926,6 +1948,18 @@ class BackupService {
 			$budgetSnapshots[] = $row;
 		}
 		$prepared['cobudget_budget_snapshots'] = $budgetSnapshots;
+        $entryIds = array_fill_keys($this->ids($prepared['cobudget_entries']), true);
+        $prepared['cobudget_reminders'] = array_values(array_filter($prepared['cobudget_reminders'], fn(array $r): bool => ($r['user_id'] ?? '') === $sourceUserId));
+        foreach ($prepared['cobudget_reminders'] as &$reminder) {
+            $reminder['user_id'] = $userId;
+            // Shared sources do not belong to a personal financial export. Keep
+            // this user's reminder as an independent item instead of dropping it.
+            if (!isset($entryIds[$reminder['entry_id'] ?? 0])) {
+                $reminder['entry_id'] = null;
+                $reminder['entry_signature'] = '';
+            }
+        }
+        unset($reminder);
 
 		return $prepared;
 	}
@@ -2146,10 +2180,12 @@ class BackupService {
 			if (!is_array($rule)) {
 				continue;
 			}
-			$projectId = $this->nullableId($rule['projectId'] ?? $rule['project_id'] ?? null);
+			$rawProjectId = $rule['projectId'] ?? $rule['project_id'] ?? null;
+			// Preserve the Without area sentinel through export and restore.
+			$projectId = $rawProjectId === 0 || $rawProjectId === '0' ? 0 : $this->nullableId($rawProjectId);
 			$categoryId = $this->nullableId($rule['categoryId'] ?? $rule['category_id'] ?? null);
 			$tag = trim((string)($rule['tag'] ?? ''));
-			$projectId = $projectId !== null && isset($projectIds[$projectId]) ? $projectId : null;
+			$projectId = $projectId === 0 ? 0 : ($projectId !== null && isset($projectIds[$projectId]) ? $projectId : null);
 			$categoryId = $this->personalLookupIdForWorkspace($categoryId, $workspaceId, $categoryIdByWorkspace);
 			if ($projectId === null && $categoryId === null && $tag === '') {
 				continue;
@@ -2301,10 +2337,12 @@ class BackupService {
 			if (!is_array($rule)) {
 				continue;
 			}
-			$projectId = $this->nullableId($rule['projectId'] ?? $rule['project_id'] ?? null);
+			$rawProjectId = $rule['projectId'] ?? $rule['project_id'] ?? null;
+			// Preserve the Without area sentinel through export and restore.
+			$projectId = $rawProjectId === 0 || $rawProjectId === '0' ? 0 : $this->nullableId($rawProjectId);
 			$categoryId = $this->nullableId($rule['categoryId'] ?? $rule['category_id'] ?? null);
 			$tag = trim((string)($rule['tag'] ?? ''));
-			$projectId = $projectId !== null && isset($projectIds[$projectId]) ? $projectId : null;
+			$projectId = $projectId === 0 ? 0 : ($projectId !== null && isset($projectIds[$projectId]) ? $projectId : null);
 			$categoryId = $categoryId !== null && isset($categoryIds[$categoryId]) ? $categoryId : null;
 			if ($projectId === null && $categoryId === null && $tag === '') {
 				continue;
@@ -2399,6 +2437,7 @@ class BackupService {
 				$oldHiddenCategoryIds = $table === 'cobudget_projects'
 					? (string)($row['hidden_category_ids'] ?? '[]')
 					: '[]';
+				$oldHiddenPartnerIds = $table === 'cobudget_projects' ? (string)($row['hidden_payment_partner_ids'] ?? '[]') : '[]';
 				$oldCategoryParentId = $table === 'cobudget_categories' ? $this->nullableId($row['parent_category_id'] ?? null) : null;
 				$oldSeriesId = $table === 'cobudget_entries' ? $this->nullableId($row['recurrence_series_id'] ?? null) : null;
 				$oldSourceEntryId = $table === 'cobudget_entries' ? $this->nullableId($row['source_entry_id'] ?? null) : null;
@@ -2414,6 +2453,7 @@ class BackupService {
 				}
 				if ($table === 'cobudget_projects') {
 					$row['hidden_category_ids'] = '[]';
+					$row['hidden_payment_partner_ids'] = '[]';
 				}
 				if ($table === 'cobudget_entry_attachments') {
 					$row['source_attachment_id'] = null;
@@ -2437,10 +2477,11 @@ class BackupService {
 						'old_parent_id' => $oldCategoryParentId,
 					];
 				}
-				if ($table === 'cobudget_projects' && $newId > 0 && $oldHiddenCategoryIds !== '[]') {
+				if ($table === 'cobudget_projects' && $newId > 0 && ($oldHiddenCategoryIds !== '[]' || $oldHiddenPartnerIds !== '[]')) {
 					$pendingProjectCategoryVisibility[] = [
 						'new_id' => $newId,
 						'old_hidden_category_ids' => $oldHiddenCategoryIds,
+						'old_hidden_partner_ids' => $oldHiddenPartnerIds,
 					];
 				}
 				if ($table === 'cobudget_entry_attachments' && $newId > 0 && $oldSourceAttachmentId !== null) {
@@ -2461,6 +2502,7 @@ class BackupService {
 			$qb = $this->db->getQueryBuilder();
 			$qb->update('cobudget_projects')
 				->set('hidden_category_ids', $qb->createNamedParameter($hiddenCategoryIds))
+				->set('hidden_payment_partner_ids', $qb->createNamedParameter($this->remapJsonIdSetting($reference['old_hidden_partner_ids'], $idMaps['cobudget_payment_partners'])))
 				->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$reference['new_id'], \PDO::PARAM_INT)));
 			$qb->executeStatement();
 		}
@@ -2558,6 +2600,10 @@ class BackupService {
 
 	private function remapGeneratedRowReferences(string $table, array $row, array $idMaps): array {
 		$row = $this->filterBackupRowColumns($table, $row);
+		if ($table === 'cobudget_entries' && !array_key_exists('planned_notified', $row)) {
+			// Old archives have no delivery state: arm future originals, never past payments.
+			$row['planned_notified'] = (int)($row['date'] ?? 0) <= time() || !empty($row['source_entry_id']) || !empty($row['settlement_id']) || !empty($row['is_settled']);
+		}
 		unset($row['id']);
 
 		$mapColumn = function (string $column, string $targetTable) use (&$row, $idMaps): void {
@@ -2578,6 +2624,7 @@ class BackupService {
 				$mapColumn('workspace_id', 'cobudget_workspaces');
 				$mapColumn('project_id', 'cobudget_projects');
 			})(),
+			'cobudget_reminders' => $mapColumn('entry_id', 'cobudget_entries'),
 			'cobudget_entries' => (function () use ($mapColumn): void {
 				$mapColumn('workspace_id', 'cobudget_workspaces');
 				$mapColumn('category_id', 'cobudget_categories');
@@ -2635,10 +2682,12 @@ class BackupService {
 			if (!is_array($rule)) {
 				continue;
 			}
-			$projectId = $this->nullableId($rule['projectId'] ?? $rule['project_id'] ?? null);
+			$rawProjectId = $rule['projectId'] ?? $rule['project_id'] ?? null;
+			// Preserve the Without area sentinel through export and restore.
+			$projectId = $rawProjectId === 0 || $rawProjectId === '0' ? 0 : $this->nullableId($rawProjectId);
 			$categoryId = $this->nullableId($rule['categoryId'] ?? $rule['category_id'] ?? null);
 			$tag = trim((string)($rule['tag'] ?? ''));
-			$projectId = $projectId !== null ? ($projectIdMap[$projectId] ?? null) : null;
+			$projectId = $projectId === 0 ? 0 : ($projectId !== null ? ($projectIdMap[$projectId] ?? null) : null);
 			$categoryId = $categoryId !== null ? ($categoryIdMap[$categoryId] ?? null) : null;
 			if ($projectId === null && $categoryId === null && $tag === '') {
 				continue;
@@ -2655,6 +2704,10 @@ class BackupService {
 
 	private function insertRowGenerated(string $table, array $row): int {
 		$row = $this->filterBackupRowColumns($table, $row);
+		if ($table === 'cobudget_entries' && !array_key_exists('planned_notified', $row)) {
+			// Old archives have no delivery state: arm future originals, never past payments.
+			$row['planned_notified'] = (int)($row['date'] ?? 0) <= time() || !empty($row['source_entry_id']) || !empty($row['settlement_id']) || !empty($row['is_settled']);
+		}
 		unset($row['id']);
 		if ($row === []) {
 			return 0;
@@ -2882,6 +2935,7 @@ class BackupService {
 			'cobudget_members' => $this->l10n->t('Area members'),
 			'cobudget_categories' => $this->l10n->t('Categories'),
 			'cobudget_payment_partners' => $this->l10n->t('Payment partners'),
+			'cobudget_reminders' => $this->l10n->t('Reminders'),
 			'cobudget_entries' => $this->l10n->t('Payments'),
 			'cobudget_entry_shares' => $this->l10n->t('Stored payment shares'),
 			'cobudget_entry_history' => $this->l10n->t('Payment history'),
@@ -2898,6 +2952,17 @@ class BackupService {
 	}
 
 	private function assertBackupInternalReferences(array $tables): void {
+        $entries = array_column($tables['cobudget_entries'] ?? [], null, 'id');
+        $members = [];
+        foreach ($tables['cobudget_members'] ?? [] as $m) $members[$m['project_id']][$m['user_id']] = true;
+        foreach ($tables['cobudget_reminders'] ?? [] as $r) {
+            $labels = json_decode((string)($r['labels'] ?? '[]'), true);
+            if (!is_array($labels) || array_filter($labels, fn($v) => !is_string($v) || !in_array($v, ReminderService::LABELS, true)) || (int)($r['remind_at'] ?? 0) <= 0 || mb_strlen((string)($r['title'] ?? '')) > 255 || mb_strlen((string)($r['description'] ?? '')) > 10000) throw new \InvalidArgumentException('Invalid reminder data');
+            if (empty($r['entry_id'])) continue;
+            $e = $entries[$r['entry_id']] ?? null;
+            $allowed = $e && empty($e['source_entry_id']) && (($e['entry_kind'] === 'personal' && $e['user_id'] === $r['user_id']) || ($e['entry_kind'] === 'shared' && isset($members[$e['project_id']][$r['user_id']])));
+            if (!$allowed) throw new \InvalidArgumentException('Invalid reminder payment scope');
+        }
 		$idMaps = [];
 		foreach (self::BACKUP_TABLES as $table) {
 			$idMaps[$table] = array_fill_keys($this->ids($tables[$table] ?? []), true);
@@ -2991,24 +3056,19 @@ class BackupService {
 	}
 
 	private function assertProjectCategoryVisibilityConsistency(array $tables): void {
-		$categories = [];
-		foreach ($tables['cobudget_categories'] ?? [] as $category) {
-			$categoryId = $this->nullableId($category['id'] ?? null);
-			if ($categoryId !== null) {
-				$categories[$categoryId] = $category;
-			}
-		}
-
-		foreach ($tables['cobudget_projects'] ?? [] as $project) {
-			$hiddenCategoryIds = json_decode((string)($project['hidden_category_ids'] ?? '[]'), true);
-			if (!is_array($hiddenCategoryIds)) {
-				throw new \InvalidArgumentException('Backup enthält ungültige Kategorie-Sichtbarkeit für einen Bereich.');
-			}
-			foreach ($hiddenCategoryIds as $hiddenCategoryId) {
-				$categoryId = $this->nullableId($hiddenCategoryId);
-				$category = $categoryId !== null ? ($categories[$categoryId] ?? null) : null;
-				if ($category === null || !$this->backupBool($category['is_global'] ?? false)) {
-					throw new \InvalidArgumentException('Backup blendet in einem Bereich eine ungültige globale Kategorie aus.');
+		foreach (['categories' => 'hidden_category_ids', 'payment_partners' => 'hidden_payment_partner_ids'] as $kind => $field) {
+			$records = [];
+			foreach ($tables['cobudget_' . $kind] ?? [] as $record) { $records[(int)$record['id']] = $record; }
+			foreach ($tables['cobudget_projects'] ?? [] as $project) {
+				$ids = json_decode((string)($project[$field] ?? '[]'), true);
+				if (!is_array($ids)) { throw new \InvalidArgumentException('Invalid area visibility in backup.'); }
+				foreach ($ids as $id) {
+					$record = $records[(int)$id] ?? null;
+					if ($record === null || (!$this->backupBool($record['is_global'] ?? false)
+						&& ((int)($record['project_id'] ?? 0) !== (int)$project['id']
+						|| (int)($record['workspace_id'] ?? 0) !== (int)$project['workspace_id']))) {
+						throw new \InvalidArgumentException('Invalid area visibility reference in backup.');
+					}
 				}
 			}
 		}
@@ -3157,7 +3217,7 @@ class BackupService {
 	private function deleteSettingsForUsers(array $userIds): void {
 		$userIds = array_values(array_filter(array_unique(array_map('strval', $userIds)), static fn (string $userId): bool => $userId !== ''));
 		foreach ($userIds as $userId) {
-			foreach (self::SETTINGS_KEYS as $key) {
+			foreach (array_merge(self::SETTINGS_KEYS, ['notify_reminders_calendar', 'reminder_calendar_id', 'reminder_calendar_sync_error']) as $key) {
 				$qb = $this->db->getQueryBuilder();
 				$qb->delete('preferences')
 					->where($qb->expr()->eq('appid', $qb->createNamedParameter('cobudget')))
@@ -3169,7 +3229,7 @@ class BackupService {
 	}
 
 	private function deleteAllCoBudgetSettings(): void {
-		foreach (self::SETTINGS_KEYS as $key) {
+		foreach (array_merge(self::SETTINGS_KEYS, ['notify_reminders_calendar', 'reminder_calendar_id', 'reminder_calendar_sync_error']) as $key) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('preferences')
 				->where($qb->expr()->eq('appid', $qb->createNamedParameter('cobudget')))
@@ -3188,6 +3248,10 @@ class BackupService {
 
 	private function insertRow(string $table, array $row): void {
 		$row = $this->filterBackupRowColumns($table, $row);
+		if ($table === 'cobudget_entries' && !array_key_exists('planned_notified', $row)) {
+			// Old archives have no delivery state: arm future originals, never past payments.
+			$row['planned_notified'] = (int)($row['date'] ?? 0) <= time() || !empty($row['source_entry_id']) || !empty($row['settlement_id']) || !empty($row['is_settled']);
+		}
 		if ($row === []) {
 			return;
 		}
@@ -3285,6 +3349,7 @@ class BackupService {
 			'cobudget_members' => $this->fetchRowsByIds('cobudget_members', 'project_id', $projectIds),
 			'cobudget_categories' => $this->fetchCategories($userId, $workspaceIds, $projectIds),
 			'cobudget_payment_partners' => $this->fetchPaymentPartners($userId, $workspaceIds, $projectIds),
+			'cobudget_reminders' => $this->fetchRowsByUser('cobudget_reminders', $userId),
 			'cobudget_entries' => $entries,
 			'cobudget_entry_shares' => $this->fetchRowsByIds('cobudget_entry_shares', 'entry_id', $entryIds),
 			'cobudget_entry_history' => $this->fetchRowsByIds('cobudget_entry_history', 'entry_id', $entryIds),
@@ -3317,6 +3382,14 @@ class BackupService {
 			$tables[$table] = $this->fetchAllRows($table);
 		}
 
+        $entries = array_column($tables['cobudget_entries'], null, 'id');
+        $members = [];
+        foreach ($tables['cobudget_members'] as $m) $members[$m['project_id']][$m['user_id']] = true;
+        $tables['cobudget_reminders'] = array_values(array_filter($tables['cobudget_reminders'], static function(array $r) use ($entries, $members): bool {
+            if (empty($r['entry_id'])) return true;
+            $e = $entries[$r['entry_id']] ?? null;
+            return $e && !empty($e['reminder_date']) && empty($e['source_entry_id']) && (($e['entry_kind'] === 'personal' && $e['user_id'] === $r['user_id']) || ($e['entry_kind'] === 'shared' && isset($members[$e['project_id']][$r['user_id']])));
+        }));
 		$storedSettings = $this->fetchStoredSettings();
 		$userIds = $this->collectUserIdsFromTables($tables);
 		$userIds = array_values(array_unique(array_merge($userIds, array_keys($storedSettings))));

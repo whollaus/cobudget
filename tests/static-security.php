@@ -132,7 +132,7 @@ try {
 
 	$paymentPartner = $read('lib/Controller/PaymentPartnerController.php');
 	$assertContains($paymentPartner, 'editablePaymentPartnerInActiveWorkspace($id)', 'PaymentPartnerController delete guard');
-	$assertContains($paymentPartner, 'paymentPartnerAvailableInActiveWorkspace($id)', 'PaymentPartnerController hide/unhide guard');
+	$assertContains($paymentPartner, 'paymentPartnerAvailableInActiveWorkspace($id, $projectId)', 'PaymentPartnerController hide/unhide guard');
 	$assertContains($paymentPartner, 'IGroupManager', 'PaymentPartnerController injects the Nextcloud admin group manager');
 	$assertContains($paymentPartner, 'requireAdmin()', 'PaymentPartnerController admin routes use an explicit admin guard');
 	$assertContains($paymentPartner, '$this->groupManager->isAdmin', 'PaymentPartnerController checks Nextcloud admin status');
@@ -215,11 +215,11 @@ try {
 	$assertContains($recurringJob, 'deactivateCurrentSeriesHead($entry)', 'RecurringEntriesJob deactivates the previous series head');
 	$assertContains($recurringJob, 'recurrenceSeriesIdFromRow($entry)', 'RecurringEntriesJob resolves the recurrence series id');
 	$assertContains($recurringJob, '$hasNextRun', 'RecurringEntriesJob transfers recurrence fields only when there is a next run');
-	$assertContains($recurringJob, 'private const RECURRENCE_HOUR = 9', 'RecurringEntriesJob fixed recurrence hour');
+	$assertContains($recurringJob, 'private const RECURRENCE_HOUR = 6', 'RecurringEntriesJob fixed recurrence hour');
 	$assertContains($recurringJob, 'private const JOB_INTERVAL_SECONDS = 5 * 60', 'RecurringEntriesJob 5-minute web-cron interval');
 	$assertContains($recurringJob, 'setInterval(self::JOB_INTERVAL_SECONDS)', 'RecurringEntriesJob uses 5-minute interval');
 	$assertContains($recurringJob, 'recurrenceDueCutoff($now)', 'RecurringEntriesJob catches up after the due time');
-	$assertContains($recurringJob, 'return $now;', 'RecurringEntriesJob processes timestamps due now or in the past');
+	$assertContains($recurringJob, "setTime(23, 59, 59)", 'RecurringEntriesJob includes legacy times on the due calendar day');
 	$assertContains($recurringJob, 'normalizeToRecurrenceTime(', 'RecurringEntriesJob normalizes generated recurrence dates');
 
 	$remindersJob = $read('lib/Cron/RemindersJob.php');
@@ -254,7 +254,7 @@ try {
 	$assertContains($backupService, "'enable_workspaces' => 'no'", 'BackupService tracks workspace settings defaults');
 	$assertContains($backupService, "'show_workspace_switcher' => 'yes'", 'BackupService tracks workspace switcher settings defaults');
 	$assertContains($backupService, "'show_nextcloud_header_desktop' => 'yes'", 'BackupService defaults the desktop Nextcloud header to visible');
-	$assertContains($backupService, "'show_nextcloud_header_mobile' => 'no'", 'BackupService defaults the mobile Nextcloud header to hidden');
+	$assertContains($backupService, "'show_nextcloud_header_mobile' => 'yes'", 'BackupService defaults the mobile Nextcloud header to visible');
 	$assertContains($backupService, "'currency' => 'EUR'", 'BackupService defaults currency to EUR when no user preference exists');
 	$assertContains($backupService, "'hidden_workspaces' => '[]'", 'BackupService tracks hidden workspace settings defaults');
 	$assertContains($backupService, 'settingsDefaultForUser($userId, $key)', 'Personal export includes effective defaulted settings values');
@@ -628,14 +628,14 @@ try {
 	$texts = $read('src/l10n/texts.js');
 	$assertContains($app, 'skipWorkspaceHeader: true', 'App workspace list is user-global');
 	$assertContains($workspaceSettings, 'skipWorkspaceHeader: true', 'WorkspaceSettings APIs are user-global');
-	$assertMatches($workspaceSettings, '/<span\b[^>]*\bclass="[^"\n]*\bdefault-badge\b[^"\n]*"[^>]*>\s*\{\{\s*\$texts\.workspaces\.base\(\)\s*\}\}\s*<\/span>/', 'WorkspaceSettings labels the base workspace through shared texts');
+	$assertContains($workspaceSettings, '<NcChip class="default-badge" :text="$texts.workspaces.base()" no-close variant="secondary" />', 'WorkspaceSettings labels the base workspace through shared texts');
 	$assertContains($texts, "base: () => tx('Base')", 'Workspace base label is centralized in texts');
 	$assertContains($l10nDe, '"Base": "Basis"', 'German l10n translates the workspace base label');
 	$assertContains($texts, "baseTooltip: () => tx('The base workspace is created automatically and cannot be deleted.')", 'Workspace base tooltip is centralized in texts');
 	$assertContains($l10nDe, '"The base workspace is created automatically and cannot be deleted.": "Der Basis-Workspace wird automatisch erstellt und kann nicht gelöscht werden."', 'German l10n translates the workspace base tooltip');
 	$assertContains($workspaceSettings, 'selectWorkspace(workspace)', 'WorkspaceSettings can switch the active workspace');
-	$assertContains($workspaceSettings, ':can-hide="!workspace.is_hidden"', 'WorkspaceSettings can hide workspaces from the quick switcher');
-	$assertContains($workspaceSettings, ':can-unhide="workspace.is_hidden"', 'WorkspaceSettings can unhide workspaces from the quick switcher');
+	$assertContains($workspaceSettings, 'updateWorkspaceVisibility(workspace, !workspace.is_hidden)', 'WorkspaceSettings toggles quick-switcher visibility');
+	$assertContains($workspaceSettings, 'workspace.is_hidden ? $texts.workspaces.showInQuickSwitcher()', 'WorkspaceSettings labels the available visibility action');
 } catch (Throwable $e) {
 	$failures[] = $e->getMessage();
 }

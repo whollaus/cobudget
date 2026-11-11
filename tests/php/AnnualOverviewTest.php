@@ -85,7 +85,7 @@ return [
 		$t->assertSame(17, $result['totals']['balance']['totalCount'], 'Balance includes every stored payment, not twelve artificial month additions');
 		$t->assertSame(0, $result['totals']['balance']['counts'][1], 'Empty months have zero counts');
 	},
-	'Annual overview respects local year boundaries and keeps partner IDs separate' => function(TestRunner $t): void {
+	'Annual overview respects local year boundaries and groups partner names within each payment type' => function(TestRunner $t): void {
 		$rows = [
 			['date' => strtotime('2025-12-31 23:30 UTC'), 'type' => 'income', 'group_id' => 1, 'group_name' => 'Same name', 'amount_cents' => 1],
 			['date' => strtotime('2026-12-31 23:30 UTC'), 'type' => 'income', 'group_id' => 1, 'group_name' => 'Same name', 'amount_cents' => 99],
@@ -95,7 +95,8 @@ return [
 		$service = new AnnualOverviewService();
 		$result = $service->build($rows, 2026, new DateTimeZone('Europe/Vienna'), 'paymentPartners');
 		$t->assertSame(1, $result['totals']['income']['total'], 'Year follows the displayed local date');
-		$t->assertSame(2, count($result['groups']['expense']), 'Equal names must not merge distinct partners');
+		$t->assertSame(1, count($result['groups']['expense']), 'Equal partner names merge within a payment type');
+		$t->assertSame(5, $result['groups']['expense'][0]['total'], 'Both partner IDs contribute their exact cents');
 		$t->assertSame([], $result['groups']['expense'][0]['children'], 'Partners have no category hierarchy');
 		$t->assertSame(-4, $result['totals']['balance']['total'], 'Negative annual balances are preserved');
 		$t->assertSame(99, $service->build($rows, 2026, new DateTimeZone('America/Los_Angeles'), 'paymentPartners')['totals']['income']['total'], 'Western timezone year boundary is respected');
@@ -438,7 +439,7 @@ return [
 		$t->assertSame(['2026-11-01', '2026-12-01'], array_map($day, $service->recurrenceDates('month', 1, $at('2026-09-01 09:00:00'), null, $after, $until)), 'An overdue next date still continues into the open period');
 		$t->assertSame([], $service->recurrenceDates('month', 1, $at('2026-11-01 09:00:00'), null, $until, $after), 'A closed period adds nothing');
 		$t->assertSame(['2026-11-01', '2026-11-15', '2026-11-29'], array_map($day, $service->recurrenceDates('week', 2, $at('2026-11-01 09:00:00'), null, $after, $at('2026-11-30 23:59:59'))), 'A two-week series keeps its interval');
-		$t->assertSame('2026-03-03', $day($service->recurrenceDates('month', 1, $at('2026-01-31 09:00:00'), null, $at('2026-01-31 08:00:00'), $at('2026-03-31 23:59:59'))[1]), 'Month steps use the same overflow as the recurring job');
+		$t->assertSame('2026-03-03', $day($service->recurrenceDates('month', 1, $at('2026-01-31 09:00:00'), null, $at('2026-01-31 05:00:00'), $at('2026-03-31 23:59:59'))[1]), 'Month steps use the same overflow as the recurring job');
 		$overview = new DateTimeZone('Europe/Vienna');
 		$stored = $at('2026-10-01 09:00:00');
 		$planned = $dates[0];

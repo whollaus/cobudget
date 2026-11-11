@@ -13,7 +13,7 @@ namespace OCP {
 
 namespace OCP\DB\QueryBuilder {
 	if (!interface_exists(IQueryBuilder::class, false)) {
-		interface IQueryBuilder {}
+		interface IQueryBuilder { public const PARAM_INT_ARRAY = 101; }
 	}
 }
 

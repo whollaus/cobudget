@@ -291,6 +291,30 @@ trait WorkspaceAwareTrait {
 		return $row;
 	}
 
+	/** Match deletion protection, including settled projections in another workspace.
+	 * Only call with records already authorized for the settings catalog.
+	 * Returns only a usage flag for deletable identities, never payment details.
+	 */
+	protected function addMasterDataUsage(array $items, string $referenceColumn, bool $includeGlobal = false): array {
+		if (!in_array($referenceColumn, ['category_id', 'payment_partner_id'], true)) {
+			throw new \InvalidArgumentException('Unsupported master-data reference');
+		}
+		$used = [];
+		$candidates = $includeGlobal ? $items : array_filter($items, static fn(array $item): bool => !filter_var($item['is_global'] ?? false, FILTER_VALIDATE_BOOLEAN));
+		$ids = array_values(array_unique(array_map('intval', array_column($candidates, 'id'))));
+		foreach (array_chunk($ids, 500) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select($referenceColumn)->from('cobudget_entries')
+				->where($qb->expr()->in($referenceColumn, $qb->createNamedParameter($chunk, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
+				->groupBy($referenceColumn);
+			$result = $qb->executeQuery();
+			foreach ($result->fetchAll(\PDO::FETCH_COLUMN) as $id) $used[(int)$id] = true;
+			$result->closeCursor();
+		}
+		foreach ($items as &$item) $item['in_use'] = isset($used[(int)$item['id']]);
+		return $items;
+	}
+
 	protected function addRecentUsageCounts(array $items, string $referenceColumn, int $workspaceId): array {
 		if ($items === [] || !in_array($referenceColumn, ['category_id', 'payment_partner_id'], true) || empty($this->userId)) {
 			return array_map(static function(array $item): array {
@@ -1200,7 +1224,7 @@ trait WorkspaceAwareTrait {
 		}
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'name', 'type', 'is_global', 'user_id', 'workspace_id', 'project_id')
+		$qb->select('*')
 		   ->from('cobudget_payment_partners')
 		   ->where($qb->expr()->eq('id', $qb->createNamedParameter($paymentPartnerId, \PDO::PARAM_INT)))
 		   ->andWhere($qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)))

@@ -703,10 +703,32 @@ class ProjectController extends Controller {
 			$project['member_management_locked'] = $memberManagementLockReason !== null;
 			$project['member_management_lock_reason'] = $memberManagementLockReason;
 			$project['my_share_basis_points'] = $shares[(string)$this->userId] ?? 10000;
+			// Preview the same blockers enforced by archive/destroy; mutation endpoints
+			// still recheck them to cover changes made after the settings were opened.
+			$deleteBlockReason = 'not_owner';
+			$archiveBlockReason = 'not_owner';
+			if ($project['is_owner']) {
+				$deleteBlockReason = null;
+				if ($this->projectHasPayments($id) || $this->projectHasLifecycleHistory($id)) {
+					$deleteBlockReason = 'payments_or_history';
+				} elseif ($this->budgetGoalsReferenceProject($id, $workspaceId, $this->projectScopedCategoryIds($id))) {
+					$deleteBlockReason = 'budget_goals';
+				}
+				$archiveBlockReason = $this->projectHasOpenSharedPayments($id, $workspaceId) ? 'open_shared_payments' : null;
+			}
+			$project['settings_actions'] = [
+				'delete_block_reason' => $deleteBlockReason,
+				'archive_block_reason' => $archiveBlockReason,
+			];
+
 
 			$balanceSnapshot = count($members) > 1
 				? $this->calculateBalanceSnapshotCents($id, $workspaceId, $members)
 				: [];
+			$project['settlementPreview'] = $project['is_shared']
+				? $this->openSettlementSummary($id, $workspaceId)
+				: ['entryCount' => 0, 'totalCents' => 0];
+			$project['settlementCount'] = $this->settlementCount($id, $workspaceId);
 			$project['balances'] = $this->balanceSnapshotForResponse($balanceSnapshot);
 			$project['repaymentTransfers'] = $this->transferRowsForResponse($this->calculateRepaymentTransfers($balanceSnapshot));
 			$project['dashboard'] = $this->calculateProjectDashboard($id, $members, $workspaceId);
@@ -1429,6 +1451,23 @@ class ProjectController extends Controller {
 				'amount' => round($amountCents / 100, 2),
 			];
 		}, $transfers);
+	}
+
+	/** All open shared source payments, matching unsettledProjectEntryIds without list/date filters. */
+	private function openSettlementSummary(int $projectId, int $workspaceId): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'entry_count')
+			->selectAlias($qb->createFunction('SUM(amount_cents)'), 'total_cents')
+			->from('cobudget_entries')
+			->where($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('entry_kind', $qb->createNamedParameter('shared')))
+			->andWhere($qb->expr()->eq('is_settled', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)));
+		$result = $qb->executeQuery();
+		$row = $result->fetch();
+		$result->closeCursor();
+
+		return ['entryCount' => (int)($row['entry_count'] ?? 0), 'totalCents' => (int)($row['total_cents'] ?? 0)];
 	}
 
 	private function unsettledProjectEntryIds(int $projectId, int $workspaceId): array {

@@ -1,178 +1,76 @@
 # Releasing CoBudget
 
-CoBudget uses a two-stage Nextcloud signing process:
+Releases are handled by the maintainer. This document records the portable release
+requirements and the signing helper included in this repository.
 
-1. `occ integrity:sign-app` creates `appinfo/signature.json` inside the installable app archive.
-2. OpenSSL creates a detached SHA-512 signature for the final `cobudget.tar.gz` archive. This value is required by the Nextcloud App Store.
+In the maintainer's multi-app workspace, **`scripts/README.md` at the workspace
+root** is the authoritative guide for the shared release tool, credentials,
+GitHub/App Store publication and recovery. Those private tools are not distributed
+with this repository. Keep their operational instructions there.
 
-The private key must be the exact key used to create the certificate signing request for `cobudget.crt`. Never commit the key, certificate, CSR, generated signature, or release archive to this repository.
+## Release checklist
 
-Release archives must use **GNU tar format**, including GNU long-name records.
-Use `scripts/tar-create.sh` for creation: macOS tar defaults to PAX, whose `path`
-headers Nextcloud's `Archive_Tar` extractor ignores. Long lazy JavaScript filenames
-then become truncated, causing 404/ChunkLoadError and blank payment views after
-installation even though ordinary `tar -tf` and extraction appear correct.
-The release verifier rejects PAX headers. The private shared release flow also
-extracts the archive with the local Nextcloud dependency and compares every file.
+- Update [CHANGELOG.md](CHANGELOG.md) and relevant public documentation.
+- Match the version in `appinfo/info.xml`, `package.json`, both root version
+  entries in `package-lock.json`, and the intended `vX.Y.Z` tag.
+- Run `npm test`, `npm run build` and `git diff --check`; include the generated
+  `js/` assets in the reviewed release commit on `main`.
+- Complete relevant installation, upgrade and browser checks on supported
+  Nextcloud versions. See [tests/README.md](tests/README.md).
+- Ensure the signed package corresponds to the release commit and tag; inspect
+  the archive and its checks before publishing.
 
-## Prerequisites
+## Signing and archive requirements
 
-- A clean release commit on `main`
-- Matching versions in `appinfo/info.xml`, `package.json`, `package-lock.json`, and the Git tag
-- The Nextcloud certificate `cobudget.crt`
-- The matching private key used for the CSR
-- Access to a Nextcloud installation whose `occ` command can run `integrity:sign-app`
-- An authenticated GitHub CLI (`gh`) or access to the GitHub release page
+A public release needs two signatures:
 
-A recommended local location is:
+1. Nextcloud's `occ integrity:sign-app` creates `appinfo/signature.json` inside
+   the packaged app.
+2. A detached SHA-512 signature covers the final `cobudget.tar.gz`; its Base64
+   value is submitted to the Nextcloud App Store.
 
-```sh
-~/.nextcloud/certificates/cobudget.crt
-~/.nextcloud/certificates/cobudget.key
-```
+Use the Nextcloud certificate for CoBudget and the private key that matches its
+certificate signing request. Protect and retain the key for future updates.
+Never commit keys, certificates, CSRs or generated release artifacts.
 
-Protect the private key:
+The archive must contain a top-level `cobudget/` directory and only runtime files.
+Exclude development dependencies, tests, screenshots and macOS metadata. Use
+[scripts/tar-create.sh](scripts/tar-create.sh) for **GNU tar format**, including
+long filenames: PAX path headers can cause Nextcloud to truncate JavaScript chunk
+names during installation. The [archive verifier](scripts/verify-release-archive.sh)
+rejects PAX archives.
 
-```sh
-chmod 600 ~/.nextcloud/certificates/cobudget.key
-```
+Any modification after signing requires rebuilding and signing again. GitHub's
+automatic source archives are not installable Nextcloud app packages.
 
-## Recommended: Interactive Release Assistant
+## Repository signing helper
 
-For the private local development workspace containing both CoBudget and
-CoCalculator, `../scripts/create-signed-release.sh` provides a shared
-Herd/Nextcloud 35 signing and GitHub publication flow. Its optional `--appstore`
-mode submits the verified public GitHub asset to the Nextcloud App Store after
-checking for an existing version. Store credentials stay in the macOS Keychain.
-See that workspace's private README for setup and recovery. These private tools
-are not distributed in this repository or the installable app archive.
-
-The App Store derives the release channel from the app version: `0.7.0` is stable,
-while `0.7.0-beta.1` is a prerelease. GitHub's prerelease flag does not select the
-App Store channel. CoBudget retains beta descriptions with numeric versions such as `0.7.0`,
-so it remains in the App Store stable channel.
-
-The release assistant reads the version from `appinfo/info.xml`, verifies it
-against `package.json`, `package-lock.json`, and `CHANGELOG.md`, runs the test
-and build pipeline, reviews Git changes, and asks separately before creating a
-commit, tag, branch push, tag push, or GitHub asset upload:
+For a standalone checkout, install dependencies with `npm ci`, then run from the
+repository root using an installed Nextcloud, its compatible PHP executable,
+OpenSSL, and the matching CoBudget signing files:
 
 ```sh
-npm run release:assistant
+PHP_BIN=/path/to/php npm run release:signed -- \
+  /path/to/nextcloud/occ \
+  /path/to/cobudget.key \
+  /path/to/cobudget.crt
 ```
 
-Useful modes:
+The helper runs tests, builds the frontend, signs a temporary app copy and checks
+its runtime archive. Ensure `php` on `PATH` also supports the test suite;
+`PHP_BIN` selects the executable used for `occ`.
 
-```sh
-# Read-only preflight
-npm run release:assistant -- --check
+It writes `cobudget.tar.gz`, `cobudget.tar.gz.signature` and `SHA256SUMS` to the
+repository's parent directory, replacing files with those names. Keep the three
+artifacts together. This helper prepares files locally; publication belongs to
+the maintainer's release workflow.
 
-# Show the planned flow without changing anything
-npm run release:assistant -- --dry-run
+## Release channels and beta status
 
-# Include local Nextcloud signing
-PHP_BIN=/usr/bin/php84 npm run release:assistant -- --sign \
-  /absolute/path/to/nextcloud/occ \
-  ~/.nextcloud/certificates/cobudget.key \
-  ~/.nextcloud/certificates/cobudget.crt
+The App Store derives its distribution channel from the version: a numeric
+version such as `0.8.5` uses the stable channel, while `0.8.5-beta.1` is a
+prerelease. GitHub's prerelease flag does not select the App Store channel.
 
-# Resume after signing on another machine and copying the three artifacts back
-npm run release:assistant -- --upload-only
-```
-
-The assistant is resumable from Git state. If the matching tag already points
-to `HEAD`, it does not rebuild and overwrite an existing signed archive. It
-never overwrites tags and deliberately leaves the final inspection and
-publication of the GitHub draft as manual steps.
-
-The commands below document the equivalent manual fallback.
-
-The tag workflow creates a draft only when no release exists. It preserves an
-existing draft or published release, including its notes and assets, so an
-external local publisher can upload signed packages and publish without the
-workflow reverting the release to a draft.
-
-## 1. Verify And Tag The Release
-
-From the repository root:
-
-```sh
-VERSION="$(node -p "require('./package.json').version")"
-TAG="v$VERSION"
-npm ci
-npm run test
-git status
-git add .
-git commit -m "Prepare CoBudget $VERSION beta release"
-git push origin main
-git tag -a "$TAG" -m "CoBudget $VERSION"
-git push origin "$TAG"
-```
-
-The tag workflow verifies the version, tests the app, checks the runtime package, and creates a **draft prerelease without an installable archive**. This prevents an unsigned package from being published accidentally.
-
-## 2. Build And Sign Locally
-
-Run the release helper with the path to `occ`, the private key, and the certificate:
-
-```sh
-PHP_BIN=/usr/bin/php84 npm run release:signed -- \
-  /absolute/path/to/nextcloud/occ \
-  ~/.nextcloud/certificates/cobudget.key \
-  ~/.nextcloud/certificates/cobudget.crt
-```
-
-Use the correct PHP binary for the target Nextcloud installation. The command runs all tests, builds the frontend, creates an unsigned runtime package in a temporary directory, signs that package, and writes these files next to the `cobudget/` repository folder:
-
-- `cobudget.tar.gz`
-- `cobudget.tar.gz.signature`
-- `SHA256SUMS`
-
-Do not modify the archive after signing it. Any change requires rebuilding and signing again.
-
-Verify that the signed archive contains the required app files and no macOS metadata:
-
-```sh
-tar -tzf ../cobudget.tar.gz | grep '^cobudget/appinfo/signature.json$'
-if tar -tzf ../cobudget.tar.gz | grep -E '(^|/)(\._[^/]+|\.DS_Store)(/|$)'; then
-  echo "Release archive contains macOS metadata" >&2
-  exit 1
-fi
-shasum -a 256 -c ../SHA256SUMS
-```
-
-## 3. Upload And Publish The Draft
-
-Upload the locally signed artifacts:
-
-```sh
-VERSION="$(node -p "require('./package.json').version")"
-TAG="v$VERSION"
-gh release upload "$TAG" \
-  ../cobudget.tar.gz \
-  ../cobudget.tar.gz.signature \
-  ../SHA256SUMS \
-  --clobber
-```
-
-Inspect the draft on GitHub. Confirm that the installable archive contains the top-level `cobudget/` directory and `cobudget/appinfo/signature.json`. Then publish it as a beta prerelease:
-
-```sh
-gh release edit "$TAG" --draft=false --prerelease
-```
-
-Alternatively, upload the three files and publish the draft through the GitHub web interface.
-
-Do not install GitHub's automatically generated source archives. Only the attached, signed `cobudget.tar.gz` file is an installable Nextcloud app package.
-
-## 4. Nextcloud App Store
-
-For an App Store release, use the direct HTTPS URL of the signed GitHub release asset and paste the contents of `cobudget.tar.gz.signature` into the App Store signature field.
-
-The downloadable archive URL follows this pattern:
-
-```text
-https://github.com/whollaus/cobudget/releases/download/vX.Y.Z/cobudget.tar.gz
-```
-
-Keep the private key permanently. Future updates must be signed with the same key and certificate identity.
+This is separate from product maturity: **CoBudget 0.8.5 remains beta**, and
+1.0.0 is intended to be the first stable product release. Keep release notes and
+app descriptions consistent with that status.

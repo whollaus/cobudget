@@ -2,93 +2,36 @@
 	<NcContent
 		app-name="cobudget"
 		:class="{
-			'entry-sidebar-is-open': entrySidebarOpen,
+			'entry-sidebar-is-open': entrySidebarOpen || reminderSidebarOpen,
 		}">
 		<NcAppNavigation>
 			<template #list>
-				<NcAppNavigationItem :name="$texts.settings.myFinances()" :active="['personal', 'payments'].includes($route.name) && !$route.query.filter"
-					@click.prevent="navigateTo('/')" :allow-collapse="true" :open="true">
-					<template #icon>
-						<WalletIcon :size="20" />
-					</template>
-					<template #default>
-						<NcAppNavigationItem v-if="hasIncomes" :name="$texts.labels.incomePayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'income'"
-							@click.prevent="navigateTo('/?filter=income')">
-							<template #icon>
-								<TrendingUpIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem :name="$texts.settings.currentYear()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'currentYear'"
-							@click.prevent="navigateTo('/?filter=currentYear')">
-							<template #icon>
-								<CalendarIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasFuturePayments" :name="$texts.filters.futurePayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'future'"
-							@click.prevent="navigateTo('/?filter=future')">
-							<template #icon>
-								<CalendarSyncIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasImportantPayments" :name="$texts.labels.importantPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'important'"
-							@click.prevent="navigateTo('/?filter=important')">
-							<template #icon>
-								<StarIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasReviewPayments" :name="$texts.labels.reviewPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'review'"
-							@click.prevent="navigateTo('/?filter=review')">
-							<template #icon>
-								<ClipboardCheckIcon :size="20" />
-							</template>
-							<template #counter>
-								<div class="project-balance-dot negative review-alert-dot" :aria-label="$texts.labels.reviewPayments()"></div>
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasFixedCosts" :name="$texts.labels.fixedCostPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'fixedCost'"
-							@click.prevent="navigateTo('/?filter=fixedCost')">
-							<template #icon>
-								<BankIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasChildRelatedPayments" :name="$texts.labels.childPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'childRelated'"
-							@click.prevent="navigateTo('/?filter=childRelated')">
-							<template #icon>
-								<AccountChildIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasSubscriptions" :name="$texts.labels.subscriptionPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'subscription'"
-							@click.prevent="navigateTo('/?filter=subscription')">
-							<template #icon>
-								<SyncIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasTaxRelevantPayments" :name="$texts.labels.taxRelevantPayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'taxRelevant'"
-							@click.prevent="navigateTo('/?filter=taxRelevant')">
-							<template #icon>
-								<ReceiptTextCheckOutlineIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-						<NcAppNavigationItem v-if="hasInsurancePayments" :name="$texts.labels.insurancePayments()" :active="['personal', 'payments'].includes($route.name) && $route.query.filter === 'insurance'"
-							@click.prevent="navigateTo('/?filter=insurance')">
-							<template #icon>
-								<ShieldCheckOutlineIcon :size="20" />
-							</template>
-						</NcAppNavigationItem>
-					</template>
+				<NcAppNavigationItem :name="$texts.labels.allPayments()" :active="activePaymentView === ''" @click.prevent="navigateTo('/')">
+					<template #icon><CoBudgetIcon :size="20" /></template>
+				</NcAppNavigationItem>
+				<NcAppNavigationItem v-if="$enableIncomes" :name="$texts.labels.incomePayments()" :active="activePaymentView === 'income'" @click.prevent="navigateTo('/?filter=income')">
+					<template #icon><PlusIcon :size="20" /></template>
+				</NcAppNavigationItem>
+				<NcAppNavigationItem :name="$texts.dashboard.expenses()" :active="activePaymentView === 'expense'" @click.prevent="navigateTo('/?filter=expense')">
+					<template #icon><MinusIcon :size="20" /></template>
+				</NcAppNavigationItem>
+				<NcAppNavigationItem v-if="$enableFuturePayments" :name="$texts.dashboard.planned()" :active="activePaymentView === 'future'" @click.prevent="navigateTo('/?filter=future')">
+					<template #icon><CalendarSyncOutlineIcon :size="20" /></template>
 				</NcAppNavigationItem>
 
-				<NcAppNavigationItem v-if="$enableProjects" :name="$texts.settings.areas()" :active="$route.name === 'projects'" :allow-collapse="true"
+				<NcAppNavigationItem v-if="$enableReminders" :name="$texts.reminders.sidebar()" :active="$route.name === 'reminders'" @click.prevent="navigateTo('/reminders')"><template #icon><BellOutlineIcon :size="20" /></template></NcAppNavigationItem>
+                <NcAppNavigationSpacer v-if="$enableProjects" class="navigation-section-divider" role="separator" />
+				<NcAppNavigationItem v-if="$enableProjects" :name="$texts.settings.areas()" :active="$route.name === 'projects'" :allow-collapse="activeProjects.length > 0"
 					:open="true" @click.prevent="navigateTo('/projects')">
 					<template #icon>
-						<ViewGridIcon :size="20" />
+						<ViewGridOutlineIcon :size="20" />
 					</template>
-					<template #default>
+					<template v-if="activeProjects.length > 0" #default>
 						<NcAppNavigationItem v-for="project in activeProjects" :key="project.id" :name="project.name"
 							:active="isProjectItemActive(project)"
 							@click.prevent="navigateTo('/projects/' + project.id)">
 							<template #icon>
-								<FolderIcon :size="20" :fillColor="project.color || 'currentColor'" />
+								<AreaIcon :size="20" :color="project.color" />
 							</template>
 							<template #counter>
 								<div v-if="project.personal_balance && project.personal_balance !== 0"
@@ -100,12 +43,13 @@
 						</NcAppNavigationItem>
 					</template>
 				</NcAppNavigationItem>
+				<NcAppNavigationSpacer v-if="$enableProjects && activeProjects.length > 0" class="navigation-section-divider" role="separator" />
 
 				<NcAppNavigationItem v-if="$enableBudgetGoals" :name="$texts.budgetGoals.title()"
 					:active="['budgets', 'budget-new', 'budget-edit'].includes($route.name)"
 					@click.prevent="navigateTo('/budgets')">
 					<template #icon>
-						<WalletIcon :size="20" />
+						<WalletOutlineIcon :size="20" />
 					</template>
 				</NcAppNavigationItem>
 
@@ -114,31 +58,30 @@
 					<template #icon><ChartLineIcon :size="20" /></template>
 				</NcAppNavigationItem>
 
-				<div v-if="showWorkspaceSwitcher" class="workspace-switcher" style="margin-top: auto;"
-					@keydown.esc.stop.prevent="showWorkspaceMenu = false; $refs.workspaceToggle.focus()">
-					<button ref="workspaceToggle" type="button" class="workspace-current cobudget-focusable"
-						:aria-expanded="showWorkspaceMenu" aria-controls="cobudget-workspace-menu"
-						@click.stop="showWorkspaceMenu = !showWorkspaceMenu">
-						<SwapHorizontalIcon :size="20" />
-						<span class="workspace-label">{{ workspaceSwitcherLabel }}</span>
-						<ChevronDownIcon :size="16" />
-					</button>
-					<ul v-if="showWorkspaceMenu" id="cobudget-workspace-menu" class="workspace-menu">
-						<li v-for="w in visibleWorkspaces" :key="w.id">
-							<button type="button" class="workspace-menu-item cobudget-focusable"
-								:aria-current="w.id === activeWorkspaceId ? 'true' : undefined"
+				<div v-if="showWorkspaceSwitcher" class="workspace-switcher" style="margin-top: auto;">
+					<NcPopover popover-base-class="cobudget-menu-popover" v-model:shown="showWorkspaceMenu" class="workspace-popover" placement="top-start" :auto-size="true" popup-role="dialog" @after-show="focusActiveWorkspace">
+						<template #trigger>
+							<NcButton class="workspace-current" variant="tertiary" alignment="start" wide :title="workspaceSwitcherLabel">
+								<template #icon><SwapHorizontalIcon :size="20" /></template>
+								<span class="workspace-trigger-label"><span>{{ workspaceSwitcherLabel }}</span><ChevronDownIcon :size="16" /></span>
+							</NcButton>
+						</template>
+						<div ref="workspaceMenu" class="workspace-menu" role="dialog" :aria-label="$texts.settings.workspaces()">
+							<NcButton v-for="w in visibleWorkspaces" :key="w.id" class="workspace-menu-item cobudget-native-button" wide alignment="start"
+								:variant="w.id === activeWorkspaceId ? 'secondary' : 'tertiary'"
+								:aria-current="w.id === activeWorkspaceId ? 'true' : undefined" :title="w.name"
 								@click="switchWorkspace(w)">
-							{{ w.name }}
-							<span v-if="w.is_default" style="font-size: var(--cobudget-font-xxs); opacity: 0.6;">({{ $texts.workspaces.base() }})</span>
-							</button>
-						</li>
-					</ul>
+								<template #icon><CheckIcon v-if="w.id === activeWorkspaceId" :size="20" /><span v-else class="workspace-icon-placeholder" /></template>
+								<span class="workspace-option-label"><span>{{ w.name }}</span><span v-if="w.is_default" class="workspace-base-label">({{ $texts.workspaces.base() }})</span></span>
+							</NcButton>
+						</div>
+					</NcPopover>
 				</div>
 
 				<NcAppNavigationItem :name="$texts.settings.settings()" :active="$route.name === 'settings'"
 					@click.stop.prevent="navigateTo('/settings')" :style="showWorkspaceSwitcher ? '' : 'margin-top: auto'">
 					<template #icon>
-						<CogIcon :size="20" />
+						<CogOutlineIcon :size="20" />
 					</template>
 				</NcAppNavigationItem>
 			</template>
@@ -157,11 +100,11 @@
 					'content-wrapper--project-detail-viewport': ['project-detail', 'project-payments'].includes($route.name),
 				}">
 				<router-view
+					:key="['budget-new', 'budget-edit'].includes($route.name) ? $route.path : undefined"
 					v-bind="entryViewProps"
 					@open-project="openProject"
 					@refresh-projects="fetchProjects"
-					@open-entry-sidebar="openEntrySidebar"
-					@selected-entry-missing="onSelectedEntryMissing" />
+					@open-entry-sidebar="openEntrySidebar" />
 			</div>
 		</NcAppContent>
 
@@ -173,7 +116,7 @@
 				:aria-current="mobileFinancesActive ? 'page' : undefined"
 				@click="closeMobileNavigation">
 				<span class="mobile-bottom-navigation__icon" aria-hidden="true">
-					<WalletIcon :size="24" />
+					<WalletOutlineIcon :size="24" />
 				</span>
 				<span class="mobile-bottom-navigation__label">{{ $texts.mobileNavigation.finances() }}</span>
 			</router-link>
@@ -185,7 +128,7 @@
 				:aria-current="mobileAreasActive ? 'page' : undefined"
 				@click="closeMobileNavigation">
 				<span class="mobile-bottom-navigation__icon" aria-hidden="true">
-					<ViewGridIcon :size="24" />
+					<ViewGridOutlineIcon :size="24" />
 				</span>
 				<span class="mobile-bottom-navigation__label">{{ $texts.mobileNavigation.areas() }}</span>
 			</router-link>
@@ -208,13 +151,17 @@
 			@mode-changed="onEntrySidebarModeChanged"
 			@saved="onEntrySaved"
 			@closed="onEntrySidebarClosed" />
+		<ReminderSidebar v-if="$enableReminders && reminderSidebarReady" ref="reminderSidebar" @vue:mounted="onReminderSidebarReady" @open-changed="onReminderSidebarChanged" />
 		<TableFilters ref="globalTableFilters" style="display: none;" />
 	</NcContent>
 </template>
 
 <script>
-import { defineAsyncComponent } from 'vue'
+import { createShortcutHandler, PRINT_REPORT_EVENT } from './services/keyboardShortcuts'
+import { computed, defineAsyncComponent } from 'vue'
 import axios from './services/http'
+import { showRequestError, showToast } from './services/notifications'
+import { openPaymentLink } from './services/paymentLink'
 import { REMOTE_DATA_CHANGED_EVENT, startDataSync } from './services/dataSync'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { isReportView, reportLocation } from './services/reportNavigation'
@@ -222,59 +169,64 @@ import { shouldCloseEntrySidebarForRequest } from './utils/entrySidebarToggle'
 import { sortAreasByName } from './utils/areaSorting'
 import { hasPersonalEntryListRouteState, hasProjectEntryListRouteState } from './services/entryListRoute'
 import { generateUrl } from '@nextcloud/router'
-import { emit as emitNextcloudEvent } from '@nextcloud/event-bus'
+import { subscribe, unsubscribe, emit as emitNextcloudEvent } from '@nextcloud/event-bus'
+import CoBudgetIcon from './components/CoBudgetIcon.vue'
+import { titleNavigationLocation } from './services/titleNavigation'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
-import WalletIcon from 'vue-material-design-icons/Wallet.vue'
-import ViewGridIcon from 'vue-material-design-icons/ViewGrid.vue'
-import FolderIcon from 'vue-material-design-icons/Folder.vue'
-import CogIcon from 'vue-material-design-icons/Cog.vue'
-import SyncIcon from 'vue-material-design-icons/Sync.vue'
-import BankIcon from 'vue-material-design-icons/Bank.vue'
-import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
-import StarIcon from 'vue-material-design-icons/Star.vue'
-import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
-import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
-import ShieldCheckOutlineIcon from 'vue-material-design-icons/ShieldCheckOutline.vue'
-import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
-import CalendarIcon from 'vue-material-design-icons/Calendar.vue'
-import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'
+import NcAppNavigationSpacer from '@nextcloud/vue/components/NcAppNavigationSpacer'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcPopover from '@nextcloud/vue/components/NcPopover'
+import CheckIcon from 'vue-material-design-icons/Check.vue'
+import WalletOutlineIcon from 'vue-material-design-icons/WalletOutline.vue'
+import ViewGridOutlineIcon from 'vue-material-design-icons/ViewGridOutline.vue'
+import AreaIcon from './components/AreaIcon.vue'
+import CogOutlineIcon from 'vue-material-design-icons/CogOutline.vue'
+import CalendarSyncOutlineIcon from 'vue-material-design-icons/CalendarSyncOutline.vue'
+import { personalPaymentView } from './services/entryListRoute'
+import MinusIcon from 'vue-material-design-icons/Minus.vue'
+import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import SwapHorizontalIcon from 'vue-material-design-icons/SwapHorizontal.vue'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import ChartLineIcon from 'vue-material-design-icons/ChartLine.vue'
 
+import BellOutlineIcon from 'vue-material-design-icons/BellOutline.vue'
+const ReminderSidebar = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-reminder-sidebar" */ './components/ReminderSidebar.vue'))
 const EntrySidebar = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-entry-sidebar" */ './components/AddEntryModal.vue'))
 
 export default {
 	name: 'App',
 	components: {
-		EntrySidebar,
+		EntrySidebar, ReminderSidebar, BellOutlineIcon,
+		CoBudgetIcon,
 		NcContent,
 		NcAppContent,
 		NcAppNavigation,
 		NcAppNavigationItem,
-		WalletIcon,
-		ViewGridIcon,
-		FolderIcon,
-		CogIcon,
-		SyncIcon,
-		BankIcon,
-		AccountChildIcon,
-		StarIcon,
-		ClipboardCheckIcon,
-		ReceiptTextCheckOutlineIcon,
-		ShieldCheckOutlineIcon,
-		CalendarSyncIcon,
-		CalendarIcon,
-		TrendingUpIcon,
+		NcAppNavigationSpacer,
+		NcButton,
+		NcPopover,
+		CheckIcon,
+		WalletOutlineIcon,
+		ViewGridOutlineIcon,
+		AreaIcon,
+		CogOutlineIcon,
+		CalendarSyncOutlineIcon,
+		PlusIcon, MinusIcon,
 		SwapHorizontalIcon,
 		ChevronDownIcon,
 		ChartLineIcon
 	},
+	provide() {
+		return { appNavigation: computed(() => ({ open: this.navigationOpen, entries: this.titleNavigationEntries, areas: this.titleAreaEntries, years: this.navigationYears, navigate: this.navigateTitleMenu })) }
+	},
 	data() {
 		return {
+			shortcutOpening: false, reminderSidebarReady: false, reminderSidebarOpen: false, pendingReminder: null,
+			navigationOpen: window.matchMedia('(min-width: 1024px)').matches,
+			navigationYears: [],
 			projects: [],
 			workspaces: [],
 			tagCounts: {
@@ -295,15 +247,42 @@ export default {
 			entrySidebarOpen: false,
 			entrySidebarCreatingNew: false,
 			entrySidebarManuallyHidden: false,
-			selectedEntryId: null
+			selectedEntryId: null,
+			selectedReminderId: null
 		}
 	},
 	computed: {
+		titleAreaEntries() {
+			return sortAreasByName(this.projects.filter(project => !project.is_archived || String(project.id) === String(this.$route.params.id)))
+				.map(project => ({ id: `area:${project.id}`, areaId: project.id, kind: 'area', label: project.name, color: project.color, current: this.$route.name === 'project-detail' && String(this.$route.params.id) === String(project.id) }))
+		},
+		activePaymentView() {
+			return ['personal', 'payments'].includes(this.$route.name) ? personalPaymentView(this.$route.query) : null
+		},
+		titleNavigationEntries() {
+			const payment = (id, label, visible = true) => ({ id, label, visible, period: true, kind: 'payment', current: this.activePaymentView === id })
+			return [
+				payment('', this.$texts.labels.allPayments()),
+				payment('income', this.$texts.labels.incomePayments(), this.$enableIncomes),
+				payment('expense', this.$texts.dashboard.expenses()),
+				payment('future', this.$texts.dashboard.planned(), this.$enableFuturePayments),
+				{ id: 'reminders', visible: this.$enableReminders, label: this.$texts.reminders.sidebar(), current: this.$route.name === 'reminders' },
+				{ id: 'projects', label: this.$texts.settings.areas(), visible: this.$enableProjects, current: this.$route.name === 'projects' },
+				{ id: 'budgets', label: this.$texts.budgetGoals.title(), visible: this.$enableBudgetGoals, current: this.$route.name === 'budgets' },
+				{ id: 'annual-overview', label: this.$texts.annual.title(), period: true, kind: 'report', current: this.$route.name === 'annual-overview' && this.$route.query.detailType === undefined },
+				{ id: 'settings', label: this.$texts.settings.settings(), current: this.$route.name === 'settings' },
+			].filter(item => item.visible !== false).map((item, index, entries) => ({
+				...item,
+				section: index > 0 && item.kind !== 'payment' && item.id !== 'reminders' && (entries[index - 1].kind === 'payment' || entries[index - 1].id === 'reminders'),
+			}))
+		},
 		entryViewProps() {
+			if (this.$route?.name === 'reminders') return { selectedReminderId: this.selectedReminderId };
 			return ['personal', 'payments', 'project-detail', 'project-payments', 'annual-overview'].includes(this.$route?.name)
 				? {
 					selectedEntryId: this.selectedEntryId,
-					hideNewPaymentAction: this.entrySidebarCreatingNew
+					...(['project-detail', 'project-payments'].includes(this.$route.name) ? { hideNewPaymentAction: this.entrySidebarCreatingNew } : {}),
+					...(['personal', 'payments'].includes(this.$route.name) ? { navigationTagCounts: this.tagCounts } : {})
 				}
 				: {};
 		},
@@ -328,65 +307,52 @@ export default {
 			return ['personal', 'payments'].includes(this.$route?.name);
 		},
 		mobileAreasActive() {
-			return ['projects', 'project-detail', 'project-payments', 'project-settings', 'project-settlements'].includes(this.$route?.name);
+			return ['projects', 'project-new', 'project-detail', 'project-payments', 'project-settings', 'project-settlements'].includes(this.$route?.name);
 		},
 		mobileReportsActive() {
 			return isReportView(this.$route?.name);
 		},
 		mobileReportsRoute() {
 			return reportLocation(this.$route);
-		},
-		hasIncomes() {
-			return this.$enableIncomes && this.tagCounts.income > 0;
-		},
-		hasFuturePayments() {
-			return this.$enableFuturePayments && this.tagCounts.future > 0;
-		},
-		hasImportantPayments() {
-			return this.$enableImportantPayments && this.tagCounts.important > 0;
-		},
-		hasReviewPayments() {
-			return this.$enableReviewPayments && this.tagCounts.review > 0;
-		},
-		hasFixedCosts() {
-			return this.$enableFixedCosts && this.tagCounts.fixedCosts > 0;
-		},
-		hasChildRelatedPayments() {
-			return this.$enableChildRelated && this.tagCounts.childRelated > 0;
-		},
-		hasSubscriptions() {
-			return this.$enableSubscriptions && this.tagCounts.subscriptions > 0;
-		},
-		hasTaxRelevantPayments() {
-			return this.$enableTaxRelevant && this.tagCounts.taxRelevant > 0;
-		},
-		hasInsurancePayments() {
-			return this.$enableInsurance && this.tagCounts.insurance > 0;
 		}
 	},
 	watch: {
-		async $route() {
+		async $route(to, from) {
 			this.showWorkspaceMenu = false;
+			// Filters, sorting and pagination change the list, not the payment draft.
+			if (from && to.path === from.path && (!to.query?.openPayment || (to.query.openPayment === from.query?.openPayment && to.query.workspace === from.query?.workspace))) return;
 			await this.syncEntrySidebarForRoute();
 		}
 	},
 	created() {
+		subscribe('navigation-toggled', this.onNavigationToggled)
 		startDataSync()
 	},
 	async mounted() {
+		this.keyboardShortcutHandler = createShortcutHandler({
+			root: () => this.$el,
+			available: action => action === 'new' || (action === 'save' ? (!!this.$refs.globalEntrySidebar?.isOpen || this.reminderSidebarOpen) : ['annual-overview', 'personal', 'payments'].includes(this.$route.name)),
+			blocked: action => this.shortcutOpening || !!this.$refs.reminderSidebar?.busy || !!this.$refs.globalEntrySidebar?.loading || !!this.$refs.globalEntrySidebar?.isInitializingEntry || (action === 'print' && this.entrySidebarOpen),
+			run: action => this.runKeyboardShortcut(action),
+		});
+		window.addEventListener('cobudget-open-reminder', this.openReminderSidebar);
+		window.addEventListener('cobudget-delete-reminder', this.deleteReminderFromList);
+		window.addEventListener('cobudget-postpone-reminder', this.postponeReminderFromList);
+		window.addEventListener('cobudget-reminder-choose-date', this.chooseReminderDateFromList);
+		window.addEventListener('keydown', this.keyboardShortcutHandler);
 		if (this.$enableProjects) {
 			await this.fetchProjects()
 		}
 		this.fetchNavigationSummary()
 		if (this.$enableWorkspaces) {
-			this.fetchWorkspaces()
+			await this.fetchWorkspaces()
 		}
 		window.addEventListener('open-add-modal', this.openEntrySidebar)
 		window.addEventListener('open-entry-sidebar', this.openEntrySidebar)
 		window.addEventListener('workspaces-updated', this.onWorkspacesUpdated)
 		window.addEventListener('cobudget-data-changed', this.refreshNavigationData)
+		window.addEventListener('cobudget-settings-changed', this.refreshNavigationData)
 		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.refreshNavigationData)
-		window.addEventListener('click', this.closeWorkspaceMenu)
 		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
 			this.entrySidebarWideMedia = window.matchMedia('(min-width: 1025px)')
 			this.entrySidebarWideMedia.addEventListener?.('change', this.onEntrySidebarViewportChange)
@@ -394,15 +360,65 @@ export default {
 		await this.syncEntrySidebarForRoute()
 	},
 	beforeUnmount() {
+		window.removeEventListener('cobudget-open-reminder', this.openReminderSidebar);
+		window.removeEventListener('cobudget-delete-reminder', this.deleteReminderFromList);
+		window.removeEventListener('cobudget-postpone-reminder', this.postponeReminderFromList);
+		window.removeEventListener('cobudget-reminder-choose-date', this.chooseReminderDateFromList);
+		window.removeEventListener('keydown', this.keyboardShortcutHandler);
+		unsubscribe('navigation-toggled', this.onNavigationToggled)
 		window.removeEventListener('open-add-modal', this.openEntrySidebar)
 		window.removeEventListener('open-entry-sidebar', this.openEntrySidebar)
 		window.removeEventListener('workspaces-updated', this.onWorkspacesUpdated)
 		window.removeEventListener('cobudget-data-changed', this.refreshNavigationData)
+		window.removeEventListener('cobudget-settings-changed', this.refreshNavigationData)
 		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.refreshNavigationData)
-		window.removeEventListener('click', this.closeWorkspaceMenu)
 		this.entrySidebarWideMedia?.removeEventListener?.('change', this.onEntrySidebarViewportChange)
 	},
 	methods: {
+        onReminderSidebarChanged(open, id = null) {
+            this.reminderSidebarOpen = open;
+            this.selectedReminderId = open ? id : null;
+        },
+        onReminderSidebarReady() {
+            if (this.pendingReminder && this.$route.name === 'reminders') {
+                this.performReminderAction(this.pendingReminder.row, this.pendingReminder.options);
+                this.pendingReminder = null;
+            }
+        },
+        performReminderAction(row, options) {
+            return options.postponeAt !== undefined
+                ? this.$refs.reminderSidebar.postpone(row, options.postponeAt)
+                : this.$refs.reminderSidebar.open(row, options);
+        },
+        postponeReminderFromList(event) { return this.openReminderSidebar({ detail: event.detail.row }, { postponeAt: event.detail.remindAt }); },
+        chooseReminderDateFromList(event) { return this.openReminderSidebar(event, { focusDate: true }); },
+        deleteReminderFromList(event) { return this.openReminderSidebar(event, { confirmDelete: true }); },
+        async openReminderSidebar(event = null, options = {}) {
+            if (this.$enableReminders === false) return;
+            const row = event?.detail || null;
+            if (this.$refs.reminderSidebar) return this.performReminderAction(row, options);
+            this.pendingReminder = { row, options };
+            this.reminderSidebarReady = true;
+        },
+        async runKeyboardShortcut(action) {
+            if (action === 'save' && this.reminderSidebarOpen) { await this.$refs.reminderSidebar.save(); return; }
+            if (action === 'new' && this.$route?.name === 'reminders') { await this.openReminderSidebar(); return; }
+			if (action === 'save') {
+				const sidebar = this.$refs.globalEntrySidebar;
+				if (sidebar?.isOpen && !sidebar.isSaveDisabled) await sidebar.saveEntry();
+			} else if (action === 'print') {
+				window.dispatchEvent(new CustomEvent(PRINT_REPORT_EVENT));
+			} else {
+				this.shortcutOpening = true;
+				try { await this.openEntrySidebar({ forceNew: true }); }
+				finally { this.shortcutOpening = false; }
+			}
+		},
+		onNavigationToggled({ open }) { this.navigationOpen = open },
+		navigateTitleMenu(item, selection) {
+			if (item.current && !selection) return
+			this.navigateTo(titleNavigationLocation(item, selection))
+		},
 		normalizeTagCounts(payload) {
 			const counts = payload && typeof payload === 'object' ? payload : {};
 			return {
@@ -427,6 +443,7 @@ export default {
 					}
 				});
 				this.tagCounts = this.normalizeTagCounts(response.data?.tagCounts || {});
+				this.navigationYears = Array.isArray(response.data?.years) ? response.data.years : [];
 			} catch (error) {
 				console.error('Error fetching navigation summary:', error);
 			}
@@ -510,6 +527,8 @@ export default {
 			};
 		},
 		switchWorkspace(w) {
+			this.showWorkspaceMenu = false;
+			if (!w || w.id === this.activeWorkspaceId) return;
 			this.activeWorkspaceId = w.id;
 			writeWorkspaceId(w.id);
 			this.showWorkspaceMenu = false;
@@ -517,10 +536,8 @@ export default {
 			window.location.hash = '#/';
 			window.location.reload();
 		},
-		closeWorkspaceMenu(e) {
-			if (!e.target.closest('.workspace-switcher')) {
-				this.showWorkspaceMenu = false;
-			}
+		focusActiveWorkspace() {
+			this.$refs.workspaceMenu?.querySelector('[aria-current="true"]')?.focus({ preventScroll: true });
 		},
 		async waitForEntrySidebarRef() {
 			for (let i = 0; i < 30; i++) {
@@ -542,11 +559,13 @@ export default {
 					: {};
 			const routeProjectId = this.routeProjectId();
 			const projectId = payload.projectId ?? routeProjectId;
-			const entryToEdit = payload.entry || null;
+			const entryToEdit = payload.entry
+				? { ...payload.entry, date: payload.entry.original_date ?? payload.entry.date }
+				: null;
 			const entryToDuplicate = payload.entryToDuplicate || null;
 			const editingFuture = payload.isEditingFuture || payload.isFuture || false;
 			const defaultType = this.sanitizeEntryType(payload.defaultType || this.routeDefaultEntryType());
-			const projectSelectionLocked = this.$route?.name === 'project-detail' && projectId !== null;
+			const preferAreaDropdown = this.$route?.name === 'project-detail' && projectId !== null;
 			const requestedSelectedEntryId = entryToEdit
 				? (payload.selectedEntryId ?? entryToEdit.id ?? null)
 				: null;
@@ -558,7 +577,7 @@ export default {
 				return;
 			}
 
-			const shouldCloseSidebar = this.shouldCloseEntrySidebar(sidebar, {
+			const shouldCloseSidebar = !payload.forceNew && this.shouldCloseEntrySidebar(sidebar, {
 				entryToEdit,
 				entryToDuplicate,
 				requestedSelectedEntryId,
@@ -584,7 +603,9 @@ export default {
 				editingFuture,
 				entryToDuplicate,
 				defaultType,
-				projectSelectionLocked
+				preferAreaDropdown,
+				false,
+				requestedSelectedEntryId
 			);
 		},
 		shouldCloseEntrySidebar(sidebar, {
@@ -646,6 +667,21 @@ export default {
 			this.entrySidebarCreatingNew = false;
 			this.selectedEntryId = null;
 
+			if (this.$route.query.openPayment) {
+				const route = this.$route;
+				await openPaymentLink(route.query, {
+					current: () => this.$route === route,
+					activeWorkspace: readWorkspaceId,
+					workspaces: async () => (await axios.get(generateUrl('/apps/cobudget/api/workspaces'), { skipWorkspaceHeader: true })).data,
+					switchWorkspace: id => { writeWorkspaceId(id); window.location.reload(); },
+					getEntry: async id => (await axios.get(generateUrl(`/apps/cobudget/api/entries/${id}`))).data.entry,
+					open: entry => this.openEntrySidebar({ entry, projectId: entry.project_id || null }),
+					settled: () => showToast(this.$texts.areaDetail.entrySettledInfo(), 'info'),
+					error: error => showRequestError(error, this.$texts.dashboard.paymentsLoadError(), 'Failed to open linked payment'),
+				});
+				return;
+			}
+
 			if (this.entrySidebarManuallyHidden || !this.isWideEntrySidebarViewport() || !this.routeSupportsOpenEntrySidebar()) {
 				return;
 			}
@@ -677,21 +713,6 @@ export default {
 		},
 		onEntrySidebarModeChanged({ isOpen = false, isCreatingNewEntry = false } = {}) {
 			this.entrySidebarCreatingNew = Boolean(isOpen && isCreatingNewEntry);
-		},
-		async onSelectedEntryMissing(entryId) {
-			if (String(entryId ?? '') !== String(this.selectedEntryId ?? '')) {
-				return;
-			}
-
-			this.selectedEntryId = null;
-			const sidebar = this.$refs.globalEntrySidebar;
-			if (sidebar?.isOpen && sidebar.isEditing) {
-				await this.openEntrySidebar({
-					projectId: this.routeProjectId(),
-					isFuture: this.$route?.query?.filter === 'future',
-					defaultType: this.routeDefaultEntryType()
-				});
-			}
 		},
 		routeDefaultEntryType() {
 			return this.$enableIncomes && ['personal', 'payments'].includes(this.$route?.name) && this.$route?.query?.filter === 'income'
@@ -746,6 +767,19 @@ export default {
 
 <style scoped>
 
+.navigation-section-divider {
+	position: relative;
+}
+
+.navigation-section-divider::after {
+	content: '';
+	position: absolute;
+	inset-inline: var(--default-clickable-area, 44px) var(--default-grid-baseline, 4px);
+	inset-block-start: 50%;
+	border-block-start: 1px solid var(--color-border-dark);
+}
+
+
 :global(#content.app-cobudget #app-content),
 :global(#content.app-cobudget .app-content-vue),
 :global(#content.app-cobudget .app-content) {
@@ -753,9 +787,11 @@ export default {
 }
 
 .content-wrapper {
+	--cobudget-content-inset-start: 15px;
+	--cobudget-content-inset-end: 10px;
 	max-width: 100%;
 	margin: 0;
-	padding: 5px 10px 10px 15px;
+	padding: 5px var(--cobudget-content-inset-end) 10px var(--cobudget-content-inset-start);
 	background: transparent;
 	border-radius: 0;
 	box-shadow: none;
@@ -775,16 +811,25 @@ export default {
 
 	:global(#content.app-cobudget .app-content.cobudget-main-content) {
 		box-sizing: border-box;
-		padding: var(--cobudget-shell-gap);
+		padding: 0;
+		/* Paint the native scrollbar channel as part of the work surface. */
+		background: var(--cobudget-page-background, var(--color-main-background));
+		border-radius: var(--cobudget-shell-radius);
+	}
+
+	:global(#content.app-cobudget .content.entry-sidebar-is-open .app-content.cobudget-main-content) {
+		padding-inline-end: var(--cobudget-shell-gap);
 		background: transparent;
+		border-radius: 0;
 	}
 
 	:global(#content.app-cobudget .app-navigation__content > ul) {
 		padding-block-start: var(--cobudget-shell-gap);
-		padding-inline-end: 0;
 	}
 
 	.content-wrapper {
+		--cobudget-content-inset-start: var(--cobudget-content-inline-padding);
+		--cobudget-content-inset-end: var(--cobudget-content-inline-padding);
 		box-sizing: border-box;
 		min-height: 100%;
 		padding-inline: var(--cobudget-content-inline-padding);
@@ -796,8 +841,6 @@ export default {
 @media (min-width: 1024px) {
 	:global(#content.app-cobudget .content:not(.content--legacy) .app-navigation:not(.app-navigation--closed):not(.app-navigation--close) ~ .app-content.cobudget-main-content) {
 		border-inline-start: 0 !important;
-		border-start-start-radius: 0 !important;
-		border-end-start-radius: 0 !important;
 	}
 }
 
@@ -851,76 +894,11 @@ export default {
 	backdrop-filter: none !important;
 }
 
-:global(#content.app-cobudget #app-navigation .app-navigation-entry),
-:global(#content.app-cobudget .app-navigation-entry),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry-link),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry-button),
-:global(#content.app-cobudget .app-navigation-entry-link),
-:global(#content.app-cobudget .app-navigation-entry-button) {
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-	position: relative;
-}
-
-:global(#content.app-cobudget #app-navigation .app-navigation-entry__title),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry__name),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry__utils),
-:global(#content.app-cobudget .app-navigation-entry__title),
-:global(#content.app-cobudget .app-navigation-entry__name),
-:global(#content.app-cobudget .app-navigation-entry__utils) {
-	color: inherit !important;
-}
-
-:global(#content.app-cobudget #app-navigation .app-navigation-entry:hover),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry:focus-visible),
-:global(#content.app-cobudget .app-navigation-entry:hover),
-:global(#content.app-cobudget .app-navigation-entry:focus-visible) {
-	background-color: var(--cobudget-navigation-hover-background, var(--color-background-hover, #f5f5f5)) !important;
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-	opacity: 1 !important;
-}
-
-:global(#content.app-cobudget #app-navigation .app-navigation-entry--active),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry.active),
-:global(#content.app-cobudget .app-navigation-entry--active),
-:global(#content.app-cobudget .app-navigation-entry.active) {
-	background-color: var(--cobudget-navigation-active-background, var(--color-primary-element-light, var(--color-background-hover, #e6f4fb))) !important;
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-	opacity: 1 !important;
-	box-shadow: none !important;
-	position: relative;
-}
-
-:global(#content.app-cobudget #app-navigation .app-navigation-entry--active::before),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry.active::before),
-:global(#content.app-cobudget .app-navigation-entry--active::before),
-:global(#content.app-cobudget .app-navigation-entry.active::before) {
-	content: '';
-	position: absolute;
-	top: 8px;
-	bottom: 8px;
-	left: 0;
-	width: 4px;
-	border-radius: 0 var(--border-radius-pill, 999px) var(--border-radius-pill, 999px) 0;
-	background-color: var(--color-primary-element, var(--cobudget-primary, #0082c9));
-	pointer-events: none;
-}
-
-:global(#content.app-cobudget #app-navigation .app-navigation-entry--active .app-navigation-entry-link),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry--active .app-navigation-entry-button),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry.active .app-navigation-entry-link),
-:global(#content.app-cobudget #app-navigation .app-navigation-entry.active .app-navigation-entry-button),
-:global(#content.app-cobudget .app-navigation-entry--active .app-navigation-entry-link),
-:global(#content.app-cobudget .app-navigation-entry--active .app-navigation-entry-button),
-:global(#content.app-cobudget .app-navigation-entry.active .app-navigation-entry-link),
-:global(#content.app-cobudget .app-navigation-entry.active .app-navigation-entry-button) {
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-}
-
 @media (max-width: 768px) {
 	:global(#content.app-cobudget) {
 		--cobudget-mobile-content-padding: calc(var(--default-grid-baseline, 4px) * 2.5);
 		--cobudget-mobile-bottom-navigation-height: calc(64px + env(safe-area-inset-bottom, 0px));
-		--cobudget-mobile-fab-size: calc(var(--default-grid-baseline, 4px) * 16);
+		--cobudget-mobile-fab-size: var(--cobudget-mobile-touch-size, 44px);
 		--cobudget-mobile-fab-inline-offset: max(calc(var(--default-grid-baseline, 4px) * 4), env(safe-area-inset-right, 0px));
 		--cobudget-mobile-fab-pagination-lift: calc(var(--default-grid-baseline, 4px) * 10);
 		--cobudget-mobile-fab-pagination-lane: calc(var(--cobudget-mobile-fab-size) + var(--default-grid-baseline, 4px) * 3);
@@ -1027,22 +1005,6 @@ export default {
 		backdrop-filter: none !important;
 	}
 
-	:global(#content.app-cobudget #app-navigation .app-navigation-entry:hover),
-	:global(#content.app-cobudget #app-navigation .app-navigation-entry:focus-visible),
-	:global(#content.app-cobudget .app-navigation-entry:hover),
-	:global(#content.app-cobudget .app-navigation-entry:focus-visible) {
-		background-color: var(--cobudget-navigation-hover-background, var(--color-background-hover, #f5f5f5)) !important;
-		opacity: 1 !important;
-	}
-
-	:global(#content.app-cobudget #app-navigation .app-navigation-entry--active),
-	:global(#content.app-cobudget #app-navigation .app-navigation-entry.active),
-	:global(#content.app-cobudget .app-navigation-entry--active),
-	:global(#content.app-cobudget .app-navigation-entry.active) {
-		background-color: var(--cobudget-navigation-active-background, var(--color-primary-element-light, var(--color-background-hover, #e6f4fb))) !important;
-		color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-		opacity: 1 !important;
-	}
 }
 
 @media (max-width: 768px) and (hover: hover) and (pointer: fine) {
@@ -1091,9 +1053,6 @@ export default {
 	background-color: var(--cobudget-error);
 }
 
-.review-alert-dot {
-	margin-right: 2px;
-}
 </style>
 
 <style>
@@ -1102,7 +1061,7 @@ export default {
 	display: none !important;
 }
 
-.app-navigation-toggle {
+#content.app-cobudget .app-navigation-toggle {
 	position: absolute !important;
 	top: -1px !important;
 	left: -35px !important;
@@ -1110,15 +1069,29 @@ export default {
 	margin: 0 !important;
 }
 
+/* NcAppNavigation has no icon slot: retain its native button and state handling,
+ * and replace only the glyph with the DockLeft symbol used by Files. */
+#content.app-cobudget .app-navigation-toggle .icon-vue {
+	background-color: currentColor;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 4H4A2 2 0 0 0 2 6V18A2 2 0 0 0 4 20H20A2 2 0 0 0 22 18V6A2 2 0 0 0 20 4M20 18H9V6H20Z'/%3E%3C/svg%3E") center / 20px 20px no-repeat;
+}
+
+#content.app-cobudget .app-navigation-toggle .icon-vue svg {
+	visibility: hidden;
+}
+
 @media (min-width: 1025px) {
-	.app-navigation-toggle {
-		top: calc(var(--default-grid-baseline, 4px) * 3) !important;
-		left: -25px !important;
+	#content.app-cobudget .app-navigation-toggle-wrapper {
+		inset-inline-end: calc(0px - var(--app-navigation-padding));
+	}
+
+	#content.app-cobudget .app-navigation-toggle {
+		position: static !important;
 	}
 }
 
 @media (max-width: 768px) {
-	.app-navigation-toggle {
+	#content.app-cobudget .app-navigation-toggle {
 		margin-top: 5px !important;
 	}
 }
@@ -1141,70 +1114,38 @@ export default {
 	width: 100%;
 	border-top: 1px solid var(--cobudget-border, #ddd);
 }
-.workspace-current {
-	margin: 0;
-	border: 0;
-	background: transparent;
-	color: var(--cobudget-text);
-	text-align: start;
+.workspace-popover { width: 100%; }
+.workspace-current .button-vue__text { flex: 1; }
+.workspace-trigger-label,
+.workspace-option-label {
 	display: flex;
+	text-align: start;
 	align-items: center;
-	gap: 8px;
-	box-sizing: border-box;
-	min-height: var(--default-clickable-area, 44px);
-	padding: 0 12px;
-	width: 100%;
-	cursor: pointer;
-	border-radius: var(--border-radius-element, var(--border-radius, 6px));
-	user-select: none;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
+	min-width: 0;
 }
-.workspace-current:hover {
-	background: var(--cobudget-surface-muted, #f0f0f0);
-}
-.workspace-label {
+.workspace-trigger-label > span:first-child,
+.workspace-option-label > span:first-child {
 	flex: 1;
-	font-weight: 600;
-	font-size: var(--cobudget-font-base);
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+.workspace-trigger-label > .material-design-icon,
+.workspace-base-label { flex-shrink: 0; }
+.workspace-base-label {
+	font-size: var(--cobudget-font-compact);
+	color: var(--color-text-maxcontrast);
+	font-weight: var(--font-weight-default, normal);
+}
 .workspace-menu {
-	position: absolute;
-	bottom: 100%;
-	left: 0;
-	right: 0;
-	background: var(--cobudget-page-background, #fff);
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	box-shadow: var(--cobudget-shadow-md);
-	list-style: none;
-	padding: var(--cobudget-menu-padding);
-	margin: 0 0 4px 0;
-	z-index: 1000;
+	display: grid;
+	gap: var(--default-grid-baseline, 4px);
+	box-sizing: border-box;
+	padding: calc(var(--default-grid-baseline, 4px) * 2);
+	max-height: min(60vh, 400px);
+	overflow-y: auto;
 }
-.workspace-menu-item {
-	width: 100%;
-	min-height: var(--cobudget-menu-item-height);
-	margin: 0;
-	border: 0;
-	border-radius: var(--cobudget-menu-item-radius);
-	background: transparent;
-	color: var(--cobudget-text);
-	font-weight: 400;
-	text-align: start;
-	white-space: normal;
-	overflow-wrap: anywhere;
-	padding: 8px 12px;
-	cursor: pointer;
-	font-size: var(--cobudget-font-base);
-}
-.workspace-menu-item:hover,
-.workspace-menu-item:focus-visible {
-	background: var(--cobudget-surface-muted, #f0f0f0);
-}
-.workspace-menu-item[aria-current="true"] {
-	font-weight: bold;
-	color: var(--color-primary, #0082c9);
-}
+.workspace-icon-placeholder { width: 20px; height: 20px; }
 </style>

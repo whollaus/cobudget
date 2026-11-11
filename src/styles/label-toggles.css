@@ -1,0 +1,73 @@
+.tags-toggles {
+	display: flex;
+	gap: 12px;
+	flex-wrap: wrap;
+	min-height: 44px;
+	align-items: center;
+}
+
+.tag-toggle {
+	position: relative;
+	cursor: pointer;
+}
+
+.tag-toggle input {
+	position: absolute;
+	opacity: 0;
+	cursor: pointer;
+	height: 0;
+	width: 0;
+}
+
+.tag-btn { font-size: var(--font-size, 15px); font-weight: var(--font-weight-default, normal); line-height: normal; letter-spacing: normal; }
+.tag-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: calc(var(--default-grid-baseline, 4px) * 1.5);
+	padding: 4px 8px;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	border-radius: var(--border-radius-element);
+	border: none;
+	box-shadow: inset 0 0 0 1px var(--color-border-maxcontrast);
+	cursor: pointer;
+}
+
+.tag-toggle input:focus-visible + .tag-btn {
+	outline: 2px solid var(--cobudget-text, var(--color-main-text, #222));
+	outline-offset: 2px;
+}
+
+.tag-toggle input:disabled + .tag-btn {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.tag-toggle input:checked + .tag-btn {
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
+	box-shadow: inset 0 0 0 1px var(--color-primary-element);
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.tag-toggle:hover input:not(:disabled):not(:checked) + .tag-btn {
+		box-shadow: inset 0 0 0 var(--border-width-input-focused, 2px) var(--color-border-maxcontrast);
+	}
+
+	.tag-toggle:hover input:not(:disabled):checked + .tag-btn {
+		box-shadow: inset 0 0 0 var(--border-width-input-focused, 2px) var(--color-primary-element-hover);
+	}
+
+}
+
+@media (max-width: 768px) {
+	.tag-btn {
+		display: inline-flex;
+		align-items: center;
+		box-sizing: border-box;
+		min-height: var(--cobudget-mobile-touch-size, 44px);
+	}
+}
+
+.tag-btn { transition: box-shadow var(--cobudget-hover-duration) linear; }
+.tag-toggle input:is(:checked, :focus-visible, :disabled) + .tag-btn { transition: none; }

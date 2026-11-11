@@ -1,3 +1,19 @@
+/* Native form typography shared by settings and teleported master-data editors.
+ * Explicit opt-in keeps payment/sidebar forms on their own layouts. */
+fieldset.cobudget-form-group {
+	--form-element-label-offset: 0px;
+	--font-weight-heading: var(--font-weight-element, 500);
+	min-width: 0;
+	font-size: var(--font-size, 15px);
+	color: var(--color-main-text);
+}
+.cobudget-form-label { font: inherit; color: inherit; }
+.cobudget-form-hint {
+	font-size: var(--font-size, 15px);
+	font-weight: var(--font-weight-default, normal);
+	color: var(--color-text-maxcontrast);
+}
+
 /* Opt-in fields also work in teleported dialogs and the admin settings entry.
  * The payment sidebar keeps its compound amount/lookup controls and shares
  * these tokens instead of applying independent states to their segments. */
@@ -21,7 +37,7 @@
 	font-size: var(--cobudget-font-base);
 	line-height: 1.4;
 	box-shadow: none;
-	transition: border-color 0.15s ease;
+	transition: border-color var(--cobudget-hover-duration) linear;
 }
 
 .form-control[data-cobudget-field]::placeholder {
@@ -45,6 +61,7 @@
 }
 
 .form-control[data-cobudget-field]:disabled {
+	border-color: var(--cobudget-border-strong);
 	background: var(--cobudget-surface-muted);
 	color: var(--cobudget-text-muted);
 	cursor: not-allowed;
@@ -58,18 +75,6 @@ textarea.form-control[data-cobudget-field] {
 	resize: vertical;
 }
 
-/* Neutral secondary actions are an intentional CoBudget variant. Native
- * primary/error/tertiary buttons and report text tabs keep their own roles. */
-:where(#content.app-cobudget, #cobudget-settings, .settings-modal, .project-create-modal) .button-vue.button-vue--secondary {
-	background-color: var(--cobudget-surface-muted);
-	border-color: transparent;
-	color: var(--cobudget-text);
-}
-
-:where(#content.app-cobudget, #cobudget-settings, .settings-modal, .project-create-modal) .button-vue.button-vue--secondary:hover:not(:disabled) {
-	background-color: var(--cobudget-surface-strong);
-}
-
 /* Explicit utility for custom controls: native NcButton already supplies
  * its own keyboard focus. Keep this independent of hover and selection. */
 .cobudget-focusable:focus-visible {
@@ -78,12 +83,12 @@ textarea.form-control[data-cobudget-field] {
 }
 
 .cobudget-interactive-card {
-	transition: background-color 0.15s ease, border-color 0.15s ease;
+	transition: background-color var(--cobudget-hover-duration) linear, border-color var(--cobudget-hover-duration) linear;
 }
 
 .cobudget-interactive-card:hover:not(:disabled),
 .cobudget-interactive-card:focus-visible:not(:disabled) {
-	background-color: var(--cobudget-surface-muted);
+	background-color: var(--cobudget-interaction-hover);
 	border-color: var(--cobudget-primary);
 	box-shadow: var(--cobudget-card-hover-shadow);
 }
@@ -100,3 +105,213 @@ textarea.form-control[data-cobudget-field] {
 		transition: none;
 	}
 }
+
+/* Native inputs and textareas share the select outline. Keep the component's
+ * --input-border-color so error/success and theme colors continue to apply.
+ * Explicit classes also cover teleported forms without styling Nextcloud itself. */
+.cobudget-native-field:is(.input-field, .textarea) :is(.input-field__input, .textarea__input) {
+	border: none;
+	box-shadow: inset 0 0 0 1px var(--input-border-color, var(--color-border-maxcontrast));
+}
+@media (hover: hover) and (pointer: fine) {
+	.cobudget-native-field:is(.input-field, .textarea) :is(.input-field__input, .textarea__input):hover:not(:disabled) {
+		box-shadow: inset 0 0 0 var(--border-width-input-focused, 2px) var(--input-border-color, var(--color-border-maxcontrast));
+	}
+}
+.cobudget-native-field:is(.input-field, .textarea) :is(.input-field__input, .textarea__input):is(:focus, :focus-visible, :active):not(:disabled) {
+	outline: none !important;
+	box-shadow: inset 0 0 0 var(--border-width-input-focused, 2px) var(--input-border-color, var(--color-main-text)) !important;
+}
+
+/* Give native selects an even field outline instead of NcSelect's asymmetric
+ * input shadow. Inset rings avoid clipping and do not change control geometry.
+ * Open menus retain their native joined border and positioning. */
+.cobudget-native-select.v-select.select:not(.vs--open) .vs__dropdown-toggle {
+	border: none;
+	box-shadow: inset 0 0 0 1px var(--vs-border-color, var(--color-border-maxcontrast));
+}
+@media (hover: hover) and (pointer: fine) {
+	.cobudget-native-select.v-select.select:not(.vs--disabled, .vs--open) .vs__dropdown-toggle:hover {
+		box-shadow: inset 0 0 0 var(--border-width-input-focused, 2px) var(--vs-border-color, var(--color-border-maxcontrast));
+	}
+}
+.cobudget-native-select.v-select.select:not(.vs--disabled, .vs--open) .vs__dropdown-toggle:focus-within,
+.cobudget-native-select.v-select.select:not(.vs--disabled, .vs--open) .vs__dropdown-toggle:active {
+	box-shadow: inset 0 0 0 var(--border-width-input-focused, 2px) var(--color-main-text);
+}
+.cobudget-native-select.v-select.select.vs--open .vs__dropdown-toggle { box-shadow: none; }
+.cobudget-native-select.v-select.vs--disabled .vs__dropdown-toggle { opacity: 0.4; }
+.cobudget-native-select.v-select.vs--disabled .vs__search { border-color: transparent; background: transparent; }
+
+/* Report header actions keep native tertiary styling and accessible names.
+ * Only their layout changes to icon-only touch targets on narrow screens. */
+@media (max-width: 768px) {
+	.cobudget-report-action.button-vue,
+	.cobudget-report-action .action-item__menutoggle {
+		--default-clickable-area: var(--cobudget-mobile-touch-size, 44px);
+		width: var(--default-clickable-area);
+		min-width: var(--default-clickable-area);
+		padding-inline: 0;
+	}
+
+	.cobudget-report-action .button-vue__text {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+/* Reports and payment filters share compact, regular-weight native controls. */
+.cobudget-report-menu { display: inline-flex; min-width: 0; max-width: 100%; }
+.cobudget-report-menu .action-item__menutoggle.button-vue,
+.cobudget-filter-control.button-vue {
+	--font-weight-element: 400;
+	max-width: 100%;
+	padding-inline: calc(var(--default-grid-baseline, 4px) * 2);
+}
+/* Capture the native weight before individual filter controls override it. */
+.cobudget-filter-toolbar { --cobudget-filter-toolbar-font-weight: var(--font-weight-element, 500); }
+.cobudget-filter-toolbar .cobudget-filter-control.button-vue {
+	--font-weight-element: var(--cobudget-filter-toolbar-font-weight);
+}
+.cobudget-report-menu .action-item__menutoggle .button-vue__wrapper {
+	flex-direction: row-reverse;
+	gap: var(--default-grid-baseline, 4px);
+}
+.cobudget-report-menu .action-item__menutoggle .button-vue__icon {
+	width: 18px;
+	min-width: 18px;
+}
+/* Text-only choices omit the native leading icon placeholder, not the end checkmark. */
+.cobudget-report-menu-option .action-button > .action-button__icon:empty {
+	display: none;
+}
+.cobudget-report-menu-option .action-button.button-vue {
+	padding-inline-start: calc(var(--default-grid-baseline, 4px) * 3);
+}
+@media (max-width: 768px) {
+	.cobudget-report-menu,
+	.cobudget-report-menu-option { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
+}
+
+/* Match the Files tertiary hover: 8% primary tint, including teleported choices. */
+.cobudget-report-menu.action-item,
+.cobudget-report-menu-option {
+	--color-background-hover: color-mix(in srgb, var(--color-primary-element) 8%, transparent);
+}
+
+/* Native action menus teleport their items; scope the same tint on each item. */
+.cobudget-action-menu.action-item,
+.cobudget-action-menu-option {
+	--color-background-hover: var(--cobudget-interaction-hover);
+}
+
+/* These inset rings are CoBudget adaptations of native fields. Animate only
+ * pointer feedback; input focus, validation, opening and disabling stay instant. */
+.cobudget-native-field:is(.input-field, .textarea) :is(.input-field__input, .textarea__input),
+.cobudget-native-select.v-select.select .vs__dropdown-toggle {
+	transition: box-shadow var(--cobudget-hover-duration) linear;
+}
+.cobudget-native-field:is(.input-field, .textarea) :is(.input-field__input, .textarea__input):is(:focus, :active, :disabled, [aria-invalid="true"]),
+.cobudget-native-select.v-select.select:is(:focus-within, :active, .vs--open, .vs--disabled) .vs__dropdown-toggle,
+.form-control[data-cobudget-field]:is(:focus, :disabled, [aria-invalid="true"], .is-invalid),
+.cobudget-interactive-card:is(:focus-visible, :active, :disabled) {
+	transition: none;
+}
+/* Native button colors/timings remain unchanged; honor reduced motion within
+ * CoBudget, including teleported dialogs and action menus. */
+@media (prefers-reduced-motion: reduce) {
+	:is(#content.app-cobudget, .cobudget-admin-settings, .cobudget-dialog-layer) .button-vue,
+	.cobudget-action-menu-option .button-vue,
+	.cobudget-report-menu-option .button-vue {
+		transition-duration: 0s !important;
+	}
+}
+
+/* Native popover and action menu transitions. Matches Nextcloud 35's quick
+ * opacity fade and placement-aware subtle scale animation. */
+:is(.cobudget-menu-popover.v-popper__popper, .action-item__popper.v-popper__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option)) {
+	transition: opacity var(--animation-quick, 100ms) ease, visibility var(--animation-quick, 100ms) ease;
+}
+:is(.cobudget-menu-popover, .action-item__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option)) .v-popper__wrapper {
+	transition: transform var(--animation-quick, 100ms) ease;
+}
+:is(.cobudget-menu-popover.v-popper__popper, .action-item__popper.v-popper__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option)):is([aria-hidden="true"], .v-popper__popper--hidden) .v-popper__wrapper {
+	transform: scale(0.96);
+}
+:is(.cobudget-menu-popover.v-popper__popper, .action-item__popper.v-popper__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option)):is([aria-hidden="false"], .v-popper__popper--shown) .v-popper__wrapper {
+	transform: scale(1);
+}
+:is(.cobudget-menu-popover, .action-item__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option))[data-popper-placement^="top"] .v-popper__wrapper {
+	transform-origin: bottom center;
+}
+:is(.cobudget-menu-popover, .action-item__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option))[data-popper-placement^="bottom"] .v-popper__wrapper {
+	transform-origin: top center;
+}
+:is(.cobudget-menu-popover, .action-item__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option))[data-popper-placement^="left"] .v-popper__wrapper {
+	transform-origin: right center;
+}
+:is(.cobudget-menu-popover, .action-item__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option))[data-popper-placement^="right"] .v-popper__wrapper {
+	transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:is(.cobudget-menu-popover.v-popper__popper, .action-item__popper.v-popper__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option)) {
+		transition: none !important;
+	}
+	:is(.cobudget-menu-popover, .action-item__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option)) .v-popper__wrapper {
+		transition: none !important;
+		transform: none !important;
+	}
+}
+
+.cobudget-filter-disclosure.button-vue { padding-inline: calc(var(--default-grid-baseline, 4px) * 3 - 1px); }
+.cobudget-filter-disclosure.button-vue.button-vue--tertiary .button-vue__wrapper > .button-vue__text { padding-inline: 0; }
+.cobudget-filter-field-label { display: block; margin-block-end: var(--default-grid-baseline, 4px); font-size: var(--font-size, 15px); font-weight: var(--font-weight-element, 500); line-height: 1.5; color: var(--color-main-text); }
+
+.cobudget-filter-bounds .input-field .input-field__input { padding-inline-start: calc(var(--default-grid-baseline, 4px) * 3 - 2px); }
+.cobudget-filter-bounds .cobudget-filter-field-label { padding-inline: calc(var(--default-grid-baseline, 4px) * 3); }
+
+/* Files filter chips use NcChip's native 24 px height, 12 px radius and 18 px icon. */
+.cobudget-filter-chip.nc-chip {
+	min-width: 0;
+	max-width: min(100%, 360px);
+	font-size: var(--default-font-size, 15px);
+	font-weight: var(--font-weight-default, 400);
+	line-height: 1.5;
+}
+
+/* Hover hints use the selected app theme, including body-teleported tooltips. */
+.cobudget-tooltip-surface,
+.cobudget-tooltip-popover {
+	font-size: var(--default-font-size, 15px);
+	font-weight: var(--font-weight-default, 400);
+	line-height: 1.5;
+}
+.cobudget-tooltip-surface :is(strong, b) {
+	font-weight: inherit;
+}
+.cobudget-tooltip-surface {
+ background: var(--cobudget-surface, var(--color-main-background));
+ color: var(--cobudget-text, var(--color-main-text));
+ border: 1px solid var(--cobudget-border, var(--color-border));
+ box-shadow: var(--cobudget-shadow-md);
+}
+.cobudget-tooltip-popover {
+ --color-main-background: var(--cobudget-surface);
+ --color-main-text: var(--cobudget-text);
+}
+
+/* Shared payment/reminder filter geometry; native controls own colors and focus. */
+.cobudget-filter-controls { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.cobudget-filter-trigger { display: inline-flex; align-items: center; gap: 4px; }
+.cobudget-filter-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-block: calc(var(--default-grid-baseline, 4px) * 7); margin-inline-start: calc(-2 * var(--default-grid-baseline, 4px)); }
+.cobudget-filter-chips .cobudget-filter-chip { min-width: 0; max-width: min(100%, 360px); }
+.cobudget-filter-panel { background: transparent; border: none; border-radius: var(--border-radius-large, 8px); padding: var(--cobudget-filter-menu-padding); box-sizing: border-box; width: 320px; max-width: 100%; max-height: min(65vh, 560px); overflow-y: auto; --color-background-hover: var(--cobudget-interaction-hover); }
+.reminder-filter-panel { display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 768px) { .cobudget-filter-panel { --default-clickable-area: var(--cobudget-mobile-touch-size); } }

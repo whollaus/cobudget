@@ -57,11 +57,19 @@ class UserResetService {
 		'enable_tax_relevant',
 		'enable_insurance',
 		'enable_future_payments',
+		'enable_reminders',
 		'enable_budget_goals',
 		'enable_advanced_master_data',
 		'enable_incomes',
 		'enable_projects',
 		'enable_shared_projects',
+		'notify_planned_payments',
+		'notify_planned_payments_talk',
+		'notify_reminders',
+		'notify_reminders_talk',
+		'notify_reminders_calendar',
+		'reminder_calendar_id',
+		'reminder_calendar_sync_error',
 		'notify_project_entries',
 		'notify_project_entries_talk',
 		'talk_personal_token',
@@ -96,6 +104,7 @@ class UserResetService {
 		private EntryProjectionService $entryProjectionService,
 		private ParticipantService $participantService,
 		private DataIntegrityService $dataIntegrityService,
+		private CalendarReminderService $calendarReminders,
 	) {
 	}
 
@@ -283,6 +292,7 @@ class UserResetService {
 				$report['deleted']['payment_partners'] += $this->deleteUserScopedRows('cobudget_payment_partners', $userId, $workspaceIds, $soloProjectIds);
 				$report['deleted']['budget_snapshots'] += $this->deleteRowsByStringColumn('cobudget_budget_snapshots', 'user_id', $userId);
 				$report['deleted']['budget_goals'] += $this->deleteRowsByStringColumn('cobudget_budget_goals', 'user_id', $userId);
+				$this->deleteRowsByStringColumn('cobudget_reminders', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_members', 'user_id', $userId);
 
 				foreach ($workspaceIds as $workspaceId) {
@@ -304,6 +314,7 @@ class UserResetService {
 				throw $e;
 			}
 
+			$this->calendarReminders->resetConnections($userId);
 			return [
 				'status' => 'success',
 				'preview' => $preview,

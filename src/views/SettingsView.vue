@@ -1,487 +1,218 @@
 <template>
 	<div class="cobudget-settings">
-		<AppPageHeader :title="$texts.settings.settings()" />
+		<AppPageHeader :title="$texts.settings.settings()">
+			<template #title>
+				<ReportPeriodPicker navigation-only force-navigation :period-enabled="false" :title="$texts.settings.settings()" label="" />
+			</template>
+		</AppPageHeader>
 
-		<div class="settings-section">
+		<NcNoteCard v-if="settingsActionError" type="error" :text="settingsActionError" />
+		<NcNoteCard v-if="settingsLoadError" type="error">
+			<p>{{ settingsLoadError }}</p><NcButton :disabled="loading || backupSettingsSaving" @click="fetchData">{{ $texts.common.retry() }}</NcButton>
+		</NcNoteCard>
+		<div v-else class="settings-section">
 			<div class="settings-general">
-			<h3>{{ $texts.settings.generalTitle() }}</h3>
-
 			<div class="settings-grid">
 				<div class="settings-column">
-					<div class="setting-item">
-						<label>{{ $texts.settings.currency() }}</label>
-						<p class="setting-desc">{{ $texts.settings.currencyExamples() }}</p>
-						<div style="display: flex; gap: 8px; align-items: center;">
-							<div style="flex: 1; max-width: 100px;">
-								<NcTextField v-model="currency" :placeholder="$texts.settings.currencyPlaceholder()" />
+					<div class="settings-mini-section settings-basic-section">
+						<h3 class="cobudget-section-heading">{{ $texts.settings.generalTitle() }}</h3>
+						<div class="settings-basic-fields">
+							<NcFormGroup class="setting-item cobudget-form-group">
+								<template #label><label class="cobudget-form-label" for="settings-currency">{{ $texts.settings.currency() }}</label></template>
+								<template #description><span id="settings-currency-hint">{{ $texts.settings.currencyExamples() }}</span></template>
+								<NcInputField id="settings-currency" v-model="currency" label-outside :label="$texts.settings.currency()" :placeholder="$texts.settings.currencyPlaceholder()" aria-describedby="settings-currency-hint" :disabled="loading || backupSettingsSaving" @blur="saveCurrency" @keydown.enter.prevent="$event.target.blur()" class="cobudget-native-field" />
+							</NcFormGroup>
+							<NcFormGroup class="setting-item cobudget-form-group">
+								<template #label><label class="cobudget-form-label" for="settings-start-page">{{ $texts.settings.startPage() }}</label></template>
+								<template #description><span id="settings-start-page-hint">{{ $texts.settings.startPageDescription() }}</span></template>
+								<NcSelect input-id="settings-start-page" class="cobudget-native-select" label-outside :input-label="$texts.settings.startPage()" :model-value="startPageChoices.find(option => option.value === defaultStartPage)" :options="startPageChoices" label="label" :clearable="false" :selectable="option => !option.heading" aria-describedby="settings-start-page-hint" :disabled="loading || backupSettingsSaving" @update:model-value="saveBasicSelection('defaultStartPage', $event)" />
+							</NcFormGroup>
+							<div class="setting-item">
+								<NcRadioGroup class="cobudget-form-group" :label="$texts.settings.entriesPerPage()" :description="$texts.settings.entriesPerPageDescription()" :model-value="String(entryPageSize)" @update:model-value="saveBasicSelection('entryPageSize', { value: Number($event) })">
+									<NcRadioGroupButton v-for="size in entryPageSizeOptions" :key="size" :value="String(size)" :label="String(size)" :disabled="loading || backupSettingsSaving" />
+								</NcRadioGroup>
 							</div>
-							<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
-								style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
-						</div>
-					</div>
-
-					<div class="setting-item" style="margin-top: 24px;">
-						<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.startPage() }}</label>
-						<p class="setting-desc">{{ $texts.settings.startPageDescription() }}</p>
-						<div style="display: flex; gap: 8px; align-items: center;">
-							<select v-model="defaultStartPage" class="form-control select-control" data-cobudget-field="compact" style="flex: 1; max-width: 320px;">
-								<option value="personal">{{ $texts.settings.myFinances() }}</option>
-								<option value="currentYear">{{ $texts.settings.currentYear() }}</option>
-								<option v-if="enableProjects" value="projects">{{ $texts.settings.myAreas() }}</option>
-								<optgroup v-if="enableProjects && activeProjects.length > 0" :label="$texts.settings.openArea()">
-									<option v-for="project in activeProjects" :key="project.id" :value="projectStartPageValue(project)">
-										{{ project.name }}
-									</option>
-								</optgroup>
-							</select>
-							<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
-								style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
-						</div>
-					</div>
-
-					<div class="setting-item" style="margin-top: 24px;">
-						<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.entriesPerPage() }}</label>
-						<p class="setting-desc">{{ $texts.settings.entriesPerPageDescription() }}</p>
-						<div style="display: flex; gap: 8px; align-items: center;">
-							<select v-model.number="entryPageSize" class="form-control select-control" data-cobudget-field="compact" style="flex: 1; max-width: 200px;">
-								<option v-for="option in entryPageSizeOptions" :key="option" :value="option">{{ option }}</option>
-							</select>
-							<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
-								style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
-						</div>
-					</div>
-
-					<div class="setting-item" style="margin-top: 24px;">
-						<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.themeMode() }}</label>
-						<p class="setting-desc">{{ $texts.settings.themeModeDescription() }}</p>
-						<div style="display: flex; gap: 8px; align-items: center;">
-							<select v-model="themeMode" class="form-control select-control" data-cobudget-field="compact" style="flex: 1; max-width: 260px;" @change="applyLocalThemeMode">
-								<option value="auto">{{ $texts.settings.themeModeAuto() }}</option>
-								<option value="light">{{ $texts.settings.themeModeLight() }}</option>
-								<option value="dark">{{ $texts.settings.themeModeDark() }}</option>
-							</select>
-							<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
-								style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
+							<div class="setting-item">
+								<NcRadioGroup class="cobudget-form-group" :label="$texts.settings.themeMode()" :model-value="themeMode" @update:model-value="saveBasicSelection('themeMode', { value: $event })">
+									<NcRadioGroupButton v-for="option in themeChoices" :key="option.value" :value="option.value" :label="option.label" :disabled="loading || backupSettingsSaving" />
+								</NcRadioGroup>
+							</div>
 						</div>
 					</div>
 
 					<div class="settings-mini-section">
-						<h4>{{ $texts.settings.nextcloudHeader() }}</h4>
-						<div class="setting-toggle-row">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.showNextcloudHeaderDesktop() }}</label>
-							</div>
-							<label class="toggle-switch">
-								<input v-model="showNextcloudHeaderDesktop" type="checkbox" :aria-label="$texts.settings.showNextcloudHeaderDesktop()" @change="saveNextcloudHeaderSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div class="setting-toggle-row" style="margin-top: 12px;">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.showNextcloudHeaderMobile() }}</label>
-							</div>
-							<label class="toggle-switch">
-								<input v-model="showNextcloudHeaderMobile" type="checkbox" :aria-label="$texts.settings.showNextcloudHeaderMobile()" @change="saveNextcloudHeaderSettings">
-								<span class="toggle-slider"></span>
-							</label>
+						<h3 class="cobudget-section-heading">{{ $texts.settings.nextcloudHeader() }}</h3>
+						<div class="settings-native-options settings-header-options">
+							<NcFormBoxSwitch v-model="showNextcloudHeaderDesktop" :label="$texts.settings.showNextcloudHeaderDesktop()" :disabled="loading || backupSettingsSaving" @update:model-value="saveNextcloudHeaderSettings()" />
+							<NcFormBoxSwitch v-model="showNextcloudHeaderMobile" :label="$texts.settings.showNextcloudHeaderMobile()" :disabled="loading || backupSettingsSaving" @update:model-value="saveNextcloudHeaderSettings()" />
 						</div>
 					</div>
 
-					<div class="settings-mini-section">
-						<h4>{{ $texts.settings.receipts() }}</h4>
-						<div class="setting-toggle-row">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.enableReceipts() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.enableReceiptsDescription() }}</p>
+					<div class="settings-mini-section settings-notification-options">
+						<h3 class="cobudget-section-heading">{{ $texts.settings.notifications() }}</h3>
+						<div class="settings-native-options">
+							<table class="settings-notification-table" :aria-label="$texts.settings.notifications()">
+								<thead><tr><th scope="col">{{ $texts.settings.notificationEvent() }}</th><th class="notification-channel-nextcloud" scope="col">{{ $texts.settings.nextcloudChannel() }}</th><th v-if="talk.available" class="notification-channel-talk" scope="col">{{ $texts.settings.talkChannel() }}</th><th v-if="calendar.available" class="notification-channel-calendar" scope="col">{{ $texts.settings.calendarChannel() }}</th></tr></thead>
+								<tbody>
+									<tr v-for="row in notificationRows" :key="row.field">
+										<th scope="row">{{ row.label }}</th>
+										<td class="notification-channel-nextcloud"><NcCheckboxRadioSwitch :model-value="row.value" :aria-label="`${row.label} – Nextcloud`" :disabled="loading || backupSettingsSaving" @update:model-value="saveNotificationPreference(row.field, $event)" /></td>
+										<td v-if="talk.available" class="notification-channel-talk">
+											<NcCheckboxRadioSwitch v-if="row.channel" :model-value="!!talk[row.talkField]" :aria-label="`${row.label} – Talk`" :disabled="talkBusy || !!talkError || !talkLoaded || (!talk.available && !talk[row.talkField])" @update:model-value="saveTalkSettings($event, row.channel)" />
+											<span v-else :aria-label="$texts.settings.notificationChannelUnavailable()" :title="$texts.settings.notificationChannelUnavailable()">—</span>
+										</td>
+										<td v-if="calendar.available" class="notification-channel-calendar">
+											<NcCheckboxRadioSwitch v-if="row.field === 'notifyReminders'" :model-value="calendar.enabled || calendarSetupOpen" :aria-label="`${row.label} – ${$texts.settings.calendarChannel()}`" :disabled="calendarBusy || !!calendarError" @update:model-value="toggleCalendarReminders" />
+											<span v-else :aria-label="$texts.settings.notificationChannelUnavailable()" :title="$texts.settings.notificationChannelUnavailable()">—</span>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+							<div v-if="calendar.available && (calendar.enabled || calendarSetupOpen)" class="settings-calendar-target">
+								<label for="settings-reminder-calendar">{{ $texts.settings.targetCalendar() }}</label>
+								<NcSelect input-id="settings-reminder-calendar" class="cobudget-native-select" label-outside :placeholder="$texts.settings.chooseCalendar()" :options="calendar.calendars" label="label" :clearable="false" :model-value="calendar.calendars.find(option => option.id === calendar.calendar_id) || null" :disabled="calendarBusy || !!calendarError" @update:model-value="saveCalendarSettings(true, $event.id)" />
+								<p class="setting-desc">{{ $texts.settings.calendarSyncDescription() }}</p>
 							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableReceipts" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div v-if="enableReceipts" class="setting-item" style="margin-top: 16px;">
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.storageFolder() }}</label>
-							<p class="setting-desc">{{ $texts.settings.receiptStorageFolderDescription() }}</p>
-							<div style="display: flex; gap: 8px; align-items: center;">
-								<input type="text" class="form-control" data-cobudget-field="compact" v-model="receiptStorageFolder" :placeholder="$texts.settings.receiptStorageFolderPlaceholder()" style="flex: 1;" />
-								<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading || !receiptStorageFolder.trim()" :aria-label="$texts.common.save()"
-									style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
-							</div>
-						</div>
-						<div v-if="enableReceipts" class="setting-item" style="margin-top: 16px;">
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.folderGrouping() }}</label>
-							<p class="setting-desc">{{ $texts.settings.folderGroupingDescription() }}</p>
-							<div style="display: flex; gap: 8px; align-items: center;">
-								<select v-model="receiptFolderGrouping" class="form-control select-control" data-cobudget-field="compact" style="flex: 1; max-width: 260px;">
-									<option value="none">{{ $texts.settings.noSubfolders() }}</option>
-									<option value="year">{{ $texts.settings.byYear() }}</option>
-									<option value="year_month">{{ $texts.settings.byYearAndMonth() }}</option>
-								</select>
-								<NcButton variant="primary" @click="saveGeneralSettings" :disabled="loading" :aria-label="$texts.common.save()"
-									style="flex-shrink: 0; margin: 0;">{{ $texts.common.save() }}</NcButton>
-							</div>
-						</div>
-						<div v-if="enableReceipts" class="setting-toggle-row" style="margin-top: 16px;">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.deleteReceiptsWithEntry() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.deleteReceiptsWithEntryDescription() }}</p>
-							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="deleteReceiptsWithEntry" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-					</div>
-
-				</div>
-
-				<div class="settings-column">
-					<div v-if="enableProjects && enableSharedProjects" class="settings-mini-section settings-notification-options">
-						<h4>{{ $texts.settings.notifications() }}</h4>
-						<div class="setting-toggle-row" style="margin-bottom: 12px;">
-							<div>
-								<label for="cobudget-talk-notifications" style="margin-bottom: 4px; display: block;">{{ $texts.settings.personalTalkNotifications() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.personalTalkDescription() }}</p>
-								<p v-if="!talkLoaded" class="setting-desc">{{ $texts.common.loading() }}</p>
-								<p v-else-if="!talk.available" class="setting-desc">{{ $texts.settings.talkUnavailable() }}</p>
+							<NcNoteCard v-if="calendarError" type="error"><p>{{ calendarError }}</p><NcButton :disabled="calendarBusy" @click="fetchCalendarSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+							<NcNoteCard v-else-if="calendar.sync_pending" type="warning"><p>{{ $texts.settings.calendarSyncPending() }}</p><NcButton :disabled="calendarBusy" @click="saveCalendarSettings(calendar.enabled, calendar.calendar_id)">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+							<p class="setting-desc">{{ talk.available ? $texts.settings.notificationChannelsDescription() : $texts.settings.nextcloudNotificationsDescription() }}</p>
+							<NcNoteCard v-if="talkError" type="error"><p>{{ talkError }}</p><NcButton :disabled="talkBusy" @click="fetchTalkSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+							<div v-if="!talkError && (!talkLoaded || (talk.available && (talk.enabled || talk.reminders_enabled || talk.planned_enabled) && !talk.ready))" class="settings-talk-status">
+								<p v-if="!talkLoaded" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.common.loading() }}</p>
 								<template v-else>
-									<a v-if="talk.ready && talk.url" :href="talk.url">{{ $texts.settings.openPersonalTalk() }}</a>
-									<template v-if="talk.enabled && !talk.ready">
+									<template v-if="(talk.enabled || talk.reminders_enabled || talk.planned_enabled) && !talk.ready">
 										<p class="setting-desc">{{ $texts.settings.talkReconnectDescription() }}</p>
-										<button type="button" :disabled="talkBusy" @click="saveTalkSettings(true)">{{ $texts.settings.reconnectPersonalTalk() }}</button>
+										<NcButton :disabled="talkBusy" @click="saveTalkSettings(true, talk.reminders_enabled ? 'reminders' : (talk.planned_enabled ? 'planned' : 'payments'))">{{ $texts.settings.reconnectPersonalTalk() }}</NcButton>
 									</template>
 								</template>
 							</div>
-							<label class="toggle-switch">
-								<input id="cobudget-talk-notifications" type="checkbox" :checked="talk.enabled" :disabled="talkBusy || !talkLoaded || (!talk.available && !talk.enabled)" @change="saveTalkSettings($event.target.checked)">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div class="setting-toggle-row">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.newPaymentsInSharedAreas() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.newPaymentsInSharedAreasDescription() }}</p>
-							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="notifyProjectEntries" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div class="setting-toggle-row" style="margin-top: 12px;">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.settledAreas() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.settledAreasDescription() }}</p>
-							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="notifyProjectSettlements" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
 						</div>
 					</div>
 
 					<div class="settings-mini-section">
-						<h4>{{ $texts.settings.features() }}</h4>
+						<h3 class="cobudget-section-heading">{{ $texts.settings.receipts() }}</h3>
+						<NcFormBoxSwitch v-model="enableReceipts" :label="$texts.settings.enableReceipts()" :description="$texts.settings.enableReceiptsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+						<div v-if="enableReceipts" class="setting-item" style="margin-top: 16px;">
+							<NcFormBoxButton id="settings-receipt-folder" :label="$texts.settings.storageFolder()" :description="folderDisplayPath(receiptStorageFolder)" inverted-accent :disabled="loading || folderPickerOpen" @click="chooseSettingsFolder('receipt')">
+								<template #icon><FolderOpenOutlineIcon :size="24" /></template>
+							</NcFormBoxButton>
+						</div>
+						<div v-if="enableReceipts" class="setting-item" style="margin-top: 16px;">
+							<NcRadioGroup class="cobudget-form-group settings-folder-grouping" :label="$texts.settings.folderGrouping()" :description="$texts.settings.folderGroupingDescription()" :model-value="receiptFolderGrouping" @update:model-value="saveBasicSelection('receiptFolderGrouping', { value: $event })">
+								<NcRadioGroupButton value="none" :label="$texts.settings.noSubfolders()" :disabled="loading || backupSettingsSaving" />
+								<NcRadioGroupButton value="year" :label="$texts.settings.byYear()" :disabled="loading || backupSettingsSaving" />
+								<NcRadioGroupButton value="year_month" :label="$texts.settings.byYearAndMonth()" :disabled="loading || backupSettingsSaving" />
+							</NcRadioGroup>
+						</div>
+						<NcFormBoxSwitch v-if="enableReceipts" v-model="deleteReceiptsWithEntry" class="settings-receipt-delete" :label="$texts.settings.deleteReceiptsWithEntry()" :description="$texts.settings.deleteReceiptsWithEntryDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+					</div>
+
+				</div>
+
+				<div class="settings-column">
+
+					<div class="settings-mini-section settings-feature-options">
+						<h3 class="cobudget-section-heading">{{ $texts.settings.features() }}</h3>
 						<p class="setting-desc">{{ $texts.settings.featuresDescription() }}</p>
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-						<div>
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.importantPayments() }}</label>
-							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.importantPaymentsDescription() }}</p>
-						</div>
-						<label class="toggle-switch">
-							<input type="checkbox" v-model="enableImportantPayments" @change="saveGeneralSettings">
-							<span class="toggle-slider"></span>
-						</label>
-					</div>
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-						<div>
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.reviewPayments() }}</label>
-							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.reviewPaymentsDescription() }}</p>
-						</div>
-						<label class="toggle-switch">
-							<input type="checkbox" v-model="enableReviewPayments" @change="saveGeneralSettings">
-							<span class="toggle-slider"></span>
-						</label>
-					</div>
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-						<div>
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.fixedCosts() }}</label>
-							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.fixedCostsDescription() }}</p>
-						</div>
-						<label class="toggle-switch">
-							<input type="checkbox" v-model="enableFixedCosts" @change="saveGeneralSettings">
-							<span class="toggle-slider"></span>
-						</label>
-					</div>
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-						<div>
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.childRelated() }}</label>
-							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.childRelatedDescription() }}</p>
-						</div>
-						<label class="toggle-switch">
-							<input type="checkbox" v-model="enableChildRelated" @change="saveGeneralSettings">
-							<span class="toggle-slider"></span>
-						</label>
-					</div>
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-						<div>
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.subscriptions() }}</label>
-							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.subscriptionsDescription() }}</p>
-						</div>
-						<label class="toggle-switch">
-							<input type="checkbox" v-model="enableSubscriptions" @change="saveGeneralSettings">
-							<span class="toggle-slider"></span>
-						</label>
-					</div>
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-						<div>
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.taxRelevant() }}</label>
-							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.taxRelevantDescription() }}</p>
-						</div>
-						<label class="toggle-switch">
-							<input type="checkbox" v-model="enableTaxRelevant" @change="saveGeneralSettings">
-							<span class="toggle-slider"></span>
-						</label>
-					</div>
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-						<div>
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.insurance() }}</label>
-							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.insuranceDescription() }}</p>
-						</div>
-						<label class="toggle-switch">
-							<input type="checkbox" v-model="enableInsurance" @change="saveGeneralSettings">
-							<span class="toggle-slider"></span>
-						</label>
-					</div>
-					<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-						<div>
-							<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.incomes() }}</label>
-							<p class="setting-desc" style="margin: 0;">{{ $texts.settings.incomesDescription() }}</p>
-						</div>
-						<label class="toggle-switch">
-							<input type="checkbox" v-model="enableIncomes" @change="saveGeneralSettings">
-							<span class="toggle-slider"></span>
-						</label>
-					</div>
-						<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.futurePayments() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.futurePaymentsDescription() }}</p>
+						<div class="settings-native-options">
+							<NcFormBoxSwitch v-model="enableIncomes" :label="$texts.settings.incomes()" :description="$texts.settings.incomesDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableFuturePayments" :label="$texts.settings.futurePayments()" :description="$texts.settings.futurePaymentsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableProjects" :label="$texts.settings.enableAreas()" :description="$texts.settings.enableAreasDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-if="enableProjects" v-model="enableSharedProjects" :label="$texts.settings.enableSharedAreas()" :description="$texts.settings.enableSharedAreasDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableReminders" :label="$texts.settings.reminders()" :description="$texts.settings.remindersFeatureDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableBudgetGoals" :label="$texts.settings.budgetGoals()" :description="$texts.settings.budgetGoalsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableAdvancedMasterData" :label="$texts.settings.advancedCategoryPaymentPartnerSettings()" :description="$texts.settings.advancedCategoryPaymentPartnerSettingsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<div ref="workspaceOptions" class="settings-native-options settings-workspace-options">
+								<NcFormBoxSwitch v-model="enableWorkspaces" :label="$texts.settings.enableWorkspaces()" :description="$texts.settings.workspacesHint()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+								<NcFormBoxSwitch v-if="enableWorkspaces" v-model="showWorkspaceSwitcher" :label="$texts.settings.workspaceSwitcher()" :description="$texts.settings.workspaceSwitcherDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
 							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableFuturePayments" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div class="setting-toggle-row" style="margin-top: 12px;">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.enableAreas() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.enableAreasDescription() }}</p>
-							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableProjects" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div v-if="enableProjects" class="setting-toggle-row" style="margin-top: 12px;">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.enableSharedAreas() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.enableSharedAreasDescription() }}</p>
-							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableSharedProjects" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.budgetGoals() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.budgetGoalsDescription() }}</p>
-							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableBudgetGoals" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
-						</div>
-						<div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px;">
-							<div>
-								<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.advancedCategoryPaymentPartnerSettings() }}</label>
-								<p class="setting-desc" style="margin: 0;">{{ $texts.settings.advancedCategoryPaymentPartnerSettingsDescription() }}</p>
-							</div>
-							<label class="toggle-switch">
-								<input type="checkbox" v-model="enableAdvancedMasterData" @change="saveGeneralSettings">
-								<span class="toggle-slider"></span>
-							</label>
 						</div>
 					</div>
+
+					<div class="settings-mini-section settings-label-options">
+						<h3 class="cobudget-section-heading">{{ $texts.settings.labels() }}</h3>
+						<p class="setting-desc">{{ $texts.settings.labelsDescription() }}</p>
+						<div class="settings-native-options">
+							<NcFormBoxSwitch v-model="enableImportantPayments" :label="$texts.settings.importantPayments()" :description="$texts.settings.importantPaymentsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableReviewPayments" :label="$texts.settings.reviewPayments()" :description="$texts.settings.reviewPaymentsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableFixedCosts" :label="$texts.settings.fixedCosts()" :description="$texts.settings.fixedCostsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableChildRelated" :label="$texts.settings.childRelated()" :description="$texts.settings.childRelatedDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableSubscriptions" :label="$texts.settings.subscriptions()" :description="$texts.settings.subscriptionsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableTaxRelevant" :label="$texts.settings.taxRelevant()" :description="$texts.settings.taxRelevantDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enableInsurance" :label="$texts.settings.insurance()" :description="$texts.settings.insuranceDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+						</div>
 					</div>
+				</div>
 			</div>
 		</div>
 
-		<div class="settings-grid" style="margin-top: 30px;">
-			<!-- Kategorien -->
-			<div class="settings-column">
-				<h3>{{ $texts.settings.categories() }}</h3>
-				<p class="settings-hint">{{ $texts.settings.categoriesHint() }}</p>
-				
-				<CbTypeTabs v-if="$enableIncomes" v-model="categoryTab" :label="$texts.settings.categories()" />
+		<MasterDataSettings ref="masterDataSettings" class="settings-master-data" :advanced="enableAdvancedMasterData" :incomes="enableIncomes" @loaded="onMasterDataLoaded" />
 
-				<form @submit.prevent="addCategory" class="add-form">
-					<IconPicker v-model="newCategoryIcon" />
-					<input type="text" class="form-control" data-cobudget-field="compact" v-model="newCategory" :placeholder="$texts.settings.newCategory()" style="flex: 1;" required />
-					<NcButton variant="primary" type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()"
-						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
-				</form>
-				<SettingsList :items="filteredCategories" :empty-text="$texts.settings.noCategories()">
-					<template #item="{ item: cat }">
-						<div class="settings-list-info">
-							<IconPicker :value="cat.icon || 'Shape'" @input="updateCategoryIcon(cat, $event)" :disabled="cat.is_global" />
-								<div class="category-list-label">
-									<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>
-									<span>{{ cat.name }}</span>
-								</div>
-							<span v-if="cat.is_global" class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
-						</div>
-						<SettingsItemActions
-							class="settings-list-actions"
-							:can-edit="!cat.is_global"
-							:can-delete="!cat.is_global && !cat.has_children"
-							:can-hide="!cat.is_hidden && (cat.is_global || cat.in_use)"
-							:can-unhide="cat.is_hidden"
-							@edit="openRenameSettingsItem('category', cat)"
-							@delete="deleteCategory(cat)"
-							@hide="hideCategory(cat.id)"
-							@unhide="unhideCategory(cat.id)" />
-					</template>
-				</SettingsList>
+		<div v-if="savedGeneralSettings?.enableWorkspaces" class="settings-subsection workspaces-section">
+			<div class="workspace-section-header">
+				<h3 class="cobudget-section-heading">{{ $texts.settings.workspaces() }}</h3>
+				<NcButton v-if="enableWorkspaces" class="workspace-add-button cobudget-native-button" variant="secondary" :disabled="loading || workspaceManagementLoading" @click="$refs.workspaceSettings?.openCreateWorkspaceModal()">
+					<template #icon><PlusIcon :size="20" /></template>
+					{{ $texts.workspaces.add() }}
+				</NcButton>
 			</div>
 
-			<!-- Zahlungspartner -->
-			<div class="settings-column">
-				<h3>{{ $texts.settings.paymentPartners() }}</h3>
-				<p class="settings-hint">{{ $texts.settings.paymentPartnersHint() }}</p>
-
-				<CbTypeTabs v-if="$enableIncomes" v-model="paymentPartnerTab" :label="$texts.settings.paymentPartners()" />
-
-				<form @submit.prevent="addPaymentPartner" class="add-form">
-					<input type="text" class="form-control" data-cobudget-field="compact" v-model="newPaymentPartner" :placeholder="paymentPartnerPlaceholder" style="flex: 1;" required />
-					<NcButton variant="primary" type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()"
-						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
-				</form>
-				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
-					<template #item="{ item: paymentPartner }">
-						<div class="settings-list-info">
-							<div class="category-list-label">
-								<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>
-								<span>{{ paymentPartner.name }}</span>
-							</div>
-							<span v-if="paymentPartner.is_global" class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
-						</div>
-						<SettingsItemActions
-							class="settings-list-actions"
-							:can-edit="!paymentPartner.is_global"
-							:can-delete="!paymentPartner.is_global"
-							:can-hide="!paymentPartner.is_hidden && (paymentPartner.is_global || paymentPartner.in_use)"
-							:can-unhide="paymentPartner.is_hidden"
-							@edit="openRenameSettingsItem('paymentPartner', paymentPartner)"
-							@delete="deletePaymentPartner(paymentPartner)"
-							@hide="hidePaymentPartner(paymentPartner.id)"
-							@unhide="unhidePaymentPartner(paymentPartner.id)" />
-					</template>
-				</SettingsList>
-			</div>
-		</div>
-
-		<div class="settings-subsection workspaces-section">
-			<h3>{{ $texts.settings.workspaces() }}</h3>
-			<p class="settings-hint">{{ $texts.settings.workspacesHint() }}</p>
-
-			<div class="setting-toggle-row">
-				<div>
-					<label style="margin-bottom: 0; display: block;">{{ $texts.settings.enableWorkspaces() }}</label>
-				</div>
-				<label class="toggle-switch">
-					<input type="checkbox" v-model="enableWorkspaces" @change="saveGeneralSettings">
-					<span class="toggle-slider"></span>
-				</label>
-			</div>
-
-			<div v-if="enableWorkspaces" class="setting-toggle-row">
-				<div>
-					<label style="margin-bottom: 0; display: block;">{{ $texts.settings.workspaceSwitcher() }}</label>
-					<p class="setting-desc">{{ $texts.settings.workspaceSwitcherDescription() }}</p>
-				</div>
-				<label class="toggle-switch">
-					<input type="checkbox" v-model="showWorkspaceSwitcher" @change="saveGeneralSettings">
-					<span class="toggle-slider"></span>
-				</label>
-			</div>
-
-			<WorkspaceSettings v-if="enableWorkspaces" />
+			<WorkspaceSettings v-if="savedGeneralSettings?.enableWorkspaces" ref="workspaceSettings" @loading="workspaceManagementLoading = $event" />
 		</div>
 
 		<div class="settings-subsection backups-section">
-			<h3>{{ $texts.settings.backups() }}</h3>
+			<h3 class="cobudget-section-heading">{{ $texts.settings.backups() }}</h3>
 			<p class="settings-hint">{{ $texts.settings.backupsHint() }}</p>
 
 			<div class="backup-settings-grid">
-				<div class="setting-item">
-					<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.backupFolder() }}</label>
-					<p class="setting-desc">{{ $texts.settings.backupFolderDescription() }}</p>
-					<input type="text" class="form-control" data-cobudget-field="compact" v-model="backupStorageFolder" placeholder="CoBudget/Export" />
+				<div class="setting-item backup-schedule-setting">
+					<NcRadioGroup class="cobudget-form-group backup-schedule-group" :label="$texts.settings.automaticBackups()" :description="$texts.settings.automaticBackupsDescription()" :model-value="backupSchedule" @update:model-value="saveBackupSchedule({ value: $event })">
+						<div class="backup-schedule-options">
+							<NcRadioGroupButton v-for="option in backupScheduleChoices" :key="option.value" :value="option.value" :label="option.label" :disabled="backupSettingsDisabled || !backupSettingsValid" />
+						</div>
+					</NcRadioGroup>
 				</div>
-				<div class="setting-item">
-					<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.retainCount() }}</label>
-					<p class="setting-desc">{{ $texts.settings.retainCountDescription() }}</p>
-					<input type="number" class="form-control" data-cobudget-field="compact" v-model.number="backupRetentionCount" min="1" max="100" step="1" />
-				</div>
-				<div class="setting-item">
-					<label style="margin-bottom: 4px; display: block;">{{ $texts.settings.automaticBackups() }}</label>
-					<p class="setting-desc">{{ $texts.settings.automaticBackupsDescription() }}</p>
-					<select class="form-control select-control" data-cobudget-field="compact" v-model="backupSchedule">
-						<option value="none">{{ $texts.common.no() }}</option>
-						<option value="daily">{{ $texts.settings.daily() }}</option>
-						<option value="weekly">{{ $texts.settings.weekly() }}</option>
-						<option value="monthly">{{ $texts.settings.monthly() }}</option>
-					</select>
-				</div>
-				<div class="backup-save-action">
-					<NcButton variant="primary" @click="saveBackupSettings(true)" :disabled="loading || backupCreating || !backupStorageFolder.trim()">
-						{{ $texts.common.save() }}
+				<NcFormGroup class="setting-item cobudget-form-group backup-folder-setting">
+					<template #label><label class="cobudget-form-label" for="settings-backup-folder">{{ $texts.settings.backupFolder() }}</label></template>
+					<NcFormBoxButton id="settings-backup-folder" :label="folderDisplayPath(backupStorageFolder)" :disabled="backupSettingsDisabled || !backupSettingsValid || folderPickerOpen" @click="chooseSettingsFolder('backup')">
+						<template #icon><FolderOpenOutlineIcon :size="24" /></template>
+					</NcFormBoxButton>
+				</NcFormGroup>
+				<NcFormGroup class="setting-item cobudget-form-group">
+					<template #label><label class="cobudget-form-label" for="settings-backup-retention">{{ $texts.settings.retainCount() }}</label></template>
+					<template #description><span id="settings-backup-retention-hint">{{ $texts.settings.retainCountDescription() }}</span></template>
+					<NcInputField id="settings-backup-retention" v-model="backupRetentionCount" type="number" label-outside :label="$texts.settings.retainCount()" aria-describedby="settings-backup-retention-hint" :disabled="backupSettingsDisabled" required min="1" max="100" step="1" :error="!backupRetentionValid" :helper-text="!backupRetentionValid ? $texts.settings.invalidRetentionCount() : ''" @blur="autoSaveBackupSettings" @keydown.enter.prevent="$event.target.blur()" class="cobudget-native-field" />
+				</NcFormGroup>
+				<div class="backup-manual-actions">
+					<NcButton class="backup-create-button cobudget-native-button" variant="secondary" @click="createBackup" :disabled="backupSettingsDisabled || !backupSettingsValid">
+						<template #icon><PlusIcon :size="20" /></template>
+						{{ backupCreating ? $texts.settings.backupCreating() : $texts.settings.createBackupNow() }}
 					</NcButton>
 				</div>
 			</div>
 
-			<div class="backup-manual-actions">
-				<NcButton class="backup-create-button" variant="primary" @click="createBackup" :disabled="loading || backupCreating || !backupStorageFolder.trim()">
-					{{ backupCreating ? $texts.settings.backupCreating() : $texts.settings.createBackupNow() }}
-				</NcButton>
-			</div>
-
 			<div class="backup-list">
 				<div class="backup-list-header">
-					<h4>{{ $texts.settings.latestBackups() }}</h4>
+					<h4 class="cobudget-subheading">{{ $texts.settings.latestBackups() }}</h4>
 				</div>
-				<p v-if="backupsLoading" class="settings-hint compact-hint">{{ $texts.settings.loadingBackups() }}</p>
-				<p v-else-if="backups.length === 0" class="backup-empty">{{ $texts.settings.noBackups() }}</p>
-				<ul v-else class="backup-items">
-					<li v-for="backup in backups" :key="backup.file_name" class="backup-item">
+				<NcNoteCard v-if="backupActionError" type="error" :text="backupActionError" />
+				<p v-if="backupsLoading" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.settings.loadingBackups() }}</p>
+				<NcNoteCard v-else-if="backupsError" type="error"><p>{{ backupsError }}</p><NcButton @click="fetchBackups">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+				<SettingsList v-else class="backup-items" borderless :items="backups" key-field="file_name" hidden-field="" :empty-text="$texts.settings.noBackups()">
+					<template #item="{ item: backup }">
 						<div class="backup-info">
-							<strong>{{ formatBackupDate(backup.created_at) }}</strong>
-							<span>{{ backup.file_name }}</span>
+							<span class="backup-date">{{ formatBackupDate(backup.created_at) }}</span>
 							<small>{{ backup.file_path }} · {{ formatFileSize(backup.file_size) }}</small>
 						</div>
-						<div class="backup-item-actions">
-							<NcButton
-								variant="error"
-								:aria-label="$texts.settings.deleteBackupAria(backup.file_name)"
-								:title="$texts.settings.deleteBackupAria(backup.file_name)"
-								:disabled="backupActionsDisabled"
-								@click="deleteBackup(backup)">
-								<template #icon>
-									<DeleteOutlineIcon :size="20" />
-								</template>
-							</NcButton>
-							<NcButton
+						<div class="settings-list-actions backup-item-actions">
+							<span class="backup-restore-action">
+								<DisabledActionHint :reason="backupRestoreHint(backup)" :label="$texts.settings.restoreBackup()"><NcButton variant="tertiary"
+									:disabled="backupActionsDisabled || backup.can_restore === false"
+									@click="restoreBackup(backup)">
+									{{ backupRestoringFileName === backup.file_name ? $texts.settings.restoringBackup() : $texts.settings.restoreBackup() }}
+								</NcButton></DisabledActionHint>
+							</span>
+							<NcButton variant="tertiary"
 								:aria-label="$texts.settings.downloadBackupAria(backup.file_name)"
 								:title="$texts.settings.downloadBackupAria(backup.file_name)"
 								:disabled="backupActionsDisabled"
@@ -490,229 +221,147 @@
 									<DownloadIcon :size="20" />
 								</template>
 							</NcButton>
-							<span
-								class="backup-restore-action"
-								:title="backup.can_restore === false ? $texts.settings.restoreBackupBlocked() : ''">
-								<NcButton
-									:disabled="backupActionsDisabled || backup.can_restore === false"
-									@click="restoreBackup(backup)">
-									{{ backupRestoringFileName === backup.file_name ? $texts.settings.restoringBackup() : $texts.settings.restoreBackup() }}
-								</NcButton>
-							</span>
+							<DisabledActionHint :reason="backupActionsDisabled ? $texts.common.waitBusy() : ''" :label="$texts.settings.deleteBackupAria(backup.file_name)" ><NcButton
+								variant="tertiary"
+								:aria-label="$texts.settings.deleteBackupAria(backup.file_name)"
+								:title="$texts.settings.deleteBackupAria(backup.file_name)"
+								:disabled="backupActionsDisabled"
+								@click="deleteBackup(backup)">
+								<template #icon>
+									<DeleteOutlineIcon :size="20" />
+								</template>
+							</NcButton></DisabledActionHint>
 						</div>
-					</li>
-				</ul>
+					</template>
+				</SettingsList>
 			</div>
 		</div>
 
+		<KeyboardShortcuts />
+
 		<div class="settings-subsection reset-section">
-			<h3>{{ $texts.settings.resetTitle() }}</h3>
+			<h3 class="cobudget-section-heading">{{ $texts.settings.resetTitle() }}</h3>
 			<p class="settings-hint">
 				{{ $texts.settings.resetHint() }}
 			</p>
-			<NcButton
+			<NcNoteCard v-if="resetPreviewError" id="settings-reset-error" type="error">
+				<p>{{ resetPreviewError }}</p>
+				<NcButton :disabled="resetPreviewLoading || resetRunning" @click="refreshResetAvailability">{{ $texts.common.retry() }}</NcButton>
+			</NcNoteCard>
+			<DisabledActionHint :reason="resetButtonDisabled ? (resetBlockerMessage || resetPreviewError || (resetRunning ? $texts.settings.resetRunning() : $texts.common.loading())) : ''" :label="$texts.settings.resetButton()" ><NcButton
 				class="reset-danger-button"
 				variant="error"
-				:disabled="loading || resetRunning"
+				:disabled="resetButtonDisabled"
+				:aria-describedby="resetPreviewError ? 'settings-reset-error' : undefined"
 				@click="resetAllData">
 				{{ resetRunning ? $texts.settings.resetRunning() : $texts.settings.resetButton() }}
-			</NcButton>
+			</NcButton></DisabledActionHint>
 		</div>
 		</div>
 
-		<Teleport to="body">
-			<div
-				v-if="renameSettingsItem"
-				class="settings-modal-backdrop"
-				tabindex="-1"
-				@click.self="closeRenameSettingsItemModal"
-				@keydown.esc.stop.prevent="closeRenameSettingsItemModal">
-				<div
-					class="settings-modal cobudget-dialog cobudget-dialog--contained"
-					:class="{ 'settings-modal--payment-partner': renameSettingsItemType === 'paymentPartner' && enableAdvancedMasterData }"
-					role="dialog"
-					aria-modal="true"
-					aria-labelledby="settings-rename-title">
-					<div class="modal-header cobudget-dialog-header">
-						<h2 id="settings-rename-title">{{ renameSettingsItemTitle }}</h2>
-						<button
-							type="button"
-							class="settings-modal-close-button cobudget-dialog-close cobudget-focusable"
-							:aria-label="$texts.common.close()"
-							:title="$texts.common.close()"
-							@click="closeRenameSettingsItemModal">
-							<CloseIcon :size="24" aria-hidden="true" />
-						</button>
+
+		<DialogTransition :show="!!(confirmDialog)" v-slot="{ returnFocus }">
+			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog cobudget-standard-dialog" :name="confirmDialog.title" :size="confirmDialog.wide ? 'large' : 'normal'" close-on-click-outside @closing="resolveConfirm(false)">
+				<p class="settings-confirm-message cobudget-confirm-message">{{ confirmDialog.message }}</p>
+				<NcInputField v-if="confirmDialog.requiredText" :id="`settings-${confirmDialog.kind}-confirmation`" v-model="confirmDialog.confirmationText" :label="$texts.settings.confirmationExact(confirmDialog.requiredText)" autocomplete="off" autocapitalize="off" :spellcheck="false" class="cobudget-native-field" />
+				<template #actions>
+					<div class="settings-confirm-actions cobudget-confirm-actions">
+						<NcButton variant="tertiary" @click="resolveConfirm(false)">{{ $texts.common.cancel() }}</NcButton>
+						<DisabledActionHint :reason="!confirmDialogCanConfirm ? $texts.settings.confirmationExact(confirmDialog.requiredText) : ''" :label="confirmDialog.confirmLabel"><NcButton :variant="confirmDialog.confirmVariant === 'danger' ? 'error' : 'primary'" :disabled="!confirmDialogCanConfirm" @click="resolveConfirm(true)">{{ confirmDialog.confirmLabel }}</NcButton></DisabledActionHint>
 					</div>
-					<p class="modal-note">
-						{{ renameSettingsItemType === 'paymentPartner' && enableAdvancedMasterData
-							? $texts.paymentPartnerDetails.internalNote()
-							: $texts.settings.renameNote(renameSettingsItemLabelWithArticle) }}
-					</p>
-
-					<form @submit.prevent="saveRenameSettingsItem">
-						<template v-if="renameSettingsItemType === 'category'">
-							<div
-								class="rename-fields"
-								:class="{ 'has-category-number': enableAdvancedMasterData }">
-								<div v-if="enableAdvancedMasterData" class="form-group">
-									<label for="settings-category-code">{{ $texts.common.number() }}</label>
-									<input
-										id="settings-category-code"
-										ref="renameSettingsItemCodeInput"
-										v-model="renameSettingsItemCode"
-										class="form-control" data-cobudget-field="compact"
-										type="text"
-										maxlength="128"
-										autocomplete="off"
-										spellcheck="false" />
-								</div>
-								<div class="form-group">
-									<label for="settings-rename-name">{{ $texts.common.name() }}</label>
-									<input id="settings-rename-name" ref="renameSettingsItemInput"
-										v-model="renameSettingsItemName" class="form-control" data-cobudget-field="compact" type="text" maxlength="128" required />
-								</div>
-							</div>
-							<div class="form-group category-parent-field">
-								<label for="settings-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
-								<select
-									id="settings-category-parent"
-									v-model="renameSettingsItemParentId"
-									class="form-control select-control" data-cobudget-field="compact"
-									:disabled="!!renameSettingsItem.has_children">
-									<option value="">{{ $texts.common.noParentMainCategory() }}</option>
-									<option
-										v-for="category in renameSettingsItemParentOptions"
-										:key="category.id"
-										:value="String(category.id)">
-										{{ category.name }}
-									</option>
-								</select>
-								<p v-if="renameSettingsItem.has_children" class="category-parent-hint">
-									{{ $texts.common.mainCategoryHasChildrenHint() }}
-								</p>
-							</div>
-						</template>
-						<PaymentPartnerEditFields
-							v-else-if="enableAdvancedMasterData"
-							ref="renamePaymentPartnerFields"
-							id-prefix="settings-payment-partner"
-							:name="renameSettingsItemName"
-							:details="renamePaymentPartnerDetails"
-							@update:name="renameSettingsItemName = $event"
-							@update:details="renamePaymentPartnerDetails = $event" />
-						<div v-else class="form-group">
-							<label for="settings-rename-name">{{ $texts.common.name() }}</label>
-							<input
-								id="settings-rename-name"
-								ref="renameSettingsItemInput"
-								v-model="renameSettingsItemName"
-								class="form-control" data-cobudget-field="compact"
-								type="text"
-								maxlength="128"
-								required />
-						</div>
-						<p v-if="renameSettingsItemError" class="modal-error">{{ renameSettingsItemError }}</p>
-						<ModalActions
-							:cancel-disabled="renameSettingsItemSaving"
-							:primary-disabled="!canRenameSettingsItem"
-							:primary-busy="renameSettingsItemSaving"
-							:primary-label="$texts.common.save()"
-							:primary-busy-label="$texts.common.saveBusy()"
-							@cancel="closeRenameSettingsItemModal" />
-					</form>
-				</div>
-			</div>
-		</Teleport>
-		<ConfirmModal
-			:show="!!confirmDialog"
-			:title="confirmDialog ? confirmDialog.title : ''"
-			:message="confirmDialog ? confirmDialog.message : ''"
-			:confirm-label="confirmDialog ? confirmDialog.confirmLabel : ''"
-			:confirm-variant="confirmDialog ? confirmDialog.confirmVariant : 'primary'"
-			:confirm-disabled="!confirmDialogCanConfirm"
-			:wide="!!(confirmDialog && confirmDialog.wide)"
-			@confirm="resolveConfirm(true)"
-			@cancel="resolveConfirm(false)">
-			<div v-if="confirmDialog && confirmDialog.requiredText" class="confirm-text-block">
-				<label for="settings-confirm-text">
-					{{ $texts.settings.confirmationExact(confirmDialog.requiredText) }}
-				</label>
-				<input
-					id="settings-confirm-text"
-					v-model="confirmDialog.confirmationText"
-					class="form-control" data-cobudget-field="compact"
-					type="text"
-					autocomplete="off"
-					spellcheck="false"
-					data-autofocus />
-			</div>
-		</ConfirmModal>
+				</template>
+			</NcDialog>
+		</DialogTransition>
 	</div>
 </template>
 
 <script>
-import CbTypeTabs from '../components/CbTypeTabs.vue'
+import KeyboardShortcuts from '../components/KeyboardShortcuts.vue'
+import DialogTransition from '../components/DialogTransition.vue'
+import DisabledActionHint from '../components/DisabledActionHint.vue'
 import { getAppLocale } from '../utils/formatMoney'
-import { defineAsyncComponent } from 'vue'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
-import NcTextField from '@nextcloud/vue/components/NcTextField'
+import NcInputField from '@nextcloud/vue/components/NcInputField'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
+import NcFormGroup from '@nextcloud/vue/components/NcFormGroup'
+import NcRadioGroup from '@nextcloud/vue/components/NcRadioGroup'
+import NcRadioGroupButton from '@nextcloud/vue/components/NcRadioGroupButton'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import { showSuccess, showInfo } from '@nextcloud/dialogs'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import { showToast, extractError } from '../services/notifications'
+import { generalSettingsFields, applySavedSettings } from '../services/settingsState'
+import NcFormBoxButton from '@nextcloud/vue/components/NcFormBoxButton'
+import { Permission } from '@nextcloud/files'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
+import NcFormBoxSwitch from '@nextcloud/vue/components/NcFormBoxSwitch'
+import { getFilePickerBuilder } from '@nextcloud/dialogs'
+import { pickFolder } from '../services/folderPicker'
 import { ENTRY_PAGE_SIZE_OPTIONS, normalizeEntryPageSize } from '../services/pagination'
 import { applyThemeMode, normalizeThemeMode } from '../services/themeMode'
 import { applyNextcloudHeaderVisibility } from '../services/nextcloudHeader'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
-import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 import { sortAreasByName } from '../utils/areaSorting'
-import {
-	createPaymentPartnerDetails,
-	isValidPaymentPartnerEmail,
-	paymentPartnerDetailsChanged,
-	paymentPartnerDetailsPayload
-} from '../utils/paymentPartnerDetails'
-import ModalActions from '../components/ModalActions.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
-import PaymentPartnerEditFields from '../components/PaymentPartnerEditFields.vue'
-import SettingsItemActions from '../components/SettingsItemActions.vue'
-import SettingsList from '../components/SettingsList.vue'
+import MasterDataSettings from '../components/MasterDataSettings.vue'
 import WorkspaceSettings from '../components/WorkspaceSettings.vue'
+import SettingsList from '../components/SettingsList.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
+import ReportPeriodPicker from '../components/ReportPeriodPicker.vue'
 import FormatListBulletedIcon from 'vue-material-design-icons/FormatListBulleted.vue'
 import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
 import CogIcon from 'vue-material-design-icons/Cog.vue'
-import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
+import DeleteOutlineIcon from 'vue-material-design-icons/TrashCanOutline.vue'
+import PlusIcon from 'vue-material-design-icons/Plus.vue'
+import FolderOpenOutlineIcon from 'vue-material-design-icons/FolderOpenOutline.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
-import CloseIcon from 'vue-material-design-icons/Close.vue'
 
-const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-icon-picker" */ '../components/IconPicker.vue'))
 
 export default {
 	name: 'SettingsView',
-	components: {
-		CbTypeTabs,
-		NcTextField,
+	components: { KeyboardShortcuts, DialogTransition, DisabledActionHint,
+		MasterDataSettings,
+		NcInputField,
+		NcSelect,
+		NcRadioGroup,
+		NcFormGroup,
+		NcRadioGroupButton,
 		NcButton,
-		IconPicker,
-		ModalActions,
-		ConfirmModal,
-		PaymentPartnerEditFields,
-		SettingsItemActions,
-		SettingsList,
+		NcDialog,
+		NcNoteCard,
+		NcLoadingIcon,
+		NcFormBoxSwitch,
+		NcCheckboxRadioSwitch,
+		NcFormBoxButton,
+		FolderOpenOutlineIcon,
+		PlusIcon,
 		WorkspaceSettings,
+		SettingsList,
 		AppPageHeader,
+		ReportPeriodPicker,
 		FormatListBulletedIcon,
 		AccountMultipleIcon,
 		CogIcon,
 		DeleteOutlineIcon,
 		DownloadIcon,
-		CloseIcon
 	},
 	data() {
 		return {
 			loading: false,
+			settingsLoadError: '',
+			settingsActionError: '',
+			backupActionError: '',
+			savedGeneralSettings: null,
+			backupsError: '',
+			talkError: '',
+			folderPickerOpen: false,
 			currency: '',
+			savedCurrency: '',
+			pendingWorkspaceScroll: false,
+			pendingMasterDataSection: '',
+			workspaceManagementLoading: true,
+			masterDataLoaded: false,
 			enableSubscriptions: true,
 			enableFixedCosts: true,
 			enableChildRelated: true,
@@ -721,13 +370,20 @@ export default {
 			enableTaxRelevant: true,
 			enableInsurance: true,
 			enableFuturePayments: true,
+			enableReminders: true,
 			enableBudgetGoals: true,
 			enableAdvancedMasterData: false,
 			enableIncomes: true,
 			enableProjects: true,
 			enableSharedProjects: true,
 			notifyProjectEntries: true,
-			talk: { available: false, enabled: false, ready: false, url: null },
+			notifyReminders: true,
+			notifyPlannedPayments: false,
+			calendar: { available: false, enabled: false, calendars: [], calendar_id: '', sync_pending: false },
+			calendarBusy: false,
+			calendarError: '',
+			calendarSetupOpen: false,
+			talk: { available: false, enabled: false, reminders_enabled: false, planned_enabled: false, ready: false, url: null },
 			talkBusy: false,
 			talkLoaded: false,
 			notifyProjectSettlements: true,
@@ -739,11 +395,14 @@ export default {
 			entryPageSizeOptions: ENTRY_PAGE_SIZE_OPTIONS,
 			themeMode: 'auto',
 			showNextcloudHeaderDesktop: true,
-			showNextcloudHeaderMobile: false,
+			showNextcloudHeaderMobile: true,
 			receiptStorageFolder: 'CoBudget/Belege',
+			savedReceiptStorageFolder: 'CoBudget/Belege',
 			receiptFolderGrouping: 'year',
 			deleteReceiptsWithEntry: false,
 			backupStorageFolder: 'CoBudget/Export',
+			backupSettingsSaving: false,
+			savedBackupSettings: null,
 			backupRetentionCount: 7,
 			backupSchedule: 'none',
 			backups: [],
@@ -752,95 +411,81 @@ export default {
 			backupDeletingFileName: '',
 			backupRestoringFileName: '',
 			resetRunning: false,
+			resetPreview: null,
+			resetPreviewLoading: false,
+			resetPreviewError: '',
 			projects: [],
-			categories: [],
-			paymentPartners: [],
-			newCategory: '',
-			newCategoryIcon: 'Shape',
-			newCategoryType: 'expense',
-			newPaymentPartner: '',
-			newPaymentPartnerType: 'expense',
-			categoryTab: 'expense',
-			paymentPartnerTab: 'expense',
-			renameSettingsItemType: '',
-			renameSettingsItem: null,
-			renameSettingsItemName: '',
-			renameSettingsItemCode: '',
-			renameSettingsItemParentId: '',
-			renamePaymentPartnerDetails: createPaymentPartnerDetails(),
-			renameSettingsItemError: '',
-			renameSettingsItemSaving: false,
 			confirmDialog: null
 		}
 	},
 	computed: {
+		notificationRows() {
+			const rows = [
+				{ field: 'notifyReminders', label: this.$texts.settings.reminders(), value: this.notifyReminders, channel: 'reminders', talkField: 'reminders_enabled' },
+				{ field: 'notifyPlannedPayments', label: this.$texts.settings.plannedPaymentNotifications(), value: this.notifyPlannedPayments, channel: 'planned', talkField: 'planned_enabled' },
+			];
+			if (this.enableProjects && this.enableSharedProjects) rows.push(
+				{ field: 'notifyProjectEntries', label: this.$texts.settings.newPaymentsInSharedAreas(), value: this.notifyProjectEntries, channel: 'payments', talkField: 'enabled' },
+				{ field: 'notifyProjectSettlements', label: this.$texts.settings.settledAreas(), value: this.notifyProjectSettlements },
+			);
+			return rows;
+		},
+		startPageChoices() {
+			const choices = [
+				{ value: 'personal', label: this.$texts.labels.allPayments() },
+			];
+			if (this.enableProjects) {
+				choices.push({ value: 'projects', label: this.$texts.settings.myAreas() });
+				if (this.activeProjects.length) {
+					choices.push({ value: 'area-heading', label: this.$texts.settings.openArea(), heading: true });
+					choices.push(...this.activeProjects.map(project => ({ value: this.projectStartPageValue(project), label: project.name })));
+				}
+			}
+			return choices;
+		},
+		themeChoices() {
+			return [
+				{ value: 'auto', label: this.$texts.settings.themeModeAuto() },
+				{ value: 'light', label: this.$texts.settings.themeModeLight() },
+				{ value: 'dark', label: this.$texts.settings.themeModeDark() },
+			];
+		},
+		backupScheduleChoices() {
+			return [
+				{ value: 'none', label: this.$texts.common.no() },
+				{ value: 'daily', label: this.$texts.settings.daily() },
+				{ value: 'weekly', label: this.$texts.settings.weekly() },
+				{ value: 'monthly', label: this.$texts.settings.monthly() },
+			];
+		},
+		backupSettingsDisabled() {
+			return this.loading || this.backupCreating || this.backupSettingsSaving || this.backupActionsDisabled;
+		},
+		backupRetentionValid() {
+			const count = Number(this.backupRetentionCount);
+			return Number.isInteger(count) && count >= 1 && count <= 100;
+		},
+		backupSettingsValid() {
+			return !!this.backupStorageFolder.trim() && this.backupRetentionValid;
+		},
+		backupSettingsPayload() {
+			return {
+				backup_storage_folder: this.normalizeBackupStorageFolder(this.backupStorageFolder),
+				backup_retention_count: Number(this.backupRetentionCount),
+				backup_schedule: this.backupSchedule || 'none',
+			};
+		},
 		backupActionsDisabled() {
 			return !!this.backupDeletingFileName || !!this.backupRestoringFileName;
 		},
 		activeProjects() {
 			return sortAreasByName(this.projects.filter(project => !this.isArchivedProject(project)));
 		},
-		filteredCategories() {
-			const activeTab = this.$enableIncomes ? this.categoryTab : 'expense';
-			return sortCategoriesHierarchically(this.categories.filter(c => c.type === activeTab));
+		resetBlockerMessage() {
+			return this.buildResetBlockerMessage(this.resetPreview);
 		},
-		activePaymentPartnerTab() {
-			return this.$enableIncomes ? this.paymentPartnerTab : 'expense';
-		},
-		filteredPaymentPartners() {
-			return this.paymentPartners.filter(p => p.type === this.activePaymentPartnerTab);
-		},
-		paymentPartnerPlaceholder() {
-			return this.activePaymentPartnerTab === 'income'
-				? this.$texts.settings.newPaymentPartnerIncome()
-				: this.$texts.settings.newPaymentPartnerExpense();
-		},
-		paymentPartnerEmptyText() {
-			return this.activePaymentPartnerTab === 'income'
-				? this.$texts.settings.noIncomePaymentPartners()
-				: this.$texts.settings.noExpensePaymentPartners();
-		},
-		renameSettingsItemTitle() {
-			return this.renameSettingsItemType === 'category'
-				? this.$texts.settings.renameCategory()
-				: this.$texts.settings.renamePaymentPartner();
-		},
-		renameSettingsItemLabel() {
-			return this.renameSettingsItemType === 'category'
-				? this.$texts.settings.categoryLabel()
-				: this.$texts.settings.paymentPartnerLabel();
-		},
-		renameSettingsItemLabelWithArticle() {
-			return this.renameSettingsItemType === 'category'
-				? this.$texts.settings.categoryLabelWithArticle()
-				: this.$texts.settings.paymentPartnerLabelWithArticle();
-		},
-		renameSettingsItemParentOptions() {
-			if (this.renameSettingsItemType !== 'category' || !this.renameSettingsItem) {
-				return [];
-			}
-			return mainCategoryOptions(this.categories, this.renameSettingsItem);
-		},
-		canRenameSettingsItem() {
-			if (!this.renameSettingsItem || !this.renameSettingsItemName.trim() || this.renameSettingsItemSaving) {
-				return false;
-			}
-			if (this.enableAdvancedMasterData
-				&& this.renameSettingsItemType === 'paymentPartner'
-				&& !isValidPaymentPartnerEmail(this.renamePaymentPartnerDetails.email)) {
-				return false;
-			}
-
-			const nameChanged = this.renameSettingsItemName.trim() !== this.renameSettingsItem.name;
-			const codeChanged = this.enableAdvancedMasterData
-				&& this.renameSettingsItemType === 'category'
-				&& this.renameSettingsItemCode.trim() !== String(this.renameSettingsItem.code || '').trim();
-			const parentChanged = this.renameSettingsItemType === 'category'
-				&& this.renameSettingsItemParentId !== String(this.renameSettingsItem.parent_category_id || '');
-			const detailsChanged = this.enableAdvancedMasterData
-				&& this.renameSettingsItemType === 'paymentPartner'
-				&& paymentPartnerDetailsChanged(this.renameSettingsItem, this.renamePaymentPartnerDetails);
-			return nameChanged || codeChanged || parentChanged || detailsChanged;
+		resetButtonDisabled() {
+			return this.loading || this.resetRunning || this.resetPreviewLoading || !this.resetPreview || !!this.resetPreviewError || !!this.resetBlockerMessage;
 		},
 		confirmDialogCanConfirm() {
 			if (!this.confirmDialog) {
@@ -852,29 +497,181 @@ export default {
 			return true;
 		}
 	},
+	watch: {
+		'$route.query.section'(section) {
+			this.consumeRequestedSection(section);
+		}
+	},
 	mounted() {
+		try {
+			this.pendingWorkspaceScroll = sessionStorage.getItem('cobudget-settings-return-to-workspaces') === window.location.href;
+			sessionStorage.removeItem('cobudget-settings-return-to-workspaces');
+		} catch { /* Settings still work when browser storage is unavailable. */ }
+		this.consumeRequestedSection(this.$route?.query?.section);
 		this.fetchData()
 		this.fetchTalkSettings()
+		this.fetchCalendarSettings()
+		this.refreshResetAvailability()
+		window.addEventListener('focus', this.refreshResetAvailability)
+		window.addEventListener('cobudget-data-changed', this.refreshResetAvailability)
+		window.addEventListener('workspaces-updated', this.refreshResetAvailability)
+	},
+	beforeUnmount() {
+		window.removeEventListener('focus', this.refreshResetAvailability)
+		window.removeEventListener('cobudget-data-changed', this.refreshResetAvailability)
+		window.removeEventListener('workspaces-updated', this.refreshResetAvailability)
 	},
 	methods: {
+		async fetchCalendarSettings() {
+			if (this.calendarBusy) return;
+			this.calendarBusy = true;
+			this.calendarError = '';
+			try {
+				const response = await axios.get(generateUrl('/apps/cobudget/api/settings/calendar-reminders'), { skipWorkspaceHeader: true });
+				this.calendar = response.data;
+				this.calendarSetupOpen = false;
+			} catch (error) {
+				this.calendarError = this.extractError(error, this.$texts.settings.calendarSettingsError());
+			} finally { this.calendarBusy = false; }
+		},
+		async toggleCalendarReminders(enabled) {
+			if (this.calendarBusy || this.calendarError) return;
+			if (enabled && !this.calendar.calendars.some(option => option.id === this.calendar.calendar_id)) {
+				this.calendarSetupOpen = true;
+				return;
+			}
+			if (!enabled && !this.calendar.enabled) { this.calendarSetupOpen = false; return; }
+			await this.saveCalendarSettings(enabled, this.calendar.calendar_id);
+		},
+		async saveCalendarSettings(enabled, calendarId) {
+			if (this.calendarBusy || this.calendarError) return;
+			this.calendarBusy = true;
+			try {
+				const response = await axios.post(generateUrl('/apps/cobudget/api/settings/calendar-reminders'), { enabled, calendarId }, { skipWorkspaceHeader: true });
+				this.calendar = response.data;
+				this.calendarSetupOpen = false;
+			} catch (error) {
+				this.calendarError = this.extractError(error, this.$texts.settings.calendarSettingsError());
+			} finally { this.calendarBusy = false; }
+		},
+		async saveNotificationPreference(field, enabled) {
+			if (this.loading || this.backupSettingsSaving || !this.notificationRows.some(row => row.field === field)) return;
+			this[field] = enabled;
+			await this.saveGeneralSettings();
+		},
+		backupRestoreHint(backup) {
+			if (backup.can_restore === false) return this.$texts.settings.restoreBackupBlocked();
+			if (this.backupRestoringFileName) return this.$texts.settings.restoringBackup();
+			if (this.backupDeletingFileName) return this.$texts.common.deleteBusy();
+			return '';
+		},
+		async saveCurrency() {
+			if (this.loading || this.backupSettingsSaving) return;
+			this.currency = this.currency.trim() || this.savedCurrency;
+			if (this.currency === this.savedCurrency) return;
+			if (await this.saveGeneralSettings()) this.savedCurrency = this.currency;
+		},
+		folderDisplayPath(folder) { return '/' + String(folder || '').replace(/^\/+/, '') },
+		async chooseSettingsFolder(kind) {
+			const backup = kind === 'backup';
+			if (this.folderPickerOpen || this.loading || (backup && (this.backupSettingsDisabled || !this.backupSettingsValid))) return;
+			this.folderPickerOpen = true;
+			this.settingsActionError = '';
+			if (backup) this.backupActionError = '';
+			const field = backup ? 'backupStorageFolder' : 'receiptStorageFolder';
+			const previous = this[field];
+			try {
+				// The settings API requires a subfolder; do not offer root or read-only folders.
+				const canPick = node => node.type === 'folder' && node.path !== '/' && !!(node.permissions & Permission.CREATE);
+				const folder = await pickFolder(getFilePickerBuilder(backup ? this.$texts.settings.backupFolder() : this.$texts.settings.storageFolder())
+					.setMultiSelect(false).allowDirectories(true).setMimeTypeFilter(['httpd/unix-directory'])
+					.startAt('/').setCanPick(canPick)
+					.setButtonFactory(nodes => [{ label: this.$texts.settings.selectFolder(), variant: 'primary', disabled: nodes.length !== 1 || !canPick(nodes[0]), callback() {} }]));
+				if (typeof folder !== 'string') return;
+				const path = folder.replace(/^\/+|\/+$/g, '');
+				if (!path || this.folderDisplayPath(path) === this.folderDisplayPath(previous)) return;
+				this[field] = path;
+				const saved = backup ? await this.autoSaveBackupSettings() : await this.saveReceiptStorageFolder();
+				if (!saved) this[field] = previous;
+			} catch (error) {
+				this[field] = previous;
+				if (error?.name !== 'FilePickerClosed') this.showError(this.extractError(error, this.$texts.common.saveError()));
+			} finally { this.folderPickerOpen = false; }
+		},
+		async saveReceiptStorageFolder() {
+			if (this.loading || !this.receiptStorageFolder.trim()) return false;
+			this.receiptStorageFolder = this.receiptStorageFolder.trim();
+			if (this.receiptStorageFolder === this.savedReceiptStorageFolder) return true;
+			if (!await this.saveGeneralSettings({ reload: false })) return false;
+			this.savedReceiptStorageFolder = this.receiptStorageFolder;
+			return true;
+		},
+		async saveBasicSelection(field, option) {
+			if (this.loading || !option || option.heading || this[field] === option.value) return;
+			const previous = this[field];
+			this[field] = option.value;
+			if (field === 'themeMode') this.applyLocalThemeMode();
+			if (!await this.saveGeneralSettings()) {
+				this[field] = previous;
+				if (field === 'themeMode') this.applyLocalThemeMode();
+			}
+		},
+		consumeRequestedSection(section) {
+			if (!['categories', 'payment-partners'].includes(section)) return;
+			this.pendingMasterDataSection = section;
+			if (this.$route?.query?.section) {
+				const query = { ...this.$route.query };
+				delete query.section;
+				this.$router?.replace?.({ name: this.$route.name || 'settings', query });
+			}
+			this.restoreWorkspacePosition();
+		},
+		onMasterDataLoaded() {
+			this.masterDataLoaded = true;
+			this.restoreWorkspacePosition();
+		},
+		restoreWorkspacePosition() {
+			// Wait for settings content to settle before returning to the workspace switches or jumping to master data.
+			if ((!this.pendingWorkspaceScroll && !this.pendingMasterDataSection) || this.loading || this.settingsLoadError || !this.masterDataLoaded || !this.talkLoaded) return;
+			const masterDataSection = this.pendingMasterDataSection;
+			const scrollWorkspace = this.pendingWorkspaceScroll;
+			this.pendingMasterDataSection = '';
+			this.pendingWorkspaceScroll = false;
+			this.$nextTick(() => {
+				if (masterDataSection) {
+					if (!this.$refs.masterDataSettings?.scrollToSection?.(masterDataSection)) {
+						this.pendingMasterDataSection = masterDataSection;
+						this.$refs.masterDataSettings?.$el?.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: 'instant' });
+					}
+					return;
+				}
+				if (scrollWorkspace) {
+					this.$refs.workspaceOptions?.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' });
+				}
+			});
+		},
 		async fetchTalkSettings() {
+			this.talkLoaded = false;
+			this.talkError = '';
 			try {
 				const response = await axios.get(generateUrl('/apps/cobudget/api/settings/talk'), { skipWorkspaceHeader: true });
 				this.talk = response.data;
 			} catch (error) {
-				this.showError(this.$texts.settings.talkSettingsError());
+				this.talkError = this.extractError(error, this.$texts.settings.talkSettingsError());
 			} finally {
 				this.talkLoaded = true;
+				this.restoreWorkspacePosition();
 			}
 		},
-		async saveTalkSettings(enabled) {
+		async saveTalkSettings(enabled, channel = 'payments') {
+			if (this.talkBusy || !this.talkLoaded || this.talkError) return;
 			this.talkBusy = true;
+			this.talkError = '';
 			try {
-				const response = await axios.post(generateUrl('/apps/cobudget/api/settings/talk'), { enabled }, { skipWorkspaceHeader: true });
+				const response = await axios.post(generateUrl('/apps/cobudget/api/settings/talk'), { enabled, channel }, { skipWorkspaceHeader: true });
 				this.talk = response.data;
 			} catch (error) {
-				this.showError(this.extractError(error, this.$texts.settings.talkSettingsError()));
-				await this.fetchTalkSettings();
+				this.talkError = this.extractError(error, this.$texts.settings.talkSettingsError());
 			} finally {
 				this.talkBusy = false;
 			}
@@ -903,6 +700,7 @@ export default {
 			});
 		},
 		resolveConfirm(confirmed) {
+			if (confirmed && !this.confirmDialogCanConfirm) return;
 			const dialog = this.confirmDialog;
 			const resolver = dialog?.resolve;
 			this.confirmDialog = null;
@@ -911,7 +709,7 @@ export default {
 			}
 		},
 		extractError(error, fallback) {
-			return error?.response?.data?.error || error?.message || fallback;
+			return extractError(error, fallback);
 		},
 		normalizeBackupStorageFolder(folder) {
 			const normalized = String(folder || '').trim();
@@ -983,20 +781,10 @@ export default {
 			}
 		},
 		showError(message) {
-			if (window.OC && window.OC.Notification) {
-				window.OC.Notification.showTemporary(message);
-				return;
-			}
-			alert(message);
+			this.settingsActionError = message;
 		},
 		showSuccessMessage(message) {
-			if (typeof showSuccess === 'function') {
-				showSuccess(message, { timeout: 3000 });
-			} else if (typeof showInfo === 'function') {
-				showInfo(message, { timeout: 3000 });
-			} else if (window.OC && window.OC.Notification) {
-				window.OC.Notification.showTemporary(message);
-			}
+			showToast(message, 'success');
 		},
 		formatBackupDate(timestamp) {
 			const date = new Date(Number(timestamp || 0) * 1000);
@@ -1017,35 +805,37 @@ export default {
 				return `${bytes} B`;
 			}
 			if (bytes < 1024 * 1024) {
-				return `${(bytes / 1024).toFixed(1)} KB`;
+				return `${(bytes / 1024).toLocaleString(getAppLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB`;
 			}
-			return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+			return `${(bytes / (1024 * 1024)).toLocaleString(getAppLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
 		},
 		async fetchBackups() {
 			this.backupsLoading = true;
+			this.backupsError = '';
 			try {
 				const response = await axios.get(generateUrl('/apps/cobudget/api/backups'), { skipWorkspaceHeader: true });
 				this.backups = response.data?.backups || [];
 			} catch (e) {
 				console.error('Failed to fetch backups', e);
-				this.showError(this.extractError(e, this.$texts.settings.backupsLoadError()));
+				this.backupsError = this.extractError(e, this.$texts.settings.backupsLoadError());
 			} finally {
 				this.backupsLoading = false;
 			}
 		},
 		async createBackup() {
-			if (!this.backupStorageFolder.trim() || this.backupCreating) {
+			this.backupActionError = '';
+			if (this.backupSettingsDisabled || !this.backupSettingsValid) {
 				return;
 			}
 			this.backupCreating = true;
 			try {
-				await this.saveBackupSettings(false);
+				await this.saveBackupSettings();
 				const response = await axios.post(generateUrl('/apps/cobudget/api/backups'), {}, { skipWorkspaceHeader: true });
 				this.backups = response.data?.backups || [];
 				this.showSuccessMessage(this.$texts.settings.backupCreated());
 			} catch (e) {
 				console.error('Failed to create backup', e);
-				this.showError(this.extractError(e, this.$texts.settings.backupCreateError()));
+				this.backupActionError = this.extractError(e, this.$texts.settings.backupCreateError());
 			} finally {
 				this.backupCreating = false;
 			}
@@ -1057,6 +847,7 @@ export default {
 			window.location.href = generateUrl(`/apps/cobudget/api/backups/${encodeURIComponent(backup.file_name)}/download`);
 		},
 		async deleteBackup(backup) {
+			this.backupActionError = '';
 			if (!backup?.file_name || this.backupActionsDisabled) {
 				return;
 			}
@@ -1064,7 +855,8 @@ export default {
 				title: this.$texts.settings.deleteBackupTitle(),
 				message: this.$texts.settings.deleteBackupMessage(backup.file_name),
 				confirmLabel: this.$texts.settings.deleteBackupConfirm(),
-				confirmVariant: 'danger'
+				confirmVariant: 'danger',
+				kind: 'deleteBackup'
 			});
 			if (!confirmed) {
 				return;
@@ -1077,19 +869,17 @@ export default {
 				this.showSuccessMessage(this.$texts.settings.backupDeleted());
 			} catch (e) {
 				console.error('Failed to delete backup', e);
-				this.showError(this.extractError(e, this.$texts.settings.backupDeleteError()));
+				this.backupActionError = this.extractError(e, this.$texts.settings.backupDeleteError());
 			} finally {
 				this.backupDeletingFileName = '';
 			}
 		},
 		async restoreBackup(backup) {
+			this.backupActionError = '';
 			if (!backup?.file_name || this.backupActionsDisabled) {
 				return;
 			}
-			if (backup.can_restore === false) {
-				this.showError(this.$texts.settings.restoreBackupBlocked());
-				return;
-			}
+			if (backup.can_restore === false) return;
 			let restoreInfo = null;
 			try {
 				const inspectResponse = await axios.get(
@@ -1099,11 +889,11 @@ export default {
 				restoreInfo = inspectResponse.data?.backup?.restore || null;
 			} catch (e) {
 				console.error('Failed to inspect personal export', e);
-				this.showError(this.extractError(e, this.$texts.settings.backupInspectError()));
+				this.backupActionError = this.extractError(e, this.$texts.settings.backupInspectError());
 				return;
 			}
 			if (restoreInfo?.can_restore_personally === false) {
-				this.showError(this.$texts.settings.restoreBackupSharedDataBlocked());
+				this.backupActionError = this.$texts.settings.restoreBackupSharedDataBlocked();
 				return;
 			}
 			const message = [
@@ -1140,24 +930,45 @@ export default {
 				await this.fetchData();
 			} catch (e) {
 				console.error('Failed to restore personal export', e);
-				this.showError(this.extractError(e, this.$texts.settings.backupRestoreError()));
+				this.backupActionError = this.extractError(e, this.$texts.settings.backupRestoreError());
 			} finally {
 				this.backupRestoringFileName = '';
 			}
 		},
-		async saveBackupSettings(showMessage = true) {
-			const folder = this.normalizeBackupStorageFolder(this.backupStorageFolder);
-			const retention = Math.max(1, Math.min(100, Number(this.backupRetentionCount || 7)));
-			this.backupStorageFolder = folder;
-			this.backupRetentionCount = retention;
-			await axios.post(generateUrl('/apps/cobudget/api/settings'), {
-				currency: this.currency,
-				backup_storage_folder: folder,
-				backup_retention_count: retention,
-				backup_schedule: this.backupSchedule || 'none'
-			}, { skipWorkspaceHeader: true });
-			if (showMessage) {
-				this.showSuccessMessage(this.$texts.settings.backupSettingsSaved());
+		async autoSaveBackupSettings() {
+			if (this.backupSettingsDisabled || !this.backupSettingsValid) return false;
+			this.backupActionError = '';
+			const payload = this.backupSettingsPayload;
+			if (JSON.stringify(payload) === JSON.stringify(this.savedBackupSettings)) return true;
+			try {
+				await this.saveBackupSettings();
+				return true;
+			} catch (e) {
+				this.backupActionError = this.extractError(e, this.$texts.common.saveError());
+				return false;
+			}
+		},
+		async saveBackupSchedule(option) {
+			if (!option || this.backupSettingsDisabled || !this.backupSettingsValid || option.value === this.backupSchedule) return;
+			const previous = this.backupSchedule;
+			this.backupSchedule = option.value;
+			if (!await this.autoSaveBackupSettings()) this.backupSchedule = previous;
+		},
+		async saveBackupSettings() {
+			const payload = this.backupSettingsPayload;
+			const folderChanged = payload.backup_storage_folder !== this.savedBackupSettings?.backup_storage_folder;
+			this.backupSettingsSaving = true;
+			try {
+				await axios.post(generateUrl('/apps/cobudget/api/settings'), {
+					currency: this.savedCurrency,
+					...payload,
+				}, { skipWorkspaceHeader: true });
+				this.backupStorageFolder = payload.backup_storage_folder;
+				this.backupRetentionCount = payload.backup_retention_count;
+				this.savedBackupSettings = { ...payload };
+				if (folderChanged) await this.fetchBackups();
+			} finally {
+				this.backupSettingsSaving = false;
 			}
 		},
 		buildResetPreviewMessage(preview) {
@@ -1198,20 +1009,34 @@ export default {
 				.join(', ');
 			return this.$texts.settings.resetBlocked(names);
 		},
-		async resetAllData() {
-			if (this.resetRunning) {
-				return;
+		refreshResetAvailability() {
+			if (!this.resetRunning) return this.fetchResetPreview();
+		},
+		async fetchResetPreview() {
+			if (this.resetPreviewLoading) return null;
+			this.resetPreviewLoading = true;
+			this.resetPreviewError = '';
+			try {
+				const response = await axios.get(generateUrl('/apps/cobudget/api/settings/reset-preview'), { skipWorkspaceHeader: true });
+				const preview = response.data?.reset;
+				if (!preview || !Array.isArray(preview.blocking_shared_projects)) throw new Error(this.$texts.settings.resetPreviewError());
+				this.resetPreview = preview;
+				return preview;
+			} catch (error) {
+				this.resetPreview = null;
+				this.resetPreviewError = this.extractError(error, this.$texts.settings.resetPreviewError());
+				return null;
+			} finally {
+				this.resetPreviewLoading = false;
 			}
-
+		},
+		async resetAllData() {
+			if (this.resetButtonDisabled) return;
 			this.resetRunning = true;
 			try {
-				const previewResponse = await axios.get(generateUrl('/apps/cobudget/api/settings/reset-preview'), { skipWorkspaceHeader: true });
-				const preview = previewResponse.data?.reset || {};
-				const blockerMessage = this.buildResetBlockerMessage(preview);
-				if (blockerMessage) {
-					this.showError(blockerMessage);
-					return;
-				}
+				// Recheck immediately before confirmation; the server checks again on reset.
+				const preview = await this.fetchResetPreview();
+				if (!preview || this.buildResetBlockerMessage(preview)) return;
 
 				const confirmed = await this.openConfirm({
 					title: this.$texts.settings.resetTitle(),
@@ -1219,6 +1044,7 @@ export default {
 					confirmLabel: this.$texts.settings.resetConfirmButton(),
 					confirmVariant: 'danger',
 					requiredText: 'RESET',
+					kind: 'reset',
 					wide: true
 				});
 				if (!confirmed) {
@@ -1235,8 +1061,13 @@ export default {
 				window.setTimeout(() => window.location.reload(), 600);
 			} catch (e) {
 				console.error('Failed to reset CoBudget data', e);
-				const blockerMessage = this.buildResetBlockerMessage(e?.response?.data?.reset);
-				this.showError(blockerMessage || this.extractError(e, this.$texts.settings.resetError()));
+				const blockedPreview = e?.response?.data?.reset;
+				if (this.buildResetBlockerMessage(blockedPreview)) {
+					this.resetPreview = blockedPreview;
+					this.resetPreviewError = '';
+				} else {
+					this.resetPreviewError = this.extractError(e, this.$texts.settings.resetError());
+				}
 			} finally {
 				this.resetRunning = false;
 			}
@@ -1265,9 +1096,11 @@ export default {
 		},
 		async fetchData() {
 			this.loading = true;
+			this.settingsLoadError = '';
 			try {
 				const settingsRes = await axios.get(generateUrl('/apps/cobudget/api/settings'), { skipWorkspaceHeader: true });
 				this.currency = settingsRes.data.currency || '';
+				this.savedCurrency = this.currency;
 				this.enableSubscriptions = settingsRes.data.enable_subscriptions ?? true;
 				this.enableFixedCosts = settingsRes.data.enable_fixed_costs ?? true;
 				this.enableChildRelated = settingsRes.data.enable_child_related ?? true;
@@ -1276,12 +1109,15 @@ export default {
 				this.enableTaxRelevant = settingsRes.data.enable_tax_relevant ?? true;
 				this.enableInsurance = settingsRes.data.enable_insurance ?? true;
 				this.enableFuturePayments = settingsRes.data.enable_future_payments ?? true;
+				this.enableReminders = settingsRes.data.enable_reminders ?? true;
 				this.enableBudgetGoals = settingsRes.data.enable_budget_goals ?? true;
 				this.enableAdvancedMasterData = settingsRes.data.enable_advanced_master_data ?? false;
 				this.enableIncomes = settingsRes.data.enable_incomes ?? true;
 				this.enableProjects = settingsRes.data.enable_projects ?? true;
 				this.enableSharedProjects = settingsRes.data.enable_shared_projects ?? true;
 				this.notifyProjectEntries = settingsRes.data.notify_project_entries ?? true;
+				this.notifyReminders = settingsRes.data.notify_reminders ?? true;
+				this.notifyPlannedPayments = settingsRes.data.notify_planned_payments ?? false;
 				this.notifyProjectSettlements = settingsRes.data.notify_project_settlements ?? true;
 				this.enableWorkspaces = settingsRes.data.enable_workspaces ?? false;
 				this.showWorkspaceSwitcher = settingsRes.data.show_workspace_switcher ?? true;
@@ -1291,50 +1127,35 @@ export default {
 				this.themeMode = normalizeThemeMode(settingsRes.data.theme_mode);
 				applyThemeMode(this.themeMode);
 				this.showNextcloudHeaderDesktop = settingsRes.data.show_nextcloud_header_desktop ?? true;
-				this.showNextcloudHeaderMobile = settingsRes.data.show_nextcloud_header_mobile ?? false;
+				this.showNextcloudHeaderMobile = settingsRes.data.show_nextcloud_header_mobile ?? true;
 				const headerVisibility = this.applyLocalNextcloudHeaderVisibility();
 				this.$showNextcloudHeaderDesktop = headerVisibility.showDesktop;
 				this.$showNextcloudHeaderMobile = headerVisibility.showMobile;
 				this.receiptStorageFolder = settingsRes.data.receipt_storage_folder || 'CoBudget/Belege';
+				this.savedReceiptStorageFolder = this.receiptStorageFolder;
 				this.receiptFolderGrouping = settingsRes.data.receipt_folder_grouping || 'year';
 				this.deleteReceiptsWithEntry = settingsRes.data.delete_receipts_with_entry ?? false;
 				this.backupStorageFolder = this.normalizeBackupStorageFolder(settingsRes.data.backup_storage_folder);
 				this.backupRetentionCount = Number(settingsRes.data.backup_retention_count || 7);
 				this.backupSchedule = settingsRes.data.backup_schedule || 'none';
+				this.savedBackupSettings = { ...this.backupSettingsPayload };
+				this.savedGeneralSettings = this.generalSettingsSnapshot();
 				await this.fetchBackups();
 				await this.ensureValidWorkspaceContext();
-				if (this.enableProjects) {
+				{
 					const projectRes = await this.fetchWorkspaceScopedWithRetry(generateUrl('/apps/cobudget/api/projects'));
 					this.projects = Array.isArray(projectRes.data) ? projectRes.data : [];
-				} else {
-					this.projects = [];
 				}
 				this.normalizeDefaultStartPageForProjects();
-				const catRes = await this.fetchWorkspaceScopedWithRetry(generateUrl('/apps/cobudget/api/categories/settings'));
-				this.categories = sortCategoriesHierarchically(catRes.data || []);
-				const paymentPartnerRes = await this.fetchWorkspaceScopedWithRetry(generateUrl('/apps/cobudget/api/payment-partners/settings'));
-				this.paymentPartners = (paymentPartnerRes.data || []).sort((a, b) => a.name.localeCompare(b.name));
+
 			} catch (e) {
 				console.error('Failed to fetch personal data', e);
-				this.showError(this.extractError(e, this.$texts.settings.loadError()));
+				this.masterDataLoaded = false;
+				this.settingsLoadError = this.extractError(e, this.$texts.settings.loadError());
 			} finally {
 				this.loading = false;
+				this.restoreWorkspacePosition();
 			}
-		},
-		async addCategory() {
-			if (!this.newCategory.trim()) return;
-			this.loading = true;
-			try {
-				await axios.post(generateUrl('/apps/cobudget/api/categories'), { name: this.newCategory.trim(), icon: this.newCategoryIcon, type: this.categoryTab });
-				this.newCategory = '';
-				this.newCategoryIcon = 'Shape';
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.categorySaved());
-			} catch (e) {
-				console.error(e);
-				this.showError(this.extractError(e, this.$texts.settings.categoryCreateError()));
-			}
-			this.loading = false;
 		},
 		applyLocalThemeMode() {
 			this.themeMode = applyThemeMode(this.themeMode);
@@ -1351,7 +1172,7 @@ export default {
 		async saveNextcloudHeaderSettings() {
 			const previousVisibility = {
 				showDesktop: this.$showNextcloudHeaderDesktop ?? true,
-				showMobile: this.$showNextcloudHeaderMobile ?? false,
+				showMobile: this.$showNextcloudHeaderMobile ?? true,
 			};
 			const visibility = this.applyLocalNextcloudHeaderVisibility();
 			const saved = await this.saveGeneralSettings({ reload: false });
@@ -1367,300 +1188,60 @@ export default {
 			this.showNextcloudHeaderMobile = previousVisibility.showMobile;
 			this.applyLocalNextcloudHeaderVisibility();
 		},
-		async updateCategoryIcon(cat, newIcon) {
-			try {
-				if (cat.is_global) {
-					return;
-				}
-				await axios.put(generateUrl(`/apps/cobudget/api/categories/${cat.id}/icon`), { icon: newIcon });
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.categorySaved());
-			} catch (e) {
-				console.error(e);
-				this.showError(this.extractError(e, this.$texts.settings.categoryIconSaveError()));
-			}
-		},
-		openRenameSettingsItem(type, item) {
-			if (!item || item.is_global) {
-				return;
-			}
-			this.renameSettingsItemType = type;
-			this.renameSettingsItem = item;
-			this.renameSettingsItemName = item.name;
-			this.renameSettingsItemCode = type === 'category' ? String(item.code || '') : '';
-			this.renameSettingsItemParentId = type === 'category' ? String(item.parent_category_id || '') : '';
-			this.renamePaymentPartnerDetails = type === 'paymentPartner'
-				? createPaymentPartnerDetails(item)
-				: createPaymentPartnerDetails();
-			this.renameSettingsItemError = '';
-			this.renameSettingsItemSaving = false;
-			this.$nextTick(() => {
-				if (type === 'paymentPartner' && this.enableAdvancedMasterData) {
-					this.$refs.renamePaymentPartnerFields?.focusName();
-					return;
-				}
-				if (type === 'category' && this.enableAdvancedMasterData) {
-					this.$refs.renameSettingsItemCodeInput?.focus();
-					this.$refs.renameSettingsItemCodeInput?.select();
-					return;
-				}
-				this.$refs.renameSettingsItemInput?.focus();
-				this.$refs.renameSettingsItemInput?.select();
-			});
-		},
-		closeRenameSettingsItemModal() {
-			if (this.renameSettingsItemSaving) {
-				return;
-			}
-			this.resetRenameSettingsItemModal();
-		},
-		resetRenameSettingsItemModal() {
-			this.renameSettingsItemType = '';
-			this.renameSettingsItem = null;
-			this.renameSettingsItemName = '';
-			this.renameSettingsItemCode = '';
-			this.renameSettingsItemParentId = '';
-			this.renamePaymentPartnerDetails = createPaymentPartnerDetails();
-			this.renameSettingsItemError = '';
-			this.renameSettingsItemSaving = false;
-		},
-		async saveRenameSettingsItem() {
-			if (!this.canRenameSettingsItem) {
-				return;
-			}
-
-			const item = this.renameSettingsItem;
-			const type = this.renameSettingsItemType;
-			const newName = this.renameSettingsItemName.trim();
-			const successMessage = type === 'category' ? this.$texts.settings.categorySaved() : this.$texts.settings.paymentPartnerSaved();
-			const endpoint = type === 'category'
-				? `/apps/cobudget/api/categories/${item.id}`
-				: `/apps/cobudget/api/payment-partners/${item.id}`;
-			const payload = { name: newName };
-			if (type === 'category') {
-				if (this.enableAdvancedMasterData) {
-					payload.code = this.renameSettingsItemCode.trim();
-				}
-				payload.parentCategoryId = this.renameSettingsItemParentId
-					? Number(this.renameSettingsItemParentId)
-					: 0;
-			} else if (this.enableAdvancedMasterData) {
-				Object.assign(payload, paymentPartnerDetailsPayload(this.renamePaymentPartnerDetails));
-			}
-
-			this.renameSettingsItemSaving = true;
-			this.renameSettingsItemError = '';
-			try {
-				const response = await axios.put(generateUrl(endpoint), payload, {
-					headers: { Accept: 'application/json' }
-				});
-				if (response.data && typeof response.data === 'object' && response.data.error) {
-					throw new Error(response.data.error);
-				}
-				this.resetRenameSettingsItemModal();
-				await this.fetchData();
-				this.showSuccessMessage(successMessage);
-			} catch (e) {
-				console.error('Failed to rename settings item', e);
-				this.renameSettingsItemError = this.extractError(e, this.$texts.settings.genericSaveError());
-			} finally {
-				this.renameSettingsItemSaving = false;
-			}
-		},
-		async addPaymentPartner() {
-			if (!this.newPaymentPartner.trim()) return;
-			this.loading = true;
-			try {
-				await axios.post(generateUrl('/apps/cobudget/api/payment-partners'), { name: this.newPaymentPartner.trim(), type: this.activePaymentPartnerTab });
-				this.newPaymentPartner = '';
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.paymentPartnerSaved());
-			} catch (e) {
-				console.error(e);
-				this.showError(this.extractError(e, this.$texts.settings.paymentPartnerCreateError()));
-			}
-			this.loading = false;
-		},
-		async hideCategory(id) {
-			this.loading = true;
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/categories/${id}/hide`));
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.categoryHidden());
-			} catch (e) {
-				console.error(e);
-				this.showError(this.extractError(e, this.$texts.settings.categoryHideError()));
-			}
-			this.loading = false;
-		},
-		async unhideCategory(id) {
-			this.loading = true;
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/categories/${id}/unhide`));
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.categoryShown());
-			} catch (e) {
-				console.error(e);
-				this.showError(this.extractError(e, this.$texts.settings.categoryShowError()));
-			}
-			this.loading = false;
-		},
-		async deleteCategory(cat) {
-			if (cat.in_use) {
-				if (window.OC && window.OC.Notification) {
-					window.OC.Notification.showTemporary(this.$texts.settings.categoryInUse());
-				} else {
-					alert(this.$texts.settings.categoryInUse());
-				}
-				return;
-			}
-			const confirmed = await this.openConfirm({
-				title: this.$texts.settings.deleteCategoryTitle(),
-				message: this.$texts.settings.deleteCategoryMessage(),
-				confirmLabel: this.$texts.settings.deleteCategoryConfirm(),
-				confirmVariant: 'danger'
-			});
-			if (!confirmed) return;
-			this.loading = true;
-			try {
-				await axios.delete(generateUrl(`/apps/cobudget/api/categories/${cat.id}`));
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.categoryDeleted());
-			} catch (e) {
-				console.error(e);
-				this.showError(this.extractError(e, this.$texts.settings.categoryDeleteError()));
-			}
-			this.loading = false;
-		},
-		async hidePaymentPartner(id) {
-			this.loading = true;
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/payment-partners/${id}/hide`));
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.paymentPartnerHidden());
-			} catch (e) {
-				console.error(e);
-				this.showError(this.extractError(e, this.$texts.settings.paymentPartnerHideError()));
-			}
-			this.loading = false;
-		},
-		async unhidePaymentPartner(id) {
-			this.loading = true;
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/payment-partners/${id}/unhide`));
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.paymentPartnerShown());
-			} catch (e) {
-				console.error(e);
-				this.showError(this.extractError(e, this.$texts.settings.paymentPartnerShowError()));
-			}
-			this.loading = false;
-		},
-		async deletePaymentPartner(paymentPartner) {
-			if (paymentPartner.in_use) {
-				if (window.OC && window.OC.Notification) {
-					window.OC.Notification.showTemporary(this.$texts.settings.paymentPartnerInUse());
-				} else {
-					alert(this.$texts.settings.paymentPartnerInUse());
-				}
-				return;
-			}
-			const confirmed = await this.openConfirm({
-				title: this.$texts.settings.deletePaymentPartnerTitle(),
-				message: this.$texts.settings.deletePaymentPartnerMessage(),
-				confirmLabel: this.$texts.settings.deletePaymentPartnerConfirm(),
-				confirmVariant: 'danger'
-			});
-			if (!confirmed) return;
-
-			this.loading = true;
-			try {
-				await axios.delete(generateUrl(`/apps/cobudget/api/payment-partners/${paymentPartner.id}`));
-				await this.fetchData();
-				this.showSuccessMessage(this.$texts.settings.paymentPartnerDeleted());
-			} catch (e) {
-				console.error('Failed to delete paymentPartner', e)
-				this.showError(this.extractError(e, this.$texts.settings.paymentPartnerDeleteError()));
-			}
-			this.loading = false;
+		generalSettingsSnapshot() {
+			return {
+				...Object.fromEntries(Object.keys(generalSettingsFields).map(field => [field, this[field]])),
+				entryPageSize: normalizeEntryPageSize(this.entryPageSize),
+				themeMode: normalizeThemeMode(this.themeMode),
+				receiptStorageFolder: this.receiptStorageFolder.trim() || 'CoBudget/Belege',
+			};
 		},
 		async saveGeneralSettings(options = {}) {
-			const reload = options?.reload !== false;
+			if (this.loading || this.backupSettingsSaving || !this.savedGeneralSettings || this.settingsLoadError) return false;
 			this.loading = true;
+			this.settingsActionError = '';
+			const previous = { ...this.savedGeneralSettings };
+			let saved;
 			try {
 				this.normalizeDefaultStartPageForProjects();
-				await axios.post(generateUrl('/apps/cobudget/api/settings'), { 
-					currency: this.currency, 
-					enable_subscriptions: this.enableSubscriptions,
-					enable_fixed_costs: this.enableFixedCosts,
-					enable_child_related: this.enableChildRelated,
-					enable_important_payments: this.enableImportantPayments,
-					enable_review_payments: this.enableReviewPayments,
-					enable_tax_relevant: this.enableTaxRelevant,
-					enable_insurance: this.enableInsurance,
-					enable_future_payments: this.enableFuturePayments,
-					enable_budget_goals: this.enableBudgetGoals,
-					enable_advanced_master_data: this.enableAdvancedMasterData,
-					enable_incomes: this.enableIncomes,
-					enable_projects: this.enableProjects,
-					enable_shared_projects: this.enableSharedProjects,
-					notify_project_entries: this.notifyProjectEntries,
-					notify_project_settlements: this.notifyProjectSettlements,
-					enable_workspaces: this.enableWorkspaces,
-					show_workspace_switcher: this.showWorkspaceSwitcher,
-					enable_receipts: this.enableReceipts,
-					default_start_page: this.defaultStartPage,
-					entries_per_page: normalizeEntryPageSize(this.entryPageSize),
-					theme_mode: normalizeThemeMode(this.themeMode),
-					show_nextcloud_header_desktop: this.showNextcloudHeaderDesktop,
-					show_nextcloud_header_mobile: this.showNextcloudHeaderMobile,
-					receipt_storage_folder: this.receiptStorageFolder.trim() || 'CoBudget/Belege',
-					receipt_folder_grouping: this.receiptFolderGrouping,
-					delete_receipts_with_entry: this.deleteReceiptsWithEntry,
-					backup_storage_folder: this.normalizeBackupStorageFolder(this.backupStorageFolder),
-					backup_retention_count: Math.max(1, Math.min(100, Number(this.backupRetentionCount || 7))),
-					backup_schedule: this.backupSchedule || 'none'
-				}, { skipWorkspaceHeader: true });
-				this.$root.$emit && this.$root.$emit('settings-changed');
-				
-
-				if (!this.enableSubscriptions && this.$route && this.$route.query.filter === 'subscription') {
-					window.location.hash = '#/';
-				} else if (!this.enableInsurance && this.$route && this.$route.query.filter === 'insurance') {
-					window.location.hash = '#/';
-				} else if (!this.enableTaxRelevant && this.$route && this.$route.query.filter === 'taxRelevant') {
-					window.location.hash = '#/';
-				} else if (!this.enableFixedCosts && this.$route && this.$route.query.filter === 'fixedCost') {
-					window.location.hash = '#/';
-				} else if (!this.enableChildRelated && this.$route && this.$route.query.filter === 'childRelated') {
-					window.location.hash = '#/';
-				} else if (!this.enableImportantPayments && this.$route && this.$route.query.filter === 'important') {
-					window.location.hash = '#/';
-				} else if (!this.enableReviewPayments && this.$route && this.$route.query.filter === 'review') {
-					window.location.hash = '#/';
-				} else if (!this.enableFuturePayments && this.$route && this.$route.query.filter === 'future') {
-					window.location.hash = '#/';
-				} else if (!this.enableIncomes && this.$route && this.$route.query.filter === 'income') {
-					window.location.hash = '#/';
-				}
-				
-				if (reload) {
-					window.location.reload(); // Reload to apply settings everywhere easily
-				}
-				return true;
+				saved = this.generalSettingsSnapshot();
+				const changed = Object.keys(generalSettingsFields).filter(field => saved[field] !== previous[field]);
+				if (!changed.length) return true;
+				// Currency is required by this API, even for a partial preference update.
+				const payload = { currency: saved.currency };
+				for (const field of changed) payload[generalSettingsFields[field]] = saved[field];
+				const response = await axios.post(generateUrl('/apps/cobudget/api/settings'), payload, { skipWorkspaceHeader: true });
+				if (typeof response.data?.currency === 'string') saved.currency = response.data.currency;
 			} catch (e) {
-				console.error('Failed to save settings', e)
+				Object.assign(this, previous);
+				this.applyLocalThemeMode();
+				this.applyLocalNextcloudHeaderVisibility();
 				this.showError(this.extractError(e, this.$texts.settings.generalSaveError()));
 				return false;
 			} finally {
 				this.loading = false;
 			}
+			Object.assign(this, saved);
+			this.savedGeneralSettings = saved;
+			this.savedCurrency = saved.currency;
+			this.savedReceiptStorageFolder = saved.receiptStorageFolder;
+			applySavedSettings(saved);
+			// Changing workspace mode changes the data context. Reinitialize it before
+			// loading scoped lists, and retain the user's position in the settings.
+			if (saved.enableWorkspaces !== previous.enableWorkspaces) {
+				try { sessionStorage.setItem('cobudget-settings-return-to-workspaces', window.location.href); } catch { /* Saving must not depend on session storage. */ }
+				window.location.reload();
+			} else {
+				window.dispatchEvent(new CustomEvent('cobudget-settings-changed'));
+			}
+			return true;
 		}
 	}
 }
 </script>
 
 <style scoped>
+.settings-loading { display: flex; align-items: center; gap: var(--cobudget-space-2, 8px); color: var(--color-text-maxcontrast); }
 .settings-section {
 	display: block;
 	margin: var(--cobudget-form-inset);
@@ -1668,16 +1249,39 @@ export default {
 	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
 	box-sizing: border-box;
 }
+.settings-basic-fields { display: grid; gap: var(--cobudget-section-gap, 24px); }
+.settings-basic-fields .setting-item { min-width: 0; }
+.settings-basic-fields :deep(.v-select.select) { width: 100%; min-width: 0; margin: 0; }
 .settings-general {
-	margin-bottom: 20px;
+	margin-bottom: 0;
 }
-.settings-general h3 {
-	font-size: var(--cobudget-font-section);
-	margin-top: 0 !important;
+.settings-master-data { margin-block: 0; }
+.settings-master-data :deep(.master-section) {
+	padding-block-start: var(--cobudget-settings-heading-gap);
+	scroll-margin-block-start: calc(var(--cobudget-mobile-touch-size, 44px) + var(--default-grid-baseline, 4px) * 4);
+}
+.settings-master-data :deep(.master-section + .master-section) { margin-block-start: 0; }
+.settings-master-data :deep(.master-section > h3),
+.settings-subsection:not(.reset-section) > h3 { margin-block-start: 0; }
+.settings-subsection:not(.reset-section) {
+	margin-block-start: 0;
+	padding-block-start: var(--cobudget-settings-heading-gap);
 }
 .settings-subsection {
 	margin-top: var(--cobudget-settings-section-gap);
 }
+.settings-workspace-options {
+	scroll-margin-block-start: calc(var(--cobudget-mobile-touch-size, 44px) + var(--default-grid-baseline, 4px) * 4);
+}
+.workspace-section-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--cobudget-content-gap);
+	margin-bottom: var(--cobudget-section-gap);
+}
+.workspace-section-header h3 { margin: 0; }
+.workspace-add-button { flex-shrink: 0; margin-inline-start: auto; }
 .settings-hint {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 	margin-top: 0;
@@ -1689,23 +1293,13 @@ export default {
 }
 .settings-column {
 	flex: 1;
+	min-width: 0;
 }
 
-.confirm-text-block {
-	margin-top: 18px;
-}
-
-.confirm-text-block label {
-	display: block;
-	margin-bottom: 8px;
-	font-weight: 700;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
 
 .settings-mini-section {
-	margin-top: 28px;
-	padding-top: 18px;
-	border-top: 1px solid var(--cobudget-border, #ddd);
+	margin-top: 0;
+	padding-top: var(--cobudget-settings-heading-gap);
 }
 
 .settings-column > .settings-mini-section:first-child {
@@ -1714,34 +1308,42 @@ export default {
 	border-top: 0;
 }
 
-.settings-mini-section h4 {
-	font-size: var(--cobudget-font-subheading);
-	font-weight: 700;
+.settings-receipt-delete { margin-top: 16px; }
+
+.settings-mini-section h3 {
+	font-size: var(--cobudget-font-section-title);
+	font-weight: var(--cobudget-font-weight-heading);
 	margin: 0 0 14px 0;
 }
 
 .backup-settings-grid {
 	display: grid;
-	grid-template-columns: minmax(220px, 1fr) minmax(140px, 180px) minmax(180px, 220px) auto;
-	gap: 16px;
-	align-items: end;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--cobudget-section-gap);
+	align-items: start;
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
 .backup-settings-grid label,
 .backup-list-header h4,
-.backup-info strong,
 .backup-info span {
 	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 }
 
-.backup-save-action {
-	display: flex;
-	align-items: flex-end;
+.backup-settings-grid .setting-item { min-width: 0; }
+.backup-schedule-setting,
+.backup-folder-setting { grid-column: 1 / -1; }
+.backup-schedule-options {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--default-grid-baseline, 4px);
+	width: 100%;
 }
 
 .backup-manual-actions {
-	margin-top: 18px;
+	display: flex;
+	justify-content: flex-end;
+	align-self: end;
 }
 
 .restore-report {
@@ -1761,8 +1363,8 @@ export default {
 }
 
 .restore-report-header h4 {
-	font-size: var(--cobudget-font-md);
-	font-weight: 700;
+	font-size: var(--cobudget-font-subheading);
+	font-weight: var(--cobudget-font-weight-heading);
 	margin: 0 0 4px 0;
 }
 
@@ -1790,7 +1392,7 @@ export default {
 
 .restore-report-close:hover,
 .restore-report-close:focus-visible {
-	background: var(--cobudget-surface-strong, var(--color-background-dark, #eee));
+	background: var(--cobudget-interaction-hover);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 	outline: none;
 }
@@ -1833,7 +1435,7 @@ export default {
 
 .restore-report-block h5 {
 	font-size: var(--cobudget-font-base);
-	font-weight: 700;
+	font-weight: var(--cobudget-font-weight-heading);
 	margin: 0 0 10px 0;
 }
 
@@ -1883,8 +1485,16 @@ export default {
 }
 
 .backup-list-header h4 {
-	font-size: var(--cobudget-font-md);
-	font-weight: 700;
+	font-size: var(--cobudget-font-subheading);
+	font-weight: var(--cobudget-font-weight-heading);
+	color: var(--color-main-text);
+	margin: 0;
+}
+
+.backup-info .backup-date {
+	font-size: var(--cobudget-font-label);
+	font-weight: var(--font-weight-element, 500);
+	color: var(--color-main-text);
 	margin: 0;
 }
 
@@ -1892,41 +1502,8 @@ export default {
 	margin-bottom: 0;
 }
 
-.backup-empty {
-	margin: 0;
-	padding: 16px;
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-	font-style: italic;
-}
-
-.backup-items {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	overflow: hidden;
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.backup-item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	padding: 12px 14px;
-	border-top: 1px solid var(--cobudget-border, #ddd);
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.backup-item:first-child {
-	border-top: 0;
-}
-
 .backup-info {
+	flex: 1;
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
@@ -1944,12 +1521,11 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888)) !important;
 }
 
-.backup-item-actions {
-	display: flex;
+.backup-items :deep(.backup-item-actions) {
 	align-items: center;
 	justify-content: flex-end;
-	gap: 8px;
-	flex-shrink: 0;
+	gap: var(--default-grid-baseline, 4px);
+	flex-wrap: wrap;
 }
 
 .backup-restore-action {
@@ -1958,39 +1534,21 @@ export default {
 
 .reset-section {
 	padding-top: 22px;
-	border-top: 1px solid var(--cobudget-border, #ddd);
 }
 
 .reset-section h3 {
 	color: var(--cobudget-error);
 }
 
-.reset-danger-button,
-:deep(.reset-danger-button.button-vue),
-.reset-danger-button :deep(.button-vue) {
-	background: var(--cobudget-surface, #fff) !important;
-	border: 1px solid var(--cobudget-error) !important;
-	color: var(--cobudget-error) !important;
+.settings-native-options {
+	display: grid;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
 }
 
-.reset-danger-button:hover:not(:disabled),
-.reset-danger-button:focus-visible:not(:disabled),
-:deep(.reset-danger-button.button-vue:hover:not(:disabled)),
-:deep(.reset-danger-button.button-vue:focus-visible:not(:disabled)),
-.reset-danger-button :deep(.button-vue:hover:not(:disabled)),
-.reset-danger-button :deep(.button-vue:focus-visible:not(:disabled)) {
-	background: var(--cobudget-error) !important;
-  border: 1px solid var(--cobudget-error) !important;
-	color: var(--cobudget-primary-text, #fff) !important;
-}
-
-.reset-danger-button:disabled,
-:deep(.reset-danger-button.button-vue:disabled),
-.reset-danger-button :deep(.button-vue:disabled) {
-	background: var(--cobudget-surface-muted, #eee) !important;
-	border-color: var(--cobudget-border-strong, #ccc) !important;
-	color: var(--cobudget-text-muted, #666) !important;
-	opacity: 1;
+.settings-talk-status {
+	display: grid;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
+	justify-items: start;
 }
 
 .setting-toggle-row {
@@ -2001,15 +1559,12 @@ export default {
 }
 
 .setting-desc {
-	font-size: var(--cobudget-font-compact);
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
+	font-size: var(--font-size, 15px);
+	color: var(--color-text-maxcontrast);
 	margin-top: 2px;
 	margin-bottom: 8px;
 }
 
-.backup-settings-grid .form-control,
-.backup-settings-grid input,
-.backup-settings-grid select,
 .settings-modal input,
 .settings-modal select,
 .settings-modal textarea {
@@ -2017,7 +1572,6 @@ export default {
 	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 }
 
-.backup-settings-grid input::placeholder,
 .settings-modal input::placeholder,
 .settings-modal textarea::placeholder {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888)) !important;
@@ -2065,49 +1619,6 @@ export default {
 	margin-bottom: 20px;
 	margin-top: 10px;
 	align-items: center;
-}
-
-/* Custom Toggle Switch */
-.toggle-switch {
-	position: relative;
-	display: inline-block;
-	width: 44px;
-	height: 24px;
-	flex-shrink: 0;
-}
-.toggle-switch input {
-	opacity: 0;
-	width: 0;
-	height: 0;
-}
-.toggle-slider {
-	position: absolute;
-	cursor: pointer;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	background-color: var(--cobudget-border, #ccc);
-	transition: .4s;
-	border-radius: 24px;
-}
-.toggle-slider:before {
-	position: absolute;
-	content: "";
-	height: 18px;
-	width: 18px;
-	left: 3px;
-	bottom: 3px;
-	background-color: white;
-	transition: .4s;
-	border-radius: 50%;
-	box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-input:checked + .toggle-slider {
-	background-color: var(--color-primary, #0082c9);
-}
-input:checked + .toggle-slider:before {
-	transform: translateX(20px);
 }
 
 .settings-modal-backdrop {
@@ -2273,26 +1784,20 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 		gap: 24px;
 	}
 
-	.backup-settings-grid,
-	.backup-item {
+	.backup-schedule-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+	.backup-settings-grid {
 		grid-template-columns: 1fr;
 		flex-direction: column;
 		align-items: stretch;
 	}
 
-	.backup-save-action {
-		align-items: stretch;
-	}
 
 	.restore-report-summary,
 	.restore-report-grid {
 		grid-template-columns: 1fr;
 	}
 
-	.backup-item-actions {
-		justify-content: flex-start;
-		flex-wrap: wrap;
-	}
 
 	.settings-modal {
 		padding: 20px;
@@ -2302,5 +1807,37 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 	.rename-fields.has-category-number {
 		grid-template-columns: minmax(0, 1fr);
 	}
+}
+
+/* A compact channel matrix keeps event names visible at narrow widths. */
+.settings-notification-table {
+	width: 100%;
+	table-layout: fixed;
+	border-collapse: collapse;
+}
+.settings-notification-table th,
+.settings-notification-table td {
+	padding: 4px 0;
+	border-bottom: 1px solid var(--color-border);
+	vertical-align: middle;
+	font-weight: normal;
+}
+.settings-notification-table th { text-align: start; overflow-wrap: anywhere; white-space: normal; }
+.settings-notification-table thead th { color: var(--color-text-maxcontrast); }
+.settings-notification-table th:not(:first-child),
+.settings-notification-table td { width: 76px; text-align: center; }
+.settings-notification-table td :deep(.checkbox-radio-switch) { width: 44px; min-width: 44px; min-height: 44px; margin-inline: auto; justify-content: center; }
+
+
+.settings-calendar-target { display: grid; gap: 8px; }
+.settings-calendar-target :deep(.v-select.select) { width: 100%; min-width: 0; margin: 0; }
+
+@media (max-width: 480px) {
+	.settings-notification-table th.notification-channel-nextcloud,
+	.settings-notification-table td.notification-channel-nextcloud { width: 70px; }
+	.settings-notification-table th.notification-channel-talk,
+	.settings-notification-table td.notification-channel-talk { width: 44px; }
+	.settings-notification-table th.notification-channel-calendar,
+	.settings-notification-table td.notification-channel-calendar { width: 62px; }
 }
 </style>

@@ -80,7 +80,10 @@ assert.deepEqual(annualChartTicks(31, 40), [0], 'Extremely narrow plots can omit
 
 const { descriptor } = parse(source('src/components/AnnualOverviewChart.vue'))
 const slotComponent = tag => ({ setup: (_, { slots }) => () => Vue.h(tag, [slots.icon?.(), slots.default?.()]) })
-const bindings = { ...charts, ...annual, reportExportMoney: cents => ({ cents }), reportExportDisplayedValue: display => ({ display }), DownloadIcon: slotComponent('span'), CloudUploadOutlineIcon: slotComponent('span'), ClipboardTextOutlineIcon: slotComponent('span'), ChevronDownIcon: slotComponent('span'), ChevronUpIcon: slotComponent('span'), NcActions: slotComponent('div'), NcActionButton: slotComponent('button'), NcActionSeparator: { render: () => Vue.h('li', { role: 'separator' }) } }
+const bindings = { ...charts, ...annual, AreaIcon: slotComponent('span'), CoBudgetIcon: slotComponent('span'), reportExportMoney: cents => ({ cents }), reportExportDisplayedValue: display => ({ display }), DownloadIcon: slotComponent('span'), CloudUploadOutlineIcon: slotComponent('span'), ClipboardTextOutlineIcon: slotComponent('span'), ChevronDownIcon: slotComponent('span'), ChevronUpIcon: slotComponent('span'), NcActions: slotComponent('div'), NcActionButton: slotComponent('button'), NcActionSeparator: { render: () => Vue.h('li', { role: 'separator' }) } }
+const selectDescriptor = parse(source('src/components/ReportSelect.vue')).descriptor
+bindings.ReportSelect = new Function(...Object.keys(bindings), selectDescriptor.script.content.replace(/^import .*$/gm, '').replace('export default', 'return'))(...Object.values(bindings))
+bindings.ReportSelect.render = new Function('Vue', compile(selectDescriptor.template.content, { mode: 'function', prefixIdentifiers: true }).code)(Vue)
 const menuDescriptor = parse(source('src/components/ReportSectionMenu.vue')).descriptor
 bindings.ReportSectionMenu = new Function(...Object.keys(bindings), menuDescriptor.script.content.replace(/^import .*$/gm, '').replace('export default', 'return'))(...Object.values(bindings))
 bindings.ReportSectionMenu.render = new Function('Vue', compile(menuDescriptor.template.content, { mode: 'function', prefixIdentifiers: true }).code)(Vue)
@@ -91,7 +94,7 @@ const texts = {
 	analytics: { development: () => 'Development', income: () => 'Income', expenses: () => 'Expenses', balance: () => 'Balance' },
 	annual: { income: () => 'Income', chartDisplay: () => 'Chart display', chartPerPeriod: () => 'Individual amounts', chartCumulative: () => 'Running total', chartPerPeriodHint: () => 'Each period', chartCumulativeHint: () => 'Running total', chartKeyboardHint: () => 'Arrow keys, Home, End and Escape' },
 }
-Object.assign(texts.annual, { sectionActions: () => 'Section actions', collapseSection: () => 'Collapse section', expandSection: () => 'Expand section', chartHideSeries: series => `Hide ${series}`, chartShowSeries: series => `Show ${series}`, chartKeepOneSeries: () => 'At least one curve must remain visible.' })
+Object.assign(texts.annual, { sectionActions: () => 'Section actions', chartHideSeries: series => `Hide ${series}`, chartShowSeries: series => `Show ${series}`, chartKeepOneSeries: () => 'At least one curve must remain visible.' })
 const renderChart = async (props = {}, state = {}) => {
 	const app = Vue.createSSRApp({ ...Chart, data() { return { ...Chart.data.call(this), ...state } } }, { report, labels: ['January', 'February', 'March'], formatCents: cents => `${(cents / 100).toFixed(2)} EUR`, ...props })
 	app.config.globalProperties.$texts = texts
@@ -99,10 +102,9 @@ const renderChart = async (props = {}, state = {}) => {
 }
 const markup = await renderChart()
 assert.equal((markup.match(/class="annual-chart-line"/g) || []).length, 3, 'All three financial series share one plot')
-assert.ok(markup.includes('aria-label="Chart display"') && markup.includes('value="cumulative"'))
+assert.ok(markup.includes('aria-label="Chart display"') && markup.includes('type="radio"') && markup.includes('Running total'))
 assert.ok(markup.includes('tabindex="0"') && markup.includes('aria-live="polite"'))
 assert.ok(markup.includes('aria-label="Development – Running total"'), 'The chart starts with running totals')
-assert.ok(markup.includes('annual-chart-menu') && markup.includes('Collapse section') && markup.includes('aria-controls='), 'Development has a section menu associated with its content')
 assert.ok(markup.includes('text-anchor="middle"'), 'Time labels are centered on their data points')
 const expensesMarkup = await renderChart({ incomeEnabled: false })
 assert.equal((expensesMarkup.match(/class="annual-chart-line"/g) || []).length, 1)
@@ -151,31 +153,6 @@ assert.ok(Chart.computed.scale.call(visibility).min < 0, 'Restored negative valu
 visibility.toggleSeries('unknown')
 assert.equal(changes.length, 3, 'Unknown series cannot alter the selection')
 assert.deepEqual(report, original, 'Legend interaction leaves canonical report totals untouched')
-const previousWindow = globalThis.window
-const preferences = new Map()
-globalThis.window = {
-	localStorage: { getItem: key => preferences.get(key) ?? null, setItem: (key, value) => preferences.set(key, value) },
-	OC: { getCurrentUser: () => ({ uid: 'ada' }) },
-}
-const collapse = { open: true, activeIndex: 2, hasFocus: true, $nextTick(callback) { callback.call(this) }, measurePlot() { this.measured = true } }
-Chart.methods.toggleSection.call(collapse)
-assert.equal(collapse.open, false)
-assert.equal(collapse.activeIndex, -1, 'Collapsing dismisses the inspected value')
-assert.equal(collapse.hasFocus, false)
-assert.equal(Chart.data().open, false, 'The same user reopens the annual view with the chart collapsed')
-const closedMarkup = await renderChart()
-const bodyId = closedMarkup.match(/aria-controls="([^"]+)"/)[1]
-assert.ok(closedMarkup.includes('Expand section'))
-assert.match(closedMarkup.match(new RegExp(`<div[^>]*id="${bodyId}"[^>]*>`))?.[0] || '', /style="[^"]*display:\s*none(?:;|")/, 'The entire chart body is hidden when collapsed')
-globalThis.window.OC.getCurrentUser = () => ({ uid: 'grace' })
-assert.equal(Chart.data().open, true, 'Another account keeps its own collapse preference')
-globalThis.window.OC.getCurrentUser = () => ({ uid: 'ada' })
-Chart.methods.toggleSection.call(collapse)
-assert.equal(collapse.open, true)
-assert.equal(collapse.measured, true, 'Expanding measures the currently available plot width')
-assert.equal(Chart.data().open, true)
-if (previousWindow === undefined) delete globalThis.window
-else globalThis.window = previousWindow
 const state = { labels: Array(366).fill('Day'), activeIndex: 0 }
 const key = value => ({ key: value, preventDefault() { this.prevented = true }, stopPropagation() {} })
 for (const [pressed, expected] of [['ArrowRight', 1], ['End', 365], ['ArrowRight', 365], ['ArrowLeft', 364], ['Home', 0], ['ArrowLeft', 0], ['Escape', -1]]) {
@@ -187,7 +164,7 @@ for (const [pressed, expected] of [['ArrowRight', 1], ['End', 365], ['ArrowRight
 const tab = key('Tab')
 Chart.methods.inspectKey.call(state, tab)
 assert.equal(tab.prevented, undefined, 'Tab can leave the chart normally')
-console.log('Annual chart tests passed: exact cents, running totals, feature flags, cutoff, dense periods, label spacing, collapse preferences, interactive legend, automatic scaling, rendering and keyboard inspection.')
+console.log('Annual chart tests passed: exact cents, running totals, feature flags, cutoff, dense periods, label spacing, interactive legend, automatic scaling, rendering and keyboard inspection.')
 
 const exportedCurves = Chart.methods.exportData.call({
  customSeries: null, modeLabel: 'Einzelbeträge', labels: ['Okt', 'Nov'], labelTitles: ['Oktober 2026', 'November 2026'],

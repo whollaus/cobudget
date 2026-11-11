@@ -2,11 +2,13 @@
 	<div class="budget-goals-view">
 		<AppPageHeader
 			class="budget-page-header"
-			:title="$texts.budgetGoals.title()"
-			:subtitle="$texts.budgetGoals.settingsHint()">
-			<template #actions>
+			:title="$texts.budgetGoals.title()">
+			<template #title>
+				<ReportPeriodPicker navigation-only force-navigation budget-navigation :budget-goals="goals" :title="$texts.budgetGoals.title()" :period-enabled="false" label="" />
+			</template>
+			<template #creation>
 				<NcButton
-					class="budget-new-button mobile-create-fab"
+					class="budget-new-button mobile-create-fab cobudget-native-button"
 					variant="primary"
 					:aria-label="$texts.budgetGoals.newTitle()"
 					:title="$texts.budgetGoals.newTitle()"
@@ -14,15 +16,18 @@
 					<template #icon>
 						<PlusIcon :size="20" />
 					</template>
+					<span class="creation-label-desktop">{{ $texts.common.newItem() }}</span>
 					<span class="btn-text">{{ $texts.budgetGoals.newTitle() }}</span>
 				</NcButton>
 			</template>
 		</AppPageHeader>
 
-		<div class="budget-goals-section">
-				<div v-if="loading" class="budget-empty-state">
-					{{ $texts.budgetGoals.loading() }}
-				</div>
+		<div class="budget-goals-section cobudget-overview-section">
+				<p v-if="loading" class="budget-loading cobudget-form-hint" role="status"><NcLoadingIcon :size="20" /> {{ $texts.budgetGoals.loading() }}</p>
+				<NcNoteCard v-else-if="loadError" type="error">
+					<p>{{ loadError }}</p>
+					<NcButton class="cobudget-native-button" variant="secondary" @click="fetchData">{{ $texts.common.retry() }}</NcButton>
+				</NcNoteCard>
 				<NcEmptyContent
 					v-else-if="goals.length === 0"
 					class="budget-empty-content"
@@ -32,7 +37,7 @@
 						<WalletIcon :size="64" />
 					</template>
 					<template #action>
-						<NcButton variant="primary" @click="openNewGoal">
+						<NcButton class="cobudget-native-button" variant="primary" @click="openNewGoal">
 							<template #icon>
 								<PlusIcon :size="20" />
 							</template>
@@ -40,11 +45,11 @@
 						</NcButton>
 					</template>
 				</NcEmptyContent>
-			<div v-else class="budget-goal-list">
+			<div v-else class="budget-goal-list cobudget-overview-list">
 				<article
 					v-for="goal in goals"
 					:key="goal.id"
-						class="budget-goal-card cobudget-interactive-card cobudget-focusable" data-cobudget-card=""
+						class="budget-goal-card cobudget-overview-entry cobudget-focusable"
 						role="button"
 						tabindex="0"
 						:aria-label="$texts.budgetGoals.editNamed(goal.name)"
@@ -53,8 +58,8 @@
 					@keydown.space.prevent="editGoal(goal)">
 					<div class="budget-card-header">
 						<div>
-							<h3>{{ goal.name }}</h3>
-							<p>{{ modeLabel(goal.mode) }} · {{ periodLabel(goal.period) }}</p>
+							<h3 class="cobudget-subheading">{{ goal.name }}</h3>
+							<p class="cobudget-form-hint">{{ modeLabel(goal.mode) }} · {{ periodLabel(goal.period) }}</p>
 						</div>
 							<div class="budget-card-amount">
 								{{ formatCurrency(goal.evaluation?.spent_cents || 0) }}
@@ -62,11 +67,8 @@
 							</div>
 					</div>
 
-					<div class="budget-progress-track" :aria-label="progressAriaLabel(goal)">
-						<div
-							class="budget-progress-fill"
-							:class="statusClass(goal.evaluation?.status)"
-							:style="{ width: progressWidth(goal) }"></div>
+					<div class="budget-progress" role="progressbar" :aria-label="progressAriaLabel(goal)" :aria-valuenow="progressValue(goal)" aria-valuemin="0" aria-valuemax="100">
+						<NcProgressBar :value="progressValue(goal)" size="medium" :color="progressColor(goal)" :error="goal.evaluation?.status === 'exceeded'" aria-hidden="true" />
 					</div>
 
 					<div class="budget-metrics">
@@ -97,23 +99,33 @@ import { REMOTE_DATA_CHANGED_EVENT, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcProgressBar from '@nextcloud/vue/components/NcProgressBar'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import WalletIcon from 'vue-material-design-icons/Wallet.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
-import { showRequestError } from '../services/notifications'
+import ReportPeriodPicker from '../components/ReportPeriodPicker.vue'
+import { extractError } from '../services/notifications'
 
 export default {
 	name: 'BudgetGoalsView',
 		components: {
+			ReportPeriodPicker,
 			AppPageHeader,
 			NcButton,
 			NcEmptyContent,
+			NcNoteCard,
+			NcLoadingIcon,
+			NcProgressBar,
 			PlusIcon,
 			WalletIcon
 		},
 	data() {
 		return {
-			loading: false,
+			loading: true,
+			loadError: '',
+			loadRequest: 0,
 			goals: []
 		}
 	},
@@ -122,18 +134,22 @@ export default {
 		window.addEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 	},
 	beforeUnmount() {
+		this.loadRequest++
 		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 	},
 	methods: {
 		async fetchData() {
+			const request = ++this.loadRequest
 			this.loading = true
+			this.loadError = ''
 			try {
 				const goalsRes = await axios.get(generateUrl('/apps/cobudget/api/budgets'))
+				if (request !== this.loadRequest) return
 				this.goals = Array.isArray(goalsRes.data) ? goalsRes.data : []
-				} catch (error) {
-					showRequestError(error, this.$texts.budgetGoals.loadError(), 'Failed to fetch budget goals')
+			} catch (error) {
+				if (request === this.loadRequest) this.loadError = extractError(error, this.$texts.budgetGoals.loadError())
 			} finally {
-				this.loading = false
+				if (request === this.loadRequest) this.loading = false
 			}
 		},
 		onRemoteDataChanged(event) {
@@ -153,16 +169,12 @@ export default {
 			modeLabel(mode) {
 				return mode === 'hard' ? this.$texts.budgetGoals.fixedLimit() : this.$texts.budgetGoals.flexibleGoalWithForecast()
 		},
-		statusClass(status) {
-			return {
-				ok: status === 'ok',
-				warning: status === 'warning',
-				exceeded: status === 'exceeded'
-			}
+		progressColor(goal) {
+			return goal.evaluation?.status === 'warning' ? '#ffc92b' : '#10b981'
 		},
-		progressWidth(goal) {
+		progressValue(goal) {
 			const percent = Number(goal.evaluation?.progress_percent || 0)
-			return `${Math.min(100, Math.max(0, percent))}%`
+			return Number.isFinite(percent) ? Math.round(Math.min(100, Math.max(0, percent))) : 0
 		},
 			progressAriaLabel(goal) {
 				return this.$texts.budgetGoals.percentUsed(Math.round(Number(goal.evaluation?.progress_percent || 0)))
@@ -179,58 +191,10 @@ export default {
 	width: 100%;
 }
 
-.budget-new-button,
-:deep(.budget-new-button.button-vue),
-.budget-new-button :deep(.button-vue) {
-	min-height: var(--cobudget-button-height, 44px) !important;
-	height: var(--cobudget-button-height, 44px) !important;
-	width: auto !important;
-	min-width: auto !important;
-	padding-inline: 14px !important;
-	background-color: var(--cobudget-primary) !important;
-	color: var(--cobudget-primary-text) !important;
-	border-color: var(--cobudget-primary) !important;
-}
-
-.budget-new-button :deep(.button-vue__text),
-:deep(.budget-new-button.button-vue .button-vue__text) {
-	display: inline-flex !important;
-}
-
-.budget-new-button:hover,
-.budget-new-button:focus-visible,
-:deep(.budget-new-button.button-vue:hover),
-:deep(.budget-new-button.button-vue:focus-visible),
-.budget-new-button :deep(.button-vue:hover),
-.budget-new-button :deep(.button-vue:focus-visible) {
-	background-color: var(--cobudget-primary-hover) !important;
-	color: var(--cobudget-primary-text) !important;
-	border-color: var(--cobudget-primary-hover) !important;
-}
-
-.budget-goals-section {
-	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
-	margin: 0 var(--cobudget-form-inset) var(--cobudget-settings-section-gap);
-}
-
-.budget-empty-state {
-	padding: 32px 20px;
-	border: 1px solid var(--cobudget-border, #e5e5e5);
-	border-radius: 8px;
-	color: var(--color-text-maxcontrast, #666);
-	text-align: center;
-	background: var(--cobudget-page-background, #fff);
-}
-
-.budget-goal-list {
+.budget-loading {
 	display: flex;
-	flex-direction: column;
-	gap: var(--cobudget-card-gap);
-}
-
-.budget-goal-card {
-	cursor: pointer;
-	transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+	align-items: center;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
 }
 
 .budget-card-header {
@@ -242,13 +206,18 @@ export default {
 
 .budget-card-header h3 {
 	margin: 0;
-	font-size: var(--cobudget-font-card-title);
+	font-size: var(--cobudget-font-subheading);
+	font-weight: var(--cobudget-font-weight-heading);
+	color: var(--color-main-text);
+	overflow-wrap: anywhere;
 	line-height: 1.25;
 }
 
+.budget-card-header > div:first-child { min-width: 0; }
+
 .budget-card-header p {
+	overflow-wrap: anywhere;
 	margin: 4px 0 0;
-	color: var(--color-text-maxcontrast, #666);
 }
 
 .budget-card-amount {
@@ -262,55 +231,33 @@ export default {
 
 .budget-card-amount span {
 	margin-top: 4px;
-	color: var(--color-text-maxcontrast, #666);
-	font-size: var(--cobudget-font-compact);
-	font-weight: 600;
+	color: var(--color-main-text);
+	font-size: var(--font-size, 15px);
+	font-weight: var(--font-weight-element, 500);
 }
 
-.budget-progress-track {
-	height: 10px;
+.budget-progress {
 	margin: var(--cobudget-card-gap) 0 var(--cobudget-content-gap);
-	overflow: hidden;
-	border-radius: 999px;
-	background: var(--color-background-darker, #ededed);
-}
-
-.budget-progress-fill {
-	height: 100%;
-	border-radius: inherit;
-	transition: width 0.2s ease;
-}
-
-.budget-progress-fill.ok {
-	background: #10b981;
-}
-
-.budget-progress-fill.warning {
-	background: #ffc92b;
-}
-
-.budget-progress-fill.exceeded {
-	background: var(--cobudget-error);
 }
 
 .budget-metrics {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: var(--cobudget-content-gap);
-	margin-bottom: var(--cobudget-content-gap);
+	gap: var(--cobudget-card-gap);
 }
 
 .budget-metrics div {
-	padding: var(--cobudget-content-gap);
-	border-radius: var(--cobudget-card-radius);
-	background: var(--cobudget-surface-muted, #f5f5f5);
+	min-width: 0;
+	overflow-wrap: anywhere;
 }
+
 
 .budget-metrics span {
 	display: block;
 	margin-bottom: 4px;
-	color: var(--color-text-maxcontrast, #666);
-	font-size: var(--cobudget-font-compact);
+	color: var(--color-main-text);
+	font-size: var(--font-size, 15px);
+	font-weight: var(--font-weight-element, 500);
 }
 
 .budget-metrics strong {
@@ -322,22 +269,33 @@ export default {
 }
 
 @media (max-width: 768px) {
-	.budget-goals-section {
-		width: 100%;
-		margin: 0 0 30px;
-	}
+	.budget-goals-view { --default-clickable-area: var(--cobudget-mobile-touch-size); }
 
 	.budget-card-header {
 		flex-direction: column;
 		align-items: stretch;
+		gap: var(--cobudget-content-gap);
 	}
 
 	.budget-card-amount {
-		align-items: flex-start;
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--default-grid-baseline, 4px) var(--cobudget-content-gap);
+		white-space: normal;
+		overflow-wrap: anywhere;
 	}
+	.budget-card-amount span { margin-top: 0; }
+	.budget-progress { margin-block: var(--cobudget-content-gap); }
 
 	.budget-metrics {
 		grid-template-columns: 1fr;
+		gap: calc(var(--default-grid-baseline, 4px) * 2);
 	}
+	.budget-metrics div { display: flex; justify-content: space-between; align-items: baseline; gap: var(--cobudget-content-gap); }
+	.budget-metrics span { margin-bottom: 0; }
+	.budget-metrics strong { flex: 0 1 auto; text-align: end; }
+
 }
 </style>

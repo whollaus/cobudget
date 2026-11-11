@@ -81,8 +81,8 @@ try {
 	$insert('members', ['project_id' => $project, 'user_id' => $uid, 'personal_workspace_id' => $workspace, 'share_basis_points' => 4000]);
 	$insert('members', ['project_id' => $project, 'user_id' => '__annual_foreign__', 'personal_workspace_id' => $foreignWorkspace, 'share_basis_points' => 6000]);
 	$insert('members', ['project_id' => $solo, 'user_id' => $uid, 'personal_workspace_id' => $workspace, 'share_basis_points' => 10000]);
-	$parent = $insert('categories', ['name' => 'Home', 'user_id' => $uid, 'workspace_id' => $workspace]);
-	$child = $insert('categories', ['name' => 'Rent', 'user_id' => $uid, 'workspace_id' => $workspace, 'parent_category_id' => $parent]);
+	$parent = $insert('categories', ['name' => 'Home', 'icon' => 'Home', 'user_id' => $uid, 'workspace_id' => $workspace]);
+	$child = $insert('categories', ['name' => 'Rent', 'icon' => 'Cash', 'user_id' => $uid, 'workspace_id' => $workspace, 'parent_category_id' => $parent]);
 	$partner = $insert('payment_partners', ['name' => 'Partner', 'user_id' => $uid, 'workspace_id' => $workspace]);
 	$date = strtotime('2020-01-01 00:30 Europe/Vienna');
 	$futureYear = (int)date('Y') + 1;
@@ -107,6 +107,9 @@ try {
 	for ($i = 0; $i < 300; $i++) $entry(1);
 
 	$report = $data($fresh($workspace)->annualOverview(2020));
+	$homeIconRow = array_values(array_filter($report['groups']['expense'], static fn(array $row): bool => $row['id'] === $parent))[0];
+	$rentIconRow = array_values(array_filter($homeIconRow['children'], static fn(array $row): bool => $row['id'] === $child))[0];
+	$check($homeIconRow['icon'] === 'Home' && $rentIconRow['icon'] === 'Cash', 'Report query retains distinct parent and child category icons');
 	$check($report['years'] === [$futureYear, 2020], 'Year list is local-time aware, unique, unpaginated and excludes foreign users/workspaces');
 	$check($data($fresh($workspace)->annualOverview(2020, 'paymentPartners'))['years'] === $report['years'], 'Grouping does not change year choices');
 	$check($data($fresh($workspace)->annualOverview(2020, projectId: $project, entryScope: 'shared'))['years'] === [2020], 'Shared area year choices exclude other personal payments');
@@ -135,6 +138,8 @@ try {
 	$check($data($fresh($workspace)->annualOverview(2020, projectId: $solo))['totals']['expense']['total'] === 303, 'Solo area uses personal entries');
 	$check($data($fresh($workspace)->annualOverview($futureYear))['totals']['expense']['total'] === 0, 'Future payments are opt-in');
 	$futureReport = $data($fresh($workspace)->annualOverview($futureYear, includeFuturePayments: true));
+	$plannedIconRow = array_values(array_filter($futureReport['groups']['expense'], static fn(array $row): bool => $row['id'] === $parent))[0];
+	$check($plannedIconRow['icon'] === 'Home', 'Projected recurrence payments retain their category icon');
 	$check($futureReport['totals']['expense']['total'] === 777 + 11 * 101, 'Future overview includes the saved payment and February-to-December recurring occurrences');
 
 	// Nested report choices are extra AND predicates and never replace grouping/global filters.
@@ -612,6 +617,16 @@ try {
 	$check($data($fresh($scopeWorkspace)->reportBreakdown('2020-01-01', '2020-12-31', withoutArea: true))['totals']['expense']['amountCents'] === 9999, 'Without-area composition retains its exact population');
 	$privateList = $data($fresh($scopeWorkspace)->index(withoutArea: true));
 	$check($privateList['total'] === 1 && $listCents($privateList) === 9999, 'Without-area saved payment lists exclude area payments');
+	$unassigned = $data($fresh($scopeWorkspace)->index(projects: '0'));
+	$check($unassigned['total'] === 1 && $listCents($unassigned) === 9999, 'The area filter zero sentinel returns only genuinely unassigned payments');
+	$unassignedDashboard = $data($fresh($scopeWorkspace)->dashboard(projects: '0'));
+	$check($unassignedDashboard['total'] === 1 && $listCents($unassignedDashboard) === 9999, 'Payment dashboard and list agree on Without area');
+	$check((int)round($unassignedDashboard['metrics']['total']['expense'] * 100) === 9999 && (int)round($unassignedDashboard['metrics']['total']['balance'] * 100) === -9999, 'Filtered statistic amounts match the unassigned payment population in exact cents');
+	$mixedAreas = $data($fresh($scopeWorkspace)->index(projects: '0,' . $scopeProject));
+	$check($listCents($mixedAreas) === 14900, 'Without area combines with a named area using OR without double counting projections');
+	$check($listCents($data($fresh($emptyWorkspace)->index(projects: '0,' . $scopeProject))) === 0, 'Mixed area filters cannot escape the authenticated workspace');
+	$csvUnassigned = $fresh($scopeWorkspace)->exportCsv(projects: '0');
+	$check($csvUnassigned->getStatus() === 200 && count(array_filter(explode("\n", trim($csvUnassigned->render())))) === 2, 'CSV exports keep exactly the header and unassigned payment');
 	$check($fresh($workspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'invalid')->getStatus() === 400, 'Reject invalid area amount modes');
 	$baseAreaRows = array_column($data($fresh($workspace)->areaOverview('2020-01-01', '2020-12-31', amountView: 'area'))['rows'], null, 'id');
 	$check($baseAreaRows[$solo]['expense']['total'] === 303 && $baseAreaRows[$solo]['entryScope'] === 'personal', 'Solo areas retain ordinary personal payments in the full view');
@@ -764,6 +779,48 @@ try {
 	$check(array_map(static fn(array $row): int => (int)round((float)$row['amount'] * 100), $rankedImportant['entries']) === [1501, 1301, 1101], 'Ranking applies report labels, amount limits and exact selected dates before limiting');
 	$rankedFuture = $data($fresh($rankingWorkspace)->index(limit: 10, type: 'expense', sortBy: 'amount', sortDir: 'desc', includeFuturePayments: true, dateFrom: $date - 1, dateTo: $futureDate));
 	$check((int)round((float)$rankedFuture['entries'][0]['amount'] * 100) === 777777, 'Explicit future-payment mode includes saved future payments in the ranking');
+	$lookupWorkspace = $insert('workspaces', ['name' => 'Lookup grouping fixture', 'user_id' => $uid]);
+	$lookupArea = $insert('projects', ['name' => 'Haus', 'owner_id' => $uid, 'workspace_id' => $lookupWorkspace]);
+	$insert('members', ['project_id' => $lookupArea, 'user_id' => $uid, 'personal_workspace_id' => $lookupWorkspace, 'share_basis_points' => 10000]);
+	$lookupCat = $insert('categories', ['name' => 'Strom', 'user_id' => $uid, 'workspace_id' => $lookupWorkspace]);
+	$lookupOther = $insert('categories', ['name' => ' STROM ', 'user_id' => $uid, 'workspace_id' => $lookupWorkspace, 'project_id' => $lookupArea]);
+	$lookupPartner = $insert('payment_partners', ['name' => 'Anbieter', 'user_id' => $uid, 'workspace_id' => $lookupWorkspace]);
+	$lookupPartnerOther = $insert('payment_partners', ['name' => 'ANBIETER', 'user_id' => $uid, 'workspace_id' => $lookupWorkspace, 'project_id' => $lookupArea]);
+	$entry(101, ['workspace_id' => $lookupWorkspace, 'category_id' => $lookupCat, 'payment_partner_id' => $lookupPartner]);
+	$entry(202, ['workspace_id' => $lookupWorkspace, 'category_id' => $lookupOther, 'payment_partner_id' => $lookupPartnerOther, 'project_id' => $lookupArea]);
+	$entry(303, ['workspace_id' => $lookupWorkspace, 'category_id' => $lookupCat, 'payment_partner_id' => $lookupPartner, 'project_id' => $lookupArea]);
+	$entry(999999, ['workspace_id' => $lookupWorkspace, 'user_id' => '__annual_foreign__', 'category_id' => $lookupCat, 'payment_partner_id' => $lookupPartner]);
+	foreach (['categories', 'paymentPartners'] as $dimension) {
+		$grouped = $data($fresh($lookupWorkspace)->annualOverview(2020, $dimension));
+		$check(count($grouped['groups']['expense']) === 1, 'Equal lookup titles form one report row: ' . $dimension);
+		$group = $grouped['groups']['expense'][0];
+		$check($group['total'] === 606 && array_sum(array_column($group['areas'], 'total')) === 606, 'Grouped and area totals exclude foreign users: ' . $dimension);
+		$check(count($group['areas']) === 2, 'Area split follows entries, including a reused category ID');
+		foreach (array_merge([$group], $group['areas']) as $subject) {
+			$filter = json_encode([['dimension' => $dimension, 'id' => $subject['reportKey'], 'direct' => false]]);
+			$list = $data($fresh($lookupWorkspace)->index(type: 'expense', reportFilters: $filter));
+			$check($listCents($list) === $subject['total'], 'Name/area payment links match the displayed total: ' . $dimension . ' expected=' . $subject['total'] . ' actual=' . $listCents($list) . ' key=' . $subject['reportKey']);
+			$composition = $data($fresh($lookupWorkspace)->reportBreakdown('2020-01-01', '2020-12-31', $dimension, detailId: $subject['reportKey']));
+			$check($composition['totals']['expense']['amountCents'] === $subject['total'], 'Composition keeps name/area identity');
+			$narrowed = $data($fresh($lookupWorkspace)->annualOverview(2020, $dimension, reportFilters: $filter));
+			$check($narrowed['totals']['expense']['total'] === $subject['total'], 'Nested reports retain the exact lookup scope');
+			$check($data($fresh($emptyWorkspace)->annualOverview(2020, $dimension, reportFilters: $filter))['totals']['expense']['total'] === 0, 'Lookup identities do not grant access across workspaces');
+			$comparison = $data($fresh($lookupWorkspace)->annualOverview(2020, $dimension, comparison: 'detail', detailType: 'expense', detailId: $subject['reportKey']));
+			$check($comparison['detailComparisons'][0]['current'] === $subject['total'], 'Comparison subject matches the grouped report');
+		}
+	}
+	$entry(404, ['workspace_id' => $lookupWorkspace, 'category_id' => $lookupOther, 'payment_partner_id' => $lookupPartnerOther, 'project_id' => $lookupArea, 'recurrence_interval' => 'month', 'recurrence_multiplier' => 1, 'recurrence_next_date' => $futureDate, 'recurrence_end_date' => $futureDate + 86400]);
+	foreach (['categories', 'paymentPartners'] as $dimension) {
+		$planned = $data($fresh($lookupWorkspace)->annualOverview($futureYear, $dimension, includeFuturePayments: true));
+		$group = $planned['groups']['expense'][0];
+		$check($group['total'] === 404 && $group['areas'][0]['name'] === 'Haus', 'Projected occurrences keep their area and name group: ' . json_encode($group));
+		$subject = $group['areas'][0]['reportKey'];
+		$filter = json_encode([['dimension' => $dimension, 'id' => $subject, 'direct' => false]]);
+		$narrowed = $data($fresh($lookupWorkspace)->annualOverview($futureYear, $dimension, includeFuturePayments: true, reportFilters: $filter));
+		$check($narrowed['totals']['expense']['total'] === 404, 'Grouped scope retains a visible recurring series before it has future saved payments');
+		$futureForecast = $data($fresh($lookupWorkspace)->reportForecast($futureYear . '-01-01', $futureYear . '-12-31', $dimension, detailType: 'expense', detailId: $subject));
+		$check($futureForecast['planned']['expenseCents'] === 404, 'Forecast matches the same grouped area subject');
+	}
 	echo "Annual overview integration passed: {$assertions} assertions; fixtures rolled back.\n";
 } finally {
 	$db->rollBack();

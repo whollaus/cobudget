@@ -1,24 +1,14 @@
 <template>
-	<NcActions ref="actions" class="report-section-menu no-print" variant="tertiary" force-menu placement="bottom-end" :open="menuShown" :aria-label="`${$texts.annual.sectionActions()}: ${title}`" @update:open="setMenuShown">
-		<NcActionButton close-after-click :aria-controls="controls || undefined" @click="$emit('toggle')">
-			<template #icon><ChevronUpIcon v-if="open" :size="20" /><ChevronDownIcon v-else :size="20" /></template>
-			{{ open ? $texts.annual.collapseSection() : $texts.annual.expandSection() }}
-		</NcActionButton>
-		<template v-if="exportData && exportContext">
-			<NcActionSeparator />
-			<NcActionButton close-after-click :disabled="exporting || exportDisabled" @click="exportSection('download')"><template #icon><DownloadIcon :size="20" /></template>{{ $texts.common.download() }}</NcActionButton>
-			<NcActionButton close-after-click :disabled="exporting || exportDisabled" @click="exportSection('save')"><template #icon><CloudUploadOutlineIcon :size="20" /></template>{{ $texts.annual.saveInNextcloud() }}</NcActionButton>
-			<NcActionButton close-after-click :disabled="exporting || exportDisabled" @click="exportSection('copy')"><template #icon><ClipboardTextOutlineIcon :size="20" /></template>{{ $texts.common.copyToClipboard() }}</NcActionButton>
-		</template>
+	<NcActions v-if="exportData && exportContext" ref="actions" class="report-section-menu no-print cobudget-action-menu" variant="tertiary" force-menu placement="bottom-end" :open="menuShown" :aria-label="`${$texts.annual.sectionActions()}: ${title}`" @update:open="setMenuShown">
+		<NcActionButton class="cobudget-action-menu-option" close-after-click :disabled="exporting || exportDisabled" @click="exportSection('download')"><template #icon><DownloadIcon :size="20" /></template>{{ $texts.common.download() }}</NcActionButton>
+		<NcActionButton class="cobudget-action-menu-option" close-after-click :disabled="exporting || exportDisabled" @click="exportSection('save')"><template #icon><CloudUploadOutlineIcon :size="20" /></template>{{ $texts.annual.saveInNextcloud() }}</NcActionButton>
+		<NcActionButton class="cobudget-action-menu-option" close-after-click :disabled="exporting || exportDisabled" @click="exportSection('copy')"><template #icon><ClipboardTextOutlineIcon :size="20" /></template>{{ $texts.common.copyToClipboard() }}</NcActionButton>
 	</NcActions>
 </template>
 
 <script>
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
-import NcActionSeparator from '@nextcloud/vue/components/NcActionSeparator'
-import ChevronUpIcon from 'vue-material-design-icons/ChevronUp.vue'
-import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import CloudUploadOutlineIcon from 'vue-material-design-icons/CloudUploadOutline.vue'
 import ClipboardTextOutlineIcon from 'vue-material-design-icons/ClipboardTextOutline.vue'
@@ -27,11 +17,10 @@ import { showRequestError, showToast } from '../services/notifications'
 
 export default {
 	name: 'ReportSectionMenu',
-	components: { NcActions, NcActionButton, NcActionSeparator, ChevronUpIcon, ChevronDownIcon, DownloadIcon, CloudUploadOutlineIcon, ClipboardTextOutlineIcon },
+	components: { NcActions, NcActionButton, DownloadIcon, CloudUploadOutlineIcon, ClipboardTextOutlineIcon },
 	inject: { exportContext: { from: 'reportExportContext', default: null } },
-	props: { open: { type: Boolean, required: true }, title: { type: String, required: true }, controls: { type: String, default: '' }, exportData: { type: Function, default: null }, exportDisabled: { type: Boolean, default: false } },
+	props: { title: { type: String, required: true }, exportData: { type: Function, default: null }, exportDisabled: { type: Boolean, default: false } },
 	data: () => ({ exporting: false, menuShown: false }),
-	emits: ['toggle'],
 	beforeUnmount() { document.removeEventListener('click', this.onDocumentClick, true) },
 	deactivated() { this.setMenuShown(false) },
 	methods: {

@@ -330,7 +330,8 @@ class BudgetSnapshotService {
 		$tag = (string)($rule['tag'] ?? '');
 
 		return [
-			'projectId' => is_numeric($projectId) && (int)$projectId > 0 ? (int)$projectId : null,
+			// Zero selects unassigned payments; null keeps the area wildcard.
+			'projectId' => $projectId === 0 || $projectId === '0' ? 0 : (is_numeric($projectId) && (int)$projectId > 0 ? (int)$projectId : null),
 			'categoryId' => is_numeric($categoryId) && (int)$categoryId > 0 ? (int)$categoryId : null,
 			'tag' => array_key_exists($tag, self::TAG_COLUMNS) ? $tag : '',
 		];

@@ -225,28 +225,6 @@ const areaCatalog = [{ id: 30, name: 'Bonus', type: 'income' }]
 assert.deepEqual([...annual.annualFilterNameMaps(areaCatalog, [30]).types], [[30, 'income']], 'A mark uses the catalog loaded for the current area')
 assert.equal(annual.annualFilterNameMaps([{ id: 1, name: 'Groceries', type: 'expense' }], [30]).names.size, 0, 'A personal category is not labeled from another area')
 assert.equal(annual.annualFilterNameMaps(areaCatalog, [30], { incomes: false }).types.size, 0, 'Disabled income adds no type marks')
-const previousAnnualWindow = globalThis.window
-const annualSectionValues = new Map()
-const annualSectionStorage = {
-	getItem: key => annualSectionValues.has(key) ? annualSectionValues.get(key) : null,
-	setItem: (key, value) => annualSectionValues.set(key, String(value)),
-}
-globalThis.window = { localStorage: annualSectionStorage, OC: { getCurrentUser: () => ({ uid: 'ada' }) } }
-assert.equal(annual.readAnnualSectionOpen('income'), true, 'Income, expenses and the total start open')
-assert.equal(annual.readAnnualSectionOpen('expense'), true)
-assert.equal(annual.readAnnualSectionOpen('total'), true)
-annual.rememberAnnualSection('expense', false)
-assert.equal(annual.readAnnualSectionOpen('expense'), false, 'A closed section stays closed for this user')
-assert.equal(annual.readAnnualSectionOpen('income'), true, 'Closing expenses leaves income open')
-annual.rememberAnnualSection('total', false)
-assert.equal(annual.readAnnualSectionOpen('total'), false, 'The overall total can stay closed')
-assert.equal(annual.readAnnualSectionOpen('income'), true, 'Closing the total leaves income open')
-globalThis.window = { localStorage: annualSectionStorage, OC: { getCurrentUser: () => ({ uid: 'ben' }) } }
-assert.equal(annual.readAnnualSectionOpen('expense'), true, 'Another user keeps the default open sections')
-globalThis.window = { localStorage: { getItem: () => '{', setItem() {} }, OC: { getCurrentUser: () => ({ uid: 'ada' }) } }
-assert.equal(annual.readAnnualSectionOpen('income'), true, 'Unreadable storage stays open')
-if (previousAnnualWindow === undefined) delete globalThis.window
-else globalThis.window = previousAnnualWindow
 const filteredRoute = annual.annualPaymentRoute(filteredSelection, { dateFrom: 1767222000, dateTo: 1769900399 }, 'expense', { id: 1 })
 assert.equal(filteredRoute.query.categoryId, '1')
 assert.equal(filteredRoute.query.partners, '4,8')
@@ -279,7 +257,8 @@ const savedFiles = []
 const nextcloudPicker = { folder: '/Dokumente', error: null }
 const nextcloudUser = { uid: 'ada' }
 const comparisonHelpers = await import(moduleUrl(source('src/services/reportComparisons.js')))
-const bindings = {
+const { filterChipIcon } = await import(`data:text/javascript;charset=utf-8,${encodeURIComponent(fs.readFileSync(new URL('../src/services/filterChipIcons.js', import.meta.url), 'utf8').replace("'@mdi/js'", JSON.stringify(new URL('../node_modules/@mdi/js/mdi.js', import.meta.url).href)))}`)
+const bindings = { filterChipIcon, CalendarOutlineIcon: slotComponent('span'), ShapeOutlineIcon: slotComponent('span'), AccountOutlineIcon: slotComponent('span'), FolderIcon: slotComponent('span'), TagOutlineIcon: slotComponent('span'), PoundIcon: slotComponent('span'), BellOutlineIcon: slotComponent('span'), PaperclipIcon: slotComponent('span'), CashIcon: slotComponent('span'), CalendarClockOutlineIcon: slotComponent('span'),  CalendarIcon: slotComponent('span'), ReportPeriodPicker: {}, PlusIcon: slotComponent('span'), MinusIcon: slotComponent('span'), useId: Vue.useId, ...routes,
 	...exportHelpers,
 	...forecastHelpers,
 	...comparisonHelpers,
@@ -293,6 +272,7 @@ const bindings = {
 	showRequestError: (_error, fallback) => { exportErrors.push(fallback) },
 	getCurrentUser: () => nextcloudUser.uid ? { uid: nextcloudUser.uid } : null,
 	generateRemoteUrl: service => `https://cloud.example.test/remote.php/${service}`,
+	pickFolder: picker => picker.build().pick(),
 	getFilePickerBuilder: () => ({
 		setMultiSelect() { return this },
 		allowDirectories() { return this },
@@ -304,21 +284,27 @@ const bindings = {
 			return Promise.resolve(nextcloudPicker.folder)
 		},
 	}),
+	AreaIcon: slotComponent('span'),
+	CoBudgetIcon: slotComponent('span'),
+ NavigationIcon: slotComponent('span'),
 	NcActions: slotComponent('div'),
 	NcActionButton: slotComponent('button'), NcActionSeparator: { render: () => Vue.h('li', { role: 'separator' }) },
 	CloudUploadOutlineIcon: slotComponent('span'),
 	DownloadIcon: slotComponent('span'), ClipboardTextOutlineIcon: slotComponent('span'),
-	NcCheckboxRadioSwitch: slotComponent('label'),
+	NcChip: { props: ['text'], setup: props => () => Vue.h('span', { class: 'native-filter-chip' }, props.text) },
+	NcInputField: { props: ['modelValue', 'label'], setup: props => () => Vue.h('input', { value: props.modelValue, 'aria-label': props.label }) },
+	NcCheckboxRadioSwitch: slotComponent('label'), NcFormBoxSwitch: slotComponent('label'), NcRadioGroup: slotComponent('div'), NcRadioGroupButton: slotComponent('button'),
 	NcButton: slotComponent('button'),
 	RouterLink: { props: ['to'], setup: (props, { slots }) => () => Vue.h('a', { href: JSON.stringify(props.to) }, slots.default?.()) },
 	CategoryIcon: slotComponent('span'),
 	TableTooltip: slotComponent('span'), TrendingUpIcon: slotComponent('span'), TrendingDownIcon: slotComponent('span'),
+	DialogTransition: { props: ['show'], setup: (props, { slots }) => () => props.show ? slots.default?.({ returnFocus: () => false }) : null },
 	NcModal: slotComponent('section'), annualCellDetails, annualDetailComparison, getAppLocale: () => 'de-AT',
 	ChevronLeftIcon: slotComponent('span'), ChevronRightIcon: slotComponent('span'), ChevronDownIcon: slotComponent('span'), ChevronUpIcon: slotComponent('span'),
 	PrinterIcon: slotComponent('span'), printAnnualOverview: (...args) => { printCalls.push(args) },
 	ArrowLeftIcon: slotComponent('span'), EntryTable: slotComponent('table'), EntryHistoryModal: slotComponent('section'),
-	AppPageHeader: { props: ['title'], setup: (props, { slots }) => () => Vue.h('header', [Vue.h('h2', slots.title?.() || props.title), slots.actions?.()]) },
-	axios: {}, generateUrl: value => value, REMOTE_DATA_CHANGED_EVENT: 'change',
+	AppPageHeader: { props: ['title'], setup: (props, { slots }) => () => Vue.h('header', [slots.creation?.(), Vue.h('h2', slots.title?.() || props.title), slots.actions?.()]) },
+	axios: {}, generateUrl: value => value, REMOTE_DATA_CHANGED_EVENT: 'change', PRINT_REPORT_EVENT: 'cobudget-print-report',
 	formatCalendarLabel: (date, options) => new Intl.DateTimeFormat('de-AT', options).format(date),
 	getAppLanguage: () => 'de-AT',
 }
@@ -332,21 +318,426 @@ function component(file) {
 	return options
 }
 const hierarchy = await import(moduleUrl(source('src/utils/categoryHierarchy.js')))
+Object.assign(bindings, hierarchy)
+bindings.CheckIcon = slotComponent('span')
+bindings.PaymentFilterSelect = component('src/components/PaymentFilterSelect.vue')
+bindings.NcActionCaption = slotComponent('li')
+bindings.ReportSelect = component('src/components/ReportSelect.vue')
+bindings.ReportScrollControls = component('src/components/ReportScrollControls.vue')
+bindings.DraggableScroller = component('src/components/DraggableScroller.vue')
+// Native selections must retain typed IDs, null scope and boolean future filters.
+const selectOptions = [null, false, true, 12, 'year'].map(value => ({ value, label: String(value) }))
+for (const value of [null, false, true, 12, 'year']) {
+	const changes = []
+	const state = { options: selectOptions, modelValue: 'different', disabled: false, $emit: (event, value) => changes.push([event, value]) }
+	bindings.ReportSelect.methods.select.call(state, { value })
+	assert.deepEqual(changes, [['update:modelValue', value]], 'Native report selections preserve primitive types')
+	state.modelValue = value
+	assert.equal(bindings.ReportSelect.computed.selectedOption.call(state), selectOptions.find(item => item.value === value))
+	bindings.ReportSelect.methods.select.call(state, { value })
+	bindings.ReportSelect.methods.select.call(state, null)
+	bindings.ReportSelect.methods.select.call(state, { value: 'unknown' })
+	state.disabled = true
+	bindings.ReportSelect.methods.select.call(state, { value: 'year' })
+	assert.equal(changes.length, 1, 'Same, cleared, unknown and disabled choices do not update the report')
+}
+// Drill-in navigation returns focus and never changes a filter merely by opening/backing out.
+{
+ const changes = [], focus = []
+ const state = { options: selectOptions, groupKinds: [], modelValue: null, open: false,
+  $emit: (event, value) => { changes.push([event, value]); if (event === 'update:open') state.open = value },
+  $nextTick: callback => callback(),
+  $refs: Object.fromEntries(['back', 'trigger'].map(key => [key, { $el: { focus: () => focus.push(key) } }])),
+ }
+ for (const [key, method] of Object.entries(bindings.PaymentFilterSelect.methods)) state[key] = method.bind(state)
+ state.setOpen(true)
+ assert.deepEqual(focus, ['back'])
+ let prevented = 0, stopped = 0
+ const escape = { preventDefault: () => prevented++, stopPropagation: () => stopped++ }
+ state.onEscape(escape)
+ assert.equal(state.open, false)
+ assert.deepEqual(focus, ['back', 'trigger'])
+ assert.equal(prevented, 1); assert.equal(stopped, 1)
+ state.onEscapeKeyup(escape)
+ assert.equal(stopped, 2, 'Native popover keyup must not dismiss the panel after going back')
+ state.onEscape(escape)
+ state.onEscapeKeyup(escape)
+ assert.equal(stopped, 2, 'Escape from the main panel can still close its popover')
+ assert.ok(changes.every(([event]) => event === 'update:open'))
+ for (const value of [false, true, 12, 'year']) {
+  state.select({ value })
+  assert.deepEqual(changes.at(-2), ['update:modelValue', value])
+  assert.deepEqual(changes.at(-1), ['update:open', false])
+ }
+ const beforeInvalid = changes.length
+ state.select({ value: 'unknown' })
+ assert.equal(changes.length, beforeInvalid)
+}
+// Multiple choices use checkbox toggles without dismissing their submenu.
+{
+ const changes = []
+ const state = { groupKinds: [], options: [{ value: null, label: 'All' }, { value: 5, label: '#first' }, { value: 6, label: '#second' }],
+  modelValue: [], multiple: true, label: 'Tags', open: true,
+  $emit: (event, value) => { changes.push([event, value]); if (event === 'update:modelValue') state.modelValue = value },
+  setOpen: () => assert.fail('Checkbox selection must leave its submenu open'),
+ }
+ const select = bindings.PaymentFilterSelect.methods.select.bind(state)
+ select({ value: 5 }); select({ value: 6 })
+ assert.deepEqual(state.modelValue, [5, 6])
+ assert.equal(bindings.PaymentFilterSelect.computed.selectionLabel.call(state), 'Tags (2)')
+ select({ value: 5 })
+ assert.deepEqual(state.modelValue, [6])
+ select({ value: null })
+ assert.deepEqual(state.modelValue, [])
+ assert.equal(bindings.PaymentFilterSelect.computed.selectionLabel.call(state), 'All')
+ select({ value: 999 })
+ assert.equal(changes.length, 4)
+}
+// Personal filters keep the same API values and report-return/reset semantics.
+{
+ const filters = component('src/components/TableFilters.vue')
+ const changes = []
+ const texts = new Proxy({}, { get: (_, key) => () => String(key) })
+ const initial = { ...filters.props.initialFilters.default(), annualReturn: '/reports', status: 'settled', recurring: 'active', includeSubcategories: true, narrowCategories: '1,2', amountMin: '1200' }
+ const state = {
+  initialFilters: initial, showTimeRange: true, ...filters.data.call({ initialFilters: initial }),
+  categories: [{ id: 12, name: 'Power', type: 'expense' }, { id: 13, name: 'Salary', type: 'income' }],
+  paymentPartners: [{ id: 21, name: 'Supplier', type: 'expense' }],
+  projects: [{ id: 9, name: 'Home' }], hashtags: [{ id: 5, name: 'tag' }],
+  $texts: { filters: texts, annual: texts, labels: texts }, $enableImportantPayments: true,
+  $emit: (event, value) => changes.push({ event, value }),
+ }
+ for (const [name, method] of Object.entries(filters.methods)) state[name] = method.bind(state)
+ for (const [name, getter] of Object.entries(filters.computed)) Object.defineProperty(state, name, { get: () => getter.call(state) })
+ for (const [key, values] of Object.entries({ categoryId: [12, 0, null], paymentPartnerId: [21, 0, null], projectId: [9, null], hashtagId: [5, null], hasAttachment: ['true', 'false', 'all'], hasReminder: ['true', 'all'], status: ['all', 'active', 'settled'] })) {
+  for (const value of values) {
+   state.setSelection(key, value)
+   assert.equal(changes.at(-1).value[key], value, `Personal ${key} preserves its exact value and type`)
+   assert.equal(changes.at(-1).event, 'update:filters')
+  }
+ }
+ const originalCategories = state.categories
+ state.categories = [
+  { id: 3, name: 'Power', type: 'expense', icon: 'Flash', parent_category_id: 2 },
+  { id: 1, name: 'Salary', type: 'income', icon: 'Briefcase' },
+  { id: 2, name: 'Home', type: 'expense', icon: 'Home' },
+  { id: 4, name: 'Insurance', type: 'expense', parent_category_id: 99, parent_name: 'Car' },
+ ]
+ assert.deepEqual(state.categoryIdChoices.map(option => option.value), [null, 0, 1, 2, 3, 4])
+ const power = state.categoryIdChoices.find(option => option.value === 3)
+ assert.equal(power.child, true)
+ assert.equal(power.categoryIcon, 'Flash')
+ assert.equal(power.accessibleLabel, 'Home › Power · expenses')
+ assert.equal(state.categoryIdChoices.find(option => option.value === 1).heading, 'income')
+ assert.equal(state.categoryIdChoices.find(option => option.value === 2).heading, 'expenses')
+ assert.equal(state.categoryIdChoices.find(option => option.value === 4).context, 'Car')
+ state.categories = originalCategories
+ state.filterAvailability = { hasReminders: false, hasAttachments: false }
+ assert.equal(state.showReminderFilter, false)
+ assert.equal(state.showAttachmentFilter, false)
+ state.filterAvailability = { hasReminders: true, hasAttachments: false }
+ assert.equal(state.showReminderFilter, true)
+ assert.equal(state.showAttachmentFilter, false)
+ state.filterAvailability = { hasReminders: false, hasAttachments: true }
+ assert.equal(state.showReminderFilter, false)
+ assert.equal(state.showAttachmentFilter, true)
+ state.filterAvailability = null
+ state.localFilters.hasReminder = 'true'; state.localFilters.hasAttachment = 'false'
+ assert.equal(state.showReminderFilter, true, 'Active filters remain removable even for empty periods')
+ assert.equal(state.showAttachmentFilter, true, 'Without-receipt filters also remain removable')
+ state.localFilters.hasReminder = 'all'; state.localFilters.hasAttachment = 'all'
+ state.activeSubmenu = 'hasReminder'
+ assert.equal(state.showReminderFilter, true, 'An open submenu keeps its Back action while availability reloads')
+ state.activeSubmenu = null
+ assert.equal(state.localFilters.includeSubcategories, false, 'Changing a category resets child inclusion')
+ assert.equal(initial.includeSubcategories, true, 'Editing never mutates the incoming filter object')
+ state.setSelection('type', 'expense')
+ assert.deepEqual(state.categoryIdChoices.map(option => option.value), [null, 0, 12, 1, 2], 'Selected categories remain removable even when absent from the current catalog')
+ assert.deepEqual(state.tagsChoices.map(option => option.value), [null, 'important'], 'Disabled label features stay hidden')
+ // Category, partner and area checkbox changes round-trip without stale single predicates.
+ state.localFilters.narrowCategories = ''
+ state.projects.push({ id: 10, name: 'Office', color: '#123456' })
+ for (const [key, multiKey, values] of [
+  ['categoryId', 'narrowCategories', [12, 0]],
+  ['paymentPartnerId', 'narrowPartners', [21, 0]],
+  ['projectId', 'narrowProjects', [9, 10]],
+ ]) {
+  state.localFilters[key] = values[0]
+  state.setIdSelection(key, values)
+  assert.equal(state.localFilters[key], null)
+  assert.equal(state.localFilters[multiKey], values.join(','))
+ }
+ state.localFilters.includeSubcategories = true
+ state.setIdSelection('categoryId', [12, 0])
+ assert.equal(state.localFilters.includeSubcategories, false, 'Manual category choices match only the selected categories')
+ for (const scope of ['Personal', 'Project']) {
+  const query = routes[`serialize${scope}EntryListRouteQuery`]({ filters: state.localFilters })
+  const parsed = routes[`parse${scope}EntryListRouteQuery`](query).filters
+  assert.equal(parsed.narrowCategories, '12,0')
+  assert.equal(parsed.narrowPartners, '21,0')
+  assert.equal(parsed.narrowProjects, '9,10')
+  assert.equal(parsed.categoryId, null)
+  assert.equal(parsed.paymentPartnerId, null)
+  assert.equal(parsed.includeSubcategories, false)
+  assert.equal(routes.entryNarrowingQueryParams(parsed).projects, '9,10')
+ }
+ state.setIdSelection('categoryId', [0])
+ assert.equal(state.localFilters.categoryId, 0, 'Without-category remains distinct from all categories')
+ assert.equal(state.localFilters.narrowCategories, '')
+ assert.equal(state.localFilters.includeSubcategories, false)
+ state.setIdSelection('paymentPartnerId', [21])
+ assert.equal(state.localFilters.paymentPartnerId, 21)
+ assert.equal(state.localFilters.narrowPartners, '')
+ for (const values of [[0], [0, 9]]) {
+  state.setIdSelection('projectId', values)
+  assert.equal(state.localFilters.projectId, null, 'The zero sentinel never becomes a concrete area ID')
+  assert.deepEqual(state.selectedProjects, values)
+  const query = routes.serializePersonalEntryListRouteQuery({ filters: state.localFilters })
+  const restored = routes.parsePersonalEntryListRouteQuery(query).filters
+  assert.equal(restored.narrowProjects, values.join(','), 'Unassigned-only and mixed OR selections survive reload')
+  assert.equal(routes.entryNarrowingQueryParams(restored).projects, values.join(','))
+  assert.equal(state.projectIdChoices.find(option => option.value === 0).label, 'withoutArea')
+ }
+ assert.equal(routes.parsePersonalEntryListRouteQuery({ withoutArea: 'true' }).filters.narrowProjects, '0', 'Existing without-area deep links acquire the visible area filter')
+ state.setIdSelection('projectId', [10])
+ assert.equal(state.localFilters.projectId, 10)
+ assert.equal(state.localFilters.narrowProjects, '')
+ for (const key of ['categoryId', 'paymentPartnerId', 'projectId']) state.setIdSelection(key, [])
+ assert.deepEqual(state.selectedCategories, [])
+ assert.deepEqual(state.selectedPartners, [])
+ assert.deepEqual(state.selectedProjects, [])
+ state.localFilters.narrowProjects = '9,10'
+ // Legacy sidebar/deep-link selections participate in checkbox OR selection.
+ state.$enableReviewPayments = true
+ state.localFilters.tags = 'important'
+ assert.deepEqual(state.selectedLabels, ['important'])
+ state.setLabels(['important', 'review'])
+ assert.equal(state.localFilters.tags, 'all', 'Do not intersect the old single-label filter with the multi-selection')
+ assert.equal(state.localFilters.narrowLabels, 'important,review')
+ state.hashtags.push({ id: 6, name: 'second' })
+ state.localFilters.hashtagId = 5
+ assert.deepEqual(state.selectedHashtags, [5])
+ state.setHashtags([5, 6])
+ assert.equal(state.localFilters.hashtagId, null)
+ assert.equal(state.localFilters.narrowHashtags, '5,6')
+ for (const scope of ['Personal', 'Project']) {
+  const query = routes[`serialize${scope}EntryListRouteQuery`]({ filters: state.localFilters })
+  const parsed = routes[`parse${scope}EntryListRouteQuery`](query).filters
+  assert.equal(parsed.narrowLabels, 'important,review')
+  assert.equal(parsed.narrowHashtags, '5,6')
+  assert.equal(parsed.tags, 'all')
+  assert.equal(parsed.hashtagId, null)
+  const params = routes.entryNarrowingQueryParams(parsed)
+  assert.equal(params.labels, 'important,review')
+  assert.equal(params.hashtags, '5,6')
+ }
+ state.setFutureOnly(true)
+ assert.equal(state.localFilters.tags, 'future')
+ assert.equal(state.localFilters.narrowLabels, 'important,review', 'Planned payments can retain multiple labels')
+ state.setLabels(['review'])
+ assert.equal(state.localFilters.tags, 'future')
+ assert.equal(state.localFilters.narrowLabels, 'review')
+ state.setFutureOnly(false)
+ assert.equal(state.localFilters.tags, 'review')
+ assert.equal(state.localFilters.narrowLabels, '')
+ state.setHashtags([6])
+ assert.equal(state.localFilters.hashtagId, 6)
+ assert.equal(state.localFilters.narrowHashtags, '')
+ state.setLabels([]); state.setHashtags([])
+ assert.equal(state.localFilters.tags, 'all')
+ assert.equal(state.localFilters.hashtagId, null)
+ assert.equal(state.localFilters.narrowLabels, '')
+ assert.equal(state.localFilters.narrowHashtags, '')
+ assert.equal(state.localFilters.amountMin, '1200', 'Checkbox changes retain unrelated filters')
+ const beforeInvalid = changes.length
+ state.setSelection('categoryId', 13)
+ state.setSelection('hasAttachment', false)
+ assert.equal(changes.length, beforeInvalid, 'Unavailable options and boolean receipt values are rejected')
+ state.localFilters.timeRange = 'custom'
+ assert.ok(state.timeRangeChoices.some(option => option.value === 'custom'))
+ state.setSelection('timeRange', 'lastYear')
+ assert.ok(!state.timeRangeChoices.some(option => option.value === 'custom'))
+ state.localFilters.search = 'Pow'
+ state.debouncedEmit()
+ state.localFilters.search = 'Power'
+ state.debouncedEmit()
+ const beforeSearch = changes.length
+ await new Promise(resolve => setTimeout(resolve, 320))
+ assert.equal(changes.length, beforeSearch + 1, 'Search emits once after its debounce')
+ assert.equal(changes.at(-1).value.search, 'Power')
+ assert.equal(changes.at(-1).value.amountMin, '1200', 'Searching preserves report amount restrictions')
+ state.clearFilters()
+ assert.equal(changes.at(-1).value.timeRange, 'all', 'Filters without a title picker still reset their period')
+ state.showTimeRange = false
+ state.localFilters = { ...filters.props.initialFilters.default(), timeRange: 'custom', dateFrom: 1000, dateTo: 2000 }
+ assert.equal(state.hasActiveFilters, false, 'A title period alone does not activate the filter panel')
+ state.localFilters.search = 'Power'
+ assert.equal(state.hasActiveFilters, true)
+ state.clearFilters()
+ assert.equal(changes.at(-1).value.search, '')
+ assert.equal(changes.at(-1).value.timeRange, 'custom', 'Reset keeps the title period')
+ assert.equal(changes.at(-1).value.dateFrom, 1000)
+ assert.equal(changes.at(-1).value.dateTo, 2000)
+ assert.equal(changes.at(-1).value.annualReturn, '/reports')
+ assert.equal(changes.at(-1).value.status, 'settled')
+ assert.equal(changes.at(-1).value.recurring, 'active')
+ assert.equal(changes.at(-1).value.narrowCategories, '')
+ assert.equal(changes.at(-1).value.narrowProjects, '')
+ assert.equal(changes.at(-1).value.amountMin, '')
+ assert.equal(changes.at(-1).value.categoryId, null)
+ state.debouncedEmit()
+ const beforeUnmount = changes.length
+ filters.beforeUnmount.call(state)
+ await new Promise(resolve => setTimeout(resolve, 320))
+ assert.equal(changes.length, beforeUnmount, 'Closing filters cancels pending search callbacks')
+}
+// An open filter must follow layout movement, not only window/popup resizes.
+{
+ const frames = new Map()
+ let nextFrame = 0, recomputes = 0
+ const script = parse(source('src/components/AnchoredPopover.vue')).descriptor.script.content.replace(/^import .*$/gm, '').replace('export default', 'return')
+ const options = new Function('NcPopover', 'recomputeAllPoppers', 'requestAnimationFrame', 'cancelAnimationFrame', script)(
+  {}, () => recomputes++, callback => { frames.set(++nextFrame, callback); return nextFrame }, id => frames.delete(id),
+ )
+ let rect = { x: 700, y: 50, width: 80, height: 34 }
+ const state = { ...options.data(), $refs: { popover: { $el: { isConnected: true, getBoundingClientRect: () => rect } } } }
+ for (const [key, fn] of Object.entries(options.methods)) state[key] = fn.bind(state)
+ const tick = () => { const pending = [...frames.values()]; frames.clear(); pending.forEach(fn => fn()) }
+ state.shown = true
+ options.watch.shown.call(state, true)
+ tick()
+ assert.equal(recomputes, 1)
+ tick()
+ assert.equal(recomputes, 1, 'Stationary filters do not recompute their position every frame')
+ rect = { ...rect, x: 900 }
+ tick()
+ assert.equal(recomputes, 2, 'Closing the payment sidebar moves the trigger without resizing it')
+ rect = { ...rect, x: 700, y: 80 }
+ tick()
+ assert.equal(recomputes, 3, 'Reset/reopening and header movement update the native popup position')
+ state.shown = false
+ options.watch.shown.call(state, false)
+ assert.equal(frames.size, 0, 'Closed filters do not run an animation-frame loop')
+ state.shown = true
+ options.watch.shown.call(state, true)
+ tick()
+ assert.equal(recomputes, 4, 'Reopening measures a fresh anchor')
+ options.beforeUnmount.call(state)
+ assert.equal(frames.size, 0, 'Navigating away cancels pending tracking')
+}
 Object.assign(bindings, hierarchy, {
 	NcPopover: { setup: (_, { slots }) => () => Vue.h('div', [slots.trigger?.(), slots.default?.()]) },
 	CloseIcon: slotComponent('span'),
 	FilterVariantIcon: slotComponent('span'),
+	MenuUpIcon: slotComponent('span'), MenuDownIcon: slotComponent('span'),
 })
+bindings.ReportAreaSelect = component('src/components/ReportAreaSelect.vue')
 bindings.AnnualComparison = component('src/components/AnnualComparison.vue')
 bindings.ReportSectionMenu = component('src/components/ReportSectionMenu.vue')
 bindings.AnnualOverviewTable = component('src/components/AnnualOverviewTable.vue')
 bindings.ReportDetailSection = component('src/components/ReportDetailSection.vue')
 bindings.AnnualOverviewDetails = component('src/components/AnnualOverviewDetails.vue')
+bindings.AnchoredPopover = bindings.NcPopover
 bindings.AnnualOverviewFilters = component('src/components/AnnualOverviewFilters.vue')
+// Report submenus retain multiple IDs, unrelated filters and parent context.
+{
+ const filters = bindings.AnnualOverviewFilters
+ const events = [], focus = []
+ const texts = new Proxy({}, { get: (_, key) => () => String(key) })
+ const state = {
+  activeSubmenu: null, consumedEscape: false, categoryIds: [0, 1, 2, 3],
+  categories: [
+   { id: 2, name: 'Power', type: 'expense', parent_category_id: 1, icon: 'Flash' },
+   { id: 1, name: 'Home', type: 'expense', icon: 'Home' },
+   { id: 3, name: 'Salary', type: 'income', icon: 'Briefcase' },
+   { id: 4, name: 'Unused', type: 'expense' },
+  ],
+  normalized: annual.annualSelection({ grouping: 'labelsAndTags', categories: [0], partners: [7], search: 'bill', amountMin: 1234 }),
+  $texts: { annual: texts }, $refs: { panel: { scrollTop: 123 }, back: { $el: { focus: () => focus.push('back') } }, categoriesTrigger: { $el: { focus: () => focus.push('categories') } } },
+  $nextTick: callback => callback(),
+  $emit: (event, value) => { events.push([event, value]); state.normalized = annual.annualSelection(value) },
+ }
+ for (const [name, fn] of Object.entries(filters.methods)) state[name] = fn.bind(state)
+ state.scheduleFit = () => {}
+ Object.defineProperty(state, 'categoryOptions', { get: () => filters.computed.categoryOptions.call(state) })
+ state.toggleSection('categories')
+ state.toggle('categories', 1); state.toggle('categories', 2)
+ assert.equal(state.activeSubmenu, 'categories', 'Multi-selection keeps the submenu open')
+ assert.deepEqual(state.normalized.categories, [0, 1, 2])
+ assert.deepEqual(state.normalized.partners, [7])
+ assert.equal(state.normalized.search, 'bill'); assert.equal(state.normalized.amountMin, 1234)
+ state.toggle('categories', 1)
+ assert.deepEqual(state.normalized.categories, [0, 2], 'Unchecking a parent does not silently clear its child')
+ const power = state.categoryOptions.find(option => option.id === 2)
+ assert.equal(power.icon, 'Flash'); assert.equal(power.child, true); assert.equal(power.pathLabel, 'Home › Power')
+ const choices = filters.computed.categoryChoices.call(state)
+ assert.equal(choices.find(option => option.value === 2).label, 'Power', 'The shared selector owns child indentation')
+ assert.equal(choices.find(option => option.value === 2).categoryIcon, 'Flash')
+ assert.equal(choices.find(option => option.value === 2).accessibleLabel, 'Home › Power · expenses')
+ state.categoryIds = [0, 2, 3]
+ assert.equal(state.categoryOptions.find(option => option.id === 2).context, 'Home', 'An unavailable parent is context only, not a new filter choice')
+ assert.equal(state.categoryOptions.some(option => option.id === 1), false)
+ let stopped = 0
+ const escape = { preventDefault() {}, stopPropagation() { stopped++ } }
+ state.onEscape(escape); state.onEscapeKeyup(escape)
+ assert.equal(state.activeSubmenu, null); assert.equal(stopped, 2)
+ assert.deepEqual(focus, ['back', 'categories'])
+ assert.equal(events.length, 3, 'Navigation never emits a filter change')
+ state.onEscape(escape); state.onEscapeKeyup(escape)
+ assert.equal(stopped, 2, 'Escape from the root remains available to NcPopover')
+}
+// Native input refs wrap the actual input: retain unfinished drafts while focused.
+{
+	const methods = bindings.AnnualOverviewFilters.methods
+	const previousDocument = globalThis.document
+	const activeInput = {}
+	globalThis.document = { activeElement: activeInput }
+	const changes = []
+	const context = {
+		$refs: { amountMin: { $el: { contains: element => element === activeInput } } },
+		normalized: annual.annualSelection({ year: 2026, partners: [2], amountMin: 1250 }),
+		amountMinText: '12,', amountMaxText: '', disposed: false,
+		$emit: (event, value) => changes.push({ event, value }),
+	}
+	try {
+		methods.syncAmount.call(context, 'min')
+		assert.equal(context.amountMinText, '12,', 'Focused native fields preserve unfinished decimal input')
+		globalThis.document.activeElement = null
+		methods.syncAmount.call(context, 'min')
+		assert.equal(context.amountMinText, '12.50')
+		context.amountMinText = '12,34'
+		context.amountMaxText = '90,12'
+		methods.applyAmount.call(context)
+		assert.equal(changes.at(-1).value.amountMin, 1234)
+		assert.equal(changes.at(-1).value.amountMax, 9012)
+		assert.deepEqual(changes.at(-1).value.partners, [2], 'Amount edits retain other filters')
+		context.amountMinText = 'invalid'
+		methods.applyAmount.call(context)
+		assert.equal(changes.length, 1, 'Invalid input does not change the applied filter')
+		methods.toggle.call(context, 'partners', 5)
+		assert.deepEqual(changes.at(-1).value.partners, [2, 5])
+		assert.deepEqual(context.normalized.partners, [2], 'Checkbox changes do not mutate the selection prop')
+	} finally {
+		if (previousDocument === undefined) delete globalThis.document
+		else globalThis.document = previousDocument
+	}
+}
+
 bindings.AnnualOverviewChart = component('src/components/AnnualOverviewChart.vue')
 bindings.ReportPeriodPicker = component('src/components/ReportPeriodPicker.vue')
 bindings.ReportSummary = component('src/components/ReportSummary.vue')
 Object.assign(bindings, new Function('axios', 'generateUrl', 'showToast', 'showRequestError', source('src/services/reportPayments.js').replace(/^import .*$/gm, '').replaceAll('export async function', 'async function') + '\nreturn { openReportPayment, loadReportPayments }')(bindings.axios, bindings.generateUrl, bindings.showToast, bindings.showRequestError))
+// Render report payment variants through the same real table components as the overview.
+Object.assign(bindings, await import(moduleUrl(source('src/utils/paymentColumnWidths.js'))), await import(moduleUrl(source('src/utils/areaSettlementStatus.js'))), {
+ texts: {entry:{tableDate:()=> 'tableDate'}}, getAppLanguage:()=> 'de',
+ formatMoney: (value,currency='EUR',options={})=>new Intl.NumberFormat('de-AT',{style:'currency',currency,...options}).format(value),
+ formatSignedMoney:(value,currency='EUR')=>new Intl.NumberFormat('de-AT',{style:'currency',currency,signDisplay:'always'}).format(value),
+ NcAvatar:slotComponent('span'), MemberIdentity:slotComponent('span'), MenuUpIcon:slotComponent('span'), MenuDownIcon:slotComponent('span'), HistoryIcon:slotComponent('span'), PencilIcon:slotComponent('span'), PlusIcon:slotComponent('span'), DeleteOutlineIcon:slotComponent('span'), AccountMultipleCheckIcon:slotComponent('span'), AccountMultipleIcon:slotComponent('span'), BellRingIcon:slotComponent('span'), CheckCircleOutlineIcon:slotComponent('span'), PaperclipIcon:slotComponent('span'), SyncIcon:slotComponent('span'),
+})
+bindings.PaymentLabelList=component('src/components/PaymentLabelList.vue')
+bindings.EntryDescriptionCell=component('src/components/EntryDescriptionCell.vue')
+bindings.EntryAmountCell=component('src/components/EntryAmountCell.vue')
+bindings.EntryTable=component('src/components/EntryTable.vue')
 const topPaymentsComponent = component('src/components/ReportTopPayments.vue')
 bindings.ReportTopPayments = { ...topPaymentsComponent, watch: {} }
 const paymentSectionComponent = component('src/components/ReportPaymentSection.vue')
@@ -355,7 +746,6 @@ bindings.ReportPayments = component('src/components/ReportPayments.vue')
 const reportBreakdownComponent = component('src/components/ReportBreakdown.vue')
 bindings.ReportBreakdown = { ...reportBreakdownComponent, watch: {} }
 bindings.ReportComparisonPicker = component('src/components/ReportComparisonPicker.vue')
-bindings.ReportComparisonPicker.components.NcPopover = { props: ['shown'], setup: (props, { slots }) => () => Vue.h('div', [slots.trigger?.(), props.shown ? slots.default?.() : null]) }
 const reportForecastComponent = component('src/components/ReportForecast.vue')
 bindings.ReportForecast = { render: () => null }
 const developmentComponent = component('src/components/ReportDevelopment.vue')
@@ -400,18 +790,159 @@ assert.equal(table.methods.cellAmount.call({ summary: false, isMonthEmpty: table
 assert.equal(table.methods.cellAmount.call({ summary: false, isMonthEmpty: table.methods.isMonthEmpty, formatAmount: () => '0.00' }, { counts: [2] }, 0, 0), '0.00')
 assert.equal(table.methods.cellAmount.call({ summary: false, isMonthEmpty: table.methods.isMonthEmpty, formatAmount: () => '10.00' }, { counts: [1] }, 0, 1000), '10.00')
 const view = component('src/views/AnnualOverviewView.vue')
-let blurCount = 0
+{
+	const previousWindow = globalThis.window
+	const previousObserver = globalThis.ResizeObserver
+	let direction = 'ltr', reducedMotion = false, labelWidth = 180
+	const observers = [], moves = []
+	globalThis.window = { getComputedStyle: () => ({ direction }), matchMedia: () => ({ matches: reducedMotion }), removeEventListener() {} }
+	globalThis.ResizeObserver = class {
+		constructor(callback) { this.callback = callback; this.targets = []; observers.push(this) }
+		observe(target) { this.targets.push(target) }
+		disconnect() { this.disconnected = true }
+	}
+	try {
+		const cells = [() => labelWidth, () => 108, () => 108].map(width => ({ getBoundingClientRect: () => ({ width: width() }) }))
+		const scroller = { clientWidth: 936, scrollWidth: 1584, scrollLeft: 0, firstElementChild: {}, querySelector: () => ({ cells }) }
+		const state = { $refs: { printSource: { $el: scroller } }, scrollState: {}, reportScrollObserver: null, reportScrollDisposed: false, requestId: 0, filterChoiceRequest: 0 }
+		for (const [name, method] of Object.entries(view.methods)) state[name] = method.bind(state)
+		scroller.scrollBy = options => { moves.push(options); scroller.scrollLeft = Math.max(0, Math.min(scroller.scrollWidth - scroller.clientWidth, scroller.scrollLeft + options.left)); state.updateReportScroll() }
+		state.observeReportScroll()
+		assert.deepEqual(observers[0].targets, [scroller, scroller.firstElementChild], 'Viewport and table-content changes both refresh the controls')
+		assert.deepEqual(state.scrollState, { overflow: true, canScrollLeft: false, canScrollRight: true })
+		const navigation = view.computed.scrollNavigation.call(state)
+		const controlsApp = Vue.createSSRApp(bindings.ReportScrollControls, { navigation })
+		controlsApp.config.globalProperties.$texts = { annual: { scrollTables: () => 'Scroll tables', scrollTablesLeft: () => 'Scroll left', scrollTablesRight: () => 'Scroll right' } }
+		const controls = await renderToString(controlsApp)
+		assert.match(controls, /<button(?=[^>]*aria-label="Scroll left")(?=[^>]*disabled)[^>]*>/, 'The starting edge has a disabled, named Left action')
+		assert.match(controls, /aria-controls="cobudget-report-periods"/, 'Every section controls the same scroll region')
+		navigation.scroll(1)
+		assert.deepEqual(moves.at(-1), { left: 540, behavior: 'smooth' }, 'Page steps exclude both pinned columns and retain one period for context')
+		assert.deepEqual(state.scrollState, { overflow: true, canScrollLeft: true, canScrollRight: true })
+		navigation.scroll(1)
+		assert.equal(scroller.scrollLeft, 648)
+		assert.equal(state.scrollState.canScrollRight, false, 'The final edge disables Right for every section')
+		scroller.clientWidth = 390; scroller.scrollLeft = 0; labelWidth = 140; reducedMotion = true
+		state.scrollReportColumns(1)
+		assert.deepEqual(moves.at(-1), { left: 108, behavior: 'auto' }, 'Narrow screens move at least one period and respect reduced motion')
+		direction = 'rtl'; scroller.scrollLeft = 0; state.updateReportScroll()
+		assert.equal(state.scrollState.canScrollLeft, true)
+		assert.equal(state.scrollState.canScrollRight, false)
+		scroller.scrollLeft = -(scroller.scrollWidth - scroller.clientWidth); state.updateReportScroll()
+		assert.equal(state.scrollState.canScrollLeft, false, 'RTL boundaries use the native negative scroll offset')
+		assert.equal(state.scrollState.canScrollRight, true)
+		direction = 'ltr'; scroller.clientWidth = 1600; observers[0].callback()
+		assert.deepEqual(state.scrollState, { overflow: false, canScrollLeft: false, canScrollRight: false })
+		assert.doesNotMatch(await renderToString(Vue.createSSRApp(bindings.ReportScrollControls, { navigation: view.computed.scrollNavigation.call(state) })), /<(?:div|button)\b/, 'Controls disappear when the periods fit')
+		scroller.clientWidth = 0; observers[0].callback()
+		assert.equal(state.scrollState.overflow, false, 'Hidden overview content has no active navigation')
+		state.$refs.printSource = null; state.observeReportScroll()
+		assert.equal(observers[0].disconnected, true, 'Replacing a report releases the old observer')
+		state.$refs.printSource = { $el: scroller }; state.observeReportScroll()
+		view.beforeUnmount.call(state)
+		assert.equal(observers.at(-1).disconnected, true)
+		const observerCount = observers.length
+		state.observeReportScroll()
+		assert.equal(observers.length, observerCount, 'A queued update cannot attach observers after leaving the page')
+
+		const yearPeriods = [
+			{ dateFrom: 1767222000, dateTo: 1769900399 },
+			{ dateFrom: 1769900400, dateTo: 1772319599 },
+			{ dateFrom: 1772319600, dateTo: 1774994399 },
+			{ dateFrom: 1774994400, dateTo: 1777586399 },
+			{ dateFrom: 1777586400, dateTo: 1780264799 },
+			{ dateFrom: 1780264800, dateTo: 1782856799 },
+			{ dateFrom: 1782856800, dateTo: 1785535199 },
+			{ dateFrom: 1785535200, dateTo: 1788213599 },
+			{ dateFrom: 1788213600, dateTo: 1790805599 },
+			{ dateFrom: 1790805600, dateTo: 1793487599 },
+			{ dateFrom: 1793487600, dateTo: 1796079599 },
+			{ dateFrom: 1796079600, dateTo: 1798757999 },
+			{ dateFrom: 1767222000, dateTo: 1798757999 },
+		]
+		const monthCells = [180, ...Array(12).fill(108), 108].map(width => ({ getBoundingClientRect: () => ({ width }) }))
+		const centerScroller = { clientWidth: 936, scrollWidth: 1584, scrollLeft: 0, querySelector: () => ({ cells: monthCells }) }
+		const centerState = { $refs: { printSource: { $el: centerScroller } }, report: { periods: yearPeriods }, scrollState: {}, reportScrollDisposed: false, initialPeriodCentered: false }
+		for (const [name, method] of Object.entries(view.methods)) centerState[name] = method.bind(centerState)
+
+		centerState.scrollToCurrentPeriod({ now: 1792000000 })
+		assert.equal(centerScroller.scrollLeft, 648, 'Centering October reaches maximum horizontal scroll so late months are visible')
+		assert.equal(centerState.initialPeriodCentered, true)
+
+		centerState.initialPeriodCentered = false
+		centerScroller.scrollLeft = 0
+		centerState.scrollToCurrentPeriod({ now: 1781000000 })
+		assert.equal(centerScroller.scrollLeft, 270, 'June is symmetrically centered in the visible unpinned period window')
+
+		centerState.initialPeriodCentered = false
+		centerState.scrollToCurrentPeriod({ now: 1768000000 })
+		assert.equal(centerScroller.scrollLeft, 0, 'January remains aligned at the start')
+
+		direction = 'rtl'
+		centerState.initialPeriodCentered = false
+		centerScroller.scrollLeft = 0
+		centerState.scrollToCurrentPeriod({ now: 1781000000 })
+		assert.equal(centerScroller.scrollLeft, -270, 'RTL centers with a negative scroll offset')
+		direction = 'ltr'
+
+		centerState.initialPeriodCentered = false
+		centerScroller.scrollLeft = 100
+		centerState.scrollToCurrentPeriod({ now: 1700000000 })
+		assert.equal(centerScroller.scrollLeft, 100, 'A date outside the report periods leaves the scroll position unchanged')
+
+		const drag = bindings.DraggableScroller
+		const captures = []
+		const dragElement = { clientWidth: 400, scrollWidth: 1400, scrollLeft: 0, setPointerCapture: id => captures.push(id), releasePointerCapture() {}, scrollBy: options => moves.push(options) }
+		const dragState = { ...drag.data(), allowLinkDrag: true, interactiveDragSelector: '.annual-amount', nativeTouch: true, $refs: { scroller: dragElement } }
+		for (const [name, method] of Object.entries(drag.methods)) dragState[name] = method.bind(dragState)
+		const target = (allowed = true, ignored = false) => ({ closest: selector => selector === '[data-drag-scroll-ignore]' ? (ignored ? {} : null) : ({ matches: () => allowed }) })
+		const pointer = (clientX, extra = {}) => ({ clientX, pointerId: 1, pointerType: 'mouse', button: 0, target: target(), preventDefault() {}, ...extra })
+		dragState.onPointerDown(pointer(300))
+		dragState.onPointerMove(pointer(297))
+		assert.equal(dragElement.scrollLeft, 0, 'Small click jitter does not move a financial cell')
+		assert.equal(captures.length, 0, 'Ordinary amount clicks retain their native target')
+		dragState.endDrag()
+		let cancelled = false
+		const click = { detail: 1, preventDefault() { cancelled = true }, stopPropagation() {} }
+		dragState.onClickCapture(click)
+		assert.equal(cancelled, false, 'An ordinary amount click still opens its detail')
+		dragState.onPointerDown(pointer(300)); dragState.onPointerMove(pointer(150)); dragState.endDrag()
+		assert.equal(dragElement.scrollLeft, 150)
+		assert.deepEqual(captures, [1])
+		dragState.onClickCapture(click)
+		assert.equal(cancelled, true, 'Dragging over an amount must never open its detail')
+		cancelled = false
+		dragState.onPointerDown(pointer(300)); dragState.onPointerMove(pointer(200)); dragState.endDrag()
+		dragState.onClickCapture({ ...click, detail: 0 })
+		assert.equal(cancelled, false, 'Keyboard activation still works after a drag')
+		dragState.onPointerDown(pointer(300, { target: target(false) })); dragState.onClickCapture(click)
+		assert.equal(dragState.isDragging, false, 'Section menus and arrow buttons are not drag handles')
+		assert.equal(cancelled, false, 'The next independent click is not swallowed')
+		dragState.onPointerDown(pointer(300, { pointerType: 'touch' }))
+		assert.equal(dragState.isDragging, false, 'Native touch scrolling remains available in both axes')
+		dragState.onPointerDown(pointer(300, { target: target(true, true) }))
+		assert.equal(dragState.isDragging, false, 'Nested Top 10 scrollers do not move the shared period tables')
+		const beforeKeys = moves.length
+		dragState.onKeydown({ key: 'ArrowRight', target: {}, currentTarget: dragElement, preventDefault() {} })
+		assert.equal(moves.length, beforeKeys, 'Arrow keys on child tabs or controls keep their own behavior')
+		dragState.onKeydown({ key: 'ArrowRight', target: dragElement, currentTarget: dragElement, preventDefault() {} })
+		assert.deepEqual(moves.at(-1), { left: 280, behavior: 'auto' })
+	} finally {
+		globalThis.window = previousWindow
+		if (previousObserver === undefined) delete globalThis.ResizeObserver
+		else globalThis.ResizeObserver = previousObserver
+	}
+	console.log('Report scrolling passed: shared arrows, pinned-column steps, resize/RTL bounds, observer cleanup, reduced motion, safe amount clicks, mouse dragging and native touch.')
+}
 const yearState = { selection: { year: currentYear - 1, includeFuturePayments: true }, yearOptions: [currentYear + 1, currentYear], $router: { replace: () => Promise.resolve() }, updateSelection: view.methods.updateSelection }
-const yearEvent = value => ({ target: { value: String(value), blur() { blurCount++ } } })
+const yearEvent = value => String(value)
 view.methods.selectYear.call(yearState, yearEvent(currentYear))
 assert.equal(yearState.selection.includeFuturePayments, false, 'Changing to the current year defaults to payments up to today')
-assert.equal(blurCount, 0, 'Changing year preserves keyboard focus')
 view.methods.selectYear.call(yearState, yearEvent(currentYear + 1))
 assert.equal(yearState.selection.includeFuturePayments, true, 'Switching to a future year includes its entered payments')
 view.methods.selectYear.call(yearState, yearEvent(1969))
 assert.equal(yearState.selection.year, currentYear + 1, 'Years without entries cannot replace the selection')
 view.methods.updateSelection.call(yearState, yearEvent('categories'))
-assert.equal(blurCount, 1, 'Only invalid year selection releases focus; ordinary changes remain keyboard accessible')
 const periodState = {
 	selection: {},
 	$enableProjects: true,
@@ -420,7 +951,7 @@ const periodState = {
 }
 for (const year of [2019, currentYear, currentYear + 1]) {
 	periodState.selection = annual.annualSelection({ year, grouping: 'paymentPartners', projectId: 12, categories: '7', hashtags: '9' })
-	await view.methods.selectPeriod.call(periodState, { target: { value: 'day' } })
+	await view.methods.selectPeriod.call(periodState, 'day')
 	assert.equal(periodState.selection.year, year, 'Choosing Days retains the selected year')
 	assert.equal(periodState.selection.month, 1, 'Choosing Days starts in January for past, current and future years')
 	assert.equal(periodState.route.query.period, 'day')
@@ -430,23 +961,23 @@ for (const year of [2019, currentYear, currentYear + 1]) {
 	assert.equal(periodState.route.query.hashtags, '9')
 }
 periodState.selection = annual.annualSelection({ year: 2019, period: 'day', month: 3 })
-await view.methods.selectMonth.call(periodState, { target: { value: 'all', blur() {} } })
+await view.methods.selectMonth.call(periodState, 'all')
 assert.equal(periodState.selection.period, 'day', 'All days stays on the daily breakdown')
 assert.equal(periodState.selection.month, 0)
 assert.equal(periodState.route.query.month, 'all', 'All days survives the next route normalization')
 assert.equal(annual.annualSelection(periodState.route.query).month, 0)
-await view.methods.selectMonth.call(periodState, { target: { value: '10', blur() {} } })
+await view.methods.selectMonth.call(periodState, '10')
 assert.equal(periodState.selection.month, 10, 'A different month replaces All days')
 assert.equal(periodState.route.query.month, '10')
-await view.methods.selectPeriod.call(periodState, { target: { value: 'day' } })
+await view.methods.selectPeriod.call(periodState, 'day')
 assert.equal(periodState.selection.month, 10, 'Reselecting the active daily breakdown keeps the chosen month')
 for (const period of ['year', 'quarter', 'week']) {
-	await view.methods.selectPeriod.call(periodState, { target: { value: period } })
+	await view.methods.selectPeriod.call(periodState, period)
 	assert.equal(periodState.selection.year, 2019, 'Changing breakdown keeps the selected year')
 	assert.equal(periodState.selection.period, period)
 	assert.equal(periodState.route.query.month, undefined, 'Whole-year breakdowns have no month restriction')
 	assert.equal(periodState.route.query.period, period === 'year' ? undefined : period)
-	await view.methods.selectPeriod.call(periodState, { target: { value: 'day' } })
+	await view.methods.selectPeriod.call(periodState, 'day')
 	assert.equal(periodState.selection.month, 1, 'Returning to Days starts in January')
 }
 const dayYearState = {
@@ -455,12 +986,12 @@ const dayYearState = {
 	$router: { replace(route) { dayYearState.route = route; return Promise.resolve() } },
 	updateSelection: view.methods.updateSelection,
 }
-view.methods.selectYear.call(dayYearState, { target: { value: '2020', blur() {} } })
+view.methods.selectYear.call(dayYearState, '2020')
 assert.equal(dayYearState.selection.year, 2020, 'Changing the year keeps the daily breakdown')
 assert.equal(dayYearState.selection.period, 'day')
 assert.equal(dayYearState.route.query.month, 'all', 'Changing the year keeps an explicit All days choice')
 dayYearState.selection = annual.annualSelection({ year: 2019, period: 'day', month: 2 })
-view.methods.selectYear.call(dayYearState, { target: { value: '2020', blur() {} } })
+view.methods.selectYear.call(dayYearState, '2020')
 assert.equal(dayYearState.route.query.month, '2', 'Changing the year keeps the selected month, including leap-year February')
 assert.deepEqual(view.computed.yearOptions.call({ report: { years: [currentYear, currentYear - 2] } }), [currentYear, currentYear - 2], 'Year dropdown lists only reported years, without filling gaps')
 assert.deepEqual(view.computed.yearOptions.call({ report: null }), [], 'No invented years while data is unavailable')
@@ -737,12 +1268,13 @@ for (const [years, selectedYear, expectedYear] of [
 	assert.equal(state.error, false)
 }
 function headingText(markup) { return (markup.match(/<h2[^>]*>(.*?)<\/h2>/s)?.[1] || '').replace(/<[^>]*>/g, '') }
+function mainFilterMarkup(markup) { return markup.slice(markup.indexOf('annual-main-filter'), markup.indexOf('</header>')) }
 function reportControlCount(markup) {
-	const controls = markup.slice(markup.indexOf('class="annual-controls"'), markup.indexOf('class="report-development'))
-	return (controls.match(/<select /g) || []).length
+	const controls = markup.slice(markup.indexOf('</h2>'), markup.indexOf('class="report-development'))
+	return (controls.match(/class="report-select /g) || []).length + Number(controls.includes('annual-shortcut--areas'))
 }
-function createReportApp(selection, reportData = report, { incomes = true, projects = true, areas = [], chartHiddenSeries = [], loading = false, error = false, query = {} } = {}) {
-	const app = Vue.createSSRApp({ ...view, data: () => ({ ...reportDetails.areaOverviewOptions(query), selection: annual.annualSelection(selection), dateDraft: { dateFrom: selection.dateFrom, dateTo: selection.dateTo }, chartMode: 'cumulative', chartHiddenSeries, projects: areas, categoryChoices: [{ id: 1, name: 'Groceries', type: 'expense' }, { id: 2, name: 'Rent', parent_category_id: 1, type: 'expense' }, { id: 3, name: 'Salary', type: 'income' }, { id: 9, name: 'Archive', type: 'expense' }], partnerChoices: [{ id: 4, name: 'Amazon', type: 'expense' }, { id: 6, name: 'Client', type: 'income' }, { id: 8, name: 'OldShop', type: 'expense' }], hashtagChoices: [{ id: 9, displayName: 'Alpen' }], filterChoices: { categoryIds: [1, 2, 3, 0], partnerIds: [4, 6, 0], labels: ['important', 'childRelated'] }, loading, error, detail: null, report: reportData, printing: false, exporting: false, requestId: 0, filterChoiceRequest: 0 }) })
+function createReportApp(selection, reportData = report, { incomes = true, projects = true, areas = [{ id: 7, name: 'Area' }], chartHiddenSeries = [], loading = false, error = false, query = {} } = {}) {
+	const app = Vue.createSSRApp({ ...view, data: () => ({ ...view.data.call({ $route: { query } }), ...reportDetails.areaOverviewOptions(query), selection: annual.annualSelection(selection), dateDraft: { dateFrom: selection.dateFrom, dateTo: selection.dateTo }, chartMode: 'cumulative', chartHiddenSeries, projects: areas, categoryChoices: [{ id: 1, name: 'Groceries', type: 'expense' }, { id: 2, name: 'Rent', parent_category_id: 1, type: 'expense' }, { id: 3, name: 'Salary', type: 'income' }, { id: 9, name: 'Archive', type: 'expense' }], partnerChoices: [{ id: 4, name: 'Amazon', type: 'expense' }, { id: 6, name: 'Client', type: 'income' }, { id: 8, name: 'OldShop', type: 'expense' }], hashtagChoices: [{ id: 9, displayName: 'Alpen' }], filterChoices: { categoryIds: [1, 2, 3, 0], partnerIds: [4, 6, 0], labels: ['important', 'childRelated'] }, loading, error, detail: null, report: reportData, printing: false, exporting: false, requestId: 0, filterChoiceRequest: 0 }) })
 	app.component('RouterLink', { props: ['to'], setup: (props, { slots }) => () => Vue.h('a', { href: JSON.stringify(props.to) }, slots.default?.()) })
 	app.config.globalProperties.$texts = new Proxy({}, { get: () => new Proxy({}, { get: (_, key) => (...args) => args.length ? args.join(', ') : key }) })
 	app.config.globalProperties.$route = { query }
@@ -753,9 +1285,12 @@ function createReportApp(selection, reportData = report, { incomes = true, proje
 	app.config.globalProperties.$formatMoneyFromCents = cents => (cents / 100).toFixed(2)
 	return app
 }
+const emptyAreaMarkup = await renderToString(createReportApp(selection, report, { areas: [] }))
+assert.equal(reportControlCount(emptyAreaMarkup), 4, 'An empty area catalog hides the area shortcut')
+assert.equal(reportControlCount(await renderToString(createReportApp(selection, report, { areas: [{ id: 7, name: 'Archive', is_archived: true }] }))), 4, 'Archived-only areas hide the area shortcut')
 const markup = await renderToString(createReportApp(selection))
 assert.ok(markup.indexOf('class="annual-controls"') < markup.indexOf('class="annual-chart'), 'The chart follows the report controls')
-assert.ok(markup.indexOf('class="annual-chart') < markup.indexOf('class="annual-scroll"'), 'The chart precedes the report tables')
+assert.ok(markup.indexOf('class="annual-chart') < markup.indexOf('id="cobudget-report-periods"'), 'The chart precedes the report tables')
 assert.equal((markup.match(/class="annual-chart-line"/g) || []).length, 3, 'The annual view shows all enabled financial series')
 const focusedChartMarkup = await renderToString(createReportApp(selection, report, { chartHiddenSeries: ['income', 'balance'] }))
 assert.equal((focusedChartMarkup.match(/class="annual-chart-line"/g) || []).length, 1, 'The annual view passes its retained curve selection into the chart')
@@ -768,7 +1303,7 @@ for (const incomes of [false, true]) {
 		assert.equal((settingsMarkup.match(/class="annual-chart-line"/g) || []).length, incomes ? 3 : 1, 'Chart series follow the income feature setting')
 		assert.equal((settingsMarkup.match(/class="report-summary-item"/g) || []).length, incomes ? 3 : 1, 'The summary hides income and balance when income management is disabled')
 		assert.equal((settingsMarkup.match(/annual-section-menu|report-payment-menu/g) || []).length, incomes ? 3 : 1, 'Income, expenses and the total have their own section menus')
-		assert.equal((settingsMarkup.match(/class="annual-filter-kind(?:\s|")/g) || []).length, incomes ? 2 : 0, 'Income and expense marks disappear when income is disabled')
+		assert.equal((mainFilterMarkup(settingsMarkup).match(/class="annual-filter-kind(?:\s|")/g) || []).length, 0, 'Payment partners use grouped switches instead of per-partner badges')
 		assert.equal(reportControlCount(settingsMarkup), projects ? 5 : 4, 'Disabled areas remove the scope dropdown')
 		const links = [...settingsMarkup.matchAll(/href="([^"]+)"/g)].map(match => JSON.parse(match[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&')))
 		assert.ok(links.length > 0)
@@ -832,7 +1367,7 @@ assert.equal(view.computed.hasPayments.call({ selection: { grouping: 'categories
 const labelEmpty = await renderToString(createReportApp({ ...selection, grouping: 'labelsAndTags' }, emptyReport))
 assert.equal((labelEmpty.match(/<table /g) || []).length, 2, 'Empty labels and tags hide the overall Total section')
 assert.equal((labelEmpty.match(/noLabelsOrTags/g) || []).length, 2, 'Empty label tables say that no labels or tags exist')
-assert.ok(markup.includes('value="labelsAndTags"'), 'Grouping offers labels and tags')
+assert.ok(markup.includes('>labelsAndTags</button>'), 'Grouping offers labels and tags')
 assert.ok(markup.includes('filterPayments'), 'The filter control stays at the end of the toolbar')
 assert.equal(markup.includes('annual-filter-heading">category'), false, 'Category grouping does not offer another category filter')
 assert.equal(markup.includes('annual-filter-heading">paymentPartner'), true, 'Payment partners remain available while grouping by category')
@@ -841,53 +1376,106 @@ const labelFilterMarkup = await renderToString(createReportApp({ ...selection, g
 assert.equal(labelFilterMarkup.includes('annual-filter-heading">labels'), false, 'Label grouping does not offer another label filter')
 assert.equal(labelFilterMarkup.includes('annual-filter-heading">category'), true, 'Categories remain available while grouping by labels and tags')
 assert.equal(labelFilterMarkup.includes('annual-filter-heading">tags'), true, 'Description tags remain available while grouping by labels and tags')
-assert.ok(labelFilterMarkup.includes('Groceries'), 'Categories used in the year stay selectable')
-assert.equal(labelFilterMarkup.includes('Archive'), false, 'Categories without a payment in the year are hidden')
-const categoryFilter = labelFilterMarkup.slice(labelFilterMarkup.indexOf('annual-filter-heading">category'), labelFilterMarkup.indexOf('annual-filter-heading">paymentPartner'))
-const categoryOrder = ['noCategory', 'Groceries', 'Rent', 'Salary'].map(name => categoryFilter.indexOf(name))
-assert.ok(categoryOrder.every((position, index) => position > (categoryOrder[index - 1] ?? -1)), 'Unassigned stays first, then expenses and their children, then income')
-assert.ok(categoryFilter.indexOf('noCategory') < categoryFilter.indexOf('annual-filter-kind'), 'Unassigned categories have no income or expense mark')
-assert.ok(categoryFilter.indexOf('is-expense') < categoryFilter.indexOf('is-income'), 'Expense categories are marked before income categories')
-assert.ok(categoryFilter.includes('d="M4 8h8"'), 'Expense categories show a minus mark')
-assert.ok(categoryFilter.includes('d="M4 8h8M8 4v8"'), 'Income categories show a plus mark')
-assert.equal((labelFilterMarkup.match(/class="annual-filter-kind(?:\s|")/g) || []).length, 5, 'Each used category and payment partner carries one mark')
-const partnerFilter = markup.slice(markup.indexOf('annual-filter-heading">paymentPartner'), markup.indexOf('annual-filter-heading">amount'))
-const partnerOrder = ['noPartner', 'Amazon', 'Client'].map(name => partnerFilter.indexOf(name))
-assert.ok(partnerOrder.every((position, index) => position > (partnerOrder[index - 1] ?? -1)), 'Unassigned payment partners stay first, then expenses, then income')
-assert.ok(markup.includes('Amazon'), 'Payment partners used in the year stay selectable')
-assert.equal(markup.includes('OldShop'), false, 'Payment partners without a payment in the year are hidden')
-assert.ok(markup.includes('>important</span>'), 'Labels used in the year stay selectable')
-assert.equal(markup.includes('>subscription</span>'), false, 'Enabled labels without a payment in the year are hidden')
+async function renderFilterSection(section, selection = {}, incomes = true) {
+ const filters = bindings.AnnualOverviewFilters
+ const app = Vue.createSSRApp({ ...filters, data() { return { ...filters.data.call(this), activeSubmenu: section } } }, {
+  section, selection: annual.annualSelection(selection), categoryIds: [0, 1, 2, 3],
+  categories: [{ id: 1, name: 'Home', type: 'expense', icon: 'Home' }, { id: 2, name: 'Power', type: 'expense', parent_category_id: 1, icon: 'Flash' }, { id: 3, name: 'Salary', type: 'income' }, { id: 9, name: 'Archive', type: 'expense' }],
+  partnerIds: [0, 4, 6],
+  partners: [{ id: 4, name: 'Amazon', type: 'expense' }, { id: 6, name: 'Client', type: 'income' }, { id: 8, name: 'OldShop', type: 'expense' }],
+ })
+ Object.assign(app.config.globalProperties, createReportApp(selection, report, { incomes }).config.globalProperties)
+ return renderToString(app)
+}
+const categoryFilter = await renderFilterSection('categories', { grouping: 'paymentPartners' })
+const categoryOrder = ['noCategory', 'allIncomeCategories', 'allExpenseCategories'].map(name => categoryFilter.indexOf(name))
+assert.ok(categoryOrder.every((position, index) => position > (categoryOrder[index - 1] ?? -1)), 'Report category groups follow Payments order')
+assert.equal(categoryFilter.includes('Power'), false, 'Individual categories are collapsed by default')
+const selectedCategoryFilter = await renderFilterSection('categories', { grouping: 'paymentPartners', categories: [2] })
+assert.ok(selectedCategoryFilter.includes('Home') && selectedCategoryFilter.includes('Power'), 'Opening expands the selected category group with parent context')
+assert.ok(selectedCategoryFilter.includes('filter-choice-child'), 'Children use the shared Payments indentation')
+assert.equal(selectedCategoryFilter.includes('Archive'), false, 'Unused categories remain hidden')
+const expenseCategoryFilter = await renderFilterSection('categories', { grouping: 'paymentPartners' }, false)
+assert.equal(expenseCategoryFilter.includes('allIncomeCategories'), false, 'Disabled incomes hide their category group')
+assert.ok(expenseCategoryFilter.includes('allExpenseCategories'))
+assert.equal(expenseCategoryFilter.includes('Salary'), false, 'Disabled income categories cannot fall through as individual choices')
+{
+ const original = annual.annualSelection({ grouping: 'labelsAndTags', categories: [0, 2, 'income', 'income', 'invalid'], partners: [4], search: 'rent', amountMin: 1250 })
+ assert.deepEqual(original.categories, [0, 2, 'income'])
+ assert.deepEqual(annual.annualSelection(annual.annualRouteQuery(original)), original, 'Category IDs and groups survive bookmarks')
+ assert.equal(annual.annualRequestParams(original).categories, '0,2,income')
+ assert.equal(annual.annualPaymentRoute(original).query.categories, '0,2,income')
+ const groupOnly = annual.annualPaymentRoute({ ...original, categories: ['expense'] })
+ assert.equal(groupOnly.query.categoryId, undefined, 'Category groups never become scalar IDs')
+ assert.equal(groupOnly.query.categories, 'expense')
+ assert.equal(annual.annualFilterChips({ ...original, categories: ['income'] }, { categoryGroupLabels: { income: 'All income categories' } }).find(chip => chip.key === 'categories').label, 'All income categories')
+ assert.deepEqual(annual.annualSelection({ ...original, grouping: 'categories' }).categories, [], 'Category grouping still clears its own filter')
+ let emitted
+ bindings.AnnualOverviewFilters.methods.setSelection.call({ normalized: original, $emit: (_, value) => { emitted = value }, scheduleFit() {} }, 'categories', ['expense'])
+ assert.deepEqual(emitted.categories, ['expense'])
+ assert.deepEqual(emitted.partners, [4]); assert.equal(emitted.search, 'rent'); assert.equal(emitted.amountMin, 1250)
+}
+const partnerFilter = await renderFilterSection('partners')
+const partnerOrder = ['noPartner', 'allIncomePartners', 'allExpensePartners'].map(name => partnerFilter.indexOf(name))
+assert.ok(partnerOrder.every((position, index) => position > (partnerOrder[index - 1] ?? -1)), 'Report partner groups follow the Payments order')
+assert.equal(partnerFilter.includes('Amazon'), false, 'Individual partners stay collapsed initially')
+const selectedPartnerFilter = await renderFilterSection('partners', { partners: [4] })
+assert.ok(selectedPartnerFilter.includes('Amazon'), 'The selected partner group expands on opening')
+assert.equal(selectedPartnerFilter.includes('OldShop'), false, 'Unused partners stay hidden')
+const reportLabels = await renderFilterSection('labels')
+assert.ok(reportLabels.indexOf('allLabels') < reportLabels.indexOf('important'), 'All labels is the first default choice')
+assert.ok(reportLabels.includes('subscription'), 'All enabled labels remain selectable, like Payments')
+{
+ const filters = bindings.AnnualOverviewFilters
+ const original = annual.annualSelection({ partners: [4], labels: ['important'], search: 'rent', amountMin: 1250 })
+ let emitted
+ filters.methods.setSelection.call({ normalized: original, $emit: (_, value) => { emitted = value }, scheduleFit() {} }, 'labels', [])
+ assert.deepEqual(emitted.labels, [], 'All labels clears label restrictions')
+ assert.deepEqual(emitted.partners, [4], 'All labels retains the partner and other filters')
+ assert.equal(emitted.amountMin, 1250)
+ const selected = annual.annualSelection({ ...original, partners: [0, 4, 'income', 'income', 'invalid'] })
+ assert.deepEqual(selected.partners, [0, 4, 'income'])
+ assert.deepEqual(annual.annualSelection(annual.annualRouteQuery(selected)), selected, 'Mixed partner groups and IDs survive bookmarks')
+ assert.equal(annual.annualRequestParams(selected).partners, '0,4,income')
+ assert.equal(annual.annualPaymentRoute(selected).query.partners, '0,4,income')
+ const groupOnly = annual.annualPaymentRoute({ ...selected, partners: ['expense'] })
+ assert.equal(groupOnly.query.paymentPartnerId, undefined, 'Group tokens never become scalar partner IDs')
+ assert.equal(groupOnly.query.partners, 'expense')
+ assert.equal(annual.annualFilterChips({ ...selected, partners: ['income'] }, { partnerGroupLabels: { income: 'All income partners' } }).find(chip => chip.key === 'partners').label, 'All income partners')
+ assert.deepEqual(annual.annualSelection({ ...selected, grouping: 'paymentPartners' }).partners, [], 'Partner grouping still clears its own filter')
+}
 assert.ok(labelFilterMarkup.includes('>Alpen</span>') || labelFilterMarkup.includes('>#Alpen</span>'), 'Tags used in the year stay selectable')
 const chipMarkup = await renderToString(createReportApp(annual.annualSelection({ year: currentYear, grouping: 'categories', partners: '2,5', labels: 'important,childRelated' })))
 assert.ok(chipMarkup.includes('2 or 5'), 'Several values of one filter are shown together')
 assert.ok(chipMarkup.includes('important or children'))
 assert.equal(chipMarkup.includes('anyOfThese'), false, 'A multi-value filter does not add an extra hint')
-assert.ok(chipMarkup.includes('annual-filter-remove'))
+assert.ok(chipMarkup.includes('native-filter-chip'))
 assert.equal(reportControlCount(markup), 5, 'Current year keeps the title, year, scope, grouping and cutoff dropdowns')
-const breakdownOptions = markup.match(/<select[^>]*aria-label="breakdown"[^>]*>(.*?)<\/select>/s)?.[1]
-assert.deepEqual([...breakdownOptions.matchAll(/<option value="([^"]+)"[^>]*>(.*?)<\/option>/g)].map(match => [match[1], match[2]]), [['quarter', 'quarters'], ['year', 'months'], ['week', 'weeks'], ['day', 'days']], 'The breakdown runs from quarters through months and weeks to days')
+const breakdownOptions = markup.match(/<div(?=[^>]*class="report-select )(?=[^>]*aria-label="breakdown")[^>]*>(.*?)<\/div>/s)?.[1]
+assert.deepEqual([...breakdownOptions.matchAll(/<button[^>]*>(.*?)<\/button>/g)].map(match => match[1]), ['quarters', 'months', 'weeks', 'days'], 'The breakdown runs from quarters through months and weeks to days')
 assert.ok(headingText(markup).startsWith('title'), 'Annual overview remains the page title')
-assert.equal(breakdownOptions.includes('value="month"'), false, 'The duplicate monthly overview is absent')
-assert.equal(markup.includes('value="2"'), false, 'The year overview has no month dropdown')
-assert.equal(markup.includes('value="all"'), false, 'The year overview has no All choice')
+assert.equal(breakdownOptions.includes('>month</button>'), false, 'The duplicate monthly overview is absent')
+assert.equal(markup.includes('>Februar</button>'), false, 'The year overview has no month dropdown')
+assert.equal(markup.includes('>allDays</button>'), false, 'The year overview has no All choice')
 assert.ok(markup.includes('paymentsUntilToday'), 'Payment cutoff is visible in the toolbar')
 assert.ok(!markup.includes('annual-hint'), 'Explanatory paragraphs are removed')
 assert.ok(!markup.includes('annual-year-buttons'), 'Year navigation arrows are removed')
-assert.ok(!markup.includes('value="other"'), 'Arbitrary year selection is removed')
-assert.ok(!markup.includes(`value="${currentYear - 1}"`), 'Empty years are not offered')
+assert.ok(!markup.includes('>other</button>'), 'Arbitrary year selection is removed')
+assert.ok(!markup.includes(`>${currentYear - 1}</button>`), 'Empty years are not offered')
 assert.equal(reportControlCount((await renderToString(createReportApp({ ...selection, year: currentYear - 1 })))), 4, 'Past years hide the cutoff dropdown')
 assert.equal(reportControlCount((await renderToString(createReportApp({ ...selection, year: currentYear + 1 })))), 4, 'Future years hide the cutoff dropdown')
 const viewedMonth = new Date().getMonth() + 1
 const monthMarkup = await renderToString(createReportApp({ ...selection, period: 'month', month: viewedMonth }))
 assert.equal(reportControlCount(monthMarkup), 6, 'The current month adds the month dropdown beside the year and keeps the cutoff')
 assert.ok(headingText(monthMarkup).startsWith('title') && monthMarkup.includes('>Februar<'), 'February is offered with the other months of the selected year')
-assert.ok(monthMarkup.includes('value="all"') && monthMarkup.indexOf('value="all"') < monthMarkup.indexOf('>Februar<'), 'All days is the first month choice and retains the daily breakdown')
+assert.ok(monthMarkup.includes('>allDays</button>') && monthMarkup.indexOf('>allDays</button>') < monthMarkup.indexOf('>Februar<'), 'All days is the first month choice and retains the daily breakdown')
 assert.ok(monthMarkup.includes(new Intl.DateTimeFormat('de-AT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(currentYear, viewedMonth - 1, 1))), 'Day headings expose the weekday and full date')
-const monthDayHeading = (day) => new Intl.DateTimeFormat('de-AT', { day: 'numeric', month: 'short' }).format(new Date(currentYear, viewedMonth - 1, day)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const headingMarkup = html => html.replace(/(<th\b[^>]*>)([\s\S]*?)(<\/th>)/g, (_, open, content, close) => open + content.replace(/<[^>]*>/g, '') + close)
+const monthDayHeading = day => new Intl.DateTimeFormat('de-AT', { day: 'numeric', month: 'short' }).format(new Date(currentYear, viewedMonth - 1, day))
+const monthHeadings = [...monthMarkup.matchAll(/<thead[^>]*>([\s\S]*?)<\/thead>/g)].flatMap(head => [...head[1].matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)].map(cell => cell[1].replace(/<[^>]*>/g, '').trim()))
 const viewedMonthLength = new Date(currentYear, viewedMonth, 0).getDate()
-assert.equal((monthMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${monthDayHeading(1)}`, 'g')) || []).length, 3, 'Income, expenses and the total list the short date of day 1')
-assert.equal((monthMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${monthDayHeading(viewedMonthLength)}`, 'g')) || []).length, 3, 'Income, expenses and the total list the short date of the last day')
+assert.equal(monthHeadings.filter(text => text === monthDayHeading(1)).length, 3, 'Income, expenses and the total list the short date of day 1')
+assert.equal(monthHeadings.filter(text => text === monthDayHeading(viewedMonthLength)).length, 3, 'Income, expenses and the total list the short date of the last day')
 const pastMonthMarkup = await renderToString(createReportApp({ ...selection, period: 'month', month: 1 }))
 assert.equal(reportControlCount(pastMonthMarkup), new Date().getMonth() === 0 ? 6 : 5, 'A past month hides payments up to today')
 if (new Date().getMonth() < 11) {
@@ -899,8 +1487,8 @@ assert.equal(reportControlCount(quarterMarkup), 5, 'The current year keeps the c
 assert.ok(headingText(quarterMarkup).startsWith('title'), 'Quarters retains the annual page title')
 assert.equal(quarterMarkup.includes('aria-label="quarterLabel"'), false, 'The quarterly overview has no quarter dropdown')
 assert.equal(quarterMarkup.includes('aria-label="month"'), false, 'The month dropdown stays hidden in the quarterly overview')
-assert.equal(quarterMarkup.includes('value="all"'), false, 'The quarterly overview has no All choice')
-assert.equal((quarterMarkup.match(/<th\b[^>]*>\s*1\D/g) || []).length, 3, 'Income, expenses and the total list the first quarter')
+assert.equal(quarterMarkup.includes('>allDays</button>'), false, 'The quarterly overview has no All choice')
+assert.equal((headingMarkup(quarterMarkup).match(/<th\b[^>]*>\s*1\D/g) || []).length, 3, 'Income, expenses and the total list the first quarter')
 assert.equal(quarterMarkup.includes('Jänner'), false, 'The quarterly overview lists quarters')
 const pastQuarterMarkup = await renderToString(createReportApp({ ...selection, year: currentYear - 1, period: 'quarter' }))
 assert.equal(reportControlCount(pastQuarterMarkup), 4, 'A past year hides payments up to today')
@@ -911,8 +1499,8 @@ const weekMarkup = await renderToString(createReportApp({ ...selection, period: 
 assert.equal(reportControlCount(weekMarkup), 5, 'The current week-year keeps the cutoff and adds no week dropdown')
 assert.ok(headingText(weekMarkup).startsWith('title'), 'Weeks retains the annual page title')
 assert.equal(weekMarkup.includes('aria-label="month"'), false, 'The month dropdown stays hidden in the weekly overview')
-assert.equal(weekMarkup.includes('value="all"'), false, 'The weekly overview has no All choice')
-assert.equal((weekMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${weekCountForYear}\\D`, 'g')) || []).length, 3, 'Income, expenses and the total list the last calendar week')
+assert.equal(weekMarkup.includes('>allDays</button>'), false, 'The weekly overview has no All choice')
+assert.equal((headingMarkup(weekMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${weekCountForYear}\\D`, 'g')) || []).length, 3, 'Income, expenses and the total list the last calendar week')
 assert.equal(weekMarkup.includes('Jänner'), false, 'The weekly overview lists calendar weeks')
 const pastWeekMarkup = await renderToString(createReportApp({ ...selection, year: currentYear - 1, period: 'week' }))
 assert.equal(reportControlCount(pastWeekMarkup), 4, 'A past week-year hides payments up to today')
@@ -922,24 +1510,24 @@ const escapePattern = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const dayHeading = (year, month, day) => new Intl.DateTimeFormat('de-AT', { day: 'numeric', month: 'short' }).format(new Date(year, month, day))
 const defaultDayMarkup = await renderToString(createReportApp({ ...selection, period: 'day' }))
 assert.ok(headingText(defaultDayMarkup).startsWith('title'), 'The default daily breakdown keeps the annual page title')
-assert.equal((defaultDayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 0, 31))}`, 'g')) || []).length, 3, 'The default daily report includes all 31 January days')
-assert.equal((defaultDayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 1, 1))}`, 'g')) || []).length, 0, 'The default daily report does not include February')
+assert.equal((headingMarkup(defaultDayMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 0, 31))}`, 'g')) || []).length, 3, 'The default daily report includes all 31 January days')
+assert.equal((headingMarkup(defaultDayMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 1, 1))}`, 'g')) || []).length, 0, 'The default daily report does not include February')
 const dayMarkup = await renderToString(createReportApp({ ...selection, period: 'day', month: 'all' }))
 assert.equal(reportControlCount(dayMarkup), 6, 'The current daily overview adds the month dropdown and keeps the cutoff')
 assert.ok(headingText(dayMarkup).startsWith('title'), 'Days retains the annual page title')
 assert.ok(dayMarkup.includes('aria-label="month"'), 'The daily overview shows the month dropdown beside the year')
-assert.equal(dayMarkup.match(/<option value="all"[^>]*>(.*?)<\/option>/)?.[1], 'allDays', 'The whole-year choice is explicitly labelled All days')
-assert.equal((dayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 0, 1))}`, 'g')) || []).length, 3, 'Income, expenses and the total list 1 January')
-assert.equal((dayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 3, 'Income, expenses and the total list 31 December')
+assert.ok(dayMarkup.includes('>allDays</button>'), 'The whole-year choice is explicitly labelled All days')
+assert.equal((headingMarkup(dayMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 0, 1))}`, 'g')) || []).length, 3, 'Income, expenses and the total list 1 January')
+assert.equal((headingMarkup(dayMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 3, 'Income, expenses and the total list 31 December')
 assert.ok(dayMarkup.includes(new Intl.DateTimeFormat('de-AT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(currentYear, 0, 1))), 'Day headings expose the weekday and full date')
 const currentDayMonthMarkup = await renderToString(createReportApp({ ...selection, period: 'day', month: viewedMonth }))
 assert.equal(reportControlCount(currentDayMonthMarkup), 6, 'The current month of the daily overview keeps the cutoff')
-assert.equal((currentDayMonthMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, viewedMonth - 1, 1))}`, 'g')) || []).length, 3, 'Income, expenses and the total list the first day of the selected month')
-if (viewedMonth !== 12) assert.equal((currentDayMonthMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 0, 'A selected month hides the other days of the year')
+assert.equal((headingMarkup(currentDayMonthMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, viewedMonth - 1, 1))}`, 'g')) || []).length, 3, 'Income, expenses and the total list the first day of the selected month')
+if (viewedMonth !== 12) assert.equal((headingMarkup(currentDayMonthMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 0, 'A selected month hides the other days of the year')
 const februaryDayMarkup = await renderToString(createReportApp({ ...selection, period: 'day', month: 2 }))
 assert.equal(reportControlCount(februaryDayMarkup), new Date().getMonth() === 1 ? 6 : 5, 'A past month of the daily overview hides payments up to today')
-assert.equal((februaryDayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 1, 1))}`, 'g')) || []).length, 3, 'February lists its first day')
-assert.equal((februaryDayMarkup.match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 0, 'February hides 31 December')
+assert.equal((headingMarkup(februaryDayMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 1, 1))}`, 'g')) || []).length, 3, 'February lists its first day')
+assert.equal((headingMarkup(februaryDayMarkup).match(new RegExp(`<th\\b[^>]*>\\s*${escapePattern(dayHeading(currentYear, 11, 31))}`, 'g')) || []).length, 0, 'February hides 31 December')
 if (new Date().getMonth() < 11) {
 	const laterDayMarkup = await renderToString(createReportApp({ ...selection, period: 'day', month: new Date().getMonth() + 2 }))
 	assert.equal(reportControlCount(laterDayMarkup), 5, 'A later month of the daily overview hides the cutoff dropdown')
@@ -949,24 +1537,13 @@ assert.equal(reportControlCount(pastDayMarkup), 5, 'A past year hides payments u
 const futureDayMarkup = await renderToString(createReportApp({ ...selection, year: currentYear + 1, period: 'day' }))
 assert.equal(reportControlCount(futureDayMarkup), 5, 'A future year hides the cutoff dropdown')
 assert.equal((markup.match(/<table /g) || []).length, 3, 'Income, expenses and summary all render')
-const sectionToggles = markup => [...markup.matchAll(/<div[^>]*class="[^\"]*(?:annual-section-menu|report-payment-menu)[^\"]*"[\s\S]*?<\/div>/g)].map(match => match[0])
-assert.equal(sectionToggles(markup).filter(menu => menu.includes('collapseSection')).length, 3, 'Income, expenses and the total start open and offer Collapse')
 const collapsedWindow = globalThis.window
-const collapsedValues = new Map()
 globalThis.window = {
-	localStorage: {
-		getItem: key => collapsedValues.has(key) ? collapsedValues.get(key) : null,
-		setItem: (key, value) => collapsedValues.set(key, String(value)),
-	},
-	OC: { getCurrentUser: () => ({ uid: 'ada' }) },
+ localStorage: { getItem: () => JSON.stringify({ income: false, total: false }) },
 }
-annual.rememberAnnualSection('income', false)
-const collapsedMarkup = await renderToString(createReportApp(selection))
-const collapsedToggles = sectionToggles(collapsedMarkup)
-assert.match(collapsedMarkup, /report-payment-section is-collapsed[^>]*data-report-section="income"/, 'A remembered closed section hides its whole table')
-assert.equal(collapsedToggles.filter(menu => menu.includes('expandSection')).length, 1)
-assert.equal(collapsedToggles.filter(menu => menu.includes('collapseSection')).length, 2, 'The other sections stay open')
-assert.equal((collapsedMarkup.match(/<table /g) || []).length, 3, 'The total section remains available while a payment section is closed')
+const legacyPreferencesMarkup = await renderToString(createReportApp(selection))
+assert.doesNotMatch(legacyPreferencesMarkup, /is-collapsed|collapseSection|expandSection/)
+assert.match(legacyPreferencesMarkup, /class="annual-amount"/)
 if (collapsedWindow === undefined) delete globalThis.window
 else globalThis.window = collapsedWindow
 assert.equal((markup.match(/aria-sort="descending"/g) || []).length, 2, 'Income and expense headers indicate highest-first total sorting by default')
@@ -1459,8 +2036,9 @@ assert.ok(!monthHeading.includes('annual-range-caption'))
 
 const picker = bindings.ReportPeriodPicker
 const emittedPeriods = []
-const pickerState = { selection: holiday, years: [2026, 2024], $emit: (event, value) => emittedPeriods.push({ event, value }) }
+const pickerState = { selection: holiday, years: [2026, 2024], allowAll: true, $refs: {}, $nextTick: callback => callback(), $emit: (event, value) => emittedPeriods.push({ event, value }) }
 Object.assign(pickerState, picker.data.call(pickerState))
+for (const [key, method] of Object.entries(picker.methods)) pickerState[key] = method.bind(pickerState)
 Object.defineProperty(pickerState, 'yearOptions', { get: () => picker.computed.yearOptions.call(pickerState) })
 Object.defineProperty(pickerState, 'proposed', { get: () => picker.computed.proposed.call(pickerState) })
 pickerState.shown = true
@@ -1472,6 +2050,11 @@ assert.deepEqual(emittedPeriods[0].value.categories, holiday.categories)
 assert.equal(emittedPeriods[0].value.projectId, holiday.projectId, 'Changing the title period retains area and filters')
 pickerState.shown = true
 picker.methods.onShown.call(pickerState, true)
+picker.methods.choose.call(pickerState, 'custom')
+assert.equal(pickerState.submenu, 'custom')
+picker.methods.backToOptions.call(pickerState)
+assert.equal(pickerState.submenu, null, 'Returning to the main menu keeps the applied selection unchanged')
+assert.equal(emittedPeriods.length, 1)
 picker.methods.choose.call(pickerState, 'custom')
 pickerState.dates = { dateFrom: '2026-07-11', dateTo: '2026-07-20' }
 assert.equal(emittedPeriods.length, 1, 'Editing free dates does not change the applied report')
@@ -1486,12 +2069,99 @@ pickerState.dates = { dateFrom: '2026-07-21', dateTo: '2026-07-20' }
 picker.methods.apply.call(pickerState)
 assert.equal(emittedPeriods.length, 2, 'Invalid dates cannot replace the applied range')
 picker.methods.choose.call(pickerState, 'year')
-picker.methods.chooseYear.call(pickerState, { target: { value: '2024' } })
+picker.methods.chooseYear.call(pickerState, '2024')
 assert.equal(emittedPeriods.length, 2, 'A year is applied only on confirmation')
 picker.methods.apply.call(pickerState)
 assert.equal(emittedPeriods.at(-1).value.dateFrom, '2024-01-01')
 assert.equal(emittedPeriods.at(-1).value.dateTo, '2024-12-31')
+picker.methods.choose.call(pickerState, 'all')
+assert.equal(emittedPeriods.at(-1).value.timeRange, 'all')
+assert.deepEqual(emittedPeriods.at(-1).value.categories, holiday.categories)
+const allSelection = annual.annualSelection({ ...holiday, timeRange: 'all', dateFrom: '2023-01-01', dateTo: '2026-12-31', search: 'Rent' })
+assert.equal(allSelection.timeRange, 'all')
+assert.equal(allSelection.dateFrom, '2023-01-01', 'Resolved all-time bounds remain available for drilldowns')
+assert.equal(annual.annualRequestParams(allSelection).allTime, true)
+assert.equal(annual.annualRequestParams(allSelection).search, 'Rent')
+const allRoute = annual.annualRouteQuery(allSelection)
+assert.equal(allRoute.dateFrom, undefined, 'All-time bookmarks resolve newly added years on reload')
+assert.equal(annual.annualReportSelection(allRoute).timeRange, 'all')
+assert.equal(annual.annualRequestParams(annual.annualSelection({ ...allSelection, timeRange: 'custom', dateFrom: '2025-01-01', dateTo: '2025-12-31' })).allTime, undefined, 'A focused detail keeps its explicit dates')
 console.log('Title period picker passed: calendar labels, closed editor, preset defaults, scoped filters, draft cancellation, validation and year application.')
+
+// Report calendar selections retain filters and exclude gaps in every request and export.
+{
+ const selection = annual.annualSelection({ timeRange: 'calendar-selection', periodYears: [2026, 2024, 2024], periodMonths: [3, 1], categories: [2], grouping: 'paymentPartners', projectId: 8, entryScope: 'shared', search: 'rent' })
+ assert.deepEqual(selection.periodYears, [2024, 2026]); assert.deepEqual(selection.periodMonths, [1, 3])
+ assert.equal(selection.dateFrom, '2024-01-01'); assert.equal(selection.dateTo, '2026-03-31')
+ assert.deepEqual(annual.annualReportSelection(annual.annualRouteQuery(selection)), selection)
+ assert.equal(annual.annualRequestParams(selection).periodYears, '2024,2026')
+ assert.equal(annual.annualRequestParams(selection).periodMonths, '1,3')
+ const ranges = annual.reportCalendarRanges(selection)
+ assert.deepEqual(ranges.map(range => range.dateFrom), ['2024-01-01', '2024-03-01', '2026-01-01', '2026-03-01'])
+ assert.equal(annual.reportCalendarRanges({ ...selection, periodYears: [2024], periodMonths: [1, 2, 3] }).length, 1, 'Adjacent months merge')
+ assert.equal(annual.reportRangeError({ ...selection, period: 'day', periodYears: [1970, 9999], periodMonths: [1] }), '', 'Column limits exclude skipped years')
+ assert.equal(annual.reportRangeError({ ...selection, period: 'day', periodYears: Array.from({ length: 11 }, (_, i) => 2000 + i), periodMonths: [] }), 'columns')
+ const label = annual.reportPeriodLabel(selection, (date, opts) => new Intl.DateTimeFormat('en', opts).format(date), String)
+ assert.equal(label, 'Jan, Mar · 2024, 2026')
+ const route = annual.annualPaymentRoute(selection)
+ assert.equal(route.query.timeRange, 'calendarSelection'); assert.equal(route.query.periodYears, '2024,2026'); assert.equal(route.query.periodMonths, '1,3')
+ const paymentParams = reportDetails.reportPaymentParams(route, selection, Number(route.query.dateTo))
+ assert.equal(paymentParams.periodYears, '2024,2026'); assert.equal(paymentParams.periodMonths, '1,3')
+ const focusedPeriod = { dateFrom: new Date(2024, 2, 1).getTime() / 1000, dateTo: new Date(2024, 3, 1).getTime() / 1000 - 1 }
+ const focusedRoute = annual.annualPaymentRoute(selection, focusedPeriod)
+ assert.equal(focusedRoute.query.timeRange, 'custom'); assert.equal(focusedRoute.query.periodYears, undefined, 'A single column retains its exact continuous dates')
+ const periods = ranges.map(range => ({ dateFrom: annual.parseReportDate(range.dateFrom).getTime() / 1000, dateTo: annual.parseReportDate(range.dateTo).getTime() / 1000 + 86399 }))
+ const report = { periods: [...periods, { dateFrom: periods[0].dateFrom, dateTo: periods.at(-1).dateTo }], cutoff: periods.at(-1).dateTo }
+ const texts = new Proxy({}, { get: () => new Proxy({}, { get: (_, key) => () => key }) })
+ const metadata = exportHelpers.reportExportMetadata(selection, { report, texts, formatDate: stamp => annual.reportDate(new Date(stamp * 1000)), filterLabels: [], scopeLabel: 'Area' })
+ assert.equal(metadata[0][1], '2024-01-01 – 2024-01-31; 2024-03-01 – 2024-03-31; 2026-01-01 – 2026-01-31; 2026-03-01 – 2026-03-31')
+ const events = []
+ const state = { ...pickerState, selection, calendarMultiple: true, singleCalendarPeriod: false, reportCalendarSelection: true, inline: true, calendarYearOptions: [2026, 2025, 2024],
+  $emit: (_, value) => { state.selection = annual.annualSelection(value); events.push(state.selection) } }
+ for (const [key, method] of Object.entries(picker.methods)) state[key] = method.bind(state)
+ Object.defineProperty(state, 'proposed', { get: () => picker.computed.proposed.call(state) })
+ state.onShown(true)
+ assert.deepEqual(state.calendarYears, ['2024', '2026']); assert.deepEqual(state.calendarMonths, ['1', '3'])
+ state.toggleCalendarChoice('calendarYears', 2025, true); state.toggleCalendarChoice('calendarMonths', 5, true)
+ assert.deepEqual(events.at(-1).periodYears, [2024, 2025, 2026]); assert.deepEqual(events.at(-1).periodMonths, [1, 3, 5])
+ assert.deepEqual(events.at(-1).categories, [2]); assert.equal(events.at(-1).projectId, 8); assert.equal(events.at(-1).entryScope, 'shared')
+ state.shown = true
+ picker.watch.$route.call(state, { path: '/annual-overview', fullPath: 'new', query: annual.annualRouteQuery(state.selection) }, { path: '/annual-overview', fullPath: 'old' })
+ assert.equal(state.shown, true)
+ state.selectAllCalendarMonths(true)
+ assert.deepEqual(events.at(-1).periodMonths, [], 'All months retains all selected years')
+ state.choose('custom'); state.dates = { dateFrom: '2024-02-01', dateTo: '2024-02-29' }; state.apply()
+ assert.equal(events.at(-1).timeRange, 'custom'); assert.equal(events.at(-1).periodYears, undefined, 'Custom dates replace calendar restrictions')
+}
+
+// Reports share the calendar controls while retaining one exact date interval.
+{
+ const events = []
+ const state = { ...pickerState, selection: annual.annualSelection({ timeRange: 'custom', dateFrom: '2024-02-01', dateTo: '2024-02-29', period: 'week', partners: [4], projectId: 8 }),
+  calendarMultiple: true, singleCalendarPeriod: true, inline: true, calendarYearOptions: [2026, 2025, 2024],
+  $emit: (_event, value) => { events.push(value); state.selection = value } }
+ for (const [key, method] of Object.entries(picker.methods)) state[key] = method.bind(state)
+ Object.defineProperty(state, 'proposed', { get: () => picker.computed.proposed.call(state) })
+ state.onShown(true)
+ assert.deepEqual(state.calendarYears, ['2024']); assert.deepEqual(state.calendarMonths, ['2'])
+ assert.equal(state.submenu, null, 'A full-month bookmark reopens its month selection')
+ state.toggleCalendarChoice('calendarYears', 2025, true)
+ assert.equal(events.at(-1).dateFrom, '2025-02-01'); assert.equal(events.at(-1).dateTo, '2025-02-28')
+ assert.deepEqual(events.at(-1).partners, [4]); assert.equal(events.at(-1).projectId, 8); assert.equal(events.at(-1).period, 'week')
+ state.toggleCalendarChoice('calendarMonths', 4, true)
+ assert.deepEqual(state.calendarMonths, ['4'], 'Another month replaces the previous contiguous report period')
+ assert.equal(events.at(-1).dateFrom, '2025-04-01'); assert.equal(events.at(-1).dateTo, '2025-04-30')
+ state.selectAllCalendarMonths(true)
+ assert.equal(events.at(-1).dateFrom, '2025-01-01'); assert.equal(events.at(-1).dateTo, '2025-12-31')
+ state.shown = true
+ picker.watch.$route.call(state, { path: '/annual-overview', fullPath: 'new', query: annual.annualRouteQuery(state.selection) }, { path: '/annual-overview', fullPath: 'old' })
+ assert.equal(state.shown, true, 'Immediate report period updates leave the picker open')
+ state.singleCalendarPeriod = false
+ state.toggleCalendarChoice('calendarYears', 2024, true)
+ assert.deepEqual(events.at(-1).periodYears, [2024, 2025], 'Payments retain multiple year selection')
+ assert.equal(events.at(-1).timeRange, 'calendar-selection')
+}
+
 
 // Detail addresses resolve authorized report rows, never labels or amounts from a link.
 const detailRows = [{ ...holidayAmounts, id: 7, type: 'expense', label: 'Home', children: [
@@ -1617,10 +2287,65 @@ const amountScopeState = { selection: annual.annualSelection({ ...scopeBase, pro
 view.watch['$route.query'].handler.call(amountScopeState, annual.annualRouteQuery(amountScopeState.selection), annual.annualRouteQuery({ ...scopeBase, projectId: 12 }))
 assert.equal(amountScopeLoads, 1, 'The personal/entire-area switch reloads data even after v-model changed selection')
 let selectedAreaQuery
-const selectedArea = { selection: { ...scopeBase, projectId: 13, entryScope: 'shared' }, $enableProjects: true, updateSelection: view.methods.updateSelection, $router: { replace(route) { selectedAreaQuery = route.query } } }
-view.methods.selectProject.call(selectedArea)
+const selectedArea = { selection: { ...scopeBase, projectId: 13, entryScope: 'shared' }, projects: [{ id: 13, name: 'Home' }], $enableProjects: true, updateSelection: view.methods.updateSelection, $router: { replace(route) { selectedAreaQuery = route.query } } }
+view.methods.selectProject.call(selectedArea, 13)
 assert.equal(selectedArea.selection.entryScope, 'personal', 'Choosing another area starts with the personal share')
 assert.equal(selectedAreaQuery.entryScope, undefined)
+view.methods.selectProject.call(selectedArea, 0)
+assert.equal(selectedArea.selection.projectId, null)
+assert.equal(selectedArea.selection.withoutArea, true, 'Without area is distinct from the all-payments aggregate')
+assert.equal(selectedAreaQuery.withoutArea, 'true', 'Bookmarks preserve the without-area report scope')
+assert.equal(annual.annualRequestParams(selectedArea.selection).withoutArea, 'true')
+const unassignedDrilldown = annual.annualPaymentRoute(selectedArea.selection)
+assert.equal(unassignedDrilldown.query.projects, '0', 'Report-to-payment links retain the without-area population')
+assert.equal(routes.parsePersonalEntryListRouteQuery(unassignedDrilldown.query).filters.narrowProjects, '0')
+assert.equal(annual.annualFilterChips(selectedArea.selection, { withoutArea: 'Ohne Bereich' })[0].label, 'Ohne Bereich')
+const clearedUnassigned = { ...selectedArea, updateSelection() {} }
+view.methods.clearFilter.call(clearedUnassigned, 'withoutArea')
+assert.equal(clearedUnassigned.selection.withoutArea, false, 'Closing the chip clears only the unassigned predicate')
+assert.equal(clearedUnassigned.selection.projectId, null)
+view.methods.selectProject.call(selectedArea, 13)
+assert.equal(Boolean(selectedArea.selection.withoutArea), false, 'Choosing an area clears the unassigned predicate')
+view.methods.selectProject.call(selectedArea, 0)
+view.methods.selectProject.call(selectedArea, null)
+assert.equal(selectedArea.selection.projectId, null)
+assert.equal(Boolean(selectedArea.selection.withoutArea), false, 'All payments includes every authorized area again')
+const validScope = selectedArea.selection
+view.methods.selectProject.call(selectedArea, 999)
+assert.equal(selectedArea.selection, validScope, 'Unknown area options cannot change report scope')
+selectedArea.selectProject = view.methods.selectProject
+view.methods.selectAreas.call(selectedArea, [0, 13])
+assert.equal(selectedArea.selection.projectId, null, 'Multiple areas use personal payments instead of one shared source scope')
+assert.equal(Boolean(selectedArea.selection.withoutArea), false, 'Unassigned payments are an OR choice alongside named areas')
+assert.equal(selectedAreaQuery.projects, '0,13', 'Area checkboxes survive bookmarks and reloads')
+assert.equal(annual.annualRequestParams(selectedArea.selection).projects, '0,13')
+const multiAreaRoute = annual.annualPaymentRoute(selectedArea.selection, holidayPeriods[0], 'expense')
+assert.equal(multiAreaRoute.query.projects, '0,13', 'Payment drill-downs retain all selected areas')
+assert.equal(reportDetails.reportPaymentParams(multiAreaRoute, selectedArea.selection, holidayPeriods[0].dateTo).projects, '0,13', 'Saved payments and Top 10 use the same population as report totals')
+assert.deepEqual(annual.annualReturnRoute(multiAreaRoute.query.annualReturn).query, selectedAreaQuery, 'Returning from payments retains the area union')
+assert.deepEqual(annual.annualSelection({ ...scopeBase, projects: '0,13,13,-1,bad' }).projects, [0, 13], 'Area IDs normalize without duplicating amounts')
+view.methods.selectAreas.call(selectedArea, [13])
+assert.equal(selectedArea.selection.projectId, 13, 'A single area retains its personal/shared perspective control')
+assert.equal(selectedAreaQuery.projects, undefined, 'Returning to one area removes the multi-area constraint')
+view.methods.selectAreas.call(selectedArea, [])
+assert.equal(selectedAreaQuery.projectId, undefined)
+assert.equal(selectedAreaQuery.projects, undefined, 'All payments removes every area constraint')
+{
+	let next
+	const state = { options: [{ value: null }, { value: 0 }, { value: 13 }], modelValue: [13], $emit: (_event, value) => { next = value } }
+	bindings.ReportAreaSelect.methods.toggle.call(state, 0)
+	assert.deepEqual(next, [13, 0], 'Without area may be checked alongside a named area')
+	state.modelValue = next
+	bindings.ReportAreaSelect.methods.toggle.call(state, 13)
+	assert.deepEqual(next, [0], 'Unchecking one area retains the others')
+	bindings.ReportAreaSelect.methods.toggle.call(state, null)
+	assert.deepEqual(next, [], 'All payments clears the complete selection')
+	let focused = false
+	const keyboard = { shown: true, $nextTick: callback => callback(), $refs: { trigger: { $el: { focus: () => { focused = true } } } } }
+	bindings.ReportAreaSelect.methods.close.call(keyboard)
+	assert.equal(keyboard.shown, false)
+	assert.equal(focused, true, 'Escape returns keyboard focus to the area trigger')
+}
 for (const memberCount of [1, 2]) {
 	const html = await renderToString(createReportApp({ ...scopeBase, projectId: 12 }, report, { areas: [{ id: 12, name: 'Home', member_count: memberCount }] }))
 	assert.equal(html.includes('aria-label="amountScope"'), memberCount > 1, 'Only shared areas need a second financial-perspective dropdown')
@@ -1710,7 +2435,7 @@ const centAverage = comparisonHelpers.reportSelectionAverage({ ...sampleReport, 
 assert.ok(centAverage.values.every(value => value === null || value === 10), 'Cent rounding produces the same ten-cent average at every chart position')
 assert.equal(centAverage.fullAverage, 10)
 assert.equal(comparisonHelpers.reportSelectionAverage({ ...sampleReport, cutoff: samplePeriods[0].dateFrom - 1 }, 'expense', 'year'), null, 'No average is created before the selected period begins')
-const basicGlobals = app => { app.config.globalProperties.$texts = refTexts; app.config.globalProperties.$currency = 'EUR'; app.config.globalProperties.$formatMoneyFromCents = modalApp.config.globalProperties.$formatMoneyFromCents; app.config.globalProperties.$formatSignedMoney = amount => new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR', signDisplay: 'always' }).format(amount); return app }
+const basicGlobals = app => { app.config.globalProperties.$route ||= {query:{}}; Object.assign(app.config.globalProperties,Object.fromEntries(['Projects','Receipts','FixedCosts','Subscriptions','ChildRelated','ImportantPayments','ReviewPayments','TaxRelevant','Insurance'].map(name=>['$enable'+name,true]))); app.config.globalProperties.$texts = refTexts; app.config.globalProperties.$currency = 'EUR'; app.config.globalProperties.$formatMoneyFromCents = modalApp.config.globalProperties.$formatMoneyFromCents; app.config.globalProperties.$formatSignedMoney = amount => new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR', signDisplay: 'always' }).format(amount); return app }
 const simplePicker = { ...bindings.ReportComparisonPicker, data: () => ({ shown: true }) }
 const pickerMarkup = await renderToString(basicGlobals(Vue.createSSRApp(simplePicker, { comparisons: [sampleAverage, noReference] })))
 assert.ok(pickerMarkup.includes('averagePerMonth') && !pickerMarkup.includes('comparisonLastYear'), 'Only the usable monthly average is listed')
@@ -2021,63 +2746,23 @@ assert.equal((crossTableHtml.match(/class="annual-details-average"/g) || []).len
 assert.match(crossTableHtml, /data-average-id="average-previous-month"[^>]*>[\s\S]*?September 2026[\s\S]*?<td[^>]*>70\.00<\/td>/, 'The historical weekly table amount agrees with its diagram reference')
 console.log('Expanded average comparisons passed: annual cross-unit thresholds, prior month/quarter/week labels, one default, grouped menus, exact full-amount lines, sparse data, cutoffs and both chart modes.')
 
-// Collapse choices belong to the detail page, not its current subject or period.
-const windowBeforeDetailSections = globalThis.window
-const detailSectionPreferences = new Map()
-let detailSectionAccount = 'detail-section-owner'
-globalThis.window = { OC: { getCurrentUser: () => ({ uid: detailSectionAccount }) }, localStorage: { getItem: key => detailSectionPreferences.get(key) ?? null, setItem: (key, value) => detailSectionPreferences.set(key, value) } }
-annual.rememberAnnualSection('chart', false)
-annual.rememberAnnualSection('expense', false)
-const sectionInstances = new Map()
-const inspectedDetailSection = { ...bindings.ReportDetailSection, created() { sectionInstances.set(this.sectionKey, this) } }
-const collapsibleDetailPage = { ...preparedAnnualTotalDetail, components: {
+const reportDetailPage = { ...preparedAnnualTotalDetail, components: {
  ...detailComponent.components,
- ReportDevelopment: { ...developmentComponent, created() { sectionInstances.set(this.sectionKey, this) } },
- AnnualOverviewDetails: { ...bindings.AnnualOverviewDetails, components: { ...bindings.AnnualOverviewDetails.components, ReportDetailSection: inspectedDetailSection } },
- ReportPayments: { ...bindings.ReportPayments, watch: {}, data: () => ({ ...bindings.ReportPayments.data(), loading: false }), components: { ...bindings.ReportPayments.components, ReportDetailSection: inspectedDetailSection } },
- ReportBreakdown: { ...bindings.ReportBreakdown, components: { ...bindings.ReportBreakdown.components, ReportDetailSection: inspectedDetailSection } },
+ ReportDevelopment: developmentComponent,
+ ReportPayments: { ...bindings.ReportPayments, watch: {}, data: () => ({ ...bindings.ReportPayments.data(), loading: false }) },
 }, data: () => ({ ...preparedAnnualTotalDetail.data(), focusedReport: { ...octoberCategory, detailComparisons: [reference] } }) }
-const renderCollapsibleDetail = async (detail = categoryDetail) => {
- const app = basicGlobals(Vue.createSSRApp(collapsibleDetailPage, { detail, report: annualCategory, selection: annualCategorySelection, scopeLabel: 'Home', labels: [], labelTitles: [], axisLabels: [] }))
+const renderDetailSections = async (detail = categoryDetail) => {
+ const app = basicGlobals(Vue.createSSRApp(reportDetailPage, { detail, report: annualCategory, selection: annualCategorySelection, scopeLabel: 'Home', labels: [], labelTitles: [], axisLabels: [] }))
  app.config.globalProperties.$enableIncomes = true
  return renderToString(app)
 }
 const detailPanel = (html, key) => html.match(new RegExp(`<section[^>]*data-report-section="${key}"[\\s\\S]*?</section>`))?.[0] || ''
-const initialDetailSections = await renderCollapsibleDetail()
-const allDetailSectionKeys = ['detail-chart', 'detail-metrics', 'detail-averages', 'detail-comparisons', 'detail-breakdown', 'detail-payments']
-for (const key of allDetailSectionKeys) assert.equal(sectionInstances.get(key).open, true, 'Every detail section starts open independently of the annual overview')
+const initialDetailSections = await renderDetailSections()
 assert.ok(!detailPanel(initialDetailSections, 'detail-metrics').includes('data-average-id'), 'Key figures exclude the averages now grouped in their own section')
 assert.ok(detailPanel(initialDetailSections, 'detail-averages').includes('data-average-id="average-selection"'), 'The averages section contains the existing exact reference amounts')
 assert.ok(detailPanel(initialDetailSections, 'detail-averages').includes('averagePerPayment'), 'The average payment amount belongs with the other averages')
-assert.ok(detailPanel(initialDetailSections, 'detail-comparisons').includes('annual-details-comparison'), 'Period references form their own collapsible section')
-const controlledPanels = [...initialDetailSections.matchAll(/aria-controls="([^"]+)"/g)].map(match => match[1])
-assert.equal(new Set(controlledPanels).size, controlledPanels.length, 'Section buttons control distinct accessible bodies')
-for (const key of allDetailSectionKeys) sectionInstances.get(key).toggleSection()
-assert.equal(annual.readAnnualSectionOpen('income'), true, 'Collapsing detail sections does not change the annual income section')
-assert.equal(annual.readAnnualSectionOpen('chart'), false, 'The overview retains its separate chart preference')
-const reopenedDetailSections = await renderCollapsibleDetail({ ...categoryDetail, index: 8, label: 'Another month' })
-for (const key of allDetailSectionKeys) {
- assert.equal(sectionInstances.get(key).open, false, 'A different detail and a fresh component reuse the page-level choice')
- if (key === 'detail-chart') continue
- const panel = detailPanel(reopenedDetailSections, key)
- const bodyId = panel.match(/aria-controls="([^"]+)"/)?.[1]
- assert.ok(panel.includes('expandSection'))
- assert.match(panel, new RegExp(`<div[^>]*id="${bodyId}"[^>]*style="[^"]*display:\\s*none`), 'A collapsed section hides its whole body without destroying its content')
-}
-sectionInstances.get('detail-averages').toggleSection()
-assert.equal(annual.readAnnualSectionOpen('detail-averages'), true, 'A section can be reopened without opening the others')
-assert.equal(annual.readAnnualSectionOpen('detail-payments'), false)
-detailSectionAccount = 'another-detail-reader'
-await renderCollapsibleDetail()
-for (const key of allDetailSectionKeys) assert.equal(sectionInstances.get(key).open, true, 'Another account starts with its own open detail sections')
-globalThis.window = { OC: { getCurrentUser: () => ({ uid: 'blocked-storage' }) }, get localStorage() { throw Error('Storage blocked') } }
-assert.equal(bindings.ReportDetailSection.data.call({ sectionKey: 'detail-averages' }).open, true, 'Blocked storage leaves the page usable and initially open')
-const blockedSection = { open: true, sectionKey: 'detail-averages' }
-assert.doesNotThrow(() => bindings.ReportDetailSection.methods.toggleSection.call(blockedSection))
-assert.equal(blockedSection.open, false, 'Without storage, collapsing still works for the current visit')
-if (windowBeforeDetailSections === undefined) delete globalThis.window
-else globalThis.window = windowBeforeDetailSections
-console.log('Detail sections passed: all-open defaults, separate averages/comparisons/payments, full-body hiding, cross-detail persistence, independent overview choices, account isolation and blocked storage.')
+assert.ok(detailPanel(initialDetailSections, 'detail-comparisons').includes('annual-details-comparison'), 'Period references form their own section')
+assert.doesNotMatch(initialDetailSections, /is-collapsed|collapseSection|expandSection/)
 
 // Composition uses the opened subject and all matching payments, separately from list pagination.
 const compositionData = {
@@ -2105,17 +2790,15 @@ assert.equal(compositionVm.activeDimension.key, 'paymentPartners')
 
 const compositionTabs = [...compositionHtml.matchAll(/<button[^>]*role="tab"[^>]*>([\s\S]*?)<\/button>/g)].map(match => match[1].replace(/<[^>]*>/g, '').trim())
 assert.deepEqual(compositionTabs, [refTexts.analytics.paymentPartners(), refTexts.analytics.areas(), refTexts.analytics.labels(), refTexts.annual.tags()], 'Available dimensions are visible heading tabs')
-assert.ok(!compositionHtml.includes('<select'), 'A category composition needs no hidden dimension dropdown')
+assert.ok(!compositionHtml.includes('class="report-select '), 'A category composition needs no hidden dimension dropdown')
 assert.equal((compositionHtml.match(/aria-selected="true"/g) || []).length, 1, 'Exactly one dimension tab is selected')
 assert.ok(compositionHtml.includes('role="tabpanel"'), 'The selected table has a matching accessible tab panel')
-let compositionExpanded = 0
-compositionVm.chooseDimension('hashtags', () => compositionExpanded++)
+compositionVm.chooseDimension('hashtags')
 assert.equal(compositionVm.activeDimension.key, 'hashtags')
-assert.equal(compositionExpanded, 1, 'Choosing a tab reopens a collapsed section')
 assert.equal(compositionVm.exportData()[0].columns[0], refTexts.analytics.hashtags(), 'Section exports follow the active dimension tab')
 const focusedDimensionTabs = []
 const tabNodes = compositionVm.dimensions.map((item, index) => ({ focus: () => focusedDimensionTabs.push(index) }))
-compositionVm.onTabKey({ key: 'Home', preventDefault() {}, currentTarget: { querySelectorAll: () => tabNodes } }, () => compositionExpanded++)
+compositionVm.onTabKey({ key: 'Home', preventDefault() {}, currentTarget: { querySelectorAll: () => tabNodes } })
 await Vue.nextTick()
 assert.equal(compositionVm.activeDimension.key, 'paymentPartners')
 assert.deepEqual(focusedDimensionTabs, [0], 'Home selects and focuses the first available tab')
@@ -2161,7 +2844,7 @@ const balanceCompositionDetail = { ...categoryDetail, total: true, row: { type: 
 const allCompositionHtml = await renderComposition({ detail: balanceCompositionDetail })
 assert.deepEqual(compositionVm.dimensions.map(item => item.key), ['paymentPartners', 'categories', 'projects', 'labels', 'hashtags'])
 assert.equal(compositionVm.activeDimension.key, 'categories', 'Totals retain their previous contextual default rather than always choosing the first visible tab')
-assert.equal((allCompositionHtml.match(/<select/g) || []).length, 1, 'Balance details retain only the income/expense control')
+assert.equal((allCompositionHtml.match(/class="report-select /g) || []).length, 1, 'Balance details retain only the income/expense control')
 assert.ok(allCompositionHtml.indexOf('report-breakdown-type') < allCompositionHtml.indexOf('report-detail-section-body'), 'Income/expense sits in the header')
 
 await renderComposition({ detail: balanceCompositionDetail })
@@ -2260,21 +2943,11 @@ assert.equal(areaVm.detailLocation(areaVm.rows.find(row => row.id === 0), 12).qu
 const areaExport = areaVm.exportSection()
 assert.ok(areaExport.title.includes('areaTotals') && areaExport.title.includes('balance'))
 assert.deepEqual(areaExport.rows.map(row => row.amounts.at(-1)), [-100, -400, 100, -400], 'CSV follows the visible metric, natural area order and exact signed sum')
-const tableBeforeAreaPreferences = globalThis.window
-const areaPreferences = new Map()
-globalThis.window = { OC: { getCurrentUser: () => ({ uid: 'area-reader' }) }, localStorage: { getItem: key => areaPreferences.get(key) ?? null, setItem: (key, value) => areaPreferences.set(key, value) } }
-annual.rememberAnnualSection('areas', false)
-const collapsedAreas = await renderToString(areaGlobals(Vue.createSSRApp(makeAreaComponent(), areaProps)))
-assert.ok(collapsedAreas.includes('is-collapsed') && collapsedAreas.includes('expandSection'), 'The area section remembers its collapse state and offers Expand')
-assert.ok(!collapsedAreas.includes('report-area-controls'), 'Collapsed areas do not leave their controls visible')
-annual.rememberAnnualSection('areas', true)
-if (tableBeforeAreaPreferences === undefined) delete globalThis.window
-else globalThis.window = tableBeforeAreaPreferences
 const onlyExpenseApp = areaGlobals(Vue.createSSRApp(makeAreaComponent(), { ...areaProps, metric: 'income' }))
 onlyExpenseApp.config.globalProperties.$enableIncomes = false
 const onlyExpenseAreas = await renderToString(onlyExpenseApp)
 assert.equal(areaVm.effectiveMetric, 'expense')
-assert.ok(!onlyExpenseAreas.includes('value="balance"') && !onlyExpenseAreas.includes('value="income"'), 'Disabled income management removes both unavailable metrics')
+assert.ok(!onlyExpenseAreas.includes('>balance</button>') && !onlyExpenseAreas.includes('>income</button>'), 'Disabled income management removes both unavailable metrics')
 const areaErrorHtml = await renderToString(areaGlobals(Vue.createSSRApp(makeAreaComponent({ error: true }), areaProps)))
 assert.ok(areaErrorHtml.includes('role="alert"') && areaErrorHtml.includes('areaOverviewError') && areaErrorHtml.includes('retry') && !areaErrorHtml.includes('<tfoot'), 'Area errors hide stale amounts and offer retry')
 const areaPage = createReportApp(selection)
@@ -2301,6 +2974,11 @@ await renderToString(areaGlobals(Vue.createSSRApp(areaDetailFixture, { ...areaPr
 assert.equal(areaDetailVm.areaSelection.withoutArea, true)
 assert.equal(annual.annualRequestParams(areaDetailVm.areaSelection).withoutArea, 'true')
 assert.equal(reportDetails.reportPaymentParams(areaDetailVm.detail.route, areaDetailVm.areaSelection, report.cutoff).withoutArea, true, 'Without-area details narrow charts, composition and saved payments alike')
+const allAreaSelection = areaDetailComponent.computed.areaSelection.call({ selection: allSelection, areaId: 10, scopeIdentity: JSON.stringify({ scope: 'shared', tags: '' }) })
+assert.equal(allAreaSelection.timeRange, 'custom', 'Area drilldowns retain the overview bounds even when their own saved years differ')
+assert.equal(allAreaSelection.dateFrom, '2023-01-01')
+assert.equal(allAreaSelection.dateTo, '2026-12-31')
+assert.equal(annual.annualRequestParams(allAreaSelection).allTime, undefined)
 assert.equal(areaDetailComponent.computed.areaId.call({ query: { detailArea: '-1' } }), null)
 const routeChanges = []
 const areaControlsState = { selection: areaProps.selection, $router: { replace: route => { routeChanges.push(route); return Promise.resolve() } } }
@@ -2333,7 +3011,7 @@ try {
  await areaOverviewComponent.methods.load.call(state)
  assert.equal(state.error, false)
 } finally { bindings.axios.get = getBeforeAreas }
-console.log('Area comparison passed: scoped dates, local views, natural ordering, signed balances, unique footers, CSV, collapse memory, feature flags, detail/return navigation, unassigned payments, tag identities, errors and stale replies.')
+console.log('Area comparison passed: scoped dates, local views, natural ordering, signed balances, unique footers, CSV, feature flags, detail/return navigation, unassigned payments, tag identities, errors and stale replies.')
 
 // Forecasts remain independent of the normal report's future-payment cutoff.
 const forecastDay = new Date()
@@ -2373,7 +3051,7 @@ let forecastVm, developmentVm
 const forecastComponent = { ...reportForecastComponent, watch: {} }
 const renderForecast = async ({ detail = null, result = forecastData, report = forecastReport, selection = forecastSelection, incomes = true, error = false, loading = false, view = 'forecast', sectionKey = detail ? 'detail-chart' : 'chart' } = {}) => {
  const child = { ...forecastComponent, data: () => ({ ...forecastComponent.data(), result, error, loading }), created() { forecastVm = this } }
- const wrapper = { ...developmentComponent, components: { ...developmentComponent.components, ReportForecast: child }, data() { return { ...developmentComponent.data.call(this), view } }, created() { developmentVm = this } }
+ const wrapper = { ...developmentComponent, components: { ...developmentComponent.components, ReportForecast: child }, data() { return { ...developmentComponent.data.call(this), ...(view === null ? {} : { view }) } }, created() { developmentVm = this } }
  const app = basicGlobals(Vue.createSSRApp(wrapper, { report, selection, detail, labels: ['Start', 'End'], labelTitles: ['First period', 'Last period'], chartPeriod: 'day', sectionKey, seriesIds: detail && detail.row.type !== 'all' ? [detail.row.type] : null }))
  app.config.globalProperties.$enableIncomes = incomes
  return renderToString(app)
@@ -2389,7 +3067,6 @@ assert.ok(!forecastHtml.includes('forecastUntil') && !forecastHtml.includes('for
 assert.ok(forecastHtml.includes('annual-chart-forecast-line') && forecastHtml.includes('annual-chart-actual-line') && forecastHtml.includes('annual-chart-forecast-shade'), 'The chart separates actual development from its projected continuation')
 const expectedSeries = developmentVm.forecastSeries(forecastData)
 assert.deepEqual(expectedSeries.map(item => item.values.at(-1)), [300000, 250000, 50000], 'Running-total chart endpoints match every period-end box')
-assert.equal(developmentVm.open, true)
 assert.equal(forecastVm.params.includeFuturePayments, undefined)
 assert.equal(forecastVm.params.period, 'day', 'The forecast chart uses the detail’s actual breakdown')
 const withoutIncomesForecast = await renderForecast({ incomes: false })
@@ -2426,19 +3103,26 @@ await renderForecast({ detail: expenseForecastDetail, selection: annual.annualSe
 assert.equal(forecastVm.params.withoutArea, 'true')
 const previousForecastWindow = globalThis.window
 try {
- const forecastStorage = new Map()
+ const legacyPreferences = JSON.stringify({ 'chart-view': 'forecast', 'detail-chart-view': 'forecast', chart: false })
+ const forecastStorage = new Map([['cobudget_annual_sections:forecast-reader', legacyPreferences]])
  globalThis.window = { OC: { getCurrentUser: () => ({ uid: 'forecast-reader' }) }, localStorage: { getItem: key => forecastStorage.get(key), setItem: (key, value) => forecastStorage.set(key, value) } }
- assert.equal(annual.readAnnualChartView('chart'), 'development', 'A new account starts with Development')
+ view.created()
+ assert.equal(annual.readAnnualChartView('chart'), 'development', 'Opening Reports ignores old persistent Forecast preferences')
+ assert.equal(annual.readAnnualChartView('detail-chart'), 'development')
+ await renderForecast({ view: null })
+ assert.equal(developmentVm.activeView, 'development')
+ developmentVm.choose('forecast')
+ await renderForecast({ view: null, selection: annual.annualSelection({ ...forecastSelection, labels: ['important'] }) })
+ assert.equal(developmentVm.activeView, 'forecast', 'Reloading the chart after a filter change retains the choice within Reports')
+ view.created()
+ await renderForecast({ view: null })
+ assert.equal(developmentVm.activeView, 'development', 'Returning to Reports starts with Development')
  await renderForecast({ detail: expenseForecastDetail })
- developmentVm.choose('forecast'); developmentVm.toggleSection()
- assert.equal(annual.readAnnualSectionOpen('detail-chart'), false)
+ developmentVm.choose('forecast')
  assert.equal(annual.readAnnualChartView('detail-chart'), 'forecast')
  assert.equal(annual.readAnnualChartView('chart'), 'development', 'Overview and detail tab preferences are separate')
- const otherForecastHtml = await renderForecast({ detail: { ...expenseForecastDetail, row: { type: 'expense', id: 99 } } })
- assert.equal(developmentVm.open, false, 'Another category keeps the shared detail collapse state')
- assert.ok(otherForecastHtml.includes('display:none'))
+ await renderForecast({ detail: { ...expenseForecastDetail, row: { type: 'expense', id: 99 } } })
  developmentVm.choose('development')
- assert.equal(developmentVm.open, true, 'Selecting a tab also opens the common section')
  assert.equal(annual.readAnnualChartView('detail-chart'), 'development')
  developmentVm.setMode('period')
  assert.equal(developmentVm.forecastMode, 'cumulative', 'Development and Forecast retain independent amount display modes')
@@ -2448,6 +3132,10 @@ try {
  await Vue.nextTick()
  globalThis.window = { OC: { getCurrentUser: () => ({ uid: 'another-reader' }) }, localStorage: { getItem: key => forecastStorage.get(key), setItem: (key, value) => forecastStorage.set(key, value) } }
  assert.equal(annual.readAnnualChartView('detail-chart'), 'development', 'Preferences are isolated between accounts')
+ view.created()
+ globalThis.window.OC.getCurrentUser = () => ({ uid: 'forecast-reader' })
+ assert.equal(annual.readAnnualChartView('detail-chart'), 'development', 'A new Reports visit resets detail tabs too')
+ assert.equal(forecastStorage.get('cobudget_annual_sections:forecast-reader'), legacyPreferences, 'Tab choices leave unrelated persisted section settings untouched')
 } finally { globalThis.window = previousForecastWindow }
 
 const getBeforeForecasts = bindings.axios.get
@@ -2483,8 +3171,8 @@ console.log('Report forecasts passed: shared tabs, three summary boxes, compact 
 // Top 10 uses the server's ranked saved-payment list with the exact report scope.
 let topVm, paymentSectionVm
 const topRows = [
- { id: 101, date: holidayPeriods[0].dateFrom, description: 'Hotel <script>', paymentPartner: 'Hotel & Spa', category_name: 'Travel', amount: 100.01, personal_amount_cents: 4001 },
- { id: 102, date: holidayPeriods[1].dateFrom, description: '', paymentPartner: 'Restaurant', category_name: 'Food', amount: 25, personal_amount_cents: 1000 },
+ { id: 101, type:'expense', date: holidayPeriods[0].dateFrom, description: 'Hotel <script>', paymentPartner: 'Hotel & Spa', category_name: 'Travel', amount: 100.01, personal_amount_cents: 4001 },
+ { id: 102, type:'expense', date: holidayPeriods[1].dateFrom, description: '', paymentPartner: 'Restaurant', category_name: 'Food', amount: 25, personal_amount_cents: 1000 },
 ]
 const topProps = { selection: annual.annualSelection({ ...holiday, projectId: 12, entryScope: 'personal', categories: [7], partners: [20], labels: ['important'], hashtags: [5], amountMin: 101 }), report: holidayReport, type: 'expense', title: 'Expenses', active: true }
 const renderTop = async (props = {}, state = {}) => {
@@ -2492,23 +3180,29 @@ const renderTop = async (props = {}, state = {}) => {
  return renderToString(basicGlobals(Vue.createSSRApp(fixture, { ...topProps, ...props })))
 }
 const topHtml = await renderTop()
-assert.equal((topHtml.match(/class="report-top-payment-row/g) || []).length, 2, 'Fewer than ten saved payments leave a short list, without filler rows')
-assert.ok(topHtml.includes('40.01') && !topHtml.includes('100.01'), 'Personal Top 10 shows stored cents instead of source totals')
+assert.equal((topHtml.match(/report-top-payment-row/g) || []).length, 2, 'Fewer than ten saved payments leave a short list, without filler rows')
+assert.equal(topVm.paymentAmount(topRows[0]),40.01,'Top 10 passes exact personal cents to the shared amount renderer')
+assert.match(topHtml,/class="amount-text">[^<]*40,01</,'Personal Top 10 displays localized personal amounts')
+assert.doesNotMatch(topHtml,/class="amount-text">[^<]*100,01</,'Visible payment amounts do not show source totals')
 assert.ok(topHtml.includes('Hotel &lt;script&gt;') && topHtml.includes('Hotel &amp; Spa') && !topHtml.includes('<script>'), 'Names and descriptions remain escaped')
 assert.ok(topHtml.includes('tableDescription') && topHtml.includes('tablePaymentPartner'), 'Top 10 uses the payment overview headings for separate description and from/to columns')
-assert.ok(topHtml.includes('class="report-top-description"></td>') && topHtml.includes('class="report-top-partner">Restaurant</td>'), 'An empty description remains empty while its payment partner has its own column')
+assert.ok(topHtml.includes('class="paymentPartner-cell">Restaurant</td>'), 'Payment partners retain their own desktop column')
+assert.equal((topHtml.split('<thead>')[1].split('</thead>')[0].match(/<th /g)||[]).length,5,'Top 10 preserves five exported fields through the shared table')
+assert.ok(!topHtml.includes('class="actions-cell"'),'Fixed rankings do not add a second action column')
 assert.ok(!topHtml.includes('<button'), 'Payment rows do not add a nested button with a second cell hover')
 assert.equal((topHtml.match(/tabindex="0"/g) || []).length, 2, 'Both payment rows remain keyboard reachable')
 const fullTopDate = topVm.date(topRows[0].date), compactTopDate = topVm.date(topRows[0].date, true)
 assert.ok(fullTopDate.includes(String(new Date(topRows[0].date * 1000).getFullYear())) && compactTopDate.length < fullTopDate.length, 'Compact mobile dates omit the year while canonical dates keep it')
-assert.ok(topHtml.includes(`title="${fullTopDate}"`) && topHtml.includes(`aria-label="${fullTopDate}"`), 'The full date remains available for cross-year reports and assistive technology')
+assert.ok(topHtml.includes('data-report-export-label=') && topHtml.includes(String(new Date(topRows[0].date*1000).getFullYear())), 'Shared date cells retain full cross-year dates and export labels')
 assert.deepEqual([topVm.params.limit, topVm.params.offset, topVm.params.sortBy, topVm.params.sortDir, topVm.params.type], [10, 0, 'amount', 'desc', 'expense'])
 assert.equal(topVm.params.dateFrom, holidayPeriods.at(-1).dateFrom, 'Ranking covers the whole selected free date range')
 assert.equal(topVm.params.dateTo, Math.min(holidayPeriods.at(-1).dateTo, holidayReport.cutoff))
 assert.equal(topVm.params.categoryId, '7'); assert.equal(topVm.params.paymentPartnerId, undefined, 'The active grouping has no hidden partner filter'); assert.equal(topVm.params.isImportant, true); assert.equal(topVm.params.hashtagId, '5'); assert.equal(topVm.params.amountMin, '1.01')
 assert.equal(topVm.params.entryScope, 'personal'); assert.equal(topVm.params.projectId, 12)
 const sharedTopHtml = await renderTop({ selection: annual.annualSelection({ ...topProps.selection, entryScope: 'shared' }), type: 'income' })
-assert.ok(sharedTopHtml.includes('100.01') && !sharedTopHtml.includes('40.01'))
+assert.equal(topVm.paymentAmount(topRows[0]),100.01)
+assert.match(sharedTopHtml,/class="amount-text">[^<]*100,01</)
+assert.doesNotMatch(sharedTopHtml,/class="amount-text">[^<]*40,01</)
 assert.equal(topVm.params.type, 'income'); assert.equal(topVm.params.entryScope, 'shared')
 await renderTop({ selection: annual.annualSelection({ ...topProps.selection, grouping: 'labelsAndTags', categories: [7, 8], partners: [20, 21], hashtags: [5, 6] }) })
 assert.equal(topVm.params.categories, '7,8'); assert.equal(topVm.params.partners, '20,21'); assert.equal(topVm.params.hashtags, '5,6')
@@ -2553,13 +3247,11 @@ const renderPaymentSection = async (state = {}) => {
 const defaultPaymentSection = await renderPaymentSection()
 assert.equal(paymentSectionVm.view, 'overview')
 assert.ok(!defaultPaymentSection.includes('report-top-payments-table'), 'Rankings are created only after their tab is opened')
-paymentSectionVm.choose('top'); assert.equal(paymentSectionVm.topVisited, true); assert.equal(paymentSectionVm.open, true)
+paymentSectionVm.choose('top'); assert.equal(paymentSectionVm.topVisited, true)
 const topSectionHtml = await renderPaymentSection({ view: 'top', topVisited: true })
 assert.match(topSectionHtml, /class="annual-table[^\"]*is-collapsed/, 'The hidden period table is excluded from printing while Top 10 is selected')
-assert.ok(topSectionHtml.includes('report-top-payments-table') && topSectionHtml.includes('role="tabpanel"'))
+assert.ok(topSectionHtml.includes('class="report-top-payments') && topSectionHtml.includes('role="tabpanel"'))
 paymentSectionVm.onTabKey({ key: 'Home', preventDefault() {} }); assert.equal(paymentSectionVm.view, 'overview')
-paymentSectionVm.toggleSection(); assert.equal(paymentSectionVm.open, false)
-paymentSectionVm.choose('top'); assert.equal(paymentSectionVm.open, true, 'Selecting a tab reopens a closed section')
 console.log('Report Top 10 passed: lazy tabs, full date ranges, exact personal/shared cents, payment filters, income/expense separation, safe text, source editing, settlement restrictions, print selection, stale replies, loading and retry.')
 
 const exportMetadata = exportHelpers.reportExportMetadata(topProps.selection, { report: holidayReport, scopeLabel: '=Shared area', currency: 'EUR', texts: refTexts, formatDate: value => String(value), filterLabels: ['Food; "Travel"'] })
@@ -2790,3 +3482,367 @@ view.methods.closeDetails.call({ $route: { query: firstDrill.query }, $router: {
 assert.deepEqual(nestedFallback, nestedParentRoute, 'Reloaded/shared nested links still return one detail level without leaving Report')
 bindings.axios.get = previousDrillGet
 console.log('Nested Report details passed: exact intersections, identity-only links, retained scope, authorized titles, bounded paths and one-level Back.')
+
+// Equal-name report groups keep stable identity and payment-origin details across routes and exports.
+{
+ const key = `name:${'a'.repeat(64)}`
+ const texts = { annual: { withoutArea: () => 'Ohne Bereich' }, common: { mainCategory: () => 'Hauptkategorie' } }
+ const group = { id: 11, reportKey: key, name: 'Strom', label: 'Strom', type: 'expense', key: `expense-${key}-false`, months: [606], counts: [3], total: 606, totalCount: 3, children: [], areas: [
+  { id: 11, reportKey: `${key}:area:7`, areaId: 7, name: 'Haus', label: 'Haus', months: [505], counts: [2], total: 505, totalCount: 2 },
+  { id: 11, reportKey: `${key}:area:0`, areaId: 0, name: '', label: 'Ohne Bereich', months: [101], counts: [1], total: 101, totalCount: 1 },
+ ] }
+ const periods = [{ dateFrom: 1, dateTo: 10 }, { dateFrom: 1, dateTo: 10 }]
+ const report = { periods, groups: { expense: [group] }, totals: { expense: { total: 606, months: [606] } } }
+ const totals = [{ ...report.totals.expense, type: 'expense', label: 'Ausgaben' }]
+ const query = reportDetails.reportDetailQuery({ row: { ...group.areas[0], type: 'expense' }, index: 1 }, periods)
+ assert.equal(query.detailId, `${key}:area:7`)
+ const detail = reportDetails.resolveReportDetail(query, report, [group], totals, 'Hauptkategorie')
+ assert.equal(detail.label, 'Strom · Haus')
+ assert.equal(detail.row.total, 505)
+ assert.equal(reportDetails.reportDetailRow(report, detail).total, 505)
+ const reordered = structuredClone(report)
+ reordered.groups.expense[0].id = 99
+ assert.equal(reportDetails.reportDetailRow(reordered, detail).total, 505, 'Changes to representative master IDs cannot change the subject')
+ const state = { summary: false, sortedRows: [group], expanded: { [group.key]: true }, $texts: texts, descendants: table.methods.descendants }
+ const visible = table.computed.visibleRows.call(state)
+ assert.deepEqual(visible.map(row => [row.label, row.depth, row.total]), [['Strom', 0, 606], ['Haus', 1, 505], ['Ohne Bereich', 1, 101]])
+ assert.deepEqual(visible.map(row => [row.depth, row.treeLast, row.treeGuides]), [[0, true, []], [1, false, []], [1, true, []]], 'Area connectors end at the final sibling')
+ const parent = { ...group, key: 'parent', name: 'Haushalt', label: 'Haushalt', areas: [], children: [group, { ...group, key: 'sibling', reportKey: 'sibling', areas: [] }] }
+ const nestedTree = table.computed.visibleRows.call({ ...state, sortedRows: [parent], expanded: { parent: true, [group.key]: true } })
+ assert.deepEqual(nestedTree.map(row => [row.depth, row.treeGuides]), [[0, []], [1, []], [2, [true]], [2, [true]], [1, []]], 'A child branch continues through expanded area rows to its next sibling')
+ assert.equal(table.computed.hasHierarchy.call(state), true)
+
+ state.expanded = {}
+ assert.equal(table.computed.visibleRows.call(state).length, 1)
+ const withoutAreaOnly = { ...group, areas: [{ ...group.areas[1], total: group.total, months: group.months }] }
+ assert.deepEqual(table.methods.descendants(withoutAreaOnly), [], 'A lone Without area subtotal has no disclosure')
+ assert.equal(table.computed.hasHierarchy.call({ ...state, sortedRows: [withoutAreaOnly] }), false, 'No empty disclosure gutter is reserved for a flat table')
+ assert.equal(table.computed.visibleRows.call({ ...state, sortedRows: [withoutAreaOnly], expanded: { [group.key]: true } }).length, 1, 'A stale expanded state cannot reveal the redundant subtotal')
+ assert.deepEqual(table.methods.descendants({ ...group, areas: [group.areas[0]] }), [group.areas[0]], 'A single real area still explains the payment origin')
+ assert.deepEqual(table.methods.descendants({ ...withoutAreaOnly, children: [group] }), [group], 'Category hierarchy remains expandable')
+ assert.deepEqual(reportDetails.reportAreaRows({}), [], 'Rows without area breakdown have no disclosure')
+ const breakdownState = { rows: [withoutAreaOnly], expanded: { [group.reportKey]: true }, $texts: texts }
+ assert.equal(reportBreakdownComponent.computed.visibleRows.call(breakdownState).length, 1, 'Detail composition also omits a lone Without area subtotal')
+ breakdownState.rows = [group]
+ assert.deepEqual(reportBreakdownComponent.computed.visibleRows.call(breakdownState).map(row => row.label), ['Strom', 'Haus', 'Ohne Bereich'], 'Mixed payment origins remain available in detail composition')
+
+ const scopedSelection = annual.annualSelection({ year: 2026, grouping: 'categories', partners: [20] })
+ const paymentRoute = annual.annualPaymentRoute(scopedSelection, periods[0], 'expense', group.areas[0])
+ assert.equal(paymentRoute.query.categoryId, undefined, 'Grouped links never narrow to a representative category ID')
+ assert.deepEqual(JSON.parse(paymentRoute.query.reportFilters), [{ dimension: 'categories', id: `${key}:area:7`, direct: false }])
+ const params = reportDetails.reportPaymentParams(paymentRoute, scopedSelection, 10)
+ assert.equal(params.reportFilters, paymentRoute.query.reportFilters)
+ assert.equal(params.paymentPartnerId, '20', 'Other report filters still intersect the group')
+ const drill = reportDetails.reportBreakdownRoute({ detailType: 'expense', detailId: 'total' }, 'categories', group.areas[0], 'expense')
+ assert.equal(reportDetails.reportDrilldownPath(drill.query)[0].id, `${key}:area:7`)
+ assert.deepEqual(reportDetails.reportDrilldownLabels({ groups: { categories: { expense: [group] } } }, reportDetails.reportDrilldownPath(drill.query), texts), ['Haus'])
+ const exported = exportHelpers.reportAmountExportSection({ title: 'Ausgaben', firstHeading: 'Kategorie', columns: ['Januar', 'Gesamt'], rows: [group], texts })
+ assert.deepEqual(exported.rows.map(row => [row[0], row.at(-1)]), [['Strom', { cents: 606 }], ['Strom · Haus', { cents: 505 }], ['Strom · Ohne Bereich', { cents: 101 }]])
+ console.log('Grouped lookup reports passed: stable name identity, area expansion, exact payment filters, nested details and exports.')
+}
+
+// Section markers follow the effective predicates, including zero-valued IDs,
+// multi-select routes and the Planned toggle nested in Labels.
+{
+ const table=component('src/components/TableFilters.vue')
+ const base=table.props.initialFilters.default()
+ const vm={localFilters:{...base}}
+ for(const [key,method] of Object.entries(table.methods)) vm[key]=method.bind(vm)
+ for(const [key,getter] of Object.entries(table.computed)) Object.defineProperty(vm,key,{get:()=>getter.call(vm)})
+ const active=()=>Object.entries(vm.activeSections).filter(([,value])=>value).map(([key])=>key)
+ assert.deepEqual(active(),[])
+ for(const [patch,expected] of [
+  [{type:'income'},['type']], [{timeRange:'custom'},['timeRange']],
+  [{categoryId:0},['categoryId']], [{narrowCategories:'0,12'},['categoryId']],
+  [{paymentPartnerId:0},['paymentPartnerId']], [{narrowPartners:'21,22'},['paymentPartnerId']],
+  [{projectId:9},['projectId']], [{narrowProjects:'9,10'},['projectId']],
+  [{hashtagId:5},['hashtagId']], [{narrowHashtags:'5,6'},['hashtagId']],
+  [{tags:'future'},['tags']], [{narrowLabels:'important,review'},['tags']],
+  [{hasReminder:'true'},['hasReminder']], [{hasAttachment:'false'},['hasAttachment']],
+  [{status:'settled'},['status']], [{status:'all'},[]],
+ ]) {
+  vm.localFilters={...base,...patch}
+  assert.deepEqual(active(),expected,`Payment markers: ${JSON.stringify(patch)}`)
+ }
+ vm.localFilters={...base}
+ assert.deepEqual(active(),[],'Cleared payment filters remove all section dots')
+ const filters=bindings.AnnualOverviewFilters
+ const reportActive=selection=>{
+  const normalized=annual.annualSelection(selection)
+  return Object.entries(filters.computed.activeSections.call({normalized, areaIds: []})).filter(([,value])=>value).map(([key])=>key)
+ }
+ for(const [selection,expected] of [
+  [{},[]], [{grouping:'paymentPartners',categories:'0'},['categories']],
+  [{partners:'0,21'},['partners']], [{labels:'important,review'},['labels']],
+  [{hashtags:'5,6'},['hashtags']], [{amountMin:'0'},['amount']], [{amountMax:'10.50'},['amount']],
+  [{amountMin:'invalid'},[]], [{grouping:'categories',categories:'12'},[]],
+ ]) assert.deepEqual(reportActive(selection),expected,`Report markers: ${JSON.stringify(selection)}`)
+ assert.deepEqual(reportActive({}),[],'Cleared report predicates remove all section dots')
+ console.log('Filter section markers passed: neutral/default states, zero IDs, multiple selections, Planned, receipts, amounts, hidden report groups and reset.')
+}
+
+// Reset the filter menu atomically while preserving the report's explicit context.
+{
+ const original={...annual.annualSelection({timeRange:'custom',dateFrom:'2024-02-02',dateTo:'2024-02-29',projectId:12,entryScope:'shared',grouping:'paymentPartners',search:'Rent',categories:'0,7',labels:'important',hashtags:'5',amountMin:'0',amountMax:'100'}),reportFilters:'[{"dimension":"categories","id":7}]',withoutArea:true}
+ let updates=0
+ const ctx={selection:original,updateSelection(){updates++}}
+ view.methods.resetFilters.call(ctx)
+ assert.equal(updates,1,'Reset schedules one report update')
+ for(const key of ['categories','partners','labels','hashtags']) assert.deepEqual(ctx.selection[key],[])
+ assert.equal(ctx.selection.search,'')
+ assert.equal(ctx.selection.amountMin,null);assert.equal(ctx.selection.amountMax,null)
+ assert.equal(ctx.selection.reportFilters,undefined);assert.equal(ctx.selection.withoutArea,false)
+ for(const key of ['projectId','entryScope','timeRange','dateFrom','dateTo','year','period','grouping','includeFuturePayments']) assert.deepEqual(ctx.selection[key],original[key],`${key}: report context survives reset`)
+ assert.equal(original.search,'Rent','Reset does not mutate the previous selection')
+ assert.deepEqual(original.categories,[0,7])
+ const query=annual.annualRouteQuery(ctx.selection)
+ for(const key of ['search','categories','partners','labels','hashtags','amountMin','amountMax','reportFilters','withoutArea']) assert.equal(query[key],undefined,`${key}: bookmark drops the cleared predicate`)
+ const events=[]
+ let focused=false
+ const menu={...bindings.AnnualOverviewFilters.data.call({selection:original}),
+  $refs:{search:{$el:{querySelector:()=>({focus:()=>{focused=true}})}}},$nextTick:fn=>fn(),scheduleFit(){},$emit:(...args)=>events.push(args)}
+ menu.searchText='Pending search';menu.amountMinText='12,'
+ menu.searchTimer=setTimeout(()=>events.push(['stale-search']),10)
+ bindings.AnnualOverviewFilters.methods.resetFilters.call(menu)
+ await new Promise(resolve=>setTimeout(resolve,30))
+ assert.deepEqual(events,[['reset']],'Cancelled debounces cannot reapply stale filters after reset')
+ for(const key of ['searchText','amountMinText','amountMaxText','hashtagQuery']) assert.equal(menu[key],'')
+ assert.equal(focused,true,'Reset returns keyboard focus to the menu search field')
+ console.log('Report filter reset passed: atomic clearing, preserved area/period/grouping, clean bookmarks, cancelled drafts and focus restoration.')
+}
+
+{
+ const stamp = day => new Date(`${day}T00:00:00`).getTime() / 1000
+ const periods = [{ dateFrom: stamp('2026-01-01'), dateTo: stamp('2026-02-01') - 1 }, { dateFrom: stamp('2026-03-01'), dateTo: stamp('2026-04-01') - 1 }]
+ const value = { currentFrom: '2026-01-01', currentTo: '2026-03-15', previousFrom: '2025-01-01', previousTo: '2025-03-15', currentPeriods: periods, periods: periods.map(period => ({ dateFrom: stamp(new Date(period.dateFrom * 1000).getMonth() === 0 ? '2025-01-01' : '2025-03-01'), dateTo: stamp(new Date(period.dateFrom * 1000).getMonth() === 0 ? '2025-02-01' : '2025-04-01') - 1 })) }
+ const format = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+ assert.equal(comparisonHelpers.reportComparisonRange(value, format, 'current'), '2026-01-01 – 2026-01-31; 2026-03-01 – 2026-03-15')
+ assert.equal(comparisonHelpers.reportComparisonRange(value, format), '2025-01-01 – 2025-01-31; 2025-03-01 – 2025-03-15', 'Reference labels show the selected intervals and cutoff without gaps')
+}
+
+// Payments CSV export helpers: lazy Nextcloud save after folder selection,
+// CSV-to-TSV clipboard conversion, and clipboard source error preservation.
+{
+ const downloads = await import(moduleUrl(source('src/services/downloads.js')))
+ assert.equal(downloads.ENTRY_CLIPBOARD_EXPORT_LIMIT, 1000, 'Payments clipboard export limit is capped at 1,000 entries')
+ assert.equal(downloads.filenameFromDisposition('attachment; filename="cobudget-zahlungen-20261106-180000.csv"', 'fallback.csv'), 'cobudget-zahlungen-20261106-180000.csv')
+ const tsv = downloads.csvToClipboardText('\uFEFFID;Beschreibung;Betrag\r\n1;"Miete; ""Nov""";12.34\r\n2;"Zeile 1\nZeile 2\tTab";56.78\r\n')
+ assert.equal(tsv, 'ID\tBeschreibung\tBetrag\r\n1\t"Miete; ""Nov"""\t12.34\r\n2\t"Zeile 1\nZeile 2\tTab"\t56.78\r\n', 'Clipboard conversion strips BOM, converts semicolons to tabs and preserves embedded newlines/tabs/quotes')
+ let lazyCalls = 0
+ const beforeFiles = savedFiles.length
+ await bindings.saveReportExport('fallback.csv', async () => {
+  lazyCalls++
+  return { filename: 'cobudget-zahlungen-20261106-180000.csv', contents: '\uFEFFID;Betrag\r\n1;10.00\r\n' }
+ }, exportTexts)
+ assert.equal(lazyCalls, 1, 'Choosing a Nextcloud folder invokes the lazy CSV loader once')
+ assert.equal(savedFiles.length, beforeFiles + 1)
+ assert.ok(savedFiles.at(-1).url.includes('cobudget-zahlungen-20261106-180000.csv'), 'Nextcloud save uses the server-provided filename when returned by the lazy loader')
+ assert.equal(savedFiles.at(-1).body, '\uFEFFID;Betrag\r\n1;10.00\r\n')
+}
+
+// Payments print view: print-optimized document generation, month/year subtotals,
+// non-date sorting, and off-screen iframe printing across all filtered pages.
+{
+ const formatDateUrl = moduleUrl("export const formatCalendarLabel = (date, options) => date.toLocaleDateString('de-DE', options)")
+ const formatMoneyUrl = moduleUrl([
+  "export const getAppLocale = () => 'de-DE'",
+  "export const formatMoney = (amount, currency = 'EUR') => `${Number(amount).toFixed(2)} ${currency}`",
+  "export const formatSignedMoney = (amount, currency = 'EUR') => `${Number(amount) >= 0 ? '+' : ''}${Number(amount).toFixed(2)} ${currency}`",
+ ].join('\n'))
+ const paymentPrint = await import(moduleUrl(
+  source('src/services/paymentPrint.js')
+   .replace("'../utils/formatDate'", JSON.stringify(formatDateUrl))
+   .replace("'../utils/formatMoney'", JSON.stringify(formatMoneyUrl)),
+ ))
+
+ const entries = [
+  {
+   id: 101,
+   date: Math.floor(new Date('2026-11-05T12:00:00Z').getTime() / 1000),
+   type: 'income',
+   amount: 2500,
+   amount_cents: 250000,
+   personal_amount_cents: 250000,
+   description: 'Gehalt November',
+   category_name: 'Gehalt',
+   paymentPartner: 'Arbeitgeber GmbH',
+  },
+  {
+   id: 102,
+   date: Math.floor(new Date('2026-11-02T12:00:00Z').getTime() / 1000),
+   type: 'expense',
+   amount: 1200,
+   amount_cents: 120000,
+   personal_amount_cents: 60000,
+   description: 'Warmmiete',
+   category_name: 'Wohnen',
+   paymentPartner: 'Hausverwaltung',
+   project_id: 7,
+   is_fixed_cost: true,
+   is_subscription: true,
+   recurrence_interval: 'months',
+   is_settled: true,
+  },
+  {
+   id: 103,
+   date: Math.floor(new Date('2025-12-20T12:00:00Z').getTime() / 1000),
+   type: 'expense',
+   amount: 80,
+   amount_cents: 8000,
+   personal_amount_cents: 8000,
+   description: 'Geschenke',
+   category_name: 'Familie',
+   paymentPartner: 'Kaufhaus',
+   is_child_related: true,
+   is_important: true,
+  },
+ ]
+
+ const html = paymentPrint.createPaymentsPrintDocument({
+  title: 'Zahlungen',
+  periodLabel: '2025–2026',
+  filterLabels: ['Kategorie: Wohnen, Familie', 'Suche: Miete'],
+  entries,
+  currency: 'EUR',
+  enableIncomes: true,
+  enableProjects: true,
+  typeFilter: 'all',
+  sortBy: 'date',
+  projects: [{ id: 7, name: 'Haushalt' }],
+  texts: exportTexts,
+  locale: 'de-DE',
+ })
+
+ assert.ok(html.includes('@page { size: A4 landscape; margin: 10mm; }'), 'Payments print view uses A4 landscape with compact margins')
+ assert.ok(html.includes('body { margin: 0; color: #222; background: #fff; font: 9pt/1.4 Arial, sans-serif; }'), 'Payments print view matches the Auswertungen body typography and colors')
+ assert.ok(html.includes('th, td { padding: 0.9mm 0.5mm; border-bottom: 0.2mm solid #ddd;'), 'Payments print view matches the Auswertungen cell padding and horizontal border design')
+ assert.ok(html.includes('thead th { background: #eee; font-size: 7pt; }'), 'Payments print view matches the Auswertungen table header background and font size')
+ assert.ok(html.includes('thead { display: table-header-group;'), 'Payments print view repeats table headers on each page')
+ assert.ok(html.includes('tfoot { display: table-row-group;'), 'Payments print view keeps the grand total footer at the end of the table')
+ assert.ok(html.includes('<h1>CoBudget – Zahlungen – 2025–2026</h1>'), 'Payments print view renders the full report heading')
+ assert.ok(html.includes('Kategorie: Wohnen, Familie · Suche: Miete'), 'Payments print view includes active filter chips in the metadata header')
+ assert.ok(html.includes('+2500.00 EUR') && html.includes('-680.00 EUR') && html.includes('+1820.00 EUR'), 'Payments print view summarizes income, personal expenses and balance across all printed entries')
+ assert.ok(html.includes('Haushalt') && html.includes('1200.00 EUR'), 'Payments print view shows the area and full shared amount when personal share differs')
+ assert.ok(html.includes('fixedCosts · subscription · recurrenceActive · settled'), 'Payments print view includes enabled payment labels and status in the description metadata')
+ assert.ok(html.includes('class="group-section-row"') && html.includes('class="subtotal-row month-subtotal-row"') && html.includes('class="subtotal-row annual-total"'), 'Chronological payments print view groups by month and year with subtotals')
+ assert.ok(html.includes('class="annual-total grand-total-row"'), 'Payments print view renders a closing grand total row')
+
+ const sortedByAmountHtml = paymentPrint.createPaymentsPrintDocument({
+  title: 'Zahlungen',
+  periodLabel: '2026',
+  entries,
+  currency: 'EUR',
+  enableIncomes: true,
+  enableProjects: false,
+  typeFilter: 'all',
+  sortBy: 'amount',
+  texts: exportTexts,
+  locale: 'de-DE',
+ })
+ assert.ok(!sortedByAmountHtml.includes('class="group-section-row"'), 'Non-date sorting prints entries in the chosen sort order without date group headers')
+ assert.ok(!sortedByAmountHtml.includes('class="col-area"'), 'Payments print view omits the area column when areas are disabled')
+
+ const settlementPrintHtml = paymentPrint.createPaymentsPrintDocument({
+  title: 'Abrechnung vom 07.11.2026, 21:24',
+  periodLabel: 'Urlaub Wien',
+  settlement: {
+   id: 10,
+   balances: [
+    { userId: 'test', displayName: 'Testperson', paid: 0, fairShare: 25, shareBasisPoints: 5000, balance: -25 },
+    { userId: 'admin', displayName: 'admin', paid: 50, fairShare: 25, shareBasisPoints: 5000, balance: 25 },
+   ],
+   transfers: [
+    { fromUserId: 'test', fromDisplayName: 'Testperson', toUserId: 'admin', toDisplayName: 'admin', amount: 25, amountCents: 2500 },
+   ],
+  },
+  metadataRows: [
+   ['Bereich', 'Urlaub Wien'],
+   ['Erstellt von', 'admin'],
+   ['Anzahl der Zahlungen', '1'],
+   ['Gesamtsumme', '50.00 EUR'],
+  ],
+  entries: [{ ...entries[1], amount: 50, amount_cents: 5000, description: '   ', paid_by_display_name: 'admin' }],
+  currency: 'EUR',
+  enableIncomes: true,
+  enableProjects: false,
+  showSummaryCards: false,
+  groupByDate: false,
+  showPaidBy: true,
+  payerNameResolver: entry => entry?.paid_by_display_name || '',
+  amountResolver: entry => entry?.amount,
+  texts: exportTexts,
+  locale: 'de-DE',
+ })
+ assert.ok(settlementPrintHtml.includes('<h1>Abrechnung vom 07.11.2026, 21:24</h1>'), 'Settlement print view renders the settlement heading')
+ assert.ok(settlementPrintHtml.includes('<dt>Erstellt von</dt>') && settlementPrintHtml.includes('<dd>admin</dd>') && settlementPrintHtml.includes('<dt>Gesamtsumme</dt>') && settlementPrintHtml.includes('<dd>50.00 EUR</dd>'), 'Settlement print view renders settlement summary metadata')
+ assert.ok(settlementPrintHtml.includes('class="report-settlement-balances report-compact-table"') && settlementPrintHtml.includes('Testperson') && settlementPrintHtml.includes('25.00 EUR (50%)') && settlementPrintHtml.includes('-25.00 EUR') && settlementPrintHtml.includes('+25.00 EUR'), 'Settlement print view renders member balances before settlement')
+ assert.ok(settlementPrintHtml.includes('class="report-settlement-repayments report-compact-table"') && settlementPrintHtml.includes('class="col-from">Testperson</td>') && settlementPrintHtml.includes('class="col-to">admin</td>'), 'Settlement print view renders suggested repayments')
+ assert.ok(settlementPrintHtml.includes('class="col-paid-by">admin</td>') && settlementPrintHtml.includes('-50.00 EUR'), 'Settlement print view renders the payment amount and payer column')
+ assert.ok(!settlementPrintHtml.includes('class="group-section-row"') && !settlementPrintHtml.includes('class="report-summary"'), 'Settlement print view omits date group headers and dashboard summary cards')
+ assert.ok(!settlementPrintHtml.includes('withoutDescription') && !settlementPrintHtml.includes('Keine Beschreibung') && !settlementPrintHtml.includes('Ohne Beschreibung') && !settlementPrintHtml.includes('payment-description-main'), 'Entries without a description stay empty in the print view instead of rendering a placeholder')
+
+ let printedHtml = ''
+ let printTriggered = 0
+ let frameRemoved = false
+ const fakePrintWindow = {
+  requestAnimationFrame: cb => cb(),
+  addEventListener: (event, cb) => {
+   if (event === 'afterprint') fakePrintWindow.afterPrint = cb
+  },
+  removeEventListener: () => {},
+  focus: () => {},
+  print: () => {
+   printTriggered++
+   fakePrintWindow.afterPrint?.()
+  },
+  setTimeout: cb => cb(),
+ }
+ const fakePrintDocument = {
+  fonts: { ready: Promise.resolve() },
+  documentElement: { scrollHeight: 1400 },
+  body: { scrollHeight: 1400 },
+  open: () => { printedHtml = '' },
+  write: chunk => { printedHtml += chunk },
+  close: () => {},
+ }
+ const fakeFrame = {
+  style: {},
+  setAttribute: () => {},
+  remove: () => { frameRemoved = true },
+  contentWindow: fakePrintWindow,
+  contentDocument: fakePrintDocument,
+ }
+ const fakeDoc = {
+  defaultView: fakePrintWindow,
+  body: { appendChild: () => {} },
+  getElementById: () => null,
+  createElement: tag => {
+   assert.equal(tag, 'iframe')
+   return fakeFrame
+  },
+ }
+ await paymentPrint.printPaymentsOverview(fakeDoc, {
+  title: 'Zahlungen',
+  periodLabel: '2026',
+  entries,
+  currency: 'EUR',
+  texts: exportTexts,
+  locale: 'de-DE',
+ })
+ assert.equal(printTriggered, 1, 'printPaymentsOverview triggers the browser print dialog after layout readiness')
+ assert.equal(frameRemoved, true, 'printPaymentsOverview cleans up its off-screen iframe on afterprint')
+ assert.ok(printedHtml.includes('Gehalt November') && printedHtml.includes('Warmmiete') && printedHtml.includes('Geschenke'), 'printPaymentsOverview writes all entries into the print document')
+
+ const savedGet = bindings.axios.get
+ try {
+  bindings.axios.get = async (_url, { params }) => {
+   assert.equal(params.dateFrom, 1767222000)
+   assert.equal(params.dateTo, null)
+   return { data: { total: 4, entries: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }] } }
+  }
+  const openEndedRows = await bindings.loadReportPayments({ dateFrom: 1767222000, dateTo: null })
+  assert.equal(openEndedRows.length, 4, 'Open-ended payment periods (dateTo: null) load all matching entries instead of treating null as 0')
+ } finally {
+  bindings.axios.get = savedGet
+ }
+}

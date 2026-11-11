@@ -1,56 +1,55 @@
 <template>
 	<div class="amount-wrapper">
-		<TableTooltip
-			v-if="entry.recurrence_interval"
-			:text="$texts.entry.nextRecurrenceTooltip(formatDateTime(entry.recurrence_next_date))">
-			<span class="shared-icon recurring-icon">
-				<SyncIcon :size="16" />
+		<span v-if="hasMetadata" class="amount-metadata">
+			<TableTooltip
+				v-if="$enableReminders && entry.reminder_date"
+				:text="reminderTooltip">
+				<span class="shared-icon reminder-icon">
+					<BellRingIcon :size="16" />
+				</span>
+			</TableTooltip>
+			<TableTooltip v-if="attachmentTooltip" :text="attachmentTooltip">
+				<span class="shared-icon attachment-icon">
+					<PaperclipIcon :size="16" />
+				</span>
+			</TableTooltip>
+
+			<TableTooltip v-if="showSettledIcon" :text="$texts.entry.settled()">
+				<span class="shared-icon settled-icon">
+					<CheckCircleOutlineIcon :size="16" />
+				</span>
+			</TableTooltip>
+		</span>
+		<div class="amount-main">
+			<TableTooltip v-if="sharedProjectTooltip" :text="sharedProjectTooltip">
+				<span class="shared-icon" :class="{ 'settled-icon': areaSettled }">
+					<AccountMultipleCheckIcon v-if="areaSettled" :size="16" />
+					<AccountMultipleIcon v-else :size="16" />
+				</span>
+			</TableTooltip>
+			<span v-if="entry.recurrence_interval || recurrenceHistoryTooltip" class="amount-recurrence">
+				<TableTooltip
+					v-if="entry.recurrence_interval"
+					:text="$texts.entry.nextRecurrenceTooltip(formatDateTime(entry.recurrence_due_date ?? entry.recurrence_next_date))">
+					<span class="shared-icon recurring-icon">
+						<SyncIcon :size="16" />
+					</span>
+				</TableTooltip>
+				<TableTooltip
+					v-else-if="recurrenceHistoryTooltip"
+					:text="recurrenceHistoryTooltip">
+					<span class="shared-icon recurrence-history-icon">
+						<SyncIcon :size="16" />
+					</span>
+				</TableTooltip>
 			</span>
-		</TableTooltip>
-		<TableTooltip
-			v-else-if="recurrenceHistoryTooltip"
-			:text="recurrenceHistoryTooltip">
-			<span class="shared-icon recurrence-history-icon">
-				<SyncIcon :size="16" />
+			<span class="amount-value" :class="{ 'amount-value--expense': entry.type === 'expense', 'amount-value--income': entry.type === 'income' }">
+				<TableTooltip v-if="amountTooltip" :text="amountTooltip">
+					<span class="amount-text">{{ signedAmount }}</span>
+				</TableTooltip>
+				<span v-else class="amount-text">{{ signedAmount }}</span>
 			</span>
-		</TableTooltip>
-		<TableTooltip
-			v-if="entry.reminder_date"
-			:text="reminderTooltip">
-			<span class="shared-icon reminder-icon">
-				<BellRingIcon :size="16" />
-			</span>
-		</TableTooltip>
-		<TableTooltip v-if="attachmentTooltip" :text="attachmentTooltip">
-			<span class="shared-icon attachment-icon">
-				<PaperclipIcon :size="16" />
-			</span>
-		</TableTooltip>
-		<TableTooltip v-if="entry.has_history" :text="$texts.entry.showHistory()">
-			<button
-				type="button"
-				class="shared-icon history-icon"
-				:aria-label="$texts.entry.showHistory()"
-				@pointerdown.stop
-				@click.stop="$emit('history', entry)">
-				<HistoryIcon :size="16" />
-			</button>
-		</TableTooltip>
-		<TableTooltip v-if="sharedProjectTooltip" :text="sharedProjectTooltip">
-			<span class="shared-icon" :class="{ 'settled-icon': areaSettled }">
-				<AccountMultipleCheckIcon v-if="areaSettled" :size="16" />
-				<AccountMultipleIcon v-else :size="16" />
-			</span>
-		</TableTooltip>
-		<TableTooltip v-if="showSettledIcon" :text="$texts.entry.settled()">
-			<span class="shared-icon settled-icon">
-				<CheckCircleOutlineIcon :size="16" />
-			</span>
-		</TableTooltip>
-		<TableTooltip v-if="amountTooltip" :text="amountTooltip">
-			<span class="amount-text">{{ signedAmount }}</span>
-		</TableTooltip>
-		<span v-else class="amount-text">{{ signedAmount }}</span>
+		</div>
 	</div>
 </template>
 
@@ -59,7 +58,6 @@ import AccountMultipleCheckIcon from 'vue-material-design-icons/AccountMultipleC
 import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
 import BellRingIcon from 'vue-material-design-icons/BellRing.vue'
 import CheckCircleOutlineIcon from 'vue-material-design-icons/CheckCircleOutline.vue'
-import HistoryIcon from 'vue-material-design-icons/History.vue'
 import PaperclipIcon from 'vue-material-design-icons/Paperclip.vue'
 import SyncIcon from 'vue-material-design-icons/Sync.vue'
 import TableTooltip from './TableTooltip.vue'
@@ -72,7 +70,6 @@ export default {
 		AccountMultipleIcon,
 		BellRingIcon,
 		CheckCircleOutlineIcon,
-		HistoryIcon,
 		PaperclipIcon,
 		SyncIcon,
 		TableTooltip
@@ -107,8 +104,11 @@ export default {
 			default: false
 		}
 	},
-	emits: ['history'],
 	computed: {
+		hasMetadata() {
+			return Boolean((this.$enableReminders !== false && this.entry.reminder_date) || this.attachmentTooltip
+				|| this.showSettledIcon)
+		},
 		signedAmount() {
 			const amount = Math.abs(parseFloat(this.amount || 0))
 			const signedAmount = this.entry.type === 'expense' ? -amount : amount
@@ -168,9 +168,22 @@ export default {
 <style scoped>
 .amount-wrapper {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: flex-end;
-	gap: 6px;
+	gap: 2px 6px;
+}
+
+.amount-main { display: inline-flex; align-items: center; flex: 0 0 auto; column-gap: 6px; }
+.amount-recurrence { display: inline-flex; align-items: center; }
+
+.amount-metadata {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 2px 6px;
+	min-width: 0;
 }
 
 .shared-icon {
@@ -179,7 +192,7 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
 
-/* Compact status icons share a size; the history button keeps its hit area. */
+/* Compact status icons share a size. */
 .shared-icon :deep(.material-design-icon),
 .shared-icon :deep(.material-design-icon__svg) {
 	width: var(--cobudget-icon-inline);
@@ -198,38 +211,30 @@ export default {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
 }
 
-button.history-icon {
-	appearance: none;
-	padding: 2px;
-	border: 0;
-	border-radius: var(--border-radius-small, 4px);
-	background: transparent;
-	cursor: pointer;
+.amount-value {
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
+	padding-inline-end: var(--payment-amount-inset, 10px);
+	color: var(--cobudget-text);
+	white-space: nowrap;
 }
-
-button.history-icon:hover,
-button.history-icon:focus-visible {
-	background: var(--color-background-hover, #f5f5f5);
-	outline: none;
-}
-
-button.history-icon:focus-visible {
-	outline: var(--cobudget-focus-outline);
-	outline-offset: var(--cobudget-focus-offset);
-}
-
+.amount-value--expense { color: var(--cobudget-error); }
+.amount-value--income { color: var(--cobudget-success); }
 .amount-text {
 	display: inline-block;
-	padding: 4px 10px;
-	border-radius: 6px;
-	font-weight: 600;
+	padding-block: 4px;
+	font-weight: inherit;
+	color: inherit;
 }
-
-:global(.bg-expense) .amount-text {
-	color: var(--cobudget-error);
-}
-
-:global(.bg-income) .amount-text {
-  color: var(--cobudget-success);
+@media (max-width: 768px) {
+	.amount-wrapper {
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 2px;
+	}
+	.amount-main { order: 0; }
+	.amount-value { padding-inline-end: 0; font-size: var(--cobudget-font-caption, 12px); }
+	.amount-metadata { order: 1; max-width: 5em; }
 }
 </style>

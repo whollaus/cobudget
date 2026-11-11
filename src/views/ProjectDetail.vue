@@ -4,95 +4,9 @@
 		class="project-detail"
 		:class="{ 'project-detail--table-only': isProjectPaymentsView }">
 		<AppPageHeader class="detail-header">
-			<template #title>
-				<span v-if="isProjectPaymentsView" class="cobudget-page-title-with-back">
+			<template v-if="!isProjectPaymentsView && (!hideNewPaymentAction || (canSettleProject && hasBalancesToSettle))" #creation>
 					<NcButton
-						variant="tertiary"
-						class="cobudget-header-back-button"
-						:aria-label="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.areaSettings.backToArea())"
-						:title="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.areaSettings.backToArea())"
-						@click="goBackToProjectOverview">
-						<template #icon>
-							<ArrowLeftIcon :size="20" />
-						</template>
-					</NcButton>
-					<span>{{ $texts.payments.title() }}</span>
-				</span>
-				<template v-else>
-					<span v-if="project.color" class="project-color-dot"
-						:style="{ backgroundColor: project.color }"></span>
-					{{ project.name }}
-				</template>
-			</template>
-			<template #actions>
-					<NcActions>
-						<NcActionButton v-if="!isProjectPaymentsView && canSettleProject && hasBalancesToSettle" :close-after-click="true" @click="settleUp" icon="icon-checkmark">
-							{{ $texts.areaDetail.settleArea() }}
-						</NcActionButton>
-						<NcActionButton v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="openProjectSettings" icon="icon-rename">
-							{{ $texts.areaDetail.areaSettings() }}
-						</NcActionButton>
-						<NcActionButton v-if="!isProjectPaymentsView && showSettlementControls" :close-after-click="true" @click="openProjectSettlements" icon="icon-history">
-							{{ $texts.areaDetail.settlements() }}
-						</NcActionButton>
-						<NcActionButton :close-after-click="true" @click="showFilterPanel = true" icon="icon-search">
-							{{ $texts.filters.search() }}
-						</NcActionButton>
-						<NcActionButton v-if="canExportEntries" :close-after-click="true" @click="exportEntries" icon="icon-download" :disabled="isExporting">
-							{{ isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv() }}
-						</NcActionButton>
-						<NcActionButton v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="toggleArchiveProject"
-							:icon="project.is_archived ? 'icon-history' : 'icon-toggle-pictures'"
-							:disabled="activeEntries.length > 0"
-							:title="activeEntries.length > 0 ? $texts.areaDetail.archiveBlocked() : ''">
-							{{ project.is_archived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive() }}
-						</NcActionButton>
-						<NcActionButton v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="deleteProject" icon="icon-delete" :disabled="hasEntries"
-							:title="hasEntries ? $texts.areaDetail.deleteBlockedWithEntries() : ''">
-							{{ $texts.common.delete() }}
-						</NcActionButton>
-					</NcActions>
-					<NcButton v-if="canExportEntries" :aria-label="$texts.common.exportCsv()" :title="isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv()" variant="tertiary" class="filter-toggle-btn cobudget-toolbar-icon-button project-export-header-btn" :disabled="isExporting" @click="exportEntries">
-						<template #icon>
-							<DownloadIcon :size="20" />
-						</template>
-					</NcButton>
-					<NcPopover placement="bottom-end" class="project-filter-header-btn">
-						<template #trigger>
-							<NcButton :aria-label="$texts.filters.search()" :title="$texts.filters.search()" variant="tertiary" class="filter-toggle-btn cobudget-toolbar-icon-button" :class="{ 'is-active': hasActiveFilters }">
-								<template #icon>
-									<MagnifyIcon :size="20" />
-								</template>
-							</NcButton>
-						</template>
-						<div class="filter-popover-content">
-							<TableFilters 
-								ref="tableFilters"
-								:showStatusFilter="false"
-								:categories="categories" 
-								:paymentPartners="paymentPartners"
-								:hashtags="hashtags"
-								:initialFilters="filters"
-								@update:filters="onFiltersUpdate"
-							/>
-						</div>
-					</NcPopover>
-					<NcButton v-if="!isProjectPaymentsView && canManageProject" variant="secondary" class="edit-project-btn cobudget-toolbar-text-button project-settings-header-btn" @click="openProjectSettings"
-						:aria-label="$texts.areaDetail.areaSettings()" :title="$texts.areaDetail.areaSettings()">
-						<template #icon>
-							<PencilIcon :size="20" />
-						</template>
-						<span class="btn-text">{{ $texts.areaDetail.areaSettings() }}</span>
-					</NcButton>
-	          <NcButton v-if="!isProjectPaymentsView && canSettleProject && hasBalancesToSettle" @click="settleUp" class="btn-settle-header project-settle-header-btn"
-                    :title="$texts.areaDetail.settleArea()" variant="warning">
-            <template #icon>
-              <CheckAllIcon :size="20" fillColor="#000" />
-            </template>
-            <span class="btn-text">{{ $texts.areaDetail.settleArea() }}</span>
-					</NcButton>
-					<NcButton
-						v-if="!isProjectPaymentsView && !hideNewPaymentAction"
+						v-if="!hideNewPaymentAction"
 						variant="primary"
 						class="new-payment-main-button"
 						:aria-label="$texts.areaDetail.newPayment()"
@@ -101,42 +15,94 @@
 						<template #icon>
 							<PlusIcon :size="20" />
 						</template>
+						<span class="creation-label-desktop">{{ $texts.common.newItem() }}</span>
 						<span class="btn-text">{{ $texts.areaDetail.newPayment() }}</span>
 					</NcButton>
+				<NcButton v-if="canSettleProject && hasBalancesToSettle" variant="primary"
+					class="cobudget-native-button project-settle-header-btn" :title="$texts.areaDetail.settleArea()" @click="settleUp">
+					<template #icon><CheckAllIcon :size="20" /></template>
+					{{ $texts.areaDetail.settleArea() }}
+				</NcButton>
+			</template>
+			<template #title>
+				<span v-if="isProjectPaymentsView" class="cobudget-page-title-with-back">
+					<NcButton
+						variant="tertiary"
+						class="cobudget-native-button cobudget-header-back-button"
+						:aria-label="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.areaSettings.backToArea())"
+						:title="(annualReturnRoute($route.query.annualReturn) ? $texts.annual.back() : $texts.areaSettings.backToArea())"
+						@click="goBackToProjectOverview">
+						<template #icon>
+							<ArrowLeftIcon :size="20" />
+						</template>
+					</NcButton>
+					<ReportPeriodPicker navigation-only force-navigation area-navigation :period-enabled="false" :title="$texts.payments.title()" label="" />
+				</span>
+				<ReportPeriodPicker v-else navigation-only force-navigation area-navigation :title="project.name" :area="project" :period-enabled="false" label="" />
+			</template>
+			<template #actions>
+				<NcButton v-if="!isProjectPaymentsView && canManageProject" variant="tertiary" class="cobudget-native-button edit-project-btn cobudget-toolbar-text-button project-settings-header-btn" @click="openProjectSettings"
+					:aria-label="$texts.areaDetail.areaSettings()" :title="$texts.areaDetail.areaSettings()">
+					<template #icon>
+						<PencilIcon :size="20" />
+					</template>
+					<span class="btn-text">{{ $texts.areaDetail.areaSettings() }}</span>
+				</NcButton>
+				<AnchoredPopover placement="bottom-end" class="project-filter-header-btn">
+					<template #trigger>
+						<NcButton :aria-label="filterActionLabel" :title="filterActionLabel" :aria-description="hasActiveFilters ? $texts.filters.active() : undefined" variant="tertiary" class="cobudget-native-button" :class="{ 'cobudget-filter-active': hasActiveFilters }">
+							<template #icon>
+								<FilterVariantIcon :size="20" />
+							</template>
+							<span class="project-filter-caption">{{ $texts.filters.filter() }}</span>
+						</NcButton>
+					</template>
+					<TableFilters :showStatusFilter="false" group-lookup-filters show-type-buttons show-amount :show-time-range="false" reset-time-range="all"
+						:excluded-sections="['projectId']" :period-selection="areaPeriodSelection" :period-years="paymentYears"
+						:period-active="filters.timeRange !== 'all'" :categories="categories" :payment-partners="paymentPartners"
+						:hashtags="hashtags" :initial-filters="filters" :filter-availability="filterAvailability"
+						@update:filters="onFiltersUpdate" />
+				</AnchoredPopover>
+				<NcActions class="cobudget-action-menu" variant="tertiary" force-menu placement="bottom-end" :aria-label="$texts.filters.listActions()">
+					<NcActionButton class="cobudget-action-menu-option" v-if="!isProjectPaymentsView && canSettleProject && hasBalancesToSettle" :close-after-click="true" @click="settleUp">
+						<template #icon><CheckAllIcon :size="20" /></template>
+						{{ $texts.areaDetail.settleArea() }}
+					</NcActionButton>
+					<NcActionButton class="cobudget-action-menu-option" v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="openProjectSettings">
+						<template #icon><PencilIcon :size="20" /></template>
+						{{ $texts.areaDetail.areaSettings() }}
+					</NcActionButton>
+					<NcActionButton class="cobudget-action-menu-option" v-if="!isProjectPaymentsView && showSettlementControls" :close-after-click="true" @click="openProjectSettlements">
+						<template #icon><HistoryIcon :size="20" /></template>
+						{{ $texts.areaDetail.settlements() }}
+					</NcActionButton>
+					<NcActionButton class="cobudget-action-menu-option" v-if="canExportEntries" :close-after-click="true" @click="exportEntries" :disabled="isExporting">
+						<template #icon><DownloadIcon :size="20" /></template>
+						{{ isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv() }}
+					</NcActionButton>
+					<NcActionButton class="cobudget-action-menu-option" v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="toggleArchiveProject"
+						:disabled="!!archiveBlockedReason || !!confirmDialog || settlingProject"
+						:title="archiveBlockedReason">
+						<template #icon><component :is="project.is_archived ? 'HistoryIcon' : 'ArchiveIcon'" :size="20" /></template>
+						{{ project.is_archived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive() }}
+					</NcActionButton>
+					<NcActionButton class="cobudget-action-menu-option" v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="deleteProject" :disabled="!!deleteBlockedReason || !!confirmDialog || settlingProject"
+						:title="deleteBlockedReason">
+						<template #icon><DeleteIcon :size="20" /></template>
+						{{ $texts.common.delete() }}
+					</NcActionButton>
+				</NcActions>
 			</template>
 		</AppPageHeader>
 
-		<Teleport to="body">
-			<div
-				v-if="showFilterPanel"
-				class="cobudget-filter-sheet-backdrop"
-				role="presentation"
-				@keydown.esc.stop.prevent="showFilterPanel = false"
-				@click.self="showFilterPanel = false">
-				<section class="cobudget-filter-sheet" role="dialog" aria-modal="true" :aria-label="$texts.filters.search()">
-					<div class="cobudget-filter-sheet__header">
-						<h3>{{ $texts.filters.search() }}</h3>
-						<NcButton :aria-label="$texts.common.close()" :title="$texts.common.close()" variant="tertiary" class="cobudget-toolbar-icon-button" @click="showFilterPanel = false">
-							<template #icon>
-								<CloseIcon :size="22" />
-							</template>
-						</NcButton>
-					</div>
-					<TableFilters
-						:showStatusFilter="false"
-						:categories="categories"
-						:paymentPartners="paymentPartners"
-						:hashtags="hashtags"
-						:initialFilters="filters"
-						@update:filters="onFiltersUpdate"
-					/>
-				</section>
-			</div>
-		</Teleport>
-
 		<div class="project-detail-scroll">
-			<DraggableScroller v-if="!isProjectPaymentsView && projectDashboardCards.length > 0" class="stats-row project-stats-row">
-			<div v-for="card in projectDashboardCards" :key="card.key" class="stat-card" data-cobudget-card="compact" :class="card.cardClass">
+			<NcNoteCard v-if="projectError" type="error">
+				<p>{{ projectError }}</p>
+				<NcButton class="cobudget-native-button" variant="secondary" :disabled="loadingProject" @click="fetchProjectData">{{ $texts.common.retry() }}</NcButton>
+			</NcNoteCard>
+			<NcNoteCard v-if="exportError" type="error" :text="exportError" />
+			<DraggableScroller v-if="!isProjectPaymentsView && projectDashboardCards.length > 0" class="stats-row project-stats-row" allow-link-drag>
+			<router-link v-for="card in projectDashboardCards" :key="card.key" :to="projectReportLocation" :aria-description="card.tooltip" class="stat-card" data-cobudget-card="compact" :class="card.cardClass">
 				<div class="stat-header">
 					<div class="stat-title-group">
 						<div class="stat-icon">
@@ -144,77 +110,64 @@
 						</div>
 						<span class="stat-label">{{ card.label }}</span>
 					</div>
-					<TableTooltip :text="card.tooltip">
+					<TableTooltip :text="card.tooltip" passive>
 						<span class="stat-value" :class="card.valueClass">{{ card.value }}</span>
 					</TableTooltip>
 				</div>
 				<div v-if="hasAdditionalProjectMembers" class="stat-sub-info">
-					<div class="stat-sub-line">
+					<div class="stat-sub-line cobudget-form-hint">
 						<span>{{ $texts.areaDetail.notSettled() }}</span>
 						<span>{{ $texts.areaDetail.entryCount(card.metric.activeCount) }}</span>
 					</div>
 				</div>
-			</div>
+			</router-link>
 		</DraggableScroller>
 
 		<!-- Members / Balances Section -->
 			<div class="section members-section balances-section" v-if="!isProjectPaymentsView && showMemberBalances && project.balances && project.balances.length > 0">
 			<div class="section-header">
-				<h3 style="display: flex; align-items: center; gap: 8px;">
-					<AccountMultipleIcon :size="20" /> {{ $texts.areaDetail.members(project.members ? project.members.length : 0) }}
+				<h3 class="cobudget-section-heading members-heading">
+					<AccountMultipleIcon :size="20" /> {{ $texts.memberBalances.title() }}
 				</h3>
+				<NcButton v-if="hasSettlementHistory" class="member-settlements-button cobudget-native-button" variant="tertiary" :aria-label="$texts.areaDetail.settlements()" :title="$texts.areaDetail.settlements()" @click="openProjectSettlements">
+					<template #icon><HistoryIcon :size="20" /></template>
+					{{ $texts.areaDetail.settlements() }}
+				</NcButton>
 			</div>
 
-			<DraggableScroller class="balances-grid">
-				<div v-for="b in project.balances" :key="b.userId" class="balance-card" data-cobudget-card="compact"
-					:class="{ 'positive': b.balance > 0, 'negative': b.balance < 0, 'neutral': b.balance === 0 }">
-					<div class="balance-card-header">
-						<div class="balance-name">
-							<NcAvatar :user="b.userId" :display-name="b.displayName" :size="24" class="inline-avatar" />
-							<span>{{ b.displayName }}</span>
-						</div>
-						<div class="balance-actions">
-							<AreaAdminIndicator
-								v-if="b.userId === project.owner_id"
-								:label="$texts.areaSettings.areaAdmin()" />
-						</div>
-					</div>
-					<div class="balance-detail">{{ $texts.areaDetail.paid() }}: {{ formatCurrency(b.paid) }}</div>
-					<div class="balance-detail">{{ $texts.areaDetail.share() }}: {{ formatCurrency(b.fairShare) }} ({{ formatSharePercent(b.shareBasisPoints) }}%)</div>
-					<div v-if="b.receivedCents" class="balance-detail">{{ $texts.areaDetail.received() }}: {{ formatCurrency(b.received) }}</div>
-					<div v-if="b.incomeShareCents" class="balance-detail">{{ $texts.areaDetail.incomeShare() }}: {{ formatCurrency(b.incomeShare) }}</div>
-					<div class="balance-amount">
-						<template v-if="b.balance > 0">{{ $texts.areaDetail.getsBack(formatCurrency(b.balance)) }}</template>
-						<template v-else-if="b.balance < 0">{{ $texts.areaDetail.owes(formatCurrency(Math.abs(b.balance))) }}</template>
-						<template v-else>{{ $texts.areaDetail.balanced() }} ✓</template>
-					</div>
-				</div>
-			</DraggableScroller>
+			<MemberBalanceList :balances="project.balances" :format-amount="formatCurrency">
+				<template #member-extra="{ balance }">
+					<AreaAdminIndicator v-if="balance.userId === project.owner_id" :label="$texts.areaSettings.areaAdmin()" />
+				</template>
+			</MemberBalanceList>
 		</div>
 
 			<div v-if="!isProjectPaymentsView && showSettlementControls && project.repaymentTransfers && project.repaymentTransfers.length > 0" class="section repayments-section">
 			<div class="section-header">
-				<h3>{{ $texts.areaDetail.repayments() }}</h3>
+				<h3 class="cobudget-section-heading">{{ $texts.areaDetail.repayments() }}</h3>
 			</div>
-			<div class="repayment-list">
-				<div v-for="transfer in project.repaymentTransfers" :key="`${transfer.fromUserId}-${transfer.toUserId}-${transfer.amountCents}`" class="repayment-row">
-					<span class="repayment-person">{{ transfer.fromDisplayName }}</span>
-					<span class="repayment-arrow">{{ $texts.areaDetail.paysTo() }}</span>
-					<span class="repayment-person">{{ transfer.toDisplayName }}</span>
-					<strong class="repayment-amount">{{ formatCurrency(transfer.amount) }}</strong>
-				</div>
-			</div>
+			<RepaymentList :transfers="project.repaymentTransfers" :format-amount="formatCurrency" />
 		</div>
 
 		<!-- Active Entries -->
-		<div class="section">
+		<div class="section project-payments-section" :aria-busy="loadingEntries">
+			<div v-if="!isProjectPaymentsView && (loadingEntries || entriesError || activeEntries.length > 0)" class="section-header"><h3 class="cobudget-section-heading">{{ $texts.payments.title() }}</h3></div>
+			<PaymentFilterBar chips-only :filters="filters" default-time-range="all" :period-chip-label="areaPeriodChipLabel"
+				:categories="categories" :payment-partners="paymentPartners" :hashtags="hashtags"
+				@update:filters="onFiltersUpdate" />
+			<div v-if="loadingEntries && activeEntries.length === 0" class="detail-loading cobudget-form-hint" role="status"><NcLoadingIcon :size="32" /><span>{{ $texts.common.loading() }}</span></div>
+			<NcNoteCard v-else-if="entriesError" type="error">
+				<p>{{ entriesError }}</p>
+				<NcButton class="cobudget-native-button" variant="secondary" @click="fetchActiveEntries">{{ $texts.common.retry() }}</NcButton>
+			</NcNoteCard>
 			
 				<EntryTable
-					v-if="activeEntries.length > 0"
+					v-else-if="activeEntries.length > 0"
 					ref="entryTable"
 				mode="project"
 				:entries="activeEntries"
 				:date-groups="activeDateGroups"
+				:group-report-resolver="groupReportLocation"
 				:currency="$currency"
 				:date-label="$texts.entry.tableDate()"
 				:sort-by="sortBy"
@@ -247,14 +200,14 @@
 								'pagination-footer--single': activePagination.total <= activePagination.limit,
 								'pagination-footer--dashboard': !isProjectPaymentsView,
 							}">
-						<NcButton v-if="activePagination.total > activePagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: activePagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevActivePage">
-							<ArrowLeftIcon class="pagination-icon" :size="16" aria-hidden="true" />
+						<NcButton :aria-label="$texts.common.previous()" v-if="activePagination.total > activePagination.limit" variant="tertiary" class="cobudget-native-button btn-page" :style="{ visibility: activePagination.offset > 0 ? 'visible' : 'hidden' }" @click="prevActivePage">
+							<template #icon><ArrowLeftIcon :size="20" /></template>
 							<span class="pagination-label">{{ $texts.common.previous() }}</span>
 						</NcButton>
 							<span class="page-info">{{ activePaginationInfo }}</span>
-						<NcButton v-if="activePagination.total > activePagination.limit" variant="secondary" class="btn-page cobudget-toolbar-text-button" :style="{ visibility: activePagination.offset + activePagination.limit < activePagination.total ? 'visible' : 'hidden' }" @click="nextActivePage">
+						<NcButton :aria-label="$texts.common.next()" alignment="center-reverse" v-if="activePagination.total > activePagination.limit" variant="tertiary" class="cobudget-native-button btn-page" :style="{ visibility: activePagination.offset + activePagination.limit < activePagination.total ? 'visible' : 'hidden' }" @click="nextActivePage">
 							<span class="pagination-label">{{ $texts.common.next() }}</span>
-							<ArrowRightIcon class="pagination-icon" :size="16" aria-hidden="true" />
+							<template #icon><ArrowRightIcon :size="20" /></template>
 						</NcButton>
 						</div>
 						<div
@@ -270,7 +223,7 @@
 					</template>
 			</EntryTable>
 			<NcEmptyContent
-				v-else
+				v-else-if="!projectError"
 				class="empty-content-state"
 				:name="hasActiveFilters ? $texts.common.noFilteredEntriesTitle() : $texts.areaDetail.noOpenEntriesTitle()"
 				:description="hasActiveFilters ? $texts.common.noFilteredEntriesDescription() : $texts.areaDetail.noOpenEntriesDescription()">
@@ -278,7 +231,7 @@
 					<WalletIcon :size="64" />
 				</template>
 				<template #action>
-					<NcButton v-if="hasActiveFilters" variant="secondary" @click="resetFilters">
+					<NcButton v-if="hasActiveFilters" class="cobudget-native-button" variant="secondary" @click="resetFilters">
 						{{ $texts.common.resetFilters() }}
 					</NcButton>
 					<NcButton v-else-if="!isProjectPaymentsView && project.status !== 'archived' && !hideNewPaymentAction" variant="primary" class="new-payment-main-button" @click="openEntrySidebar">
@@ -292,77 +245,109 @@
 		</div>
 		</div>
 
-		<EntryHistoryModal
-			v-if="entryHistoryOpen"
-			:history="entryHistoryRows"
-			:loading="entryHistoryLoading"
-			@close="closeEntryHistory" />
+		<DialogTransition :show="!!(entryHistoryOpen)" v-slot="{ returnFocus }">
+			<EntryHistoryModal :container="null" :set-return-focus="returnFocus"
+				:history="entryHistoryRows"
+				:loading="entryHistoryLoading"
+				:error="entryHistoryError"
+				@retry="openEntryHistory(entryHistoryEntry)"
+				@close="closeEntryHistory" />
+		</DialogTransition>
 
-		<ConfirmModal
-			:show="showSettleConfirm"
-			:title="$texts.areaDetail.settleArea()"
-			:message="$texts.areaDetail.settleMessage()"
-			:confirm-label="$texts.areaDetail.settleArea()"
-			@confirm="confirmSettleUp"
-			@cancel="showSettleConfirm = false">
-			<div class="settlement-preview">
-				<h3>{{ $texts.areaDetail.repayments() }}</h3>
-				<div v-if="project.repaymentTransfers && project.repaymentTransfers.length > 0" class="repayment-list compact">
-					<div v-for="transfer in project.repaymentTransfers" :key="`preview-${transfer.fromUserId}-${transfer.toUserId}-${transfer.amountCents}`" class="repayment-row">
-						<span class="repayment-person">{{ transfer.fromDisplayName }}</span>
-						<span class="repayment-arrow">{{ $texts.areaDetail.paysTo() }}</span>
-						<span class="repayment-person">{{ transfer.toDisplayName }}</span>
-						<strong class="repayment-amount">{{ formatCurrency(transfer.amount) }}</strong>
-					</div>
+		<DialogTransition :show="!!(showSettleConfirm)" v-slot="{ returnFocus }">
+			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog area-settlement-dialog cobudget-standard-dialog"
+				size="normal"
+				:name="$texts.areaDetail.settleArea()"
+				:no-close="settlingProject" :close-on-click-outside="!settlingProject"
+				@closing="closeSettleConfirm">
+				<div :aria-busy="settlingProject">
+					<p class="area-settlement-question">{{ $texts.areaDetail.settleMessage() }}</p>
+					<SettlementSummary v-if="settlementPreview" class="area-settlement-summary" :area-name="project.name"
+						:created-by="settlementAuthor.uid" :created-by-display-name="settlementAuthor.displayName || settlementAuthor.uid"
+						:payment-count="settlementPreview.entryCount" :total="formatCurrency(settlementPreview.totalCents / 100)" />
+					<NcFormGroup class="cobudget-form-group" :label="$texts.areaDetail.repayments()" aria-describedby="area-settlement-hint">
+						<RepaymentList v-if="project.repaymentTransfers?.length" :transfers="project.repaymentTransfers" :format-amount="formatCurrency" />
+						<p v-else class="cobudget-form-hint">{{ $texts.areaDetail.noRepaymentNeeded() }}</p>
+						<NcNoteCard id="area-settlement-hint" class="area-settlement-hint" type="info" :text="$texts.areaDetail.settlementSuggestionSaved()" />
+					</NcFormGroup>
+					<NcNoteCard v-if="settleError" type="error" :text="settleError" />
 				</div>
-				<p v-else class="settlement-empty">{{ $texts.areaDetail.noRepaymentNeeded() }}</p>
-				<p class="settlement-preview-note">{{ $texts.areaDetail.settlementSuggestionSaved() }}</p>
-			</div>
-		</ConfirmModal>
+				<template #actions>
+					<NcButton variant="tertiary" :disabled="settlingProject" @click="closeSettleConfirm">{{ $texts.common.cancel() }}</NcButton>
+					<NcButton variant="primary" :disabled="settlingProject || !canSettleProject" @click="confirmSettleUp"><template #icon><NcLoadingIcon v-if="settlingProject" :size="20" /><CheckAllIcon v-else :size="20" /></template>{{ settlingProject ? $texts.common.waitBusy() : $texts.areaDetail.settleArea() }}</NcButton>
+				</template>
+			</NcDialog>
+		</DialogTransition>
 
-		<ConfirmModal
-			:show="!!confirmDialog"
-			:title="confirmDialog ? confirmDialog.title : ''"
-			:message="confirmDialog ? confirmDialog.message : ''"
-			:confirm-label="confirmDialog ? confirmDialog.confirmLabel : ''"
-			:confirm-variant="confirmDialog ? confirmDialog.confirmVariant : 'primary'"
-			@confirm="resolveConfirm(true)"
-			@cancel="resolveConfirm(false)" />
+		<DialogTransition :show="!!(confirmDialog)" v-slot="{ returnFocus }">
+			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog area-action-dialog cobudget-standard-dialog"
+				:name="confirmDialog.title" :no-close="confirmDialog.busy" :close-on-click-outside="!confirmDialog.busy"
+				@closing="closeActionConfirm">
+				<p class="area-action-message">{{ confirmDialog.message }}</p>
+				<NcNoteCard v-if="confirmDialog.error" type="error" :text="confirmDialog.error" />
+				<template #actions>
+					<NcButton variant="tertiary" class="cobudget-native-button" :disabled="confirmDialog.busy" @click="closeActionConfirm">{{ $texts.common.cancel() }}</NcButton>
+					<NcButton :variant="confirmDialog.confirmVariant === 'danger' ? 'error' : 'primary'" :disabled="confirmDialog.busy" @click="confirmAction">
+						<template v-if="confirmDialog.busy" #icon><NcLoadingIcon :size="20" /></template>
+						{{ confirmDialog.busy ? $texts.common.waitBusy() : confirmDialog.confirmLabel }}
+					</NcButton>
+				</template>
+			</NcDialog>
+		</DialogTransition>
 
 	</div>
-	<div v-else class="loading">{{ $texts.common.loading() }}</div>
+	<div v-else class="project-detail-state">
+		<div v-if="loadingProject" class="detail-loading cobudget-form-hint" role="status"><NcLoadingIcon :size="32" /><span>{{ $texts.common.loading() }}</span></div>
+		<NcNoteCard v-else-if="projectError" type="error">
+			<p>{{ projectError }}</p>
+			<NcButton class="cobudget-native-button" variant="secondary" @click="fetchProjectData">{{ $texts.common.retry() }}</NcButton>
+		</NcNoteCard>
+	</div>
 </template>
 
 <script>
-import { annualReturnRoute } from '../services/annualOverview'
+import DialogTransition from '../components/DialogTransition.vue'
+import { annualReturnRoute, reportPeriodLabel } from '../services/annualOverview'
+import { paymentGroupReportTarget, paymentPickerSelection } from '../services/paymentSummary'
 import { getAppLocale } from '../utils/formatMoney'
+import { formatCalendarLabel } from '../utils/formatDate'
+import PaymentFilterBar from '../components/PaymentFilterBar.vue'
 import axios from '../services/http'
 import { REMOTE_DATA_CHANGED_EVENT, changeAffectsProject, changeTouches } from '../services/dataSync'
 import { generateUrl } from '@nextcloud/router'
+import { getCurrentUser } from '@nextcloud/auth'
+import SettlementSummary from '../components/SettlementSummary.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
+import NcFormGroup from '@nextcloud/vue/components/NcFormGroup'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
-import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import MemberBalanceList from '../components/MemberBalanceList.vue'
+import RepaymentList from '../components/RepaymentList.vue'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
-import NcPopover from '@nextcloud/vue/components/NcPopover'
+import AnchoredPopover from '../components/AnchoredPopover.vue'
 import TableFilters from '../components/TableFilters.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
 import EntryTable from '../components/EntryTable.vue'
 import EntryHistoryModal from '../components/EntryHistoryModal.vue'
 import TableTooltip from '../components/TableTooltip.vue'
 import AreaAdminIndicator from '../components/AreaAdminIndicator.vue'
+import ReportPeriodPicker from '../components/ReportPeriodPicker.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
+import HistoryIcon from 'vue-material-design-icons/History.vue'
+import DeleteIcon from 'vue-material-design-icons/TrashCanOutline.vue'
 import CheckAllIcon from 'vue-material-design-icons/CheckAll.vue'
-import MagnifyIcon from 'vue-material-design-icons/Magnify.vue'
+import FilterVariantIcon from 'vue-material-design-icons/FilterVariant.vue'
 import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
 import ChartBarIcon from 'vue-material-design-icons/ChartBar.vue'
 import ArchiveIcon from 'vue-material-design-icons/Archive.vue'
-import WalletIcon from 'vue-material-design-icons/Wallet.vue'
+import WalletIcon from 'vue-material-design-icons/WalletOutline.vue'
 import SyncIcon from 'vue-material-design-icons/Sync.vue'
-import LockIcon from 'vue-material-design-icons/Lock.vue'
-import StarIcon from 'vue-material-design-icons/Star.vue'
-import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheck.vue'
-import AccountChildIcon from 'vue-material-design-icons/AccountChild.vue'
+import LockIcon from 'vue-material-design-icons/LockOutline.vue'
+import StarIcon from 'vue-material-design-icons/StarOutline.vue'
+import ClipboardCheckIcon from 'vue-material-design-icons/ClipboardCheckOutline.vue'
+import AccountChildIcon from 'vue-material-design-icons/AccountChildOutline.vue'
 import ReceiptTextCheckOutlineIcon from 'vue-material-design-icons/ReceiptTextCheckOutline.vue'
 import ShieldCheckOutlineIcon from 'vue-material-design-icons/ShieldCheckOutline.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
@@ -385,13 +370,13 @@ import {
 	personalEntryListQueriesEqual,
 	serializeProjectEntryListRouteQuery,
 } from '../services/entryListRoute'
-import { showRequestError, showToast } from '../services/notifications'
+import { extractError, showToast } from '../services/notifications'
 import { downloadBlobResponse } from '../services/downloads'
 import { getAreaColorStyle } from '../utils/areaColor'
 
 export default {
 	name: 'ProjectDetail',
-	components: { AppPageHeader, NcButton, NcEmptyContent, NcAvatar, NcActions, NcActionButton, NcPopover, ConfirmModal, EntryTable, EntryHistoryModal, TableTooltip, AreaAdminIndicator, MagnifyIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronUpIcon, CloseIcon, DownloadIcon, TableFilters, DraggableScroller },
+	components: { PaymentFilterBar, ReportPeriodPicker, DialogTransition, SettlementSummary, RepaymentList, HistoryIcon, DeleteIcon, NcDialog, NcFormGroup, NcNoteCard, NcLoadingIcon, AppPageHeader, NcButton, NcEmptyContent, MemberBalanceList, NcActions, NcActionButton, AnchoredPopover, EntryTable, EntryHistoryModal, TableTooltip, AreaAdminIndicator, FilterVariantIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronUpIcon, CloseIcon, DownloadIcon, TableFilters, DraggableScroller },
 	props: {
 		id: {
 			type: [Number, String],
@@ -406,18 +391,28 @@ export default {
 			default: false
 		}
 	},
-	emits: ['open-entry-sidebar', 'open-project', 'refresh-projects', 'selected-entry-missing'],
+	emits: ['open-entry-sidebar', 'open-project', 'refresh-projects'],
 	data() {
 		return {
-			showFilterPanel: false,
 			project: null,
+			loadingProject: true,
+			projectError: '',
+			loadingEntries: true,
+			entriesError: '',
+			exportError: '',
 			activeEntries: [],
+			filterAvailability: null,
+			filterAvailabilityKey: '',
 			activeDateGroups: null,
 			categories: [],
 			paymentPartners: [],
 			hashtags: [],
+			paymentYears: [],
 			isExporting: false,
 			showSettleConfirm: false,
+			settlingProject: false,
+			settleError: '',
+			settleProjectId: null,
 			filters: createProjectEntryFilters(),
 			sortBy: 'date',
 			sortDir: 'desc',
@@ -431,12 +426,32 @@ export default {
 			entryFetchRequestId: 0,
 			mobilePaginationMedia: null,
 			entryHistoryOpen: false,
+			entryHistoryError: '',
+			entryHistoryEntry: null,
+			entryHistoryRequestId: 0,
 			entryHistoryLoading: false,
 			entryHistoryRows: [],
 			confirmDialog: null
 		}
 	},
 	computed: {
+		deleteBlockedReason() {
+			if (!this.canManageProject) return this.$texts.areaSettings.ownerOnly();
+			const reason = this.project?.settings_actions?.delete_block_reason;
+			if (reason === null) return '';
+			if (reason === 'payments_or_history') return this.$texts.areaSettings.deleteBlockedHistory();
+			if (reason === 'budget_goals') return this.$texts.areaSettings.deleteBlockedBudget();
+			return this.$texts.areaSettings.actionsUnavailable();
+		},
+		archiveBlockedReason() {
+			if (!this.canManageProject) return this.$texts.areaSettings.ownerOnly();
+			if (this.isTruthy(this.project?.is_archived)) return '';
+			const reason = this.project?.settings_actions?.archive_block_reason;
+			if (reason === null) return '';
+			if (reason === 'open_shared_payments') return this.$texts.areaSettings.archiveBlockedWithOpenEntries();
+			return this.$texts.areaSettings.actionsUnavailable();
+		},
+
 		isProjectPaymentsView() {
 			return this.$route.name === 'project-payments'
 		},
@@ -456,6 +471,20 @@ export default {
 				this.activePagination.total,
 			)
 		},
+		filterActionLabel() {
+			return this.$texts.annual.filterPayments()
+		},
+		areaPeriodSelection() {
+			const selection = paymentPickerSelection(this.filters)
+			if (selection.timeRange !== 'all') return selection
+			const current = new Date().getFullYear()
+			return { ...selection, periodYears: [...new Set([current, current - 1, ...this.paymentYears])].sort((a, b) => a - b) }
+		},
+		areaPeriodChipLabel() {
+			if (this.filters.timeRange === 'all') return ''
+			return reportPeriodLabel(this.areaPeriodSelection, formatCalendarLabel,
+				date => formatCalendarLabel(date, { day: 'numeric', month: 'short', year: 'numeric' }))
+		},
 		hasActiveFilters() {
 			return this.filters.search !== '' || 
 				   this.filters.type !== 'all' || 
@@ -466,10 +495,11 @@ export default {
 				   this.filters.timeRange !== 'all' ||
 				   this.filters.recurring !== 'all' ||
 				   this.filters.tags !== 'all' ||
-				   this.filters.hasReminder !== 'all' ||
+				   (this.$enableReminders !== false && this.filters.hasReminder !== 'all') ||
 				   this.filters.hasAttachment !== 'all' ||
 				   Boolean(this.filters.narrowCategories) ||
 				   Boolean(this.filters.narrowPartners) ||
+				   Boolean(this.filters.narrowProjects) ||
 				   Boolean(this.filters.narrowLabels) ||
 				   Boolean(this.filters.narrowHashtags) ||
 				   Boolean(this.filters.amountMin) ||
@@ -480,6 +510,12 @@ export default {
 		},
 		hasEntries() {
 			return this.activeEntries.length > 0;
+		},
+		settlementAuthor() {
+			return getCurrentUser() || { uid: '', displayName: '' }
+		},
+		settlementPreview() {
+			return this.project?.settlementPreview || null
 		},
 		hasBalancesToSettle() {
 			return this.activeEntries.length > 0 || this.activePagination.total > 0;
@@ -510,11 +546,24 @@ export default {
 		showSettlementControls() {
 			return this.hasAdditionalProjectMembers;
 		},
+		hasSettlementHistory() {
+			return Number(this.project?.settlementCount || 0) > 0;
+		},
 		canManageProject() {
 			return this.isTruthy(this.project?.is_owner);
 		},
 		canSettleProject() {
 			return this.canManageProject && this.showSettlementControls;
+		},
+		projectReportLocation() {
+			return {
+				name: 'annual-overview',
+				query: {
+					projectId: String(this.projectId),
+					entryScope: this.hasAdditionalProjectMembers ? 'shared' : 'personal',
+					timeRange: 'all',
+				},
+			}
 		},
 		projectDashboardCards() {
 			const definitions = [
@@ -556,6 +605,10 @@ export default {
 		window.addEventListener('keydown', this.onPaginationKeydown)
 	},
 	beforeUnmount() {
+		this.projectFetchRequestId++
+		this.entryFetchRequestId++
+		this.entryHistoryRequestId++
+		this.confirmDialog = null
 		window.removeEventListener('entry-saved', this.onEntrySaved)
 		window.removeEventListener(REMOTE_DATA_CHANGED_EVENT, this.onRemoteDataChanged)
 		window.removeEventListener('settings-closed', this.onSettingsClosed)
@@ -563,47 +616,75 @@ export default {
 		this.mobilePaginationMedia?.removeEventListener?.('change', this.onMobilePaginationViewportChange)
 	},
 	watch: {
-		'$route.fullPath': 'handleProjectRouteChange',
-		selectedEntryId: 'notifySelectedEntryVisibility',
-		activeEntries: 'notifySelectedEntryVisibility'
+		'$route.fullPath': 'handleProjectRouteChange'
 	},
 	methods: {
+		groupReportLocation(group) {
+			const filters = { ...this.filters }
+			if (!this.hasAdditionalProjectMembers && filters.status === 'active') filters.status = 'all'
+			return paymentGroupReportTarget(group, filters, {
+				projectId: this.projectId, entryScope: this.hasAdditionalProjectMembers ? 'shared' : 'personal',
+			})
+		},
 		annualReturnRoute,
 		async openEntryHistory(entry) {
+			if (!entry) return
+			const requestId = ++this.entryHistoryRequestId
+			this.entryHistoryEntry = entry
+			this.entryHistoryError = ''
 			this.entryHistoryOpen = true
 			this.entryHistoryLoading = true
 			this.entryHistoryRows = []
 			try {
 				const response = await axios.get(generateUrl(`/apps/cobudget/api/entries/${entry.id}/history`))
+				if (requestId !== this.entryHistoryRequestId) return
 				this.entryHistoryRows = Array.isArray(response.data?.history) ? response.data.history : []
 			} catch (error) {
-				showRequestError(error, this.$texts.entry.historyFetchError(), 'Failed to fetch entry history')
+				if (requestId === this.entryHistoryRequestId) this.entryHistoryError = extractError(error, this.$texts.entry.historyFetchError())
 			} finally {
-				this.entryHistoryLoading = false
+				if (requestId === this.entryHistoryRequestId) this.entryHistoryLoading = false
 			}
 		},
 		closeEntryHistory() {
+			this.entryHistoryRequestId++
+			this.entryHistoryError = ''
+			this.entryHistoryEntry = null
 			this.entryHistoryOpen = false
 			this.entryHistoryLoading = false
 			this.entryHistoryRows = []
 		},
-		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary' }) {
-			return new Promise(resolve => {
-				this.confirmDialog = {
-					title,
-					message,
-					confirmLabel,
-					confirmVariant,
-					resolve
-				};
-			});
+		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary', action, errorMessage, requiresOwner = false }) {
+			if (this.confirmDialog || this.settlingProject || this.showSettleConfirm) return
+			this.confirmDialog = { title, message, confirmLabel, confirmVariant, action, errorMessage, requiresOwner, projectId: String(this.projectId), busy: false, error: '' }
 		},
-		resolveConfirm(confirmed) {
-			const resolver = this.confirmDialog?.resolve;
-			this.confirmDialog = null;
-			if (resolver) {
-				resolver(confirmed);
+		closeActionConfirm() {
+			if (!this.confirmDialog?.busy) this.confirmDialog = null
+		},
+		async confirmAction() {
+			const dialog = this.confirmDialog
+			if (!dialog || dialog.busy) return
+			if (dialog.projectId !== String(this.projectId) || (dialog.requiresOwner && !this.canManageProject)) {
+				this.confirmDialog = null
+				return
 			}
+			dialog.busy = true
+			dialog.error = ''
+			try {
+				await dialog.action()
+				if (this.confirmDialog === dialog) this.confirmDialog = null
+			} catch (error) {
+				if (this.confirmDialog === dialog) dialog.error = extractError(error, dialog.errorMessage)
+			} finally { dialog.busy = false }
+		},
+		async refreshActionProject(projectId) {
+			const response = await axios.get(generateUrl(`/apps/cobudget/api/projects/${projectId}`))
+			if (projectId !== String(this.projectId) || !this.project || this.confirmDialog?.projectId !== projectId) return false
+			Object.assign(this.project, {
+				settings_actions: response.data.settings_actions,
+				is_owner: response.data.is_owner,
+				is_archived: response.data.is_archived,
+			})
+			return true
 		},
 		applyEntryPageSize(value = this.$entriesPerPage) {
 			this.activePagination.limit = normalizeEntryPageSize(value)
@@ -645,11 +726,23 @@ export default {
 			const projectChanged = this.loadedProjectId !== nextProjectId
 
 			if (projectChanged) {
+				this.entryFetchRequestId++
+				this.activeEntries = []
+				this.activeDateGroups = null
+				this.entriesError = ''
+				this.loadingEntries = true
+				this.exportError = ''
+				this.closeEntryHistory()
+				this.confirmDialog = null
+				this.showSettleConfirm = false
+				this.settleError = ''
+				this.settleProjectId = null
 				this.resetProjectTableState()
 				this.project = null
 				this.categories = []
 				this.paymentPartners = []
 				this.hashtags = []
+				this.paymentYears = []
 				this.loadedProjectId = nextProjectId
 			}
 
@@ -700,42 +793,50 @@ export default {
 				this.$refs.tableFilters.localFilters = { ...this.filters }
 			}
 		},
-		async deleteProject() {
-			if (!this.canManageProject) {
-				return;
-			}
-			const confirmed = await this.openConfirm({
+		deleteProject() {
+			if (!this.canManageProject || this.deleteBlockedReason) return
+			const id = String(this.projectId)
+			this.openConfirm({
 				title: this.$texts.areaDetail.deleteArea(),
 				message: this.$texts.areaDetail.deleteAreaMessage(),
 				confirmLabel: this.$texts.areaDetail.deleteArea(),
-				confirmVariant: 'danger'
-			});
-			if (!confirmed) return;
-
-			try {
-				await axios.delete(generateUrl('/apps/cobudget/api/projects/' + this.project.id));
-				this.$emit('refresh-projects');
-				this.$router.push('/');
-			} catch (e) {
-				showRequestError(e, this.$texts.areaDetail.deleteError(), 'Failed to delete project');
-			}
+				confirmVariant: 'danger',
+				requiresOwner: true,
+				errorMessage: this.$texts.areaDetail.deleteError(),
+				action: async () => {
+					if (!await this.refreshActionProject(id)) return
+					if (this.deleteBlockedReason) throw new Error(this.deleteBlockedReason)
+					await axios.delete(generateUrl(`/apps/cobudget/api/projects/${id}`))
+					this.$emit('refresh-projects')
+					if (id === String(this.projectId)) this.$router.push({ name: 'projects' })
+				}
+			})
 		},
-		async toggleArchiveProject() {
-			if (!this.canManageProject) {
-				return;
-			}
-			const action = this.project.is_archived ? 'unarchive' : 'archive';
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/projects/${this.project.id}/${action}`));
-				this.project.is_archived = !this.project.is_archived;
-				this.$emit('refresh-projects');
-			} catch (e) {
-				showRequestError(e, this.$texts.areaDetail.statusSaveError(), 'Failed to toggle archive project');
-			}
+		toggleArchiveProject() {
+			if (!this.canManageProject || this.archiveBlockedReason) return
+			const id = String(this.projectId)
+			const archived = !this.isTruthy(this.project.is_archived)
+			this.openConfirm({
+				title: archived ? this.$texts.areaSettings.archiveTitle() : this.$texts.areaSettings.unarchiveTitle(),
+				message: archived ? this.$texts.areaSettings.archiveConfirmMessage() : this.$texts.areaSettings.unarchiveConfirmMessage(),
+				confirmLabel: archived ? this.$texts.areaSettings.archive() : this.$texts.areaSettings.unarchive(),
+				requiresOwner: true,
+				errorMessage: this.$texts.areaDetail.statusSaveError(),
+				action: async () => {
+					if (!await this.refreshActionProject(id)) return
+					if (!this.canManageProject) throw new Error(this.$texts.areaSettings.ownerOnly())
+					if (archived && this.archiveBlockedReason) throw new Error(this.archiveBlockedReason)
+					await axios.post(generateUrl(`/apps/cobudget/api/projects/${id}/${archived ? 'archive' : 'unarchive'}`))
+					if (id === String(this.projectId)) this.project.is_archived = archived
+					this.$emit('refresh-projects')
+				}
+			})
 		},
 		async fetchProjectData() {
 			const requestId = ++this.projectFetchRequestId
 			const requestedProjectId = String(this.projectId)
+			this.loadingProject = true
+			this.projectError = ''
 			try {
 				const projRes = await axios.get(generateUrl(`/apps/cobudget/api/projects/${this.projectId}`))
 				if (requestId !== this.projectFetchRequestId || requestedProjectId !== String(this.projectId)) {
@@ -762,8 +863,11 @@ export default {
 				await this.fetchActiveEntries();
 			} catch (e) {
 				if (requestId === this.projectFetchRequestId && requestedProjectId === String(this.projectId)) {
-					showRequestError(e, this.$texts.areaDetail.loadError(), 'Failed to fetch project details')
+					this.projectError = extractError(e, this.$texts.areaDetail.loadError())
+					this.loadingEntries = false
 				}
+			} finally {
+				if (requestId === this.projectFetchRequestId && requestedProjectId === String(this.projectId)) this.loadingProject = false
 			}
 		},
 		onEntrySaved() {
@@ -823,7 +927,7 @@ export default {
 			let needsReview = null;
 			let isTaxRelevant = null;
 			let isInsurance = null;
-			let hasReminder = this.filters.hasReminder === 'true' ? true : null;
+			let hasReminder = this.$enableReminders !== false && this.filters.hasReminder === 'true' ? true : null;
 			let hasAttachment = null;
 			if (this.filters.hasAttachment === 'true') hasAttachment = true;
 			if (this.filters.hasAttachment === 'false') hasAttachment = false;
@@ -834,7 +938,7 @@ export default {
 			if (this.filters.tags === 'childRelated') isChildRelated = true;
 			if (this.filters.tags === 'important') isImportant = true;
 			if (this.filters.tags === 'review') needsReview = true;
-			if (this.filters.tags === 'reminder') hasReminder = true;
+			if (this.$enableReminders !== false && this.filters.tags === 'reminder') hasReminder = true;
 
 			const params = {
 				projectId: this.projectId,
@@ -874,14 +978,23 @@ export default {
 		},
 		async fetchActiveEntries() {
 			const requestId = ++this.entryFetchRequestId
+			this.loadingEntries = true
+			this.entriesError = ''
 			const params = this.buildEntryQueryParams(true);
+			const availabilityKey = JSON.stringify({ ...params, limit: null, offset: null, sortBy: null, sortDir: null, hasReminder: null, hasAttachment: null })
+			if (this.filterAvailabilityKey !== availabilityKey) {
+				this.filterAvailability = null
+				this.filterAvailabilityKey = availabilityKey
+			}
 			try {
 				const res = await axios.get(generateUrl('/apps/cobudget/api/entries'), { params });
 				if (requestId !== this.entryFetchRequestId) {
 					return
 				}
 				this.activeEntries = res.data.entries || [];
+				this.filterAvailability = res.data.filterAvailability || null;
 				this.activeDateGroups = res.data.dateGroups || null;
+				this.paymentYears = res.data.years || [];
 				this.activePagination.total = res.data.total || 0;
 				if (this.isProjectPaymentsView && this.currentActivePage > this.totalActivePages) {
 					this.goToProjectPaymentsPage(this.totalActivePages)
@@ -892,8 +1005,10 @@ export default {
 					}
 				} catch (e) {
 					if (requestId === this.entryFetchRequestId) {
-						showRequestError(e, this.$texts.areaDetail.entriesLoadError(), 'Failed to fetch project entries')
+						this.entriesError = extractError(e, this.$texts.areaDetail.entriesLoadError())
 					}
+				} finally {
+					if (requestId === this.entryFetchRequestId) this.loadingEntries = false
 				}
 		},
 		async exportEntries() {
@@ -901,6 +1016,8 @@ export default {
 				return
 			}
 			this.isExporting = true
+			this.exportError = ''
+			const requestedProjectId = String(this.projectId)
 			try {
 				const response = await axios.get(generateUrl('/apps/cobudget/api/entries/export'), {
 					params: this.buildEntryQueryParams(false),
@@ -909,7 +1026,7 @@ export default {
 				downloadBlobResponse(response, 'cobudget-zahlungen.csv')
 				showToast(this.$texts.common.exportCsvCreated())
 			} catch (e) {
-				showRequestError(e, this.$texts.common.exportCsvError(), 'Failed to export project entries')
+				if (requestedProjectId === String(this.projectId)) this.exportError = extractError(e, this.$texts.common.exportCsvError())
 			} finally {
 				this.isExporting = false
 			}
@@ -1072,24 +1189,12 @@ export default {
 		formatCurrency(val) {
 			return this.$formatMoney(val)
 		},
-		formatSharePercent(shareBasisPoints) {
-			const value = Math.round((parseInt(shareBasisPoints, 10) || 0) / 100)
-			return value.toLocaleString(getAppLocale(), { maximumFractionDigits: 0 })
-		},
+
 		settlementEntryCountLabel(count) {
 			const normalizedCount = parseInt(count || 0, 10)
 			return this.$texts.areaDetail.entryCount(normalizedCount)
 		},
-		balanceStatusText(balance, currency) {
-			const amount = parseFloat(balance || 0)
-			if (amount > 0) {
-				return this.$texts.areaDetail.getsBack(this.$formatMoney(amount, currency))
-			}
-			if (amount < 0) {
-				return this.$texts.areaDetail.owes(this.$formatMoney(Math.abs(amount), currency))
-			}
-			return this.$texts.areaDetail.balanced()
-		},
+
 		projectDashboardMetric(key) {
 			const fallback = {
 				activeTotal: 0,
@@ -1148,16 +1253,7 @@ export default {
 				this.editEntry(entry);
 			}
 		},
-		notifySelectedEntryVisibility() {
-			if (this.selectedEntryId === null) {
-				return;
-			}
 
-			const isVisible = this.activeEntries.some(entry => String(entry.id) === String(this.selectedEntryId));
-			if (!isVisible) {
-				this.$emit('selected-entry-missing', this.selectedEntryId);
-			}
-		},
 		openEntrySidebar(options = {}) {
 			const safeOptions = (options instanceof Event) ? {} : options;
 			const defaultType = safeOptions.defaultType || (this.filters.type === 'income' ? 'income' : 'expense');
@@ -1169,45 +1265,58 @@ export default {
 		duplicateEntry(entry) {
 			this.$emit('open-entry-sidebar', { entryToDuplicate: entry, projectId: this.projectId, isFuture: false })
 		},
-		async deleteEntry(entry) {
-			const confirmed = await this.openConfirm({
+		deleteEntry(entry) {
+			const id = String(this.projectId)
+			const deleteId = Number(entry.editable_entry_id || entry.source_entry_id || entry.id)
+			this.openConfirm({
 				title: this.$texts.entry.deleteEntryTitle(),
 				message: this.$texts.entry.deleteEntryMessage(),
 				confirmLabel: this.$texts.entry.deleteEntry(),
-				confirmVariant: 'danger'
-			});
-			if (confirmed) {
-				try {
-					const deleteId = Number(entry.editable_entry_id || entry.source_entry_id || entry.id)
+				confirmVariant: 'danger',
+				errorMessage: this.$texts.entry.entryDeleteError(),
+				action: async () => {
 					await axios.delete(generateUrl(`/apps/cobudget/api/entries/${deleteId}`))
-					showToast(this.$texts.entry.entryDeleted());
-					window.dispatchEvent(new CustomEvent('cobudget-data-changed'));
-					this.fetchProjectData()
-				} catch (error) {
-					showRequestError(error, this.$texts.entry.entryDeleteError(), 'Failed to delete entry')
+					showToast(this.$texts.entry.entryDeleted())
+					window.dispatchEvent(new CustomEvent('cobudget-data-changed'))
+					if (id === String(this.projectId)) this.fetchProjectData()
 				}
-			}
+			})
 		},
 		settleUp() {
-			if (!this.canSettleProject) {
-				return;
-			}
-			this.showSettleConfirm = true;
+			if (!this.canSettleProject || this.settlingProject || this.showSettleConfirm || this.confirmDialog) return
+			this.settleError = ''
+			this.settleProjectId = String(this.projectId)
+			this.showSettleConfirm = true
+		},
+		closeSettleConfirm() {
+			if (this.settlingProject) return
+			this.showSettleConfirm = false
+			this.settleError = ''
+			this.settleProjectId = null
 		},
 		async confirmSettleUp() {
-			if (!this.canSettleProject) {
-				this.showSettleConfirm = false;
-				return;
+			if (this.settlingProject || !this.showSettleConfirm) return
+			const projectId = this.settleProjectId
+			if (!this.canSettleProject || projectId !== String(this.projectId)) {
+				this.closeSettleConfirm()
+				return
 			}
+			this.settlingProject = true
+			this.settleError = ''
 			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/projects/${this.projectId}/settle`))
-				this.showSettleConfirm = false;
-				showToast(this.$texts.areaDetail.areaSettled());
-				this.$emit('refresh-projects');
-				window.dispatchEvent(new CustomEvent('cobudget-data-changed'));
-				this.fetchProjectData()
+				await axios.post(generateUrl(`/apps/cobudget/api/projects/${projectId}/settle`))
+				showToast(this.$texts.areaDetail.areaSettled())
+				this.$emit('refresh-projects')
+				window.dispatchEvent(new CustomEvent('cobudget-data-changed'))
+				if (projectId === String(this.projectId)) {
+					this.showSettleConfirm = false
+					this.settleProjectId = null
+					this.fetchProjectData()
+				}
 			} catch (e) {
-				showRequestError(e, this.$texts.areaDetail.settleError(), 'Failed to settle up')
+				if (projectId === String(this.projectId)) this.settleError = extractError(e, this.$texts.areaDetail.settleError())
+			} finally {
+				this.settlingProject = false
 			}
 		},
 		toggleShowSettled() {
@@ -1223,6 +1332,26 @@ export default {
 </script>
 
 <style scoped>
+.members-heading { display: flex; align-items: center; gap: 8px; }
+.members-section .section-header { flex-wrap: wrap; gap: var(--cobudget-content-gap); }
+.member-settlements-button { margin-inline-start: auto; }
+.detail-loading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 32px 0; }
+@media (max-width: 768px) {
+	.project-detail, .project-detail-state { --default-clickable-area: var(--cobudget-mobile-touch-size); }
+	.member-settlements-button {
+		width: var(--cobudget-mobile-touch-size);
+		min-width: var(--cobudget-mobile-touch-size);
+		padding-inline: 0;
+		flex-shrink: 0;
+	}
+	.member-settlements-button :deep(.button-vue__text) { display: none; }
+}
+
+.area-action-message { margin: 0; white-space: pre-line; }
+.area-settlement-question { margin: 0 0 var(--cobudget-section-gap); }
+.area-settlement-summary { margin-bottom: var(--cobudget-section-gap); }
+.area-settlement-hint { margin-top: var(--cobudget-section-gap); }
+
 .recurring-icon,
 .reminder-icon {
 	color: var(--color-text-maxcontrast, #888);
@@ -1238,7 +1367,11 @@ export default {
 .detail-header {
 	container-name: area-detail-header;
 	container-type: inline-size;
-	margin-bottom: 0px;
+	margin-bottom: calc(var(--default-grid-baseline, 4px) * 2);
+}
+
+@container area-detail-header (max-width: 650px) {
+	.project-filter-caption { display: none; }
 }
 
 @media (min-width: 769px) {
@@ -1264,9 +1397,12 @@ export default {
 
 		box-sizing: border-box;
 		flex: 1 1 auto;
-		width: calc(100% + var(--project-detail-scrollbar-size));
+		width: calc(100% + var(--cobudget-content-inset-start) + var(--cobudget-content-inset-end));
 		min-height: 0;
-		margin-inline-end: calc(0px - var(--project-detail-scrollbar-size));
+		margin-inline-start: calc(0px - var(--cobudget-content-inset-start));
+		margin-inline-end: calc(0px - var(--cobudget-content-inset-end));
+		padding-inline-start: var(--cobudget-content-inset-start);
+		padding-inline-end: var(--cobudget-content-inset-end);
 		overflow-x: hidden;
 		overflow-y: auto;
 		overscroll-behavior: contain;
@@ -1300,8 +1436,16 @@ export default {
 	}
 }
 
-.filter-toggle-btn {
-	margin-right: 4px;
+@media (min-width: 769px) {
+	.project-payments-section :deep(.entry-table-container),
+	.project-payments-section :deep(.pagination-footer),
+	.members-section :deep(.member-balance-table-wrapper),
+	.repayments-section :deep(.repayment-table-wrapper) {
+		width: calc(100% + var(--cobudget-content-inset-start) + var(--cobudget-content-inset-end));
+		max-width: none;
+		margin-inline-start: calc(0px - var(--cobudget-content-inset-start));
+		margin-inline-end: calc(0px - var(--cobudget-content-inset-end));
+	}
 }
 
 :deep(.v-popper__arrow-container),
@@ -1312,14 +1456,12 @@ export default {
 
 .section {
 	padding: 0;
-	margin-bottom: 30px;
+	margin-block: 0 var(--cobudget-settings-heading-gap);
 }
 
 .section h3 {
-	font-size: var(--cobudget-font-md);
-	font-weight: 600;
-	margin: 0 0 12px 0;
-	color: var(--color-main-text, #222);
+	margin: 0;
+	color: var(--color-main-text);
 }
 
 .section-header {
@@ -1329,6 +1471,8 @@ export default {
 	margin-bottom: 12px;
 }
 
+.project-payments-section > .section-header { margin-block-end: calc(var(--default-grid-baseline, 4px) * 5); }
+
 .section-header h3 {
 	margin: 0;
 }
@@ -1336,20 +1480,34 @@ export default {
 /* Dashboard cards */
 .stats-row {
 	display: flex;
-	gap: var(--cobudget-card-gap);
-	margin-bottom: var(--cobudget-section-gap);
+	gap: var(--cobudget-summary-card-gap);
+	margin-inline: calc(0px - var(--default-grid-baseline, 4px));
+	margin-bottom: var(--cobudget-content-gap);
 	flex-wrap: nowrap;
-	padding: 2px 2px 12px;
+	padding: 2px 0 8px;
 }
 
-.stat-card {
-	flex: 0 0 300px;
-	width: 300px;
-	min-width: 300px;
+.stat-card[data-cobudget-card] {
+	flex: 0 0 var(--cobudget-summary-card-width);
+	width: var(--cobudget-summary-card-width);
+	min-width: var(--cobudget-summary-card-width);
 	display: flex;
 	flex-direction: column;
-	gap: var(--cobudget-content-gap);
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
+	padding: calc(var(--default-grid-baseline, 4px) * 2) calc(var(--default-grid-baseline, 4px) * 4);
+	border: 0;
+	border-radius: var(--border-radius-element);
+	background: transparent;
+	box-shadow: none;
+	color: inherit;
+	text-decoration: none;
+	cursor: pointer;
+	transition: background-color var(--cobudget-hover-duration) linear;
 }
+
+.stat-card:hover, .stat-card:focus-visible { background: var(--color-background-hover); }
+.stat-card:focus-visible { outline: var(--cobudget-focus-outline); outline-offset: -2px; }
+.stat-card * { cursor: inherit; }
 
 .stat-header {
 	display: flex;
@@ -1366,21 +1524,20 @@ export default {
 }
 
 .stat-icon {
-	width: 32px;
-	height: 32px;
+	position: relative;
+	inset-inline-start: calc(var(--default-grid-baseline, 4px) * -0.5);
+	width: calc(var(--default-grid-baseline, 4px) * 5);
+	height: calc(var(--default-grid-baseline, 4px) * 5);
+	flex-shrink: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: var(--cobudget-surface-muted, #f5f5f5);
-	border-radius: 50%;
 }
 
 .stat-label {
-	font-size: var(--cobudget-font-caption);
-	color: var(--color-text-maxcontrast, #888);
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	font-weight: 600;
+	font-size: var(--font-size, 15px);
+	font-weight: var(--font-weight-element, 500);
+	color: var(--color-main-text);
 }
 
 .stat-value {
@@ -1388,7 +1545,7 @@ export default {
 	font-weight: 700;
 	text-align: right;
 	white-space: nowrap;
-	cursor: help;
+	cursor: inherit;
 }
 
 .stat-value.positive {
@@ -1403,142 +1560,27 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
-	border-top: 1px solid var(--cobudget-border, #eee);
-	padding-top: 10px;
 }
 
 .stat-sub-line {
 	display: flex;
 	justify-content: space-between;
 	gap: 12px;
-	font-size: var(--cobudget-font-caption);
-	color: var(--color-text-maxcontrast, #777);
 }
 
 .stat-sub-line span:last-child {
 	white-space: nowrap;
 }
 
-/* Balances */
-.balances-grid {
-	display: flex;
-	flex-wrap: nowrap;
-	gap: var(--cobudget-card-gap);
-	padding: 2px 2px 12px;
-}
-
-.balance-card {
-	flex: 0 0 280px;
-	width: 280px;
-	min-width: 280px;
-}
-
-.balance-card-header {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 10px;
-	margin-bottom: 6px;
-}
-
-.balance-card.positive {
-
-}
-
-.balance-card.negative {
-
-}
-
-.balance-card.neutral {
-
-}
-
-.balance-name {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	font-weight: 600;
-	min-width: 0;
-}
-
-.balance-name span {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.balance-actions {
-	display: inline-flex;
-	align-items: center;
-	justify-content: flex-end;
-	min-width: 32px;
-}
-.balance-detail {
-	font-size: var(--cobudget-font-sm);
-	color: var(--color-text-maxcontrast, #888);
-}
-
-.balance-amount {
-	margin-top: 8px;
-	font-weight: 600;
-	font-size: var(--cobudget-font-base);
-}
-
-.positive .balance-amount {
-	color: var(--cobudget-success);
-}
-
-.negative .balance-amount {
-	color: var(--cobudget-error);
-}
-
-.repayments-section,
 .settlements-section {
 	max-width: 900px;
 }
 
-.repayment-list {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.repayment-list.compact {
-	gap: 6px;
-}
-
-.repayment-row {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
-	align-items: center;
-	gap: 10px;
-	padding: 10px 12px;
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-}
-
-.repayment-person {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-weight: 600;
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-}
-
-.repayment-arrow,
 .settlement-summary-meta,
 .settlement-meta,
 .settlement-empty,
 .settlement-preview-note {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #777)) !important;
-}
-
-.repayment-amount {
-	white-space: nowrap;
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 }
 
 .settlement-history-list {
@@ -1572,11 +1614,10 @@ export default {
 	padding: 0 14px 14px;
 }
 
-.settlement-subsection h4,
-.settlement-preview h3 {
+.settlement-subsection h4 {
 	margin: 0 0 8px;
 	font-size: var(--cobudget-font-base);
-	font-weight: 700;
+	font-weight: var(--cobudget-font-weight-heading);
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
@@ -1603,10 +1644,6 @@ export default {
 	white-space: nowrap;
 }
 
-.settlement-preview {
-	margin-top: 14px;
-	text-align: left;
-}
 
 .settlement-preview-note,
 .settlement-empty {
@@ -1754,7 +1791,7 @@ th.col-desc {
 }
 
 .sortable:hover {
-	background: #eee;
+	background: var(--cobudget-table-sort-hover);
 }
 
 .sort-icon {
@@ -1764,72 +1801,19 @@ th.col-desc {
 }
 
 .pagination-footer {
-	display: flex;
-	justify-content: space-between;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 	align-items: center;
-  padding-top: 10px;
+	padding: calc(var(--default-grid-baseline, 4px) * 2);
 	background: var(--cobudget-page-background, #fff);
 }
 
-.pagination-footer--single {
-	justify-content: center;
-}
+.pagination-footer--single { grid-template-columns: 1fr; }
+.pagination-footer > .btn-page:first-child { justify-self: start; }
+.pagination-footer > .btn-page:last-child { justify-self: end; }
+.pagination-footer > .page-info { text-align: center; }
 
-.btn-page {
-	min-width: 0 !important;
-	border-color: transparent !important;
-  background: var(--cobudget-surface-muted) !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text) !important;
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
-}
-
-.btn-page:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
-.btn-page:hover:not(:disabled) {
-	background: var(--cobudget-surface-strong) !important;
-	border-color: transparent !important;
-	box-shadow: none !important;
-	outline: none !important;
-}
-
-.btn-page :deep(.button-vue__wrapper),
-.btn-page :deep(.button-vue__text) {
-	display: inline-flex !important;
-	align-items: center !important;
-	justify-content: center !important;
-	gap: 8px;
-	line-height: 1 !important;
-}
-
-.pagination-label {
-	display: inline-flex;
-	align-items: center;
-	white-space: nowrap;
-}
-
-.pagination-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 auto;
-	width: 16px;
-	height: 16px;
-	line-height: 0;
-}
-
-.pagination-icon :deep(.material-design-icon),
-.pagination-icon :deep(.material-design-icon__svg) {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	line-height: 1;
-	bottom: auto;
-}
+.pagination-label { white-space: nowrap; }
 
 .page-info {
 	font-size: var(--cobudget-font-compact);
@@ -1860,11 +1844,11 @@ th.col-desc {
 
 .clickable-row {
 	cursor: pointer;
-	transition: background-color 0.15s ease;
+	transition: background-color var(--cobudget-hover-duration) linear;
 }
 
 .clickable-row:hover {
-	background: var(--cobudget-surface-muted, #f6f6f6);
+	background: var(--cobudget-table-row-hover);
 }
 
 .date-cell {
@@ -1947,22 +1931,10 @@ th.col-desc {
 }
 
 .edit-btn:hover {
-	background: var(--cobudget-surface-muted, #eee);
+	background: var(--cobudget-interaction-hover);
 	color: var(--color-main-text, #222);
 }
 
-.member-avatar {
-	margin-right: 12px;
-}
-
-.inline-avatar {
-	margin-right: 6px;
-}
-
-.balance-name {
-	display: flex;
-	align-items: center;
-}
 
 .modal-form-content {
 	padding: 20px;
@@ -1982,25 +1954,32 @@ th.col-desc {
 
 @media (max-width: 768px) {
 
+  .project-detail-scroll > .section {
+    margin-block-end: var(--cobudget-section-gap);
+  }
+
+  .project-detail-scroll :deep(.member-balance-list .balance-details) {
+    padding-block-start: 0;
+  }
+
   .stats-row {
     gap: var(--cobudget-card-gap);
-    padding-bottom: 12px;
-    margin-bottom: var(--cobudget-section-gap);
-    margin-top: 20px;
+    padding-bottom: var(--default-grid-baseline, 4px);
+    margin-bottom: var(--cobudget-content-gap);
+    margin-top: 0;
   }
+
+  .stat-card { min-width: 0; max-width: 100%; }
 
 	.back-btn {
 		display: none !important;
 	}
 
-	.project-export-header-btn,
-	.project-filter-header-btn,
 	.project-settings-header-btn,
 	.project-settle-header-btn {
 		display: none !important;
 	}
 
-	.btn-settle-header .btn-text,
 	.edit-project-btn .btn-text {
 		display: none !important;
 	}
@@ -2013,29 +1992,6 @@ th.col-desc {
 		border: none;
 		background: transparent;
 		box-shadow: none;
-	}
-
-	.balances-grid {
-		gap: var(--cobudget-card-gap);
-		padding-bottom: 12px;
-	}
-
-	.balance-card {
-		flex-basis: 280px;
-		padding: var(--cobudget-content-gap);
-	}
-
-	.balance-name {
-		font-size: var(--cobudget-font-compact);
-	}
-
-	.balance-detail {
-		font-size: var(--cobudget-font-xs);
-	}
-
-	.balance-amount {
-		font-size: var(--cobudget-font-compact);
-		margin-top: 6px;
 	}
 
 	.data-table {
@@ -2141,8 +2097,7 @@ th.col-desc {
 		margin: 0;
 		padding-inline: calc(var(--default-grid-baseline, 4px) * 3) !important;
 		justify-content: center;
-		background-color: transparent !important;
-		font-weight: 600;
+
 	}
 
 	.pagination-footer:not(.pagination-footer--single) > .page-info {
@@ -2151,10 +2106,7 @@ th.col-desc {
 	}
 
 	.btn-page {
-		min-width: var(--cobudget-icon-button-size) !important;
-		width: var(--cobudget-icon-button-size) !important;
-		padding-inline: 0 !important;
-		justify-content: center;
+		--default-clickable-area: var(--cobudget-mobile-touch-size, 44px);
 	}
 
 	.project-detail--table-only .pagination-footer {
@@ -2170,36 +2122,9 @@ th.col-desc {
 		display: inline-flex;
 	}
 
-	.project-detail--table-only .btn-page,
-	.project-detail--table-only .btn-page.button-vue {
-		width: auto !important;
-		min-width: 0 !important;
-		padding-inline: calc(var(--default-grid-baseline, 4px) * 2) !important;
-		background: transparent !important;
-	}
 
-	.repayment-row {
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 4px 10px;
-		padding: 10px;
-	}
 
-	.repayment-person {
-		min-width: 0;
-		max-width: 100%;
-	}
 
-	.repayment-arrow {
-		grid-column: 1;
-		font-size: var(--cobudget-font-xs);
-	}
-
-	.repayment-amount {
-		grid-column: 2;
-		grid-row: 1 / span 3;
-		align-self: center;
-		text-align: right;
-	}
 
 }
 
@@ -2235,6 +2160,21 @@ th.col-desc {
 	font-size: var(--cobudget-font-xs);
 	font-weight: 600;
 }
+@media (max-width: 360px) {
+	.project-detail-scroll :deep(.member-balance-row) { grid-template-columns: 1fr; }
+	.project-detail-scroll :deep(.member-balance-row .balance-amount) {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 0 var(--default-grid-baseline, 4px);
+		padding-block: var(--default-grid-baseline, 4px);
+	}
+	.project-detail-scroll :deep(.member-balance-row .balance-amount::before) {
+		margin-block-end: 0;
+		margin-inline-end: auto;
+	}
+}
+.clickable-row:focus-within { transition: none; }
 </style>
 
 <style>

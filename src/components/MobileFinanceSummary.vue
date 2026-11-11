@@ -9,7 +9,7 @@
 			@touchend.stop
 			@touchcancel.stop
 			@keydown="onKeydown">
-			<article v-for="period in periods" :key="period.key" class="mobile-summary-card">
+			<RouterLink v-for="period in periods" :key="period.key" :to="period.route" class="mobile-summary-card mobile-summary-card--link">
 				<div class="mobile-summary-card__header">
 					<div class="mobile-summary-card__title">
 						<span class="mobile-summary-card__icon" :style="{ color: period.iconColor }" aria-hidden="true">
@@ -30,7 +30,7 @@
 						<strong :class="detail.valueClass">{{ detail.value }}</strong>
 					</div>
 				</div>
-			</article>
+			</RouterLink>
 
 			<component
 				:is="metric.route ? 'RouterLink' : 'article'"
@@ -117,12 +117,13 @@ export default {
 	.mobile-finance-summary__cards {
 		display: flex;
 		box-sizing: border-box;
-		width: 100%;
+		width: calc(100% + var(--default-grid-baseline, 4px) * 5);
+		margin-inline: calc(var(--default-grid-baseline, 4px) * -2.5);
 		min-width: 0;
 		overflow-x: auto;
 		overflow-y: hidden;
-		gap: calc(var(--default-grid-baseline, 4px) * 2);
-		padding: 2px 2px calc(var(--default-grid-baseline, 4px) * 2);
+		gap: calc(var(--default-grid-baseline, 4px) * 4);
+		padding: 2px 0 calc(var(--default-grid-baseline, 4px) * 2);
 		overscroll-behavior-inline: contain;
 		scrollbar-width: none;
 		touch-action: pan-x pan-y;
@@ -147,12 +148,12 @@ export default {
 		display: flex;
 		box-sizing: border-box;
 		inline-size: max-content;
-		min-inline-size: calc(var(--default-grid-baseline, 4px) * 54);
+		min-inline-size: calc(var(--default-grid-baseline, 4px) * 55);
 		flex: 0 0 max-content;
 		flex-direction: column;
-		gap: calc(var(--default-grid-baseline, 4px) * 2.5);
-		padding: calc(var(--default-grid-baseline, 4px) * 3);
-		border: 1px solid var(--cobudget-border, var(--color-border, #ddd));
+		gap: calc(var(--default-grid-baseline, 4px) * 2);
+		padding: calc(var(--default-grid-baseline, 4px) * 2) calc(var(--default-grid-baseline, 4px) * 2.5);
+		border: 0;
 		border-radius: var(--cobudget-radius-lg, var(--border-radius-large, 8px));
 		background: var(--cobudget-surface, var(--color-main-background, #fff));
 		color: inherit;
@@ -161,13 +162,12 @@ export default {
 
 	.mobile-summary-card--link {
 		cursor: pointer;
-		transition: background-color 0.15s ease, border-color 0.15s ease;
+		transition: background-color var(--cobudget-hover-duration) linear, border-color var(--cobudget-hover-duration) linear;
 	}
 
 	.mobile-summary-card--link:hover,
 	.mobile-summary-card--link:focus-visible {
-		border-color: var(--cobudget-primary, var(--color-primary-element));
-		background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
+		background: var(--color-background-hover);
 	}
 
 	.mobile-summary-card--link:focus-visible {
@@ -194,14 +194,14 @@ export default {
 	}
 
 	.mobile-summary-card__icon {
+		position: relative;
+		inset-inline-start: calc(var(--default-grid-baseline, 4px) * -0.5);
 		display: inline-flex;
-		width: calc(var(--default-grid-baseline, 4px) * 8);
-		height: calc(var(--default-grid-baseline, 4px) * 8);
+		width: calc(var(--default-grid-baseline, 4px) * 5);
+		height: calc(var(--default-grid-baseline, 4px) * 5);
 		flex: 0 0 auto;
 		align-items: center;
 		justify-content: center;
-		border-radius: 50%;
-		background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
 	}
 
 	.mobile-summary-card__title h3 {
@@ -217,6 +217,10 @@ export default {
 		text-overflow: ellipsis;
 		text-transform: uppercase;
 		white-space: nowrap;
+	}
+
+	.mobile-summary-card__value.muted {
+		color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
 	}
 
 	.mobile-summary-card__value-group {
@@ -244,7 +248,7 @@ export default {
 	}
 
 	.mobile-summary-card__value {
-		font-size: var(--cobudget-font-lg, 18px);
+		font-size: var(--cobudget-font-metric-compact, 18px);
 		line-height: 1.2;
 	}
 
@@ -253,8 +257,6 @@ export default {
 		min-width: 0;
 		flex-direction: column;
 		gap: var(--default-grid-baseline, 4px);
-		padding-top: calc(var(--default-grid-baseline, 4px) * 2);
-		border-top: 1px solid var(--cobudget-border, var(--color-border, #ddd));
 	}
 
 	.mobile-summary-card__detail {
@@ -296,4 +298,5 @@ export default {
 		transition: none;
 	}
 }
+.mobile-summary-card--link:is(:focus-visible, :active) { transition: none; }
 </style>

@@ -229,17 +229,6 @@ class CategoryController extends Controller {
 		}
 	}
 
-	private function visibleGlobalCategory(int $categoryId): ?array {
-		$category = $this->categoryById($categoryId);
-		if ($category === null
-			|| !$this->boolValue($category['is_global'] ?? false)
-			|| $this->boolValue($category['is_hidden'] ?? false)) {
-			return null;
-		}
-
-		return $category;
-	}
-
 	private function parentMatchesCategoryScope(array $parent, array $category): bool {
 		$categoryIsGlobal = $this->boolValue($category['is_global'] ?? false);
 		$parentIsGlobal = $this->boolValue($parent['is_global'] ?? false);
@@ -476,30 +465,11 @@ class CategoryController extends Controller {
 			$categories = $result->fetchAll();
 			$result->closeCursor();
 
-			$qbUsed = $this->db->getQueryBuilder();
-			$qbUsed->select('category_id')
-				->from('cobudget_entries')
-				->where($qbUsed->expr()->isNotNull('category_id'))
-				->andWhere($qbUsed->expr()->eq('workspace_id', $qbUsed->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
-				->groupBy('category_id');
-			if ($projectId !== null) {
-				$qbUsed
-					->andWhere($qbUsed->expr()->eq('entry_kind', $qbUsed->createNamedParameter('shared')))
-					->andWhere($qbUsed->expr()->eq('project_id', $qbUsed->createNamedParameter($projectId, \PDO::PARAM_INT)));
-			} else {
-				$qbUsed
-					->andWhere($qbUsed->expr()->eq('entry_kind', $qbUsed->createNamedParameter('personal')))
-					->andWhere($qbUsed->expr()->eq('user_id', $qbUsed->createNamedParameter($this->userId)));
-			}
-			$usedEntries = $qbUsed->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
-
-			$usedCategoryIds = array_values(array_unique(array_map('intval', $usedEntries)));
-
 			foreach ($categories as &$cat) {
 				$cat['is_hidden'] = in_array((int)$cat['id'], $hiddenIds, true);
-				$cat['in_use'] = in_array((int)$cat['id'], $usedCategoryIds, true);
 			}
 
+			$categories = $this->addMasterDataUsage($categories, 'category_id');
 			return new DataResponse($this->attachCategoryHierarchy($categories));
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
@@ -707,9 +677,6 @@ class CategoryController extends Controller {
 			if ($projectId !== null && !$this->projectOwnerInActiveWorkspace($projectId)) {
 				return $this->errorResponse('Only the area owner may change area settings.', Http::STATUS_FORBIDDEN);
 			}
-			if ($projectId !== null && $this->visibleGlobalCategory($id) === null) {
-				return $this->errorResponse('Global category not found', Http::STATUS_NOT_FOUND);
-			}
 			if (!$this->categoryAvailableInActiveWorkspace($id, $projectId)) {
 				return $this->errorResponse('Category not found', Http::STATUS_NOT_FOUND);
 			}
@@ -752,9 +719,6 @@ class CategoryController extends Controller {
 			}
 			if ($projectId !== null && !$this->projectOwnerInActiveWorkspace($projectId)) {
 				return $this->errorResponse('Only the area owner may change area settings.', Http::STATUS_FORBIDDEN);
-			}
-			if ($projectId !== null && $this->visibleGlobalCategory($id) === null) {
-				return $this->errorResponse('Global category not found', Http::STATUS_NOT_FOUND);
 			}
 			if (!$this->categoryAvailableInActiveWorkspace($id, $projectId)) {
 				return $this->errorResponse('Category not found', Http::STATUS_NOT_FOUND);
@@ -831,6 +795,7 @@ class CategoryController extends Controller {
 				$qb3->andWhere($qb3->expr()->eq('project_id', $qb3->createNamedParameter($projectId, \PDO::PARAM_INT)));
 			}
 			$qb3->executeStatement();
+			$this->removeProjectHiddenCategoryReference($id);
 			return new DataResponse(['status' => 'success']);
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
@@ -867,6 +832,7 @@ class CategoryController extends Controller {
 			$result = $qb->executeQuery();
 			$categories = $result->fetchAll();
 			$result->closeCursor();
+			$categories = $this->addMasterDataUsage($categories, 'category_id', true);
 			return new DataResponse($this->attachCategoryHierarchy($categories));
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
@@ -1107,6 +1073,7 @@ class CategoryController extends Controller {
 					->where($qb3->expr()->eq('id', $qb3->createNamedParameter($id)))
 					->andWhere($qb3->expr()->eq('is_global', $qb3->createNamedParameter(true, \PDO::PARAM_BOOL)));
 				$qb3->executeStatement();
+			$this->removeProjectHiddenCategoryReference($id);
 				$this->db->commit();
 			} catch (\Throwable $transactionError) {
 				$this->db->rollBack();

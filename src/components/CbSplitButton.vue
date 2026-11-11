@@ -208,7 +208,7 @@ export default {
 	font-weight: var(--cobudget-font-weight-action);
 	line-height: 1.2;
 	letter-spacing: 0;
-	transition: background-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+	transition: background-color var(--cobudget-hover-duration) linear;
 	transform: none !important;
 }
 
@@ -344,7 +344,7 @@ export default {
 
 .cobudget-split-button__item:hover:not(:disabled),
 .cobudget-split-button__item:focus-visible {
-	background: var(--cobudget-surface-muted);
+	background: var(--cobudget-interaction-hover);
 	outline: none;
 }
 
@@ -363,4 +363,5 @@ export default {
 	margin: 6px 4px;
 	background: var(--cobudget-border);
 }
+.cobudget-split-button :is(button:focus-visible, button:active, button:disabled) { transition: none; }
 </style>

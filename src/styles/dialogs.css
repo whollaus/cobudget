@@ -36,38 +36,10 @@
 	overflow-wrap: anywhere;
 }
 
-button.cobudget-dialog-close {
-	appearance: none;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex: 0 0 44px;
-	width: 44px;
-	height: 44px;
-	min-width: 44px;
-	min-height: 44px;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	border-radius: var(--cobudget-control-radius);
-	background: transparent;
-	color: var(--cobudget-text);
-	box-shadow: none;
-	cursor: pointer;
-}
-
-button.cobudget-dialog-close:hover:not(:disabled),
-button.cobudget-dialog-close:focus-visible:not(:disabled) {
-	background: var(--cobudget-surface-muted);
-}
-
-.cobudget-dialog-close .material-design-icon,
-.cobudget-dialog-close .material-design-icon__svg {
-	display: block;
-	width: var(--cobudget-icon-close);
-	height: var(--cobudget-icon-close);
-	color: currentColor;
-	fill: currentColor;
+/* Native close controls retain the existing header footprint. */
+.cobudget-native-dialog-close {
+	--default-clickable-area: var(--cobudget-mobile-touch-size, 44px);
+	flex-shrink: 0;
 }
 
 @media (max-width: 768px) {
@@ -78,5 +50,79 @@ button.cobudget-dialog-close:focus-visible:not(:disabled) {
 
 	.cobudget-dialog-header--padded {
 		border-radius: 0;
+	}
+}
+
+/* Keep native confirmation headings aligned with CoBudget's editor headings,
+ * including when NcDialog is teleported outside the app container. */
+.cobudget-native-dialog.dialog__modal .dialog__name {
+	text-align: start;
+}
+
+/* Shared native confirmations, including areas, workspaces, exports and reset.
+ * Keep native focus management, mobile layout and scroll containers intact. */
+.cobudget-native-dialog.cobudget-standard-dialog.dialog__modal .modal-wrapper .modal-container {
+	padding-block: calc(var(--default-grid-baseline, 4px) * 3) 0;
+	padding-inline: var(--cobudget-dialog-padding) 0;
+}
+.cobudget-native-dialog.cobudget-standard-dialog .dialog__name {
+	font-size: var(--cobudget-dialog-title-size, 20px);
+	line-height: 1.5;
+	min-height: 0;
+	margin: 0 0 calc(var(--default-grid-baseline, 4px) * 4);
+	padding-inline-end: var(--cobudget-mobile-touch-size, 44px);
+	text-align: start;
+}
+.cobudget-native-dialog.cobudget-standard-dialog .dialog__content {
+	padding-inline-end: var(--cobudget-dialog-padding);
+}
+/* Settlement detail dialog: edge-to-edge content container */
+.cobudget-native-dialog.cobudget-standard-dialog.settlement-detail-dialog.dialog__modal .modal-wrapper .modal-container {
+	padding-inline: 0;
+}
+.cobudget-native-dialog.cobudget-standard-dialog.settlement-detail-dialog .dialog__name {
+	padding-inline-start: var(--cobudget-dialog-padding);
+}
+.cobudget-native-dialog.cobudget-standard-dialog.settlement-detail-dialog .dialog__content {
+	padding-inline-end: 0;
+}
+.cobudget-native-dialog.cobudget-standard-dialog .dialog__text { padding-block-end: 0; }
+.cobudget-native-dialog.cobudget-standard-dialog.dialog__modal .dialog__actions {
+	flex-wrap: wrap;
+	gap: 8px;
+	padding-inline-end: var(--cobudget-dialog-padding);
+	margin-block: var(--cobudget-section-gap) var(--cobudget-dialog-padding);
+}
+@media (max-width: 768px) {
+	.cobudget-native-dialog.cobudget-standard-dialog,
+	.cobudget-settings-modal { --default-clickable-area: var(--cobudget-mobile-touch-size); }
+}
+
+/* Personal exports and administrator backups share confirmation content and
+ * actions. Long filenames and translations must fit narrow mobile dialogs. */
+.cobudget-confirm-message {
+	margin: 0 0 calc(var(--default-grid-baseline, 4px) * 4);
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+.cobudget-confirm-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	width: 100%;
+	min-width: 0;
+}
+.cobudget-confirm-actions > * { max-width: 100%; }
+@media (max-width: 768px) {
+	.cobudget-confirm-actions .button-vue {
+		max-width: 100%;
+		height: auto;
+		min-height: var(--cobudget-mobile-touch-size, 44px);
+	}
+	.cobudget-confirm-actions .button-vue__text {
+		white-space: normal;
+		overflow-wrap: anywhere;
 	}
 }

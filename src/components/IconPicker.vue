@@ -1,14 +1,19 @@
 <template>
-	<NcPopover placement="bottom-start" :close-on-click-outside="true" :disabled="disabled">
+	<NcPopover popover-base-class="cobudget-menu-popover" placement="bottom-start" :close-on-click-outside="true" :disabled="disabled" @after-show="focusSelectedIcon">
 		<template #trigger>
-			<button class="icon-picker-btn cobudget-focusable" :class="{ 'has-icon': value, 'is-disabled': disabled }" type="button" @click.prevent
+			<NcButton v-if="buttonTrigger" class="icon-picker-action" variant="secondary" type="button"
 				:aria-label="disabled ? $texts.iconPicker.adminManaged() : $texts.iconPicker.selectIcon()"
 				:title="disabled ? $texts.iconPicker.adminManaged() : $texts.iconPicker.selectIcon()" :disabled="disabled">
-				<component :is="value || 'Shape'" :size="20" class="current-icon" />
+				<template #icon><component :is="selectedIcon" :size="20" /></template>
+			</NcButton>
+			<button v-else class="icon-picker-btn cobudget-focusable" :class="{ 'has-icon': value, 'is-disabled': disabled }" type="button" @click.prevent
+				:aria-label="disabled ? $texts.iconPicker.adminManaged() : $texts.iconPicker.selectIcon()"
+				:title="disabled ? $texts.iconPicker.adminManaged() : $texts.iconPicker.selectIcon()" :disabled="disabled">
+				<component :is="selectedIcon" :size="20" class="current-icon" />
 			</button>
 		</template>
 
-		<div class="icon-picker-grid">
+		<div ref="iconGrid" class="icon-picker-grid">
 			<button v-for="icon in icons" :key="icon" class="icon-option-btn cobudget-focusable" :class="{ active: icon === value }"
 				type="button" @click="selectIcon(icon)" :title="icon" :aria-label="icon" :aria-pressed="icon === value">
 				<component :is="icon" :size="24" />
@@ -18,53 +23,15 @@
 </template>
 
 <script>
+import { categoryIcons, categoryIconNames } from './categoryIcons'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
-import Airplane from 'vue-material-design-icons/Airplane.vue'
-import BabyCarriage from 'vue-material-design-icons/BabyCarriage.vue'
-import Bank from 'vue-material-design-icons/Bank.vue'
-import Briefcase from 'vue-material-design-icons/Briefcase.vue'
-import Car from 'vue-material-design-icons/Car.vue'
-import Cart from 'vue-material-design-icons/Cart.vue'
-import Cash from 'vue-material-design-icons/Cash.vue'
-import Cellphone from 'vue-material-design-icons/Cellphone.vue'
-import Dog from 'vue-material-design-icons/Dog.vue'
-import Dumbbell from 'vue-material-design-icons/Dumbbell.vue'
-import Flash from 'vue-material-design-icons/Flash.vue'
-import GamepadVariant from 'vue-material-design-icons/GamepadVariant.vue'
-import Gift from 'vue-material-design-icons/Gift.vue'
-import Heart from 'vue-material-design-icons/Heart.vue'
-import HelpCircle from 'vue-material-design-icons/HelpCircle.vue'
-import Home from 'vue-material-design-icons/Home.vue'
-import School from 'vue-material-design-icons/School.vue'
-import Shape from 'vue-material-design-icons/Shape.vue'
-import Sofa from 'vue-material-design-icons/Sofa.vue'
-import Television from 'vue-material-design-icons/Television.vue'
-import Train from 'vue-material-design-icons/Train.vue'
-import TshirtCrew from 'vue-material-design-icons/TshirtCrew.vue'
-import Water from 'vue-material-design-icons/Water.vue'
-import FoodApple from 'vue-material-design-icons/FoodApple.vue'
-import SilverwareForkKnife from 'vue-material-design-icons/SilverwareForkKnife.vue'
-import Sprout from 'vue-material-design-icons/Sprout.vue'
-import Tree from 'vue-material-design-icons/Tree.vue'
-import Cat from 'vue-material-design-icons/Cat.vue'
-import Paw from 'vue-material-design-icons/Paw.vue'
-import Run from 'vue-material-design-icons/Run.vue'
-import Bike from 'vue-material-design-icons/Bike.vue'
-import MusicNote from 'vue-material-design-icons/MusicNote.vue'
-import Pill from 'vue-material-design-icons/Pill.vue'
-import GasStation from 'vue-material-design-icons/GasStation.vue'
-import BookOpenVariant from 'vue-material-design-icons/BookOpenVariant.vue'
-import Wrench from 'vue-material-design-icons/Wrench.vue'
 
 export default {
 	name: 'IconPicker',
-	components: {
-		NcPopover,
-		Airplane, BabyCarriage, Bank, Briefcase, Car, Cart, Cash, Cellphone, Dog,
-		Dumbbell, Flash, GamepadVariant, Gift, Heart, HelpCircle, Home, School, Shape, Sofa,
-		Television, Train, TshirtCrew, Water, Wrench, FoodApple, SilverwareForkKnife, Sprout, Tree, Cat, Paw, Run, Bike, MusicNote, Pill, GasStation, BookOpenVariant
-	},
+	components: { NcPopover, NcButton, ...categoryIcons },
 	props: {
+		buttonTrigger: Boolean,
 		value: {
 			type: String,
 			default: 'Shape'
@@ -76,17 +43,18 @@ export default {
 	},
 	data() {
 		return {
-			icons: [
-				'Shape', 'Home', 'Cart', 'Car', 'Train', 'Flash',
-				'Water', 'Briefcase', 'Heart', 'Dumbbell', 'School', 'BabyCarriage',
-				'Dog', 'Sofa', 'Television', 'GamepadVariant', 'Airplane', 'Gift',
-				'TshirtCrew', 'Cellphone', 'Wrench', 'Bank', 'Cash', 'HelpCircle',
-				'FoodApple', 'SilverwareForkKnife', 'Sprout', 'Tree', 'Cat', 'Paw',
-				'Run', 'Bike', 'MusicNote', 'Pill', 'GasStation', 'BookOpenVariant'
-			]
+			icons: categoryIconNames
 		}
 	},
+	computed: {
+		selectedIcon() { return categoryIconNames.includes(this.value) ? this.value : 'Shape' },
+	},
 	methods: {
+		focusSelectedIcon() {
+			const grid = this.$refs.iconGrid;
+			const selected = grid?.querySelector('.icon-option-btn.active') || grid?.querySelector('.icon-option-btn');
+			selected?.focus({ preventScroll: true });
+		},
 		selectIcon(icon) {
 			this.$emit('input', icon);
 		}
@@ -100,20 +68,24 @@ export default {
 	align-items: center;
 	justify-content: center;
 	vertical-align: middle;
-	color: var(--cobudget-info-text);
+	color: var(--color-main-text);
 	border-radius: 999px;
-	background-color: var(--cobudget-info-background);
+	background-color: transparent;
 	padding: 5px;
 	cursor: pointer;
 	border: none;
 	width: 36px;
 	height: 36px;
-	transition: background-color 0.15s ease;
-	margin-right: 10px !important;
+	transition: background-color var(--cobudget-hover-duration) linear;
+	margin-right: 0 !important;
 }
 
 .icon-picker-btn:hover:not(.is-disabled) {
-	background-color: var(--cobudget-surface-strong);
+	background-color: var(--cobudget-interaction-hover);
+}
+
+.icon-picker-btn:focus:not(:hover) {
+	background-color: transparent;
 }
 
 .icon-picker-btn.is-disabled,
@@ -146,24 +118,35 @@ export default {
 	align-items: center;
 	justify-content: center;
 	color: var(--cobudget-text-muted);
-	transition: background-color 0.15s ease;
+	transition: background-color var(--cobudget-hover-duration) linear;
 }
 
 .icon-option-btn:hover {
-	background: var(--cobudget-surface-muted);
+	background: var(--cobudget-interaction-hover);
 }
 
 .icon-option-btn.active {
-	background: var(--cobudget-info-background);
-	color: var(--cobudget-info-text);
+	background: var(--cobudget-interaction-selected);
+	color: var(--color-main-text);
 	border-color: var(--cobudget-primary);
+}
+
+.icon-option-btn.active:hover { background: var(--cobudget-interaction-selected-hover); }
+
+/* Keep one inset focus ring instead of stacking the core border, halo and outline. */
+.icon-picker-grid .icon-option-btn:focus-visible {
+	outline: var(--cobudget-focus-outline) !important;
+	outline-offset: -2px;
+	box-shadow: none !important;
 }
 @media (max-width: 768px) {
 	.icon-picker-btn,
+	.icon-picker-action,
 	.icon-option-btn {
 		min-width: var(--cobudget-mobile-touch-size);
 		min-height: var(--cobudget-mobile-touch-size);
 	}
 	.icon-picker-grid { gap: 4px; }
 }
+.icon-picker-btn:is(:focus-visible, :active, .is-disabled), .icon-option-btn:is(:focus-visible, :active, .active) { transition: none; }
 </style>

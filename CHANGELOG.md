@@ -2,6 +2,196 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.8.5] - 2026-11-11
+
+This release includes the changes developed in 0.8.0–0.8.4 since the 0.7.0 release.
+CoBudget remains beta; 1.0.0 is intended to be the first stable product release.
+
+- Refresh desktop and mobile navigation, payment tables, editors, filters, reports and settings with consistent Nextcloud controls, theme support and keyboard shortcuts.
+- Improve planned and recurring payments, searchable category/payment-partner selection, and payment filtering and summaries.
+- Add a personal reminder organizer with standalone and payment-linked reminders, completion, automatic archival, postponement, action labels and an upcoming-reminder summary on Payments.
+- Add independent Nextcloud and Talk notification preferences for reminders and due planned or recurring payments, with per-recipient delivery tracking and retries.
+- Add optional calendar synchronization, including bidirectional private-calendar edits, explicit conflict resolution and safe handling of deleted events; shared calendars remain export-only.
+- Include reminder data and notification preferences in backup/reset workflows and apply the required additive database migrations. Calendar connections remain server-local and require setup after financial restore.
+- Fix namespaced account locking for calendar and Talk synchronization and expand regression coverage and contributor documentation.
+
+## [0.8.4] - 2026-11-05
+
+- Show a leading reminder summary on Payments when open reminders are overdue or due within the next ten calendar days. Display the total and two earliest reminders, linking to the reminder overview on desktop and mobile.
+
+- Add a personal Reminders switch under Settings → Features. Hide reminder navigation and payment controls without changing existing reminders, notifications or calendar synchronization.
+
+- Synchronize reminder titles, descriptions and times bidirectionally with private calendars. Merge independent edits and offer explicit choices for conflicting fields, including existing calendar changes during upgrade.
+- Archive the personal reminder when its calendar event is deleted, retaining its contents and preventing automatic event recreation. Calendar outages, revoked access and deleted calendars do not archive reminders.
+- Keep shared calendars export-only, preserve personal completion/archive state, and expose non-default calendar times in the reminder editor. Add a synchronization-state migration.
+
+## [0.8.3] - 2026-11-05
+
+- Automatically archive completed reminders 14 days after completion when automatic archival is enabled; preserve completion and existing archive dates.
+
+- Match reminder deletion confirmations to Payments with native dialog spacing and a destructive action button.
+
+- Match mobile reminder row backgrounds to Payments and give the mobile editor a New reminder/Edit reminder header, with the date and remaining fields below it.
+
+- Match mobile reminders to Payments with date-group headings, title/description rows, a leading completion checkbox and right-aligned status. Hide the mobile three-dot menu; editing and deletion remain in the sidebar.
+
+- Compact the mobile reminder list: title-first rows, one-line description previews, wrapping date/status metadata and consistently aligned checkbox/menu controls.
+
+- Add Remind me later to open reminders: Tomorrow, In one week (09:00 local time), or Choose date in the editor. Preserve personal metadata, protect unsaved drafts and propagate the new time to linked payments and calendars.
+
+- Show a calendar warning and tooltip beside reminders awaiting calendar synchronization or cleanup, with a direct retry action and accurate per-entry status. Preserve calendar preferences, event identities and unsaved reminder drafts.
+
+- Add Today and N days ago beneath open reminder dates and subtly highlight overdue open rows, preserving completed/archived colors and the editing selection.
+
+- Highlight the reminder being edited like the selected payment row. Preserve personal automatic-archive choices when saving linked payments; enable automatic archival only by default for new reminders.
+
+- Group expanded payment recurrence and reminder fields in matching rounded, borderless boxes using light/dark theme colors, with even inner padding and no extra gap below their disclosure rows; place Show reminder below the box with the standard field gap.
+
+- Open payment recurrence/reminder sections collapsed by default. Remove payment reminders by clearing their date and saving, without a separate removal button.
+
+- Indicate configured payment recurrences and reminders with the shared blue active dot, including when their details are collapsed.
+
+- Match Repeat to the Reminder disclosure button. Opening/collapsing preserves recurrence settings; the interval selector offers Once to disable repeating.
+
+- Unify payment reminder fields with the reminder editor: date, title, description and action labels. A disclosure arrow replaces the enable switch; collapsing preserves the reminder. Save personal details atomically with the payment, preserving the automatic-archive choice (enabled for new reminders) with stale-draft protection.
+
+- Order the reminder editor fields as Remind me on, Title and Description, with the date beside the close action.
+
+- Preserve the literal year during keyboard entry in payment, reminder and recurrence-end date fields instead of rewriting early digits into the 1900s; align Show reminder spacing with the form grid.
+
+- Keep the reminder date-range filter in the Filter menu only and use multiple switches for reminder action labels, defaulting to All labels.
+
+- Match reminder status indicators to Files-style tags with a single thin outline, state icons, soft blue/green/gray backgrounds and corresponding text/border colors while preserving dated tooltips.
+
+- Display reminder action labels as outlined Nextcloud Files-style tags with matching icons, separate from inherited payment labels.
+
+- Clarify navigation between linked payments and reminders with Show payment/Show reminder arrow buttons and remove the reminder form’s explanatory payment text.
+
+- Show inherited payment labels as read-only icons only in the reminder table. The form offers only Cancel contract, Renew, Review and Pay using payment-style icon/text checkbox buttons.
+
+- Hide reminder month headings when the visible table page contains only one calendar month.
+
+- Clarify reminder payment-link filters and allow combining independent switches for no payment, payments without an area and payments from an area.
+
+- Add a payment-style reminder row menu for editing and deleting, preserving unsaved-draft protection and deletion confirmation on desktop and mobile.
+
+- Add payment-style month/year headings to reminders while preserving status priority and pagination.
+
+- Use payment-style independent status switches for reminders; show open and completed items by default and hide archived items, including completed archived reminders.
+
+- Give reminder statuses theme-aware blue, green and neutral badges; combined completion/archival keeps both badges and dated tooltips.
+
+- Use a fixed reminder order, centered completion column and a separate Status column with dated tooltips. Preserve completion and archival independently, including both states at once.
+
+- Keep completed reminders visible in the default overview and remove the automatic-archive helper text.
+
+- Use compact reminder status switches: Archive automatically, Completed and Reminder archived. Show completion/archive only for existing items and save status changes with the form.
+
+- Simplify reminder creation by removing payment and deadline selectors; retain existing deadlines and provide a fixed, workspace-aware link for payment reminders.
+
+- Open a new reminder automatically on desktop module entry, preserving direct links; keep the Payments New action visible while editing or creating.
+
+- Align the reminder editor with the payment sidebar: title-first header, native fields, compact spacing and shared footer actions.
+
+- Align reminder table columns, empty states and spacing with Payments; use date-only editing at 09:00 for new or rescheduled reminders.
+- Match the Reminders title navigation and responsive filter toolbar to Payments, including active filter chips.
+- Add a personal Reminders overview and sidebar for standalone and payment-linked reminders, descriptions, deadlines and action labels.
+- Add personal completion, archive and keep-open states; ordinary reminders archive after 14 days.
+- Preserve existing calendar identities, synchronize descriptions and remove alarms on completion; no Nextcloud Tasks integration.
+- Include personal reminder data in backups/reset, preserve payment history for linked title/time edits, and add organizer-aware keyboard shortcuts.
+
+## [0.8.2] - 2026-11-04
+
+- Fix calendar and Talk synchronization on database-backed locking: hash the complete namespaced account key to respect Nextcloud’s 64-character lock-key limit.
+- Log safe diagnostic context for calendar settings/retry failures, including operation and exception source locations, without payment contents or SQL values.
+
+- Add optional calendar synchronization for reminders, with a writable target calendar per account and an alert at the reminder's exact timestamp.
+- Show the Calendar channel only when a writable event calendar exists. Keep Calendar, Nextcloud and Talk choices independent.
+- Synchronize reminder text/time changes and removals after payment commits, with background retries, stable event identities and per-member preferences for shared areas.
+- Keep calendar connection settings and operational event mappings local to the server; require setup again after financial restore and clean up managed events after disabling/resetting.
+
+## [0.8.1] - 2026-11-04
+
+- Add separate Nextcloud and Talk preferences for payment reminders, available without areas. Reuse the private CoBudget chat, preserve each shared-area member’s channel choices, and include the settings in backups and reset.
+
+- Notify opted-in users when a future payment becomes due or a recurring payment is generated, independently through Nextcloud and/or the private CoBudget Talk chat. Both new channels default to off.
+- Store activation delivery progress per recipient and channel, retry failed channels, and exclude shared personal projections and historical payments during upgrade.
+- Replace separate notification switches with a compact event/channel table, accessible on desktop and mobile. Hide the Talk column when Talk is unavailable for the account. Keep reminder and shared-area preferences independent.
+- Add the activation delivery schema and preserve notification preferences/status in backups and reset workflows.
+
+## [0.8.0] - 2026-11-04
+
+This beta release brings together the extensive interface and workflow rebuild
+since 0.7.0. It replaces the unpublished 0.7.1 development notes with a summary
+of the resulting behavior. Version 0.8.0 is a stabilization milestone toward
+1.0.0, which is intended to be the first stable CoBudget release.
+
+### Navigation and interface
+
+- Rebuild the desktop and mobile experience around native Nextcloud controls and the Files app's interaction patterns: consistent headings, fields, buttons, menus, tables, avatars, icons, pagination and feedback.
+- Simplify payment navigation to Payments, Income, Expenses and Planned. Provide the same title navigation across payments, areas, budget goals, reports and settings, with contextual area/goal lists.
+- Move payment creation beside the desktop page title while retaining mobile creation actions. Add clear empty states and hide redundant area controls when no active areas exist.
+- Unify responsive filter toolbars across payments, area payments and reports. Keep frequently used filters visible when space permits and all applicable choices available in the compact menu.
+- Show removable active-filter chips with icons above the affected table or report. Mark active filters with accent dots and use the current year as the default period caption.
+- Add Ctrl/Command+S to save the open payment, Ctrl/Command+N or Alt+N to create a payment, and Ctrl/Command+P to invoke CoBudget printing in Reports. List the shortcuts with native keycaps before Reset all in Settings; preserve validation and unsaved-change confirmations.
+- Make CoBudget's independent light/dark appearance apply consistently to sidebars, menus, dialogs, Files folder pickers, notifications, tooltips, form controls and selected text, even when Nextcloud uses another theme.
+- Preserve keyboard focus and scroll position after dialogs and refreshes. Improve native sidebar/dialog transitions, delayed hover hints and reduced-motion behavior.
+
+### Payments and planned payments
+
+- Rework payment tables with compact Files-style headers and separators, adaptive columns, period totals, payer avatars and accessible label indicators. Use an area's color as the left row marker; unassigned payments continue the row background.
+- Improve mobile payment rows with a clearer category/partner/description hierarchy and icons directly before amounts. Remove the mobile three-dot menu; keep editing through the row and history in the editor or a direct action for read-only payments.
+- Rebuild the payment sidebar with consistent native fields, amount autofocus, compact mobile Save/Close actions, visible validation errors and draft-preserving confirmations. Changing list filters, sorting or pagination no longer resets the editor.
+- Keep receipts, recurrence and reminders directly discoverable as compact rows. Show details when enabled, collapse saved receipts behind their count, and retain pending files and failed drafts for retry.
+- Add searchable category/payment-partner choices with hierarchy and optional numbers. Allow new names to be entered from the lookup and create them only when the payment is saved.
+- Support combined category, payment-partner, area, label and tag filters, inclusive amount bounds and a distinct Without area scope. Keep rows, totals, drilldowns and CSV exports aligned with the selected filters.
+- Show the actual future first payment in Planned before the next recurrence. Preserve its original date when editing, and use the correct first date for filtering, sorting and summaries.
+- Generate recurring payments from 06:00 server time on the next cron run, including series previously scheduled for 09:00. Keep calendar progression across time changes, include the selected final day, and catch up missed runs without duplicating occurrences in repeated runs.
+- Correct local date parsing and first-payment previews. Deleting a future first payment also removes its recurrence; stopping the planned continuation of an already booked payment retains the original payment.
+
+### Reports
+
+- Start Reports with Development on each visit instead of restoring Forecast from browser storage; retain the selected tab while changing filters or periods within Reports.
+
+- Bring report filters in line with payment filters, including category hierarchy, income/expense groups, payment partners, labels/tags, free-text search and mixed area/Without area selections.
+- Allow multiple years and non-adjacent months, with month choices in two columns, alongside preset, all-time and custom date ranges. Preserve selections in bookmarks, detail pages, payment links and exports; exclude unselected gaps from calculations.
+- Combine equally named categories and payment partners in reports, with expandable origin-area subtotals and retained category hierarchy, without merging stored records.
+- Align period, breakdown, forecast, comparison and detail tables with payment-table typography and spacing. Add synchronized horizontal dragging and scroll controls while retaining pinned columns and touch scrolling.
+- Reuse the payment table for the largest saved payments, including sharing indicators, editing permissions and mobile behavior. Keep personal shares and full shared-area amounts distinct throughout totals, comparisons, forecasts and exports.
+
+### Categories, payment partners and settings
+
+- Replace separate category/payment-partner lists with availability tables across Without area and individual areas. Keep income/expenses and parent/child categories clearly separated.
+- Use explicit Save/Cancel dialogs for shared identity and availability changes. Save multi-area changes atomically, preserve hidden identities and enforce global/area edit permissions.
+- Move area-specific numbers and payment-partner contact/bank details into an Advanced settings dialog with isolated drafts, separate saving and unsaved-change markers. Explain locked fields and blocked deletion actions in context.
+- Persist area-specific payment-partner visibility and preserve it through backup validation and restore remapping.
+- Save general preferences, folder choices and backup schedules automatically with validation, serialized writes and inline retry. Retain explicit saving where changes belong to a dialog or a new record.
+- Unify workspace management, personal exports and administrator backup controls with native fields, Files folder selection and guarded confirmations. Keep exact RESET/RESTORE safeguards and existing access restrictions.
+
+### Areas, settlements and budget goals
+
+- Introduce a dedicated area-creation page with draft members and share previews. Refine area lists, settings, member selection, split editing, archival controls and empty states.
+- Show member balances and suggested repayments in consistent responsive tables with native avatars. Present settlement history in an overview with detail dialogs, saved currencies and immutable totals.
+- Show the complete open shared-payment count and total before settlement, independently of the current table filters and pagination.
+- Clarify shared-payment editing: open shared sources keep their area and editable allocation controls; released personal shares keep their original area, hide payer/split controls and explain that edits affect only that participant.
+- Make shared totals visible without opening the editor: show a group icon and a tooltip with the area, original total, personal share and unsettled status. Keep deletion rights separate from edit rights.
+- Rework budget-goal overview, creation and editing with native controls, compact mobile criteria, validation and retry. Add Without area as a distinct criterion and preserve it through calculations, snapshots, exports and restore.
+
+### Reliability and upgrade notes
+
+- Shorten the README, refresh the feature overview and security reporting policy, move operational/development/report references into focused documents, and remove the obsolete sidebar design audit. Keep `RELEASING.md` focused on the release checklist and portable signing requirements; document the maintainer’s publication workflow in the central workspace guide. Consolidate dated verification reports into a historical record, refresh the test guide and replace duplicated packaging instructions with links to their maintained sources.
+
+- Consolidate the design-system guide by topic, remove superseded interface rules and duplicated implementation notes, and link technical and verification details to their maintained sources.
+
+- Clarify the single-maintainer contribution model: prioritize bug reports, feedback and testing, and require prior agreement for pull requests.
+
+- Consolidate coding-assistant instructions in `AGENTS.md` and move technical invariants to `docs/architecture.md`, with updated contributor and workspace references.
+
+- Guard pending operations against repeated submissions, preserve drafts after failed requests, and ignore stale responses after navigation or dialog closure.
+- Expand frontend interaction, accessibility and backend regression coverage, including rollback-only integration tests on Nextcloud 34 and 35 for shared-payment lifecycles, recurring payments and exact-cent allocations.
+- This update adds the area payment-partner visibility field through migration `Version000008Date20261027000000`. Let Nextcloud complete the app upgrade; keep a backup before updating from 0.7.0.
+- CoBudget remains beta. The 1.0.0 milestone depends on upgrade/restore validation, shared-payment and recurrence regression testing, supported-version checks and resolution of release-blocking issues; this release does not claim that work is complete.
+
 ## [0.7.0] - 2026-10-26
 
 Statistics has been completely rebuilt as **Reports**, bringing the former

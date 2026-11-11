@@ -1,280 +1,235 @@
 <template>
-	<div v-if="project" class="cobudget-project-settings settings-section">
+	<div class="cobudget-project-settings settings-section">
 		<AppPageHeader>
-			<template #title>
-				<span class="cobudget-page-title-with-back">
-					<NcButton
-						variant="tertiary"
-						class="cobudget-header-back-button"
-						:aria-label="$texts.areaSettings.backToArea()"
-						:title="$texts.areaSettings.backToArea()"
-						@click="goBackToProject">
-						<template #icon>
-							<ArrowLeftIcon :size="20" />
-						</template>
-					</NcButton>
-					<span>{{ $texts.areaSettings.title() }}</span>
-				</span>
-			</template>
-			<template #actions>
-				<div v-if="canManageProject" class="danger-actions header-actions">
-					<CbButton
-						type="button"
-						class="project-delete-button"
-						variant="danger-outline"
-						icon-only
-						:aria-label="$texts.common.delete()"
-						:title="hasAnyEntries ? $texts.areaSettings.deleteBlockedWithEntries() : $texts.common.delete()"
-						:disabled="hasAnyEntries"
-						@click="deleteProject">
-						<template #icon>
-							<DeleteIcon :size="20" />
-						</template>
-					</CbButton>
-					<CbButton
-						type="button"
-						class="project-archive-button"
-						variant="soft"
-						icon-only
-						:aria-label="project.is_archived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive()"
-						:title="hasActiveEntries ? $texts.areaSettings.archiveBlockedWithOpenEntries() : (project.is_archived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive())"
-						:disabled="hasActiveEntries"
-						@click="toggleArchiveProject">
-						<template #icon>
-							<ArchiveIcon :size="20" />
-						</template>
-					</CbButton>
-				</div>
-			</template>
+			<template #title><span class="cobudget-page-title-with-back">
+				<NcButton variant="tertiary" class="cobudget-native-button cobudget-header-back-button" :aria-label="$texts.areaSettings.backToArea()" :title="$texts.areaSettings.backToArea()" @click="goBackToProject"><template #icon><ArrowLeftIcon :size="20" /></template></NcButton>
+				<ReportPeriodPicker navigation-only force-navigation area-navigation :period-enabled="false" :title="$texts.areaSettings.title()" label="" :disabled="busy" />
+			</span></template>
 		</AppPageHeader>
-
 		<div class="settings-content">
-			<div class="settings-header">
-				<p class="settings-hint">
-					{{ $texts.areaSettings.hint() }}
-				</p>
-			</div>
+			<p v-if="loading" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.areaSettings.loading() }}</p>
+			<NcNoteCard v-else-if="loadError" type="error"><p>{{ loadError }}</p><NcButton @click="fetchProjectSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+			<template v-else-if="project">
+				<NcNoteCard v-if="!canManageProject" type="info" :text="$texts.areaSettings.ownerOnly()" />
+				<section class="settings-block settings-general-block">
+					<form class="project-edit-form" :aria-busy="savingProject" @submit.prevent="updateProject('name')">
+						<NcFormGroup class="cobudget-form-group project-name-field">
+							<template #label><label class="cobudget-form-label" for="project-settings-name">{{ $texts.areaSettings.areaName() }}</label></template>
+							<NcInputField id="project-settings-name" ref="projectNameInput" v-model="editProjectData.name" label-outside :label="$texts.areaSettings.areaName()" required maxlength="128" :disabled="identityDisabled" :error="projectNameInvalid" :helper-text="projectNameInvalid ? $texts.areaSettings.nameRequired() : ''" @blur="updateProject('name')" @keydown.enter.prevent="$event.target.blur()" class="cobudget-native-field" />
+						</NcFormGroup>
+						<NcFormGroup class="cobudget-form-group project-color-field" :label="$texts.areaSettings.areaColor()">
+							<NcColorPicker popover-base-class="cobudget-menu-popover" :model-value="editProjectData.color || undefined" clearable @update:model-value="editColorChanged">
+								<NcButton class="cobudget-native-button" variant="secondary" :disabled="identityDisabled" :aria-label="$texts.areaSettings.selectAreaColor()"><template #icon><span class="area-color-preview" :style="{ backgroundColor: editProjectData.color || 'transparent' }" /></template>{{ editProjectData.color || $texts.areaSettings.selectAreaColor() }}</NcButton>
+							</NcColorPicker>
+						</NcFormGroup>
+					</form>
+					<p v-if="savingProject" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.common.saveBusy() }}</p>
+					<NcNoteCard v-if="projectError" type="error"><p>{{ projectError }}</p><NcButton :disabled="identityDisabled || savingProject" @click="flushProjectChanges">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+				</section>
 
-			<section class="settings-block">
-				<h3>{{ $texts.areaSettings.general() }}</h3>
-				<form class="project-edit-form" @submit.prevent="updateProject">
-					<div class="form-group project-name-field">
-						<label for="project-settings-name">{{ $texts.areaSettings.areaName() }}</label>
-						<input
-							id="project-settings-name"
-							ref="projectNameInput"
-							v-model="editProjectData.name"
-							class="form-control" data-cobudget-field="compact"
-							type="text"
-							required
-							:disabled="!canManageProject">
-					</div>
-
-					<div class="form-group project-color-field">
-						<label>{{ $texts.areaSettings.areaColor() }}</label>
-						<div class="color-picker-wrapper">
-							<label
-								class="color-preview"
-								:style="{ backgroundColor: editProjectData.color || 'transparent', backgroundImage: editProjectData.color ? 'none' : '' }"
-								:title="$texts.areaSettings.selectAreaColor()">
-								<input
-								class="sr-only"
-								type="color"
-								:value="editProjectData.color || '#0082c9'"
-								:disabled="!canManageProject"
-								@input="editColorChanged">
-							</label>
-							<CbButton
-								type="button"
-								variant="ghost"
-								size="compact"
-								icon-only
-								class="color-clear-btn"
-								:disabled="!canManageProject || !editProjectData.color"
-								:aria-label="$texts.areaSettings.removeColor()"
-								:title="$texts.areaSettings.removeColor()"
-								@click="editProjectData.color = ''">
-								<template #icon>
-									<BackspaceIcon :size="20" />
-								</template>
-							</CbButton>
+				<section class="settings-block">
+					<h3 class="cobudget-section-heading">{{ $texts.areaDetail.membersTitle() }}</h3>
+					<div class="member-section-header">
+						<p class="settings-hint">{{ $texts.areaSettings.membersSummary() }}</p>
+						<div v-if="canManageProject" class="member-list-actions">
+							<NcButton v-if="projectMemberCount > 1" class="cobudget-native-button" variant="secondary" :disabled="memberManagementLocked || hasFormerMembers || busy" @click="openShareDialog"><template #icon><PencilIcon :size="20" /></template>{{ $texts.areaSettings.changeShares() }}</NcButton>
+							<NcButton v-if="canAddProjectMembers" class="cobudget-native-button" variant="secondary" :disabled="memberManagementLocked || busy" @click="openMemberDialog"><template #icon><PlusIcon :size="20" /></template>{{ $texts.common.add() }}</NcButton>
 						</div>
 					</div>
+					<NcNoteCard v-if="projectMemberCount === 1" type="info" :text="$texts.areaSettings.personalAreaMembersHint()" />
+					<NcNoteCard v-if="memberManagementLocked" type="info" :text="memberManagementLockHint" />
+					<NcNoteCard v-if="hasFormerMembers" type="warning" :text="$texts.areaSettings.resolveFormerMember()" />
+					<div v-if="projectMemberCount > 1" class="share-editor-table-wrapper member-list">
+						<table class="share-editor-table member-table" :aria-label="$texts.areaSettings.areaShareTable()">
+							<colgroup><col /><col class="share-column" /><col v-if="canRemoveProjectMembers || canChangeAreaAdmin" class="member-actions-column" /></colgroup>
+							<thead><tr><th scope="col">{{ $texts.areaSettings.member() }}</th><th scope="col" class="member-share-cell">{{ $texts.areaSettings.share() }} (%)</th><th v-if="canRemoveProjectMembers || canChangeAreaAdmin" scope="col"><span class="hidden-visually">{{ $texts.common.edit() }}</span></th></tr></thead>
+							<tbody>
+								<tr v-for="member in savedShareRows" :key="member.id">
+									<th scope="row">
+										<div class="member-identity">
+											<NcAvatar class="member-avatar" :user="member.isFormer ? undefined : member.id" :display-name="member.displayName" :is-no-user="member.isFormer" :size="32" hide-status disable-menu />
+											<div class="share-member-info member-info">
+												<span class="member-name">{{ member.displayName }}</span>
+												<NcChip v-if="member.id === project.owner_id" :text="$texts.areaSettings.areaAdmin()" no-close variant="secondary" />
+												<NcChip v-if="member.isFormer" :text="$texts.areaSettings.formerMember()" no-close variant="secondary" />
+											</div>
+										</div>
+									</th>
+									<td class="member-share-cell"><span class="member-share-value" :aria-label="`${$texts.areaSettings.share()}: ${formatSharePercent(percentToBasisPoints(member.sharePercent))}%`">{{ formatSharePercent(percentToBasisPoints(member.sharePercent)) }}%</span></td>
+									<td v-if="canRemoveProjectMembers || canChangeAreaAdmin">
+										<div class="member-row-actions">
+											<NcButton v-if="member.id === project.owner_id && canChangeAreaAdmin" variant="tertiary" :disabled="busy" :aria-label="$texts.areaSettings.changeAreaAdmin()" :title="$texts.areaSettings.changeAreaAdmin()" @click="openOwnerDialog"><template #icon><AccountSwitchIcon :size="20" /></template></NcButton>
+											<DisabledActionHint :reason="memberManagementLocked ? memberManagementLockHint : busy ? $texts.common.waitBusy() : ''" :label="$texts.areaDetail.removeMember()" v-else-if="member.id !== project.owner_id && canRemoveProjectMembers"><NcButton variant="tertiary" :disabled="memberManagementLocked || busy" :aria-label="`${$texts.areaDetail.removeMember()}: ${member.displayName}`" :title="$texts.areaDetail.removeMember()" @click="removeMember(member.id)"><template #icon><DeleteIcon :size="20" /></template></NcButton></DisabledActionHint>
+										</div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+					<NcNoteCard v-if="memberError" type="error" :text="memberError" />
+				</section>
+				<section v-if="canManageProject" class="settings-block settings-master-data-block"><ProjectScopedSettings class="area-master-data" :project-id="projectId" @changed="onProjectScopedSettingsChanged" /></section>
 
-					<div class="project-save-field">
-						<CbButton type="submit" class="project-save-button" variant="primary" :disabled="!canSaveProject">
-							{{ $texts.common.save() }}
-						</CbButton>
-					</div>
-				</form>
-			</section>
-
-			<section v-if="canManageProject && transferableOwnerMembers.length > 0" class="settings-block">
-				<h3>{{ $texts.areaSettings.areaAdmin() }}</h3>
-				<p class="settings-hint">
-					{{ $texts.areaSettings.areaAdminHint() }}
-				</p>
-				<div class="ownership-transfer-form">
-					<select v-model="selectedOwnerId" class="form-control" data-cobudget-field="compact" :disabled="!!transferringOwnerId">
-						<option value="" disabled>{{ $texts.areaSettings.selectAreaAdmin() }}</option>
-						<option v-for="member in transferableOwnerMembers" :key="member.id" :value="member.id">
-							{{ member.displayName }}
-						</option>
-					</select>
-					<CbButton
-						type="button"
-						variant="soft"
-						:disabled="!selectedOwnerId || !!transferringOwnerId"
-						@click="transferSelectedOwnership">
-						<template #icon>
-							<AccountSwitchIcon :size="20" />
-						</template>
-						{{ $texts.areaSettings.transfer() }}
-					</CbButton>
-				</div>
-			</section>
-
-			<section v-if="!memberManagementLocked" class="settings-block">
-				<h3>{{ $texts.areaDetail.membersTitle() }}</h3>
-				<p class="settings-hint">
-					{{ $texts.areaSettings.sharesHint() }}
-				</p>
-				<p v-if="hasFormerMembers" class="settings-hint former-member-note" role="status">
-					{{ $texts.areaSettings.resolveFormerMember() }}
-				</p>
-				<div v-if="canAddProjectMembers" class="member-management">
-					<MemberSearch
-						v-model="newMembers"
-						class="member-search-field"
-						:placeholder="$texts.areas.searchUsers()"
-						:exclude-ids="currentMemberIds" />
-					<CbButton
-						type="button"
-						variant="soft"
-						class="member-add-button"
-						:disabled="newMembers.length === 0 || addingMembers"
-						@click="addMembers">
-						{{ $texts.areaDetail.addMember() }}
-					</CbButton>
-				</div>
-				<div class="share-toolbar">
-					<div class="share-tools">
-						<button type="button" class="btn-secondary" :disabled="!canManageProject || hasFormerMembers" @click="setEqualShares">
-							{{ $texts.areaSettings.splitEqually() }}
-						</button>
-						<button type="button" class="btn-secondary" :disabled="!canManageProject || !canDistributeShareRemainder" @click="distributeShareRemainder">
-							{{ $texts.areaSettings.distributeRemainder() }}
-						</button>
-					</div>
-					<div class="settings-actions share-actions">
-						<button type="button" class="btn-primary" :disabled="!canSaveShares || savingShares" @click="saveProjectShares">
-							{{ $texts.areaSettings.saveShares() }}
-						</button>
-					</div>
-				</div>
-				<div class="share-table" :class="{ 'has-member-actions': canRemoveProjectMembers }" role="table" :aria-label="$texts.areaSettings.areaShareTable()">
-					<div class="share-row share-row-header" role="row">
-						<div role="columnheader">{{ $texts.areaSettings.member() }}</div>
-						<div role="columnheader" class="share-percent-header">{{ $texts.areaSettings.share() }}</div>
-						<div v-if="canRemoveProjectMembers" role="columnheader" class="member-action-header"></div>
-					</div>
-					<div v-for="member in shareRows" :key="member.id" class="share-row" role="row">
-						<div class="share-member" role="cell">
-							<span class="member-avatar">{{ initials(member.displayName) }}</span>
-							<span>{{ member.displayName }}</span>
-							<span v-if="member.isFormer" class="former-member-badge" data-cobudget-badge="neutral">{{ $texts.areaSettings.formerMember() }}</span>
-						</div>
-						<div class="share-input-wrap" role="cell">
-							<input
-								v-model.number="member.sharePercent"
-								class="form-control share-input" data-cobudget-field="compact"
-								type="number"
-								min="0"
-								max="100"
-								step="1"
-								inputmode="numeric"
-								:disabled="!canManageProject || hasFormerMembers"
-								@input="markShareEdited(member.id)"
-								@change="normalizeShareInput(member)"
-								@blur="normalizeShareInput(member)">
-							<span>%</span>
-						</div>
-						<div v-if="canRemoveProjectMembers" class="member-row-actions" role="cell">
-							<AreaAdminIndicator
-								v-if="member.id === project.owner_id"
-								:label="$texts.areaSettings.areaAdmin()" />
-							<CbButton
-								v-if="member.id !== project.owner_id"
-								type="button"
-								variant="ghost"
-								size="compact"
-								icon-only
-								:disabled="hasActiveEntries || removingMemberId === member.id"
-								:aria-label="$texts.areaDetail.removeMember()"
-								:title="hasActiveEntries ? $texts.areaDetail.deleteBlockedWithOpenEntries() : $texts.areaDetail.removeMember()"
-								@click="removeMember(member.id)">
-								<template #icon>
-									<DeleteIcon :size="20" />
-								</template>
-							</CbButton>
-						</div>
-					</div>
-				</div>
-				<div class="share-summary" :class="{ invalid: !sharesSumValid }">
-					{{ $texts.areaSettings.sum() }}: {{ formatSharePercent(sharesSumBasisPoints) }}%
-				</div>
-			</section>
-			<p v-else-if="$enableSharedProjects && canManageProject" class="settings-hint member-management-lock-note" role="status">
-				{{ memberManagementLockHint }}
-			</p>
-
-			<section v-if="canManageProject" class="settings-block">
-				<ProjectScopedSettings :project-id="projectId" @changed="onProjectScopedSettingsChanged" />
-			</section>
+				<template v-if="canManageProject">
+					<section class="settings-block">
+						<h3 class="cobudget-section-heading">{{ isArchived ? $texts.areaSettings.unarchiveTitle() : $texts.areaSettings.archiveTitle() }}</h3>
+						<p class="settings-hint">{{ isArchived ? $texts.areaSettings.unarchiveHint() : $texts.areaSettings.archiveHint() }}</p>
+						<NcNoteCard v-if="availabilityError" id="area-action-availability" type="error"><p>{{ availabilityError }}</p><NcButton :disabled="actionLoading || busy" @click="refreshActionAvailability">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+						<NcNoteCard v-if="archiveError" type="error" :text="archiveError" />
+						<DisabledActionHint :reason="archiveActionHint" :label="isArchived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive()"><NcButton class="area-action-button cobudget-native-button" variant="secondary" :disabled="busy || actionLoading || !!availabilityError || !!archiveBlockedReason" :aria-describedby="availabilityError ? 'area-action-availability' : undefined" @click="toggleArchiveProject"><template #icon><ArchiveIcon :size="20" /></template>{{ isArchived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive() }}</NcButton></DisabledActionHint>
+					</section>
+					<section class="settings-block">
+						<h3 class="cobudget-section-heading">{{ $texts.areaSettings.deleteTitle() }}</h3>
+						<p class="settings-hint">{{ $texts.areaSettings.deleteHint() }}</p>
+						<NcNoteCard v-if="deleteError" type="error" :text="deleteError" />
+						<DisabledActionHint :reason="deleteActionHint" :label="$texts.areaSettings.deleteConfirm()" ><NcButton class="area-action-button" variant="error" :disabled="busy || actionLoading || !!availabilityError || !!deleteBlockedReason" :aria-describedby="availabilityError ? 'area-action-availability' : undefined" @click="deleteProject"><template #icon><DeleteIcon :size="20" /></template>{{ $texts.areaSettings.deleteConfirm() }}</NcButton></DisabledActionHint>
+					</section>
+				</template>
+			</template>
 		</div>
-
-		<ConfirmModal
-			:show="!!confirmDialog"
-			:title="confirmDialog ? confirmDialog.title : ''"
-			:message="confirmDialog ? confirmDialog.message : ''"
-			:confirm-label="confirmDialog ? confirmDialog.confirmLabel : ''"
-			:confirm-variant="confirmDialog ? confirmDialog.confirmVariant : 'primary'"
-			@confirm="resolveConfirm(true)"
-			@cancel="resolveConfirm(false)" />
+		<DialogTransition :show="!!(memberDialogOpen)" v-slot="{ returnFocus }">
+			<NcModal :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog area-settings-modal" :show="true" label-id="member-editor-title" :no-close="addingMembers || loading || !!confirmDialog" :close-on-click-outside="!addingMembers && !loading && !confirmDialog" @update:show="closeMemberDialog" @keydown.esc.stop.prevent="closeMemberDialog">
+				<div class="area-settings-editor">
+					<h2 id="member-editor-title">{{ $texts.areaDetail.addMember() }}</h2>
+					<NcFormGroup class="cobudget-form-group">
+						<template #label><label class="cobudget-form-label" for="project-settings-members">{{ $texts.areaDetail.membersTitle() }}</label></template>
+						<NcSelect v-model="newMembers" input-id="project-settings-members" class="cobudget-native-select member-search-field" label-outside :input-label="$texts.areaDetail.membersTitle()" :options="availableMembers" label="displayName" multiple :filterable="false" :loading="memberSearchLoading" :disabled="busy || !canAddProjectMembers || memberManagementLocked" :placeholder="$texts.areas.searchUsers()" @search="searchMembers">
+							<template #option="member">
+								<span class="member-identity member-select-identity"><NcAvatar class="member-avatar" :user="member.id" :display-name="member.displayName" :size="32" hide-status disable-menu /><span class="member-info">{{ member.displayName }}</span></span>
+							</template>
+							<template #selected-option="member">
+								<span class="member-identity member-select-identity"><NcAvatar class="member-avatar" :user="member.id" :display-name="member.displayName" :size="24" hide-status disable-menu /><span class="member-info">{{ member.displayName }}</span></span>
+							</template>
+							<template #no-options>{{ memberSearchTerm ? $texts.memberSearch.noResults() : $texts.areas.searchUsers() }}</template>
+						</NcSelect>
+					</NcFormGroup>
+					<NcNoteCard v-if="memberManagementLocked" type="info" :text="memberManagementLockHint" />
+					<NcNoteCard v-if="memberSearchError" type="error"><p>{{ memberSearchError }}</p><NcButton :disabled="memberSearchLoading || busy" @click="fetchMemberOptions">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+					<NcNoteCard v-if="memberAddError" type="error" :text="memberAddError" />
+					<div class="area-settings-editor-actions">
+						<NcButton variant="tertiary" :disabled="addingMembers || loading || !!confirmDialog" @click="cancelMemberDialog">{{ $texts.common.cancel() }}</NcButton>
+						<NcButton variant="primary" :disabled="!canSubmitMembers" @click="addMembers"><template v-if="addingMembers" #icon><NcLoadingIcon :size="20" /></template>{{ addingMembers ? $texts.common.saveBusy() : $texts.common.save() }}</NcButton>
+					</div>
+				</div>
+			</NcModal>
+		</DialogTransition>
+		<DialogTransition :show="!!(ownerDialogOpen)" v-slot="{ returnFocus }">
+			<NcModal :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog area-settings-modal" :show="true" label-id="owner-editor-title" :no-close="!!transferringOwnerId || loading || !!confirmDialog" :close-on-click-outside="!transferringOwnerId && !loading && !confirmDialog" @update:show="closeOwnerDialog" @keydown.esc.stop.prevent="closeOwnerDialog">
+				<div class="area-settings-editor">
+					<h2 id="owner-editor-title">{{ $texts.areaSettings.changeAreaAdmin() }}</h2>
+					<NcFormGroup class="cobudget-form-group" :description="$texts.areaSettings.areaAdminHint()">
+						<template #label><label class="cobudget-form-label" for="project-settings-owner">{{ $texts.areaSettings.selectAreaAdmin() }}</label></template>
+						<NcSelect input-id="project-settings-owner" class="cobudget-native-select" label-outside :input-label="$texts.areaSettings.selectAreaAdmin()" :model-value="transferableOwnerMembers.find(member => member.id === selectedOwnerId) || null" :options="transferableOwnerMembers" label="displayName" :disabled="busy || !canManageProject" @update:model-value="selectedOwnerId = $event?.id || ''">
+							<template #option="member">
+								<span class="member-identity member-select-identity"><NcAvatar class="member-avatar" :user="member.id" :display-name="member.displayName" :size="32" hide-status disable-menu /><span class="member-info">{{ member.displayName }}</span></span>
+							</template>
+							<template #selected-option="member">
+								<span class="member-identity member-select-identity"><NcAvatar class="member-avatar" :user="member.id" :display-name="member.displayName" :size="24" hide-status disable-menu /><span class="member-info">{{ member.displayName }}</span></span>
+							</template>
+						</NcSelect>
+					</NcFormGroup>
+					<NcNoteCard v-if="ownerError" type="error" :text="ownerError" />
+					<div class="area-settings-editor-actions">
+						<NcButton variant="tertiary" :disabled="!!transferringOwnerId || loading || !!confirmDialog" @click="cancelOwnerDialog">{{ $texts.common.cancel() }}</NcButton>
+						<NcButton variant="primary" :disabled="!canSubmitOwner" @click="transferSelectedOwnership"><template #icon><NcLoadingIcon v-if="transferringOwnerId" :size="20" /><AccountSwitchIcon v-else :size="20" /></template>{{ transferringOwnerId ? $texts.common.saveBusy() : $texts.areaSettings.transfer() }}</NcButton>
+					</div>
+				</div>
+			</NcModal>
+		</DialogTransition>
+		<DialogTransition :show="!!(shareDialogOpen)" v-slot="{ returnFocus }">
+			<NcModal :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog area-settings-modal" :show="true" label-id="share-editor-title" :no-close="savingShares || loading || !!confirmDialog" :close-on-click-outside="!savingShares && !loading && !confirmDialog" @update:show="closeShareDialog" @keydown.esc.stop.prevent="closeShareDialog">
+				<div class="area-settings-editor">
+					<h2 id="share-editor-title">{{ $texts.areaSettings.changeShares() }}</h2>
+					<p class="settings-hint">{{ $texts.areaSettings.sharesHint() }}</p>
+					<div class="share-toolbar share-tools">
+						<NcButton variant="tertiary" :disabled="!canEditShares || busy" @click="setEqualShares">{{ $texts.areaSettings.splitEqually() }}</NcButton>
+						<NcButton variant="tertiary" :disabled="!canEditShares || !canDistributeShareRemainder || busy" @click="distributeShareRemainder">{{ $texts.areaSettings.distributeRemainder() }}</NcButton>
+					</div>
+					<div class="share-editor-table-wrapper">
+						<table class="share-editor-table" :aria-label="$texts.areaSettings.areaShareTable()">
+							<colgroup><col /><col class="share-column" /></colgroup>
+							<thead><tr><th scope="col">{{ $texts.areaSettings.member() }}</th><th scope="col">{{ $texts.areaSettings.share() }} (%)</th></tr></thead>
+							<tbody>
+								<tr v-for="member in shareRows" :key="member.id">
+									<th scope="row">
+										<div class="member-identity">
+											<NcAvatar class="member-avatar" :user="member.isFormer ? undefined : member.id" :display-name="member.displayName" :is-no-user="member.isFormer" :size="32" hide-status disable-menu />
+											<div class="share-member-info member-info"><span class="member-name">{{ member.displayName }}</span><NcChip v-if="member.id === project?.owner_id" :text="$texts.areaSettings.areaAdmin()" no-close variant="secondary" /></div>
+										</div>
+									</th>
+									<td>
+										<NcInputField :id="`member-share-${member.id}`" :model-value="String(member.sharePercent)" class="share-input cobudget-native-field" type="number" min="0" max="100" step="1" inputmode="numeric" :label="`${$texts.areaSettings.share()}: ${member.displayName} (%)`" :aria-label="`${$texts.areaSettings.share()}: ${member.displayName} (%)`" label-outside :disabled="!canEditShares || busy" @update:model-value="member.sharePercent = $event; markShareEdited(member.id)" @blur="normalizeShareInput(member)" />
+									</td>
+								</tr>
+							</tbody>
+							<tfoot><tr><th scope="row">{{ $texts.areaSettings.sum() }}</th><td>{{ formatSharePercent(sharesSumBasisPoints) }}%</td></tr></tfoot>
+						</table>
+					</div>
+					<NcNoteCard v-if="memberManagementLocked" type="info" :text="memberManagementLockHint" />
+					<NcNoteCard v-if="!sharesSumValid" type="warning" :text="$texts.areaSettings.shareSumInvalid()" />
+					<NcNoteCard v-if="sharesError" type="error" :text="sharesError" />
+					<div class="area-settings-editor-actions">
+						<NcButton variant="tertiary" :disabled="savingShares || loading || !!confirmDialog" @click="cancelShareDialog">{{ $texts.common.cancel() }}</NcButton>
+						<NcButton variant="primary" :disabled="!canSaveShares" @click="saveProjectShares">{{ savingShares ? $texts.common.saveBusy() : $texts.areaSettings.saveShares() }}</NcButton>
+					</div>
+				</div>
+			</NcModal>
+		</DialogTransition>
+		<DialogTransition :show="!!(confirmDialog)" v-slot="{ returnFocus }">
+			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog area-settings-confirmation cobudget-standard-dialog" :name="confirmDialog.title" :message="confirmDialog.message" close-on-click-outside @closing="resolveConfirm(false)">
+				<template #actions><NcButton variant="tertiary" @click="resolveConfirm(false)">{{ $texts.common.cancel() }}</NcButton><NcButton :variant="confirmDialog.confirmVariant === 'danger' ? 'error' : 'primary'" @click="resolveConfirm(true)">{{ confirmDialog.confirmLabel }}</NcButton></template>
+			</NcDialog>
+		</DialogTransition>
 	</div>
-	<div v-else class="cobudget-project-settings settings-section loading">{{ $texts.areaSettings.loading() }}</div>
 </template>
 
 <script>
+import DialogTransition from '../components/DialogTransition.vue'
+import DisabledActionHint from '../components/DisabledActionHint.vue'
 import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import CbButton from '../components/CbButton.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
-import MemberSearch from '../components/MemberSearch.vue'
+import NcInputField from '@nextcloud/vue/components/NcInputField'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
+import NcFormGroup from '@nextcloud/vue/components/NcFormGroup'
+import NcColorPicker from '@nextcloud/vue/components/NcColorPicker'
+import NcModal from '@nextcloud/vue/components/NcModal'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcChip from '@nextcloud/vue/components/NcChip'
+import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import PencilIcon from 'vue-material-design-icons/Pencil.vue'
+import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import ProjectScopedSettings from '../components/ProjectScopedSettings.vue'
-import AreaAdminIndicator from '../components/AreaAdminIndicator.vue'
+import ReportPeriodPicker from '../components/ReportPeriodPicker.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
-import BackspaceIcon from 'vue-material-design-icons/Backspace.vue'
-import DeleteIcon from 'vue-material-design-icons/Delete.vue'
+import DeleteIcon from 'vue-material-design-icons/TrashCanOutline.vue'
 import ArchiveIcon from 'vue-material-design-icons/Archive.vue'
 import AccountSwitchIcon from 'vue-material-design-icons/AccountSwitch.vue'
-import { showRequestError, showToast } from '../services/notifications'
+import { extractError, showToast } from '../services/notifications'
 
 export default {
 	name: 'ProjectSettingsView',
-	components: {
+	components: { ReportPeriodPicker, DialogTransition, DisabledActionHint,
 		AppPageHeader,
 		NcButton,
-		CbButton,
-		ConfirmModal,
-		MemberSearch,
+		NcInputField,
+		NcSelect,
+		NcFormGroup,
+		NcColorPicker,
+		NcDialog,
+		NcModal,
+		NcNoteCard,
+		NcLoadingIcon,
+		NcChip,
+		NcAvatar,
+		PlusIcon,
+		PencilIcon,
 		ProjectScopedSettings,
-		AreaAdminIndicator,
 		ArrowLeftIcon,
-		BackspaceIcon,
 		DeleteIcon,
 		ArchiveIcon,
 		AccountSwitchIcon
@@ -284,6 +239,11 @@ export default {
 	data() {
 		return {
 			project: null,
+			loading: false, loadError: '', projectError: '', memberError: '', ownerError: '', sharesError: '', archiveError: '', deleteError: '', availabilityError: '',
+			memberDialogOpen: false, memberAddError: '', ownerDialogOpen: false, shareDialogOpen: false,
+			projectSaveQueue: {}, projectSaveSequence: 0, projectNameInvalid: false,
+			loadSequence: 0, actionLoading: false, savingProject: false, archiving: false, deleting: false,
+			memberSearchTerm: '', memberSearchOptions: [], memberSearchLoading: false, memberSearchError: '', memberSearchSequence: 0, memberSearchTimer: null,
 			hasAnyEntries: false,
 			hasActiveEntries: false,
 			editProjectData: {
@@ -304,16 +264,53 @@ export default {
 		}
 	},
 	computed: {
+		savedShareRows() {
+			const members = Array.isArray(this.project?.members) ? this.project.members : [];
+			return members.map(member => ({
+				id: member.id,
+				displayName: member.displayName || member.id,
+				isFormer: member.isFormer === true || member.is_former === true,
+				isActive: member.isActive !== false && member.is_active !== false,
+				sharePercent: this.basisPointsToPercent(member.shareBasisPoints ?? member.share_basis_points ?? 0)
+			}));
+		},
+		canEditShares() { return this.shareDialogOpen && this.projectMemberCount > 1 && this.canManageProject && !this.memberManagementLocked && !this.hasFormerMembers; },
+		sharesChanged() { return this.currentShareSignature !== this.originalShareSignature; },
+		identityDisabled() { return !this.canManageProject || this.loading || this.savingShares || this.addingMembers || !!this.removingMemberId || !!this.transferringOwnerId || this.archiving || this.deleting || !!this.confirmDialog; },
+		busy() { return this.loading || this.savingProject || this.savingShares || this.addingMembers || !!this.removingMemberId || !!this.transferringOwnerId || this.archiving || this.deleting || !!this.confirmDialog; },
+		isArchived() { return [true, 1, '1', 'true'].includes(this.project?.is_archived); },
+		availableMembers() { return this.memberSearchOptions.filter(member => !this.currentMemberIds.includes(member.id)); },
+		deleteActionHint() {
+			if (this.availabilityError) return this.availabilityError;
+			if (this.deleteBlockedReason) return this.deleteBlockedReason;
+			if (this.deleting) return this.$texts.common.deleteBusy();
+			if (this.actionLoading || this.loading) return this.$texts.common.loading();
+			return this.busy ? this.$texts.common.waitBusy() : '';
+		},
+		deleteBlockedReason() {
+			if (!this.canManageProject) return this.$texts.areaSettings.ownerOnly();
+			const reason = this.project?.settings_actions?.delete_block_reason;
+			if (reason === null) return '';
+			if (reason === 'payments_or_history') return this.$texts.areaSettings.deleteBlockedHistory();
+			if (reason === 'budget_goals') return this.$texts.areaSettings.deleteBlockedBudget();
+			return this.$texts.areaSettings.actionsUnavailable();
+		},
+		archiveActionHint() {
+			if (this.availabilityError) return this.availabilityError;
+			if (this.archiveBlockedReason) return this.archiveBlockedReason;
+			if (this.actionLoading || this.loading) return this.$texts.common.loading();
+			return this.busy ? this.$texts.common.waitBusy() : '';
+		},
+		archiveBlockedReason() {
+			if (!this.canManageProject) return this.$texts.areaSettings.ownerOnly();
+			if (this.isArchived) return '';
+			const reason = this.project?.settings_actions?.archive_block_reason;
+			if (reason === null) return '';
+			if (reason === 'open_shared_payments') return this.$texts.areaSettings.archiveBlockedWithOpenEntries();
+			return this.$texts.areaSettings.actionsUnavailable();
+		},
 		projectId() {
 			return this.id;
-		},
-		canSaveProject() {
-			if (!this.project || !this.canManageProject) {
-				return false;
-			}
-			const name = this.editProjectData.name.trim();
-			return !!name
-				&& (name !== this.project.name || (this.editProjectData.color || '') !== (this.project.color || ''));
 		},
 		sharesSumBasisPoints() {
 			return this.shareRows.reduce((sum, member) => sum + this.percentToBasisPoints(member.sharePercent), 0);
@@ -327,7 +324,8 @@ export default {
 				.join('|');
 		},
 		canSaveShares() {
-			return this.canManageProject
+			return this.canEditShares
+				&& !this.busy && !this.memberManagementLocked
 				&& !this.hasFormerMembers
 				&& this.shareRows.length > 0
 				&& this.sharesSumValid
@@ -378,8 +376,13 @@ export default {
 		currentMemberIds() {
 			return this.shareRows.map(member => member.id);
 		},
+		canSubmitOwner() { return this.ownerDialogOpen && this.canManageProject && !this.busy && this.transferableOwnerMembers.some(member => member.id === this.selectedOwnerId); },
+		canSubmitMembers() { return this.memberDialogOpen && this.canAddProjectMembers && !this.memberManagementLocked && this.newMembers.length > 0 && !this.busy; },
 		canAddProjectMembers() {
 			return !!this.project && this.$enableSharedProjects && this.canManageProject && !this.hasFormerMembers;
+		},
+		canChangeAreaAdmin() {
+			return this.canManageProject && this.transferableOwnerMembers.length > 0;
 		},
 		canRemoveProjectMembers() {
 			return !!this.project && this.$enableSharedProjects && this.canManageProject;
@@ -398,11 +401,152 @@ export default {
 		projectId: {
 			immediate: true,
 			handler() {
+				this.resolveConfirm(false);
+				this.resetMemberDialog();
+				this.resetOwnerDialog();
+				this.resetShareDialog();
+				this.projectSaveSequence++;
+				this.projectSaveQueue = {};
+				this.savingProject = false;
+				this.projectNameInvalid = false;
+				this.project = null;
+				for (const field of ['projectError', 'memberError', 'ownerError', 'sharesError', 'archiveError', 'deleteError', 'availabilityError']) this[field] = '';
+				this.searchMembers('');
 				this.fetchProjectSettings();
 			}
 		}
 	},
+	mounted() { window.addEventListener('focus', this.refreshActionAvailability); },
+	beforeUnmount() {
+		this.projectSaveSequence++;
+		this.projectSaveQueue = {};
+		window.removeEventListener('focus', this.refreshActionAvailability);
+		clearTimeout(this.memberSearchTimer);
+		this.loadSequence++;
+		this.memberSearchSequence++;
+		this.resolveConfirm(false);
+	},
 	methods: {
+		openShareDialog() {
+			if (this.projectMemberCount <= 1 || !this.canManageProject || this.memberManagementLocked || this.hasFormerMembers || this.busy) return;
+			this.resetShareDialog();
+			this.shareDialogOpen = true;
+		},
+		resetShareDialog() {
+			this.shareDialogOpen = false;
+			this.sharesError = '';
+			this.resetShareRows();
+		},
+		cancelShareDialog() {
+			if (this.savingShares || this.loading || this.confirmDialog) return;
+			this.resetShareDialog();
+		},
+		async closeShareDialog() {
+			if (this.savingShares || this.loading || this.confirmDialog) return;
+			const requestProjectId = this.projectId;
+			if (this.sharesChanged && !await this.openConfirm({
+				title: this.$texts.entry.discardChangesTitle(),
+				message: this.$texts.entry.discardChangesMessage(),
+				confirmLabel: this.$texts.entry.discardChangesConfirm()
+			})) return;
+			if (requestProjectId === this.projectId) this.resetShareDialog();
+		},
+		openOwnerDialog() {
+			if (!this.canManageProject || !this.transferableOwnerMembers.length || this.busy) return;
+			this.resetOwnerDialog();
+			this.ownerDialogOpen = true;
+		},
+		resetOwnerDialog() {
+			this.ownerDialogOpen = false;
+			this.selectedOwnerId = '';
+			this.ownerError = '';
+		},
+		cancelOwnerDialog() {
+			if (this.transferringOwnerId || this.loading || this.confirmDialog) return;
+			this.resetOwnerDialog();
+		},
+		async closeOwnerDialog() {
+			if (this.transferringOwnerId || this.loading || this.confirmDialog) return;
+			const requestProjectId = this.projectId;
+			if (this.selectedOwnerId && !await this.openConfirm({
+				title: this.$texts.entry.discardChangesTitle(),
+				message: this.$texts.entry.discardChangesMessage(),
+				confirmLabel: this.$texts.entry.discardChangesConfirm()
+			})) return;
+			if (requestProjectId === this.projectId) this.resetOwnerDialog();
+		},
+		openMemberDialog() {
+			if (!this.canAddProjectMembers || this.memberManagementLocked || this.busy) return;
+			this.resetMemberDialog();
+			this.memberDialogOpen = true;
+		},
+		resetMemberDialog() {
+			this.memberDialogOpen = false;
+			this.newMembers = [];
+			this.memberAddError = '';
+			this.searchMembers('');
+		},
+		cancelMemberDialog() {
+			if (this.addingMembers || this.loading || this.confirmDialog) return;
+			this.resetMemberDialog();
+		},
+		async closeMemberDialog() {
+			if (this.addingMembers || this.loading || this.confirmDialog) return;
+			const requestProjectId = this.projectId;
+			if (this.newMembers.length && !await this.openConfirm({
+				title: this.$texts.entry.discardChangesTitle(),
+				message: this.$texts.entry.discardChangesMessage(),
+				confirmLabel: this.$texts.entry.discardChangesConfirm()
+			})) return;
+			if (requestProjectId === this.projectId) this.resetMemberDialog();
+		},
+		searchMembers(term) {
+			clearTimeout(this.memberSearchTimer);
+			this.memberSearchTerm = term.trim();
+			this.memberSearchSequence++;
+			this.memberSearchOptions = [];
+			this.memberSearchError = '';
+			this.memberSearchLoading = false;
+			if (this.memberSearchTerm) this.memberSearchTimer = setTimeout(() => this.fetchMemberOptions(), 300);
+		},
+		async fetchMemberOptions() {
+			if (!this.memberDialogOpen || !this.memberSearchTerm || !this.canAddProjectMembers || this.busy) return;
+			const sequence = ++this.memberSearchSequence;
+			this.memberSearchLoading = true;
+			this.memberSearchError = '';
+			try {
+				const response = await axios.get(generateUrl('/apps/cobudget/api/users/search'), { params: { term: this.memberSearchTerm } });
+				if (sequence === this.memberSearchSequence) this.memberSearchOptions = response.data || [];
+			} catch (error) {
+				if (sequence === this.memberSearchSequence) this.memberSearchError = extractError(error, this.$texts.memberSearch.searchError());
+			} finally { if (sequence === this.memberSearchSequence) this.memberSearchLoading = false; }
+		},
+		async refreshActionAvailability() {
+			if (this.busy || this.actionLoading || !this.project) return false;
+			return this.loadActionAvailability();
+		},
+		async loadActionAvailability() {
+			const id = this.projectId;
+			this.actionLoading = true;
+			this.availabilityError = '';
+			try {
+				const response = await axios.get(generateUrl(`/apps/cobudget/api/projects/${id}`));
+				if (id !== this.projectId || !this.project) return false;
+				Object.assign(this.project, {
+					settings_actions: response.data.settings_actions,
+					is_archived: response.data.is_archived,
+					is_owner: response.data.is_owner,
+					owner_id: response.data.owner_id,
+					member_management_locked: response.data.member_management_locked,
+					member_management_lock_reason: response.data.member_management_lock_reason,
+				});
+				if (!response.data.settings_actions) throw new Error(this.$texts.areaSettings.actionsUnavailable());
+				return true;
+			} catch (error) {
+				if (id === this.projectId) this.availabilityError = extractError(error, this.$texts.areaSettings.actionsUnavailable());
+				return false;
+			} finally { this.actionLoading = false; }
+		},
 		goBackToProject() {
 			this.$router.push({ name: 'project-detail', params: { id: this.projectId } });
 		},
@@ -439,69 +583,102 @@ export default {
 			this.editProjectData.color = this.project.color || '';
 		},
 		resetShareRows() {
-			const members = Array.isArray(this.project?.members) ? this.project.members : [];
-			this.shareRows = members.map(member => ({
-				id: member.id,
-				displayName: member.displayName || member.id,
-				isFormer: member.isFormer === true || member.is_former === true,
-				isActive: member.isActive !== false && member.is_active !== false,
-				sharePercent: this.basisPointsToPercent(member.shareBasisPoints ?? member.share_basis_points ?? 0)
-			}));
+			this.shareRows = this.savedShareRows.map(member => ({ ...member }));
 			this.originalShareSignature = this.currentShareSignature;
 			this.editedShareUserIds = [];
 		},
-		editColorChanged(event) {
-			if (!this.canManageProject) {
-				return;
-			}
-			this.editProjectData.color = event.target.value;
+		editColorChanged(color) {
+			if (this.identityDisabled) return;
+			this.editProjectData.color = color || '';
+			return this.updateProject('color');
 		},
-		async fetchProjectSettings() {
+		async fetchProjectSettings({ quiet = false } = {}) {
 			if (!this.projectId) {
 				return;
 			}
+			const sequence = ++this.loadSequence;
+			if (!quiet) this.loading = true;
+			this.loadError = '';
 			try {
 				const [projectRes, anyEntriesRes, activeEntriesRes] = await Promise.all([
 					axios.get(generateUrl(`/apps/cobudget/api/projects/${this.projectId}`)),
 					axios.get(generateUrl('/apps/cobudget/api/entries'), { params: { projectId: this.projectId, limit: 1, offset: 0 } }),
 					axios.get(generateUrl('/apps/cobudget/api/entries'), { params: { projectId: this.projectId, isSettled: false, limit: 1, offset: 0 } })
 				]);
+				if (sequence !== this.loadSequence) return;
+				const preserveIdentityDraft = this.project && String(this.project.id) === String(projectRes.data.id)
+					&& (this.editProjectData.name !== this.project.name || this.editProjectData.color !== (this.project.color || ''));
 				this.project = projectRes.data;
+				this.availabilityError = '';
 				this.currentUserId = this.getCurrentUserId();
 				this.hasAnyEntries = (anyEntriesRes.data?.total || 0) > 0;
 				this.hasActiveEntries = (activeEntriesRes.data?.total || 0) > 0;
 				this.newMembers = [];
 				this.selectedOwnerId = '';
-				this.resetProjectForm();
+				if (!preserveIdentityDraft) this.resetProjectForm();
 				this.resetShareRows();
-				this.$nextTick(() => {
-					this.$refs.projectNameInput?.focus();
-				});
+
 			} catch (e) {
-				showRequestError(e, this.$texts.areaSettings.loadError(), 'Failed to fetch project settings');
+				if (sequence === this.loadSequence) {
+					const message = extractError(e, this.$texts.areaSettings.loadError());
+					if (quiet) this.memberError = message;
+					else this.loadError = message;
+				}
 			}
+			finally { if (sequence === this.loadSequence) this.loading = false; }
 		},
-		async updateProject() {
-			if (!this.canManageProject) {
+		async updateProject(field = 'name') {
+			if (this.identityDisabled || !this.project || !['name', 'color'].includes(field)) return;
+			const value = field === 'name' ? this.editProjectData.name.trim() : (this.editProjectData.color || '');
+			if (field === 'name') {
+				this.projectNameInvalid = !value;
+				if (!value) {
+					delete this.projectSaveQueue.name;
+					return;
+				}
+			}
+			if (!this.savingProject && value === (this.project[field] || '')) {
+				delete this.projectSaveQueue[field];
+				if (field === 'name') this.editProjectData.name = value;
+				if (!Object.keys(this.projectSaveQueue).length) this.projectError = '';
 				return;
 			}
-			if (!this.editProjectData.name.trim()) {
-				showToast(this.$texts.areaSettings.nameRequired(), 'error');
-				return;
-			}
+			this.projectSaveQueue[field] = value;
+			return this.flushProjectChanges();
+		},
+		async flushProjectChanges() {
+			if (this.identityDisabled || this.savingProject || !Object.keys(this.projectSaveQueue).length) return;
+			const requestProjectId = this.projectId;
+			const project = this.project;
+			const sequence = ++this.projectSaveSequence;
+			this.savingProject = true;
+			this.projectError = '';
 			try {
-				const response = await axios.put(generateUrl(`/apps/cobudget/api/projects/${this.projectId}`), {
-					name: this.editProjectData.name.trim(),
-					color: this.editProjectData.color
-				});
-				this.project.name = response.data.name;
-				this.project.color = response.data.color;
-				this.resetProjectForm();
-				this.$emit('refresh-projects');
-				showToast(this.$texts.areaSettings.saved());
-			} catch (e) {
-				showRequestError(e, this.$texts.areaSettings.saveError(), 'Failed to update project');
-			}
+				while (Object.keys(this.projectSaveQueue).length) {
+					const changes = Object.fromEntries(Object.entries(this.projectSaveQueue).filter(([field, value]) => value !== (project[field] || '')));
+					this.projectSaveQueue = {};
+					if (!Object.keys(changes).length) continue;
+					const values = { name: project.name, color: project.color || '', ...changes };
+					try {
+						const response = await axios.put(generateUrl(`/apps/cobudget/api/projects/${requestProjectId}`), values);
+						if (sequence !== this.projectSaveSequence || project !== this.project || requestProjectId !== this.projectId) return;
+						project.name = response.data.name;
+						project.color = response.data.color;
+						// Only normalize submitted fields whose draft has not changed meanwhile.
+						for (const field of Object.keys(changes)) {
+							const draft = field === 'name' ? this.editProjectData.name.trim() : (this.editProjectData.color || '');
+							if (draft === changes[field]) this.editProjectData[field] = project[field] || '';
+						}
+						this.$emit('refresh-projects');
+					} catch (error) {
+						if (sequence !== this.projectSaveSequence || project !== this.project || requestProjectId !== this.projectId) return;
+						// Keep the newest committed choices for an explicit retry; do not loop on errors.
+						this.projectSaveQueue = { ...changes, ...this.projectSaveQueue };
+						this.projectError = extractError(error, this.$texts.areaSettings.saveError());
+						return;
+					}
+				}
+			} finally { if (sequence === this.projectSaveSequence) this.savingProject = false; }
 		},
 			percentToBasisPoints(value) {
 				return this.normalizeSharePercent(value) * 100;
@@ -517,7 +694,7 @@ export default {
 				return this.normalizeSharePercent((parseInt(value, 10) || 0) / 100);
 			},
 			formatSharePercent(basisPoints) {
-				const value = this.basisPointsToPercent(basisPoints);
+				const value = Number(basisPoints) / 100;
 				return value.toLocaleString(getAppLocale(), { maximumFractionDigits: 0 });
 			},
 			normalizeShareInput(member) {
@@ -529,9 +706,7 @@ export default {
 			}
 		},
 		setEqualShares() {
-			if (!this.canManageProject) {
-				return;
-			}
+			if (!this.canEditShares || this.busy) return;
 			const count = this.shareRows.length;
 				if (count === 0) {
 					return;
@@ -549,9 +724,7 @@ export default {
 				this.editedShareUserIds = [];
 			},
 		distributeShareRemainder() {
-			if (!this.canManageProject) {
-				return;
-			}
+			if (!this.canEditShares || this.busy) return;
 			const untouched = this.shareRows.filter(member => !this.editedShareUserIds.includes(member.id));
 			if (untouched.length === 0) {
 				return;
@@ -586,36 +759,43 @@ export default {
 				.join('') || '?';
 		},
 		async addMembers() {
-			if (!this.canManageProject || this.newMembers.length === 0 || this.addingMembers) {
+			const requestProjectId = this.projectId;
+			if (!this.canSubmitMembers) {
 				return;
 			}
 			this.addingMembers = true;
+			this.memberAddError = '';
 			let addedCount = 0;
 			const failedMembers = [];
 
-			for (const member of this.newMembers) {
+			for (const member of [...this.newMembers]) {
+				if (requestProjectId !== this.projectId) break;
 				try {
-					await axios.post(generateUrl(`/apps/cobudget/api/projects/${this.projectId}/members`), {
+					await axios.post(generateUrl(`/apps/cobudget/api/projects/${requestProjectId}/members`), {
 						userId: member.id
 					});
 					addedCount++;
 				} catch (e) {
 					failedMembers.push(member);
-					showRequestError(e, this.$texts.areaDetail.memberAddError(member.displayName || member.id), 'Failed to add member');
+					if (requestProjectId === this.projectId) this.memberAddError = extractError(e, this.$texts.areaDetail.memberAddError(member.displayName || member.id));
 				}
 			}
 
-			this.newMembers = failedMembers;
-			this.addingMembers = false;
 
-			if (addedCount > 0) {
+			if (addedCount > 0 && requestProjectId === this.projectId) {
 				showToast(this.$texts.areaDetail.memberAdded());
-				await this.fetchProjectSettings();
+				if (requestProjectId === this.projectId) await this.fetchProjectSettings({ quiet: true });
 				this.$emit('refresh-projects');
 			}
+			if (requestProjectId === this.projectId) {
+				this.newMembers = failedMembers;
+				if (!failedMembers.length) this.resetMemberDialog();
+			}
+			this.addingMembers = false;
 		},
 		async removeMember(userId) {
-			if (!this.canManageProject || this.hasActiveEntries || this.removingMemberId) {
+			const requestProjectId = this.projectId;
+			if (!this.canRemoveProjectMembers || this.memberManagementLocked || this.busy || userId === this.project.owner_id) {
 				return;
 			}
 			const member = this.shareRows.find(candidate => candidate.id === userId);
@@ -627,23 +807,24 @@ export default {
 				confirmLabel: this.$texts.areaDetail.removeMember(),
 				confirmVariant: 'danger'
 			});
-			if (!confirmed) {
+			if (!confirmed || requestProjectId !== this.projectId) {
 				return;
 			}
 
 			this.removingMemberId = userId;
+			this.memberError = '';
 			try {
-				await axios.delete(generateUrl(`/apps/cobudget/api/projects/${this.projectId}/members/${userId}`));
-				await this.fetchProjectSettings();
+				await axios.delete(generateUrl(`/apps/cobudget/api/projects/${requestProjectId}/members/${userId}`));
+				if (requestProjectId === this.projectId) await this.fetchProjectSettings({ quiet: true });
 				this.$emit('refresh-projects');
 				showToast(this.$texts.areaDetail.memberRemoved());
 			} catch (e) {
-				showRequestError(e, this.$texts.areaDetail.memberRemoveError(), 'Failed to remove member');
-			}
-			this.removingMemberId = null;
+				if (requestProjectId === this.projectId) this.memberError = extractError(e, this.$texts.areaDetail.memberRemoveError());
+			} finally { this.removingMemberId = null; }
 		},
 		async transferOwnership(member) {
-			if (!this.canManageProject || !member?.isActive || this.transferringOwnerId) {
+			const requestProjectId = this.projectId;
+			if (!this.canSubmitOwner || !member?.isActive || member.isFormer || member.id !== this.selectedOwnerId) {
 				return;
 			}
 			const confirmed = await this.openConfirm({
@@ -651,95 +832,114 @@ export default {
 				message: this.$texts.areaSettings.transferOwnershipMessage(member.displayName),
 				confirmLabel: this.$texts.areaSettings.transferOwnership(),
 			});
-			if (!confirmed) {
+			if (!confirmed || requestProjectId !== this.projectId) {
 				return;
 			}
 
 			this.transferringOwnerId = member.id;
+			this.ownerError = '';
 			try {
-				const response = await axios.put(generateUrl(`/apps/cobudget/api/projects/${this.projectId}/owner`), {
+				const response = await axios.put(generateUrl(`/apps/cobudget/api/projects/${requestProjectId}/owner`), {
 					userId: member.id
 				});
+				if (requestProjectId !== this.projectId) return;
 				this.project.owner_id = response.data.owner_id;
 				this.project.is_owner = false;
+				if (requestProjectId !== this.projectId) return;
 				this.project.members = response.data.members || this.project.members;
 				this.resetShareRows();
-				this.selectedOwnerId = '';
+				this.resetOwnerDialog();
 				this.$emit('refresh-projects');
 				showToast(this.$texts.areaSettings.ownershipTransferred(member.displayName));
 				this.goBackToProject();
 			} catch (e) {
-				showRequestError(e, this.$texts.areaSettings.ownershipTransferError(), 'Failed to transfer project ownership');
-			}
-			this.transferringOwnerId = null;
+				if (requestProjectId === this.projectId) this.ownerError = extractError(e, this.$texts.areaSettings.ownershipTransferError());
+			} finally { this.transferringOwnerId = null; }
 		},
 		transferSelectedOwnership() {
 			const member = this.transferableOwnerMembers.find(candidate => candidate.id === this.selectedOwnerId);
 			if (member) {
-				this.transferOwnership(member);
+				return this.transferOwnership(member);
 			}
 		},
 		async saveProjectShares() {
-			if (!this.canManageProject) {
+			const requestProjectId = this.projectId;
+			if (!this.canSaveShares) {
 				return;
 			}
 			if (!this.sharesSumValid) {
-				showToast(this.$texts.areaSettings.shareSumInvalid(), 'error');
+				this.sharesError = this.$texts.areaSettings.shareSumInvalid();
 				return;
 			}
 			this.savingShares = true;
+			this.sharesError = '';
 			try {
-				const response = await axios.put(generateUrl(`/apps/cobudget/api/projects/${this.projectId}/shares`), {
+				const response = await axios.put(generateUrl(`/apps/cobudget/api/projects/${requestProjectId}/shares`), {
 					shares: this.shareRows.map(member => ({
 						userId: member.id,
 						shareBasisPoints: this.percentToBasisPoints(member.sharePercent)
 					}))
 				});
+				if (requestProjectId !== this.projectId) return;
 				this.project.members = response.data.members || this.project.members;
-				this.resetShareRows();
+				this.resetShareDialog();
 				this.$emit('refresh-projects');
 				showToast(this.$texts.areaSettings.sharesSaved());
 			} catch (e) {
-				showRequestError(e, this.$texts.areaSettings.sharesSaveError(), 'Failed to update project shares');
-			}
-			this.savingShares = false;
+				if (requestProjectId === this.projectId) this.sharesError = extractError(e, this.$texts.areaSettings.sharesSaveError());
+			} finally { this.savingShares = false; }
 		},
 		async toggleArchiveProject() {
-			if (!this.canManageProject) {
-				return;
-			}
-			const action = this.project.is_archived ? 'unarchive' : 'archive';
+			if (!this.canManageProject || this.busy || this.actionLoading || this.archiveBlockedReason || this.availabilityError) return;
+			const id = this.projectId;
+			this.archiving = true;
+			this.archiveError = '';
 			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/projects/${this.projectId}/${action}`));
-				this.project.is_archived = !this.project.is_archived;
+				if (!await this.loadActionAvailability() || this.archiveBlockedReason || id !== this.projectId) return;
+				const archived = !this.isArchived;
+				const confirmed = await this.openConfirm({
+					title: archived ? this.$texts.areaSettings.archiveTitle() : this.$texts.areaSettings.unarchiveTitle(),
+					message: archived ? this.$texts.areaSettings.archiveConfirmMessage() : this.$texts.areaSettings.unarchiveConfirmMessage(),
+					confirmLabel: archived ? this.$texts.areaSettings.archive() : this.$texts.areaSettings.unarchive(),
+				});
+				if (!confirmed || id !== this.projectId) return;
+				if (!await this.loadActionAvailability() || !this.canManageProject || (archived && this.archiveBlockedReason) || id !== this.projectId) return;
+				await axios.post(generateUrl(`/apps/cobudget/api/projects/${id}/${archived ? 'archive' : 'unarchive'}`));
+				if (id !== this.projectId) return;
+				this.project.is_archived = archived;
 				this.$emit('refresh-projects');
-				showToast(this.project.is_archived ? this.$texts.areaSettings.archived() : this.$texts.areaSettings.unarchived());
+				showToast(archived ? this.$texts.areaSettings.archived() : this.$texts.areaSettings.unarchived());
 			} catch (e) {
-				showRequestError(e, this.$texts.areaSettings.statusSaveError(), 'Failed to toggle archive project');
-			}
+				if (id === this.projectId) {
+					this.archiveError = extractError(e, this.$texts.areaSettings.statusSaveError());
+					await this.loadActionAvailability();
+				}
+			} finally { this.archiving = false; }
 		},
 		async deleteProject() {
-			if (!this.canManageProject) {
-				return;
-			}
-			const confirmed = await this.openConfirm({
-				title: this.$texts.areaSettings.deleteTitle(),
-				message: this.$texts.areaSettings.deleteMessage(),
-				confirmLabel: this.$texts.areaSettings.deleteConfirm(),
-				confirmVariant: 'danger'
-			});
-			if (!confirmed) {
-				return;
-			}
-
+			if (!this.canManageProject || this.busy || this.actionLoading || this.deleteBlockedReason || this.availabilityError) return;
+			const id = this.projectId;
+			this.deleting = true;
+			this.deleteError = '';
 			try {
-				await axios.delete(generateUrl(`/apps/cobudget/api/projects/${this.projectId}`));
+				if (!await this.loadActionAvailability() || this.deleteBlockedReason || id !== this.projectId) return;
+				const confirmed = await this.openConfirm({
+					title: this.$texts.areaSettings.deleteTitle(),
+					message: this.$texts.areaSettings.deleteMessage(),
+					confirmLabel: this.$texts.areaSettings.deleteConfirm(),
+					confirmVariant: 'danger'
+				});
+				if (!confirmed || id !== this.projectId) return;
+				await axios.delete(generateUrl(`/apps/cobudget/api/projects/${id}`));
 				this.$emit('refresh-projects');
 				showToast(this.$texts.areaSettings.deleted());
-				this.$router.push({ name: 'projects' });
+				if (id === this.projectId) this.$router.push({ name: 'projects' });
 			} catch (e) {
-				showRequestError(e, this.$texts.areaSettings.deleteError(), 'Failed to delete project');
-			}
+				if (id === this.projectId) {
+					this.deleteError = extractError(e, this.$texts.areaSettings.deleteError());
+					await this.loadActionAvailability();
+				}
+			} finally { this.deleting = false; }
 		},
 		onProjectScopedSettingsChanged() {
 			this.$emit('refresh-projects');
@@ -749,471 +949,77 @@ export default {
 </script>
 
 <style scoped>
-.settings-section {
-	display: block;
-	margin: 0;
-	width: 100%;
-	box-sizing: border-box;
-}
-
-.settings-content {
-	box-sizing: border-box;
-	margin: 0 var(--cobudget-form-inset);
-	max-width: var(--cobudget-form-max-width);
-	width: calc(100% - var(--cobudget-form-inset) * 2);
-}
-
-.settings-header {
-	margin-bottom: 28px;
-}
-
-.settings-hint {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-	margin: 0;
-}
-
-.member-management-lock-note {
-	margin: 28px 0;
-	padding: 12px 16px;
-	background-color: var(--color-background-hover, rgba(127, 127, 127, 0.08));
-	border-radius: var(--border-radius-large, 8px);
-}
-
-.former-member-note {
-	margin-top: 12px;
-	padding: 12px 16px;
-	background-color: var(--color-background-hover, rgba(127, 127, 127, 0.08));
-	border-radius: var(--border-radius-large, 8px);
-}
-
-.settings-block {
-	margin-top: var(--cobudget-settings-section-gap);
-}
-
-.settings-block h3 {
-	margin: 0 0 16px;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	font-size: var(--cobudget-font-section-title);
-}
-
-.project-edit-form {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
-	gap: 16px;
-	align-items: end;
-}
-
-.project-edit-form .form-group {
-	margin-bottom: 0;
-}
-
-.project-edit-form .form-control,
-.project-save-button {
-	//min-height: 44px !important;
-	//height: 44px !important;
-}
-
-.project-color-field {
-	min-width: 112px;
-}
-
-.project-save-field {
-	display: flex;
-	align-items: flex-end;
-	justify-content: flex-end;
-	min-width: 140px;
-}
-
-.ownership-transfer-form {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 12px;
-	align-items: center;
-	margin-top: 16px;
-}
-
-.ownership-transfer-form .form-control,
-.ownership-transfer-form .cobudget-button {
-	min-height: var(--default-clickable-area, 44px);
-	margin: 0;
-}
-
-.member-management {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	gap: 12px;
-	align-items: start;
-	margin: 16px 0;
-}
-
-.member-search-field {
-	min-width: 0;
-}
-
-.member-add-button {
-	min-height: var(--default-clickable-area, 44px) !important;
-	height: var(--default-clickable-area, 44px) !important;
-	align-self: start;
-}
-
-.member-add-button :deep(.cobudget-button__label) {
-	line-height: 1;
-	color: inherit;
-}
-
-.member-add-button.cobudget-button,
-:deep(.member-add-button.cobudget-button) {
-	min-height: var(--default-clickable-area, 44px) !important;
-	height: var(--default-clickable-area, 44px) !important;
-	padding-top: 0 !important;
-	padding-bottom: 0 !important;
-  margin: 0;
-}
-
-.share-toolbar {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-  margin-bottom: 8px;
-}
-
-.share-tools {
-	display: flex;
-	gap: 10px;
-	margin: 0;
-	flex-wrap: wrap;
-}
-
-.share-table {
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--cobudget-table-radius);
-	overflow: hidden;
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.share-row {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) 160px;
-	gap: 14px;
-	align-items: center;
-	padding: var(--cobudget-table-detail-padding);
-	border-top: 1px solid var(--cobudget-border, #ddd);
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.share-row > div {
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.share-table.has-member-actions .share-row {
-	grid-template-columns: minmax(0, 1fr) 160px 96px;
-}
-
-.share-row:first-child {
-	border-top: 0;
-}
-
-.share-row-header {
-  background: var(--cobudget-table-header-background);
-  color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-  font-size: var(--cobudget-font-sm);
-  letter-spacing: 0.5px;
-  text-align: left;
-  padding: var(--default-grid-baseline, 4px) var(--cobudget-card-padding-compact);
-}
-
-.share-row-header > div {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-}
-
-.share-percent-header {
-	text-align: right;
-}
-
-.member-action-header {
-	text-align: right;
-}
-
-.share-member {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	min-width: 0;
-	font-weight: 600;
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.share-member span:not(.member-avatar):not([data-cobudget-badge]) {
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-}
-
-.member-avatar {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 32px;
-	height: 32px;
-	border-radius: 50%;
-	background: var(--color-primary-element-light, #e5f3fb);
-	color: var(--color-primary, #0082c9);
-	font-size: var(--cobudget-font-sm);
-	font-weight: 700;
-	flex: 0 0 auto;
-}
-
-.share-input-wrap {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	gap: 8px;
-}
-
-.share-input {
-	max-width: 120px;
-	text-align: right;
-}
-
-.member-row-actions {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	min-width: 0;
-}
-
-.share-summary {
-	margin-top: 10px;
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	font-weight: 600;
-}
-
-.share-summary.invalid {
-	color: var(--cobudget-error);
-}
-
-.share-actions {
-	justify-content: flex-end;
-	margin-top: 0;
-}
-
-.form-group {
-	margin-bottom: 22px;
-}
-
-.form-group label {
-  display: block;
-  color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-label);
-  letter-spacing: normal;
-}
-
-.color-picker-wrapper {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	height: 38px;
-}
-
-.color-preview {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-  width: 38px;
-  height: 38px;
-  margin-bottom:0!important;
-	border: 1px solid var(--cobudget-border, #ccc);
-	border-radius: var(--border-radius, 4px);
-	cursor: pointer;
-	background-color: transparent;
-	background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%), linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e0e0e0 75%), linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
-	background-size: 10px 10px;
-	background-position: 0 0, 0 5px, 5px -5px, -5px 0;
-	flex-shrink: 0;
-}
-
-.sr-only {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	padding: 0;
-	margin: -1px;
-	overflow: hidden;
-	clip: rect(0, 0, 0, 0);
-	white-space: nowrap;
-	border: 0;
-}
-
-.settings-actions {
-	display: flex;
-	justify-content: flex-end;
-	align-items: center;
-	gap: 16px;
-}
-
-.danger-actions {
-	display: flex;
-	gap: 10px;
-	flex-wrap: wrap;
-}
-
-.header-actions {
-	justify-content: flex-end;
-	margin-left: auto;
-}
-
-.btn-primary,
-.btn-secondary {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	border-radius: var(--border-radius-large, 6px);
-	cursor: pointer;
-	font-size: var(--cobudget-font-base);
-	font-weight: 600;
-	min-height: 36px;
-	padding: 8px 16px;
-}
-
-.btn-primary {
-	background: var(--color-primary, #0082c9);
-	color: var(--cobudget-primary-text, #fff);
-	border: none;
-}
-
-.btn-primary:hover:not(:disabled) {
-	background: var(--color-primary-hover, #006aa3);
-}
-
-.btn-secondary {
-	background: var(--cobudget-surface-muted, var(--color-background-dark, #eee));
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	border: none;
-}
-
-.btn-primary:disabled,
-.btn-secondary:disabled {
-	opacity: 0.45;
-	cursor: default;
-}
-
-.color-clear-btn {
-  margin-top:0px!important;
-	min-width: 38px !important;
-	width: 38px !important;
-	min-height: 38px !important;
-	height: 38px !important;
-	padding: 0 !important;
-	border-color: transparent !important;
-	background: transparent !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text, #222) !important;
-}
-
-.color-clear-btn:hover:not(:disabled),
-.color-clear-btn:focus-visible:not(:disabled) {
-	border-color: transparent !important;
-	background: var(--cobudget-surface-muted, #f5f5f5) !important;
-	box-shadow: none !important;
-}
-
-.loading {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-}
-
 @media (max-width: 768px) {
-	.settings-section {
-		margin: 0;
-		width: 100%;
-	}
-
-	.settings-content {
-		margin: 16px;
-		width: calc(100% - 32px);
-	}
-
-	.settings-actions {
-		align-items: stretch;
-		flex-direction: column;
-	}
-
-	.header-actions {
-		margin-left: 0;
-	}
-
-	.header-actions.danger-actions {
-		flex-direction: row;
-		width: auto;
-	}
-
-	.ownership-transfer-form {
-		grid-template-columns: 1fr;
-	}
-
-	.member-management {
-		grid-template-columns: 1fr;
-	}
-
-	.member-add-button {
-		width: 100%;
-	}
-
-	.project-edit-form {
-		grid-template-columns: 1fr;
-	}
-
-	.project-save-field {
-		width: 100%;
-		min-width: 0;
-	}
-
-	.share-row {
-		grid-template-columns: 1fr;
-		gap: 8px;
-	}
-
-	.share-table.has-member-actions .share-row {
-		grid-template-columns: 1fr;
-	}
-
-	.share-percent-header {
-		text-align: left;
-	}
-
-	.share-input-wrap {
-		justify-content: flex-start;
-	}
-
-	.member-row-actions {
-		justify-content: flex-start;
-	}
-
-	.share-toolbar {
-		align-items: stretch;
-		flex-direction: column;
-	}
-
-	.danger-actions {
-		flex-direction: column;
-		width: 100%;
-	}
-
-	.header-actions.danger-actions {
-		flex-direction: row;
-		width: auto;
-	}
-
-	.btn-primary,
-	.btn-secondary,
-	.project-save-button {
-		width: 100%;
-	}
-
-	.header-actions .project-delete-button,
-	.header-actions .project-archive-button {
-		min-width: var(--cobudget-icon-button-size, 44px);
-		width: var(--cobudget-icon-button-size, 44px);
-	}
+	.member-list { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
+	.area-settings-modal { --default-clickable-area: var(--cobudget-mobile-touch-size); }
+}
+.settings-section { display: block; margin: 0; width: 100%; box-sizing: border-box; }
+.settings-content { box-sizing: border-box; margin: 0 var(--cobudget-form-inset); max-width: var(--cobudget-form-max-width); width: calc(100% - var(--cobudget-form-inset) * 2); }
+.settings-hint { color: var(--color-text-maxcontrast); font-size: var(--font-size, 15px); margin: 0; }
+.settings-loading { display: flex; align-items: center; gap: 8px; color: var(--color-text-maxcontrast); }
+.settings-block { margin-block-start: 0; padding-block-start: var(--cobudget-settings-heading-gap); }
+.settings-block > h3 { margin-block-start: 0; }
+.settings-general-block { padding-block-start: 0; }
+.settings-master-data-block { padding-block-start: 0; }
+.area-master-data { margin-block: 0; }
+.area-master-data :deep(.master-section) { padding-block-start: var(--cobudget-settings-heading-gap); }
+.area-master-data :deep(.master-section + .master-section) { margin-block-start: 0; }
+.area-master-data :deep(.master-section > h3) { margin-block-start: 0; }
+.project-edit-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--cobudget-content-gap, 16px); align-items: end; }
+.project-name-field, .member-search-field { min-width: 0; }
+.area-color-preview { display: inline-block; width: 20px; height: 20px; border: 1px solid var(--color-border); border-radius: var(--border-radius-element, 4px); }
+.member-section-header { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--cobudget-card-gap); margin-block-end: var(--cobudget-section-gap); }
+.member-section-header > .settings-hint { flex: 1 1 320px; min-width: 0; }
+.member-list-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: calc(var(--default-grid-baseline, 4px) * 2); margin-inline-start: auto; }
+.member-identity { display: flex; align-items: center; gap: var(--cobudget-content-gap); min-width: 0; }
+.member-avatar { flex-shrink: 0; }
+.member-select-identity { gap: calc(var(--default-grid-baseline, 4px) * 2); max-width: 100%; }
+.member-select-identity .member-info { min-width: 0; white-space: normal; }
+.member-info { overflow-wrap: anywhere; }
+.area-settings-editor { padding: calc(var(--default-grid-baseline, 4px) * 3) var(--cobudget-dialog-padding) var(--cobudget-dialog-padding); }
+.area-settings-editor h2 { padding-inline-end: var(--cobudget-mobile-touch-size, 44px); margin: 0 0 calc(var(--default-grid-baseline, 4px) * 4); font-size: var(--cobudget-dialog-title-size, 20px); text-align: start; }
+.area-settings-editor-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: var(--cobudget-section-gap); }
+.cobudget-native-select { width: 100%; min-width: 0; margin-bottom: 0; }
+.share-toolbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: var(--cobudget-section-gap, 24px) 0 8px; }
+.share-tools { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.member-name { overflow-wrap: anywhere; font-size: var(--font-size, 15px); font-weight: var(--font-weight-element, 500); color: var(--color-main-text); }
+.member-share-value { text-align: end; font-variant-numeric: tabular-nums; color: var(--color-main-text); }
+.share-input { min-width: 0; }
+.member-row-actions { display: flex; justify-content: flex-end; }
+/* Keep the split aligned as a table, including on narrow dialogs. */
+.share-editor-table-wrapper { overflow-x: auto; }
+.share-editor-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+/* Rows are not actions; native controls retain their own interaction states. */
+.share-editor-table tbody tr:is(:hover, :focus, :active) { background-color: transparent; }
+.share-editor-table .share-column { width: 130px; }
+.share-editor-table th, .share-editor-table td { padding: var(--cobudget-table-cell-padding); height: auto; text-align: start; vertical-align: middle; white-space: normal; font-weight: 400; border-bottom: 1px solid var(--cobudget-border); }
+.share-editor-table thead th { background: var(--cobudget-table-header-background); color: var(--cobudget-text-muted); font-size: var(--cobudget-table-header-font-size); letter-spacing: normal; font-weight: 400; height: var(--cobudget-table-header-height); }
+.share-editor-table thead th:first-child { border-start-start-radius: var(--cobudget-table-radius); }
+.share-editor-table thead th:last-child { border-start-end-radius: var(--cobudget-table-radius); }
+.share-editor-table th:last-child, .share-editor-table td:last-child { text-align: end; font-variant-numeric: tabular-nums; }
+.share-editor-table tfoot th, .share-editor-table tfoot td { border-bottom: 0; font-size: var(--cobudget-font-sm); font-weight: 600; background: var(--cobudget-surface-muted); }
+.member-table .member-actions-column { width: calc(var(--default-clickable-area, 44px) + var(--default-grid-baseline, 4px) * 5); }
+.member-table .member-share-cell { text-align: end; }
+.member-table tbody tr:last-child > :is(th, td) { border-bottom: 0; }
+.share-member-info { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--default-grid-baseline, 4px) * 2); min-width: 0; }
+.share-input :deep(input) { text-align: end; font-variant-numeric: tabular-nums; }
+.area-action-button { margin-top: var(--cobudget-section-gap); }
+.settings-block:last-child { padding-bottom: var(--cobudget-settings-heading-gap); }
+@media (max-width: 768px) {
+	.settings-content { margin: 0; width: 100%; }
+	.settings-block { padding-block-start: var(--cobudget-section-gap); }
+	.settings-general-block, .settings-master-data-block { padding-block-start: 0; }
+	.area-master-data :deep(.master-section) { padding-block-start: var(--cobudget-section-gap); }
+	.member-section-header { gap: var(--cobudget-content-gap); margin-block-end: var(--cobudget-content-gap); }
+	.area-action-button { margin-top: var(--cobudget-card-gap); }
+	.settings-block:last-child { padding-bottom: var(--cobudget-section-gap); }
+	.project-edit-form { grid-template-columns: minmax(0, 1fr); }
+	.share-editor-table .share-column { width: 100px; }
+	.member-table .share-column { width: calc(var(--default-grid-baseline, 4px) * 20); }
+	.member-table .member-actions-column { width: calc(var(--cobudget-mobile-touch-size, 44px) + var(--default-grid-baseline, 4px) * 3); }
+	.member-table .member-identity { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: calc(var(--default-grid-baseline, 4px) * 2); }
+	.member-table .member-info { display: contents; }
+	.member-table .member-name { grid-column: 2; }
+	.member-table .member-info :deep(.nc-chip) { grid-column: 1 / -1; justify-self: start; max-width: 100%; }
 }
 </style>

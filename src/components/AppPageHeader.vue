@@ -2,13 +2,19 @@
 	<header
 		class="app-page-header view-header"
 		:class="{
+			'app-page-header--has-creation': Boolean($slots.creation),
 			'app-page-header--scrolled': isScrolled,
 			'app-page-header--fab-collapsed': isFabCollapsed,
 			'app-page-header--pagination-visible': isPaginationVisible,
 		}">
+		<div v-if="$slots.creation" class="app-page-header__creation app-page-header__actions">
+			<slot name="creation" />
+		</div>
 		<div class="app-page-header__content view-header-content">
 			<h2 class="app-page-header__title view-header-title">
-				<slot name="title">{{ title }}</slot>
+				<slot name="title">
+					<ReportPeriodPicker navigation-only :title="title" :period-enabled="false" label="" />
+				</slot>
 			</h2>
 			<p v-if="subtitle || $slots.subtitle" class="app-page-header__subtitle view-header-subtitle">
 				<slot name="subtitle">{{ subtitle }}</slot>
@@ -21,11 +27,13 @@
 </template>
 
 <script>
+import ReportPeriodPicker from './ReportPeriodPicker.vue'
 const MOBILE_FAB_COLLAPSE_SCROLL_TOP = 12
 const MOBILE_FAB_EXPAND_SCROLL_TOP = 1
 
 export default {
 	name: 'AppPageHeader',
+	components: { ReportPeriodPicker },
 	props: {
 		title: {
 			type: String,
@@ -202,11 +210,11 @@ export default {
 	gap: 8px;
 	margin: 0;
 	padding-left: 28px;
-	margin-top: 2px;
+	min-height: var(--default-clickable-area, 34px);
 	color: var(--cobudget-text, var(--color-main-text, #222));
-	font-size: var(--cobudget-font-title);
-	font-weight: 700;
-	line-height: 1.1;
+	font-size: var(--default-font-size, 15px);
+	font-weight: var(--font-weight-element, 500);
+	line-height: 1.5;
 	letter-spacing: 0;
 }
 
@@ -227,7 +235,19 @@ export default {
 	min-width: 0;
 }
 
+@media (min-width: 769px) {
+	.app-page-header__creation {
+		padding-inline-start: calc(28px + 2 * var(--default-grid-baseline, 4px));
+		margin-inline-end: calc(2 * var(--default-grid-baseline, 4px));
+	}
+	.app-page-header--has-creation .app-page-header__title,
+	.app-page-header--has-creation .app-page-header__subtitle { padding-inline: 0; }
+	.app-page-header__creation :deep(.btn-text) { display: none; }
+}
+
 @media (max-width: 768px) {
+	.app-page-header__creation { display: contents; }
+	.app-page-header__creation :deep(.creation-label-desktop) { display: none; }
 	.app-page-header {
 		--app-page-header-mobile-gutter: var(--cobudget-mobile-content-padding, calc(var(--default-grid-baseline, 4px) * 2.5));
 		--app-page-header-mobile-overlap: calc(var(--default-grid-baseline, 4px) * 1.5);
@@ -293,13 +313,14 @@ export default {
 		max-width: 100%;
 		margin-top: 0;
 		padding-right: 4px;
+		padding-block: 0;
 		overflow-x: auto;
 		overflow-y: hidden;
 		overscroll-behavior-x: contain;
 		scrollbar-width: none;
-		font-size: var(--cobudget-font-lg-plus, 20px);
-		min-height: var(--cobudget-button-height, 44px);
-		line-height: 1.15;
+		font-size: var(--default-font-size, 15px);
+		min-height: var(--cobudget-mobile-touch-size, 44px);
+		line-height: 1.5;
 		white-space: nowrap;
 		-webkit-overflow-scrolling: touch;
 	}
@@ -312,9 +333,15 @@ export default {
 		flex: 0 0 auto;
 	}
 
+	.app-page-header__title :deep(.cobudget-header-back-button) {
+		min-width: var(--cobudget-mobile-touch-size, 44px);
+		min-height: var(--cobudget-mobile-touch-size, 44px);
+	}
+
 	.app-page-header__title :deep(.cobudget-page-title-with-back) {
 		flex: 0 0 auto;
 		max-width: none;
+		margin-block-start: 0;
 	}
 
 	.app-page-header__title :deep(.cobudget-page-title-with-back > span:last-child) {
@@ -354,9 +381,7 @@ export default {
 	}
 
 	.app-page-header__actions :deep(.cobudget-primary-icon-button.button-vue),
-	.app-page-header__actions :deep(.cobudget-primary-icon-button .button-vue),
-	.app-page-header__actions :deep(.budget-new-button.button-vue),
-	.app-page-header__actions :deep(.budget-new-button .button-vue) {
+	.app-page-header__actions :deep(.cobudget-primary-icon-button .button-vue) {
 		min-width: var(--cobudget-icon-button-size, 44px) !important;
 		width: var(--cobudget-icon-button-size, 44px) !important;
 		min-height: var(--cobudget-icon-button-size, 44px) !important;
@@ -370,9 +395,8 @@ export default {
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue),
 	.app-page-header__actions :deep(.mobile-create-fab.button-vue),
 	.app-page-header__actions :deep(.mobile-create-fab .button-vue) {
-		--cobudget-mobile-fab-size: calc(var(--default-grid-baseline, 4px) * 16);
-		--cobudget-mobile-fab-icon-size: calc(var(--default-grid-baseline, 4px) * 7);
-		--app-page-header-mobile-fab-label-gap: calc(var(--default-grid-baseline, 4px) * 2);
+		--cobudget-mobile-fab-size: var(--cobudget-mobile-touch-size, 44px);
+		--default-clickable-area: var(--cobudget-mobile-fab-size);
 		--app-page-header-mobile-fab-label-max-width: calc(var(--default-grid-baseline, 4px) * 45);
 
 		position: fixed !important;
@@ -384,52 +408,13 @@ export default {
 		max-width: calc(100vw - var(--cobudget-mobile-fab-inline-offset, calc(var(--default-grid-baseline, 4px) * 4)) - var(--default-grid-baseline, 4px) * 4) !important;
 		min-height: var(--cobudget-mobile-fab-size) !important;
 		height: var(--cobudget-mobile-fab-size) !important;
-		padding: 0 calc(var(--default-grid-baseline, 4px) * 4) !important;
 		align-items: center !important;
 		justify-content: center !important;
-		border-radius: var(--border-radius-pill, 999px) !important;
-		box-shadow: var(--cobudget-shadow-md, var(--box-shadow)) !important;
 		box-sizing: border-box;
 		overflow: hidden;
 		transition:
 			inset-block-end var(--animation-slow, 200ms) ease,
 			max-width var(--animation-slow, 200ms) ease !important;
-	}
-
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue),
-	.app-page-header__actions :deep(.new-payment-main-button .button-vue) {
-		padding-inline-end: calc(var(--default-grid-baseline, 4px) * 6.5) !important;
-	}
-
-	.app-page-header__actions :deep(.new-payment-main-button .button-vue__wrapper),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__wrapper),
-	.app-page-header__actions :deep(.mobile-create-fab .button-vue__wrapper),
-	.app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__wrapper) {
-		gap: 0;
-		min-width: 0;
-	}
-
-	.app-page-header__actions :deep(.new-payment-main-button .button-vue__icon),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue .button-vue__icon),
-	.app-page-header__actions :deep(.mobile-create-fab .button-vue__icon),
-	.app-page-header__actions :deep(.mobile-create-fab.button-vue .button-vue__icon) {
-		width: var(--cobudget-mobile-fab-icon-size) !important;
-		min-width: var(--cobudget-mobile-fab-icon-size) !important;
-		height: var(--cobudget-mobile-fab-icon-size) !important;
-		min-height: var(--cobudget-mobile-fab-icon-size) !important;
-		margin: 0 !important;
-	}
-
-	.app-page-header__actions :deep(.new-payment-main-button .material-design-icon),
-	.app-page-header__actions :deep(.new-payment-main-button.button-vue .material-design-icon),
-	.app-page-header__actions :deep(.mobile-create-fab .material-design-icon),
-	.app-page-header__actions :deep(.mobile-create-fab.button-vue .material-design-icon) {
-		font-size: var(--cobudget-mobile-fab-icon-size) !important;
-	}
-
-	.app-page-header__actions :deep(.budget-new-button .button-vue__icon),
-	.app-page-header__actions :deep(.budget-new-button.button-vue .button-vue__icon) {
-		margin: 0 !important;
 	}
 
 	.app-page-header__actions :deep(.new-payment-main-button .button-vue__text),
@@ -439,13 +424,11 @@ export default {
 		display: inline-flex !important;
 		min-width: 0;
 		max-width: var(--app-page-header-mobile-fab-label-max-width);
-		margin-inline-start: var(--app-page-header-mobile-fab-label-gap);
 		overflow: hidden;
 		opacity: 1;
 		white-space: nowrap;
 		transition:
 			max-width var(--animation-slow, 200ms) ease,
-			margin-inline-start var(--animation-slow, 200ms) ease,
 			opacity var(--animation-quick, 100ms) linear;
 	}
 
@@ -458,6 +441,14 @@ export default {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.app-page-header--fab-collapsed .app-page-header__actions :deep(.new-payment-main-button.button-vue),
+	.app-page-header--fab-collapsed .app-page-header__actions :deep(.new-payment-main-button .button-vue),
+	.app-page-header--fab-collapsed .app-page-header__actions :deep(.mobile-create-fab.button-vue),
+	.app-page-header--fab-collapsed .app-page-header__actions :deep(.mobile-create-fab .button-vue) {
+		width: var(--cobudget-mobile-fab-size) !important;
+		padding-inline: 0;
 	}
 
 	.app-page-header--fab-collapsed .app-page-header__actions :deep(.new-payment-main-button .button-vue__text),

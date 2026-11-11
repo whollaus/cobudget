@@ -1,157 +1,235 @@
-# CoBudget Test Plan
+# Testing CoBudget
 
-Dieses Verzeichnis ist der Startpunkt fuer automatisierte Backend-Tests. Die App hat weiterhin kein PHPUnit-/Nextcloud-Test-Bootstrap im Repo; deshalb ist die erste Suite bewusst dependency-frei gehalten und prueft die wichtigsten Backend-Vertraege direkt mit PHP.
+Run commands from the app repository root. Use Node 24, installed frontend
+dependencies (`npm ci`) and a PHP CLI compatible with the target Nextcloud.
+Use separate local test instances and invented financial data for integration
+and browser checks. See the [development guide](../docs/development.md) for setup,
+building and guarded fresh-install resets.
 
-## Aktuell ausfuehrbar
+## Fast regression suites
 
-```sh
-php tests/php/run.php
-npm run test:php
-php tests/static-security.php
-npm run test:frontend-smoke
-npm test
-```
+| Command | Purpose |
+| --- | --- |
+| `npm test` | Run the PHP, static-security and frontend suites below. |
+| `npm run test:php` | Run `tests/php/run.php`, the lightweight backend regression runner. |
+| `npm run test:static-security` | Check source-level security and workspace contracts. |
+| `npm run test:frontend-smoke` | Run the frontend suites listed in `package.json`. |
 
-## Nextcloud 33–35 compatibility
+The PHP runner tests controller/service behavior and contracts without a full
+Nextcloud bootstrap. Coverage includes workspace/authentication guards, exact cents,
+shared allocations and settlements, recurrence, reports, backup/restore and
+migration rules. Static checks detect missing safeguards but do not prove runtime
+security.
 
-### Annual overview integration
+Frontend checks cover routing/lazy bundles, rendering and state transitions,
+request-token/timezone behavior, report calculations and navigation, localization,
+forms, filters, dialogs, mobile rows, settings and keyboard shortcuts. They use
+simulated DOM/network boundaries where appropriate; they do not replace browser
+verification. `npm run build` and archive validation are separate checks.
 
-Run against a local Nextcloud with CoBudget and an existing test account:
+## Compatibility CI
 
-```sh
-php tests/integration/annual-overview.php --nextcloud=/path/to/local/server --user=admin
-```
+The [CI workflow](../.github/workflows/ci.yml) defines this server matrix:
 
-The test creates isolated fixtures inside a transaction and always rolls them
-back. It exercises actual controller/database queries for personal shares,
-shared and solo areas, settlements, more than one page of payments, category
-hierarchies, unassigned payments, future dates, scope-specific year choices and unauthorized access. No
-notifications are sent. Forecast checks cover saved future payments plus
-scheduled recurring occurrences, monthly placement, counts, grouping and amount
-filters. Shared personal forecasts additionally cover stored residual cents,
-workspace isolation, personal tag IDs, zero shares, former participants,
-read-only access and replacing a forecast with a saved occurrence without
-double counting. Payment-list drilldowns deliberately include saved payments only.
-The fast suites additionally cover timezone boundaries,
-cent arithmetic and filter/pagination/return-route round trips.
+| Nextcloud | PHP | Database |
+| --- | --- | --- |
+| 33 | 8.2 | SQLite |
+| 34 | 8.2 | SQLite |
+| 35 | 8.3 | SQLite |
 
-Annual detail tests cover counts across SQL groups, personal/shared scopes and
-category hierarchies; empty-period shares, calendar-month averages, signed balance
-rounding and exact modal drilldowns. On desktop and mobile, check that amount
-buttons open the detail modal without navigating, Escape/close restores table
-focus, and Show payments opens the matching filtered list. Row labels must keep
-their direct undated links. Also check printed amounts after the button change.
+Each server job installs Nextcloud, enables CoBudget to run migrations, loads its
+OCC commands, checks background-job registration and data integrity, and disables/
+re-enables the app. A separate job runs tests, builds frontend assets and verifies
+the runtime archive. These are configured checks, not a claim that a particular
+remote run has passed.
 
-For annual overview printing, verify the top-right printer action with a narrow
-viewport and a horizontally scrolled table. Check A4 landscape/PDF output for all
-12 months and the yearly total, long labels, complete amounts, repeated headings
-on multiple pages and a single final total row. Wider views print in blocks of at
-most 12 amount columns. Each later block starts on a new page and repeats the
-label column and the total. The whole-year daily overview prints one calendar
-month at a time. Amounts stay on one line. The print header must match the
-year, scope, grouping and current-year cutoff. Sorting, expanded children and
-disabled-income settings should match the visible tables. Printing or cancelling
-must leave the original table and its navigation links unchanged.
+The server smoke matrix does not cover browser interaction, populated server
+upgrades or every supported database engine. Older local results and their limits
+are retained in [Verification history](../docs/verification-history.md).
 
-### Personal Talk integration
+## Controller and database integration
 
-Run the real Talk delivery tests on a local/disposable server with CoBudget and
-Talk enabled (Talk 23–25). The explicit flag allows creation of temporary
-accounts, shared-area payments and chats; the test removes its fixtures afterward.
+These suites bootstrap a real local Nextcloud with CoBudget enabled and use an
+existing local test account. Their fixture database writes are rolled back,
+including on failure. Run them on each relevant supported server version with
+that server's PHP configuration and database extensions.
+
+### Reports
 
 ```sh
-php tests/integration/talk.php --nextcloud=/path/to/nextcloud --create-test-users
+php tests/integration/annual-overview.php --nextcloud=/path/to/server --user=admin
 ```
 
-This covers default opt-out, idempotent setup, actual payment creation and bot
-delivery, independent bell/Talk preferences, actor exclusion, foreign tokens,
-extra participants, explicit reconnection, deleted chats and unauthenticated
-settings endpoints. No messages are sent to existing accounts.
+Exercises real queries for personal/shared/solo scopes, exact-cent allocations,
+settlements, multi-page payments, hierarchy, filters, date boundaries and foreign
+access. Recurrence checks include residual cents, persisted personal workspaces,
+normalized tags, zero shares, former participants and replacement of projected
+occurrences by saved payments without double counting. Drilldowns contain saved
+payments only; forecasts do not create rows or modify allocation state.
 
-CI additionally installs Nextcloud 33/PHP 8.2, 34/PHP 8.2 and 35/PHP 8.3
-in isolated SQLite instances. Each job enables CoBudget (running all app
-migrations), loads its OCC commands, checks background-job registration and
-data integrity, and disables/re-enables the app. These are server integration
-smoke tests; they do not cover browser interaction or populated server upgrades.
-
-`npm run test:frontend-smoke` also runs `tests/fetch-json.mjs` against the actual
-HTTP service and installed Nextcloud auth/router libraries with simulated DOM,
-storage and network boundaries. It verifies CSRF token lookup and rotation
-without private globals while retaining workspace headers and token overrides.
-
-See [the compatibility review](../docs/nextcloud-35-compatibility.md) for findings,
-local validation results and remaining test coverage.
-
-`tests/php/run.php` ist der schnelle Backend-Regressionslauf. Er prueft:
-
-- Dashboard-Monats-/Jahresgruppen und Tabellen-Zwischensummen verwenden dieselbe Zeitzone wie die im Browser angezeigten Zahlungsdaten, einschliesslich Monats-/Jahreswechseln und wiederkehrenden Zahlungen.
-
-- Routen zeigen auf existierende Controller-Methoden und haben eindeutige Verb-/URL-Paare.
-- User-Daten-API-Methoden liefern JSON-Fehler und pruefen Auth-/Workspace-Header-Fehler.
-- `WorkspaceAwareTrait` validiert Workspace-Header, Pflichtnamen, Typen, Betraege und Integer-Cents.
-- Entry-, Projekt-, Kategorie-, Empfaenger-, Workspace- und Cron-Vertraege bleiben workspace-scoped.
-- Kritische Operationen bleiben transaktional.
-
-`tests/static-security.php` prueft weiterhin grob, ob die zentralen Workspace-Guards, strikte `X-Workspace-Id`-Fehler, User-/Workspace-Scope bei kritischen Controllern, Transaktionen und `amount_cents`-Migrationen im Code vorhanden sind.
-
-Der Frontend-Smoke-Test prueft ohne Browser-Setup, ob die Vue-Routen lazy geladen werden, das globale Zahlungsmodal erst bei Nutzung geladen wird, keine veralteten `::v-deep`-Selectoren mehr im Sourcecode stehen, keine grossen `@nextcloud/vue`-Barrel-Imports zurueckkommen und die native Nextcloud-App-Shell erhalten bleibt.
-
-## Prioritaet 1: Workspace-Isolation
-
-- User A kann keine Eintraege, Projekte, Kategorien oder Empfaenger von User B lesen, aendern oder loeschen.
-- Ein aktiver Workspace A darf keine IDs aus Workspace B fuer Eintraege oder Projektoperationen verwenden.
-- Projektoperationen schlagen fehl, wenn das Projekt nicht im aktiven Workspace liegt.
-- Workspace-Loeschung loescht nur Daten des authentifizierten Users im betroffenen Workspace.
-
-## Prioritaet 2: Referenz- und Nutzungsregeln
-
-- Kategorie-/Empfaenger-Loeschung ist blockiert, wenn die ID im aktuellen Workspace verwendet wird.
-- Globale Kategorien und Empfaenger sind nutzbar, aber nicht als persoenliche Eintraege loeschbar.
-
-## Prioritaet 3: Kritische Operationen
-
-- Projektanlage schreibt Projekt und Mitglieder atomar.
-- Projektloeschung entfernt Mitglieder und Projekt atomar.
-- Projektabrechnung markiert nur Eintraege des aktiven Workspace als abgerechnet.
-- Wiederkehrende Jobs erzeugen Folgeeintraege mit der bestehenden `workspace_id`.
-- Geldwerte werden intern ueber `amount_cents` als Integer-Cents gespeichert und berechnet.
-
-## Manuelle Verifikation
-
-- Zwei Workspaces erstellen.
-- In Workspace A Eintrag, Kategorie, Empfaenger und Projekt anlegen.
-- Zu Workspace B wechseln und pruefen, dass A-Daten nicht sichtbar oder nutzbar sind.
-- Projektmitgliedschaft und Abrechnung testen.
-- Einen nicht-default Workspace loeschen und pruefen, dass der andere Workspace unveraendert bleibt.
-
-### Annual month comparisons
-
-`npm test` covers modal-only prior-month/prior-year comparison rows, localized difference rows,
-exact ±5% arrow thresholds, missing history versus known empty months, zero
-baselines, elapsed-day cutoffs and leap-month boundaries. The rollback-only
-`tests/integration/annual-overview.php` also checks comparison queries across year
-boundaries and isolation between personal, shared, solo and foreign scopes.
-
-Browser verification: open a monthly amount in Annual overview, check both available
-comparison rows and their dates and amounts in the modal,
-and use Tab/Shift+Tab, Enter/Space and Escape for its actions. Check first-history months and annual
-totals show no month-comparison rows. Check 390px and desktop layouts in light and
-dark themes; tooltips must remain within the viewport and months scroll inside
-the table while category and annual-total columns remain fixed.
-
-### Insurance label
-
-`tests/integration/insurance.php` checks payment creation and editing, boolean
-filters, dashboard/sidebar counts, CSV column alignment, settings toggles,
-workspace isolation, authentication and compatibility with older backup rows.
-All fixture database writes are rolled back, including on failure. Run against
-an updated local instance with an existing local test account:
+### Shared payments
 
 ```sh
-php tests/integration/insurance.php --nextcloud=/path/to/nextcloud/server --user=admin
+php tests/integration/shared-payment-lifecycle.php --nextcloud=/path/to/server --user=admin --other-user=testuser
 ```
 
-The frontend smoke checks cover the insurance route shortcut, retained filter
-and unsaved changes when only the insurance checkbox changes. In the browser,
-verify the payment badge and sidebar entry appear after labelling a payment;
-disabling Insurance in Settings hides the controls without erasing labels.
+Uses two existing accounts. Both owner/member permutations cover editing, payer
+versus creator, allocation/type changes, rounding, personal history, foreign
+workspace access, settlement permissions, immutable historical sources/balances,
+archived areas, independent released-personal editing/deletion and complete
+source/projection deletion. Notifications and live push are suppressed; the suite
+does not create receipt files or modify existing payments.
+
+### Recurring payments
+
+```sh
+php tests/integration/recurring-payments.php --nextcloud=/path/to/server --user=admin --other-user=testuser
+```
+
+Checks planned first/next dates, filters, edit dates, stopping/deleting, 06:00
+boundaries for legacy 09:00 heads, duplicate runs, inclusive end days, catch-up,
+timezone/DST transitions and exact cents. The optional second account enables
+shared-projection checks. Existing series are disabled only within the rolled-back
+transaction; notification and push output are suppressed.
+
+### Master data, budget criteria and Insurance
+
+```sh
+php tests/integration/master-data.php --nextcloud=/path/to/server --user=admin
+php tests/integration/budget-without-area.php --nextcloud=/path/to/server --user=admin
+php tests/integration/insurance.php --nextcloud=/path/to/server --user=admin
+```
+
+These cover scoped category/partner changes and rollback, Without area budget
+criteria, and Insurance label creation/editing, filtering, summaries, CSV,
+settings, workspace/authentication guards and older backup rows.
+
+### Reminder channels
+
+```sh
+php tests/integration/reminders.php --nextcloud=/path/to/server --user=admin --other-user=testuser
+```
+
+Runs real settings controllers, reminder queries and Talk delivery orchestration
+with in-memory notification/Talk transports and rolled-back fixtures. Covers
+channel defaults/combinations, no-area operation, shared recipients, due dates,
+repeat/rescheduled runs, unavailable/changed chats, failed opt-in, transport errors,
+authentication and backup/reset preferences. No real chats, pushes or messages are
+created; this does not verify device delivery or the Talk adapter itself.
+
+## Live Talk integration
+
+Unlike the rollback-only suites, this creates temporary accounts, payments and
+real chats, then removes its fixtures. Use a disposable/local server with Talk
+23–25 enabled. The explicit flag authorizes fixture creation within that test.
+
+```sh
+php tests/integration/talk.php --nextcloud=/path/to/server --create-test-users
+```
+
+Covers opt-out, idempotent setup, payment creation and actual bot delivery,
+independent bell/Talk preferences, actor exclusion, foreign tokens, extra
+participants, reconnection, deleted chats and unauthenticated settings endpoints.
+No messages are sent to existing accounts. See [Talk operation](../docs/operations.md#personal-talk-notifications)
+for delivery behavior and limitations.
+
+## Manual regression priorities
+
+Follow the [design-system verification checklist](../docs/design-system.md#verification-and-maintenance)
+for viewport, theme, focus, keyboard, loading/error and touch checks. For financial
+flows, record expected amounts using small invented examples:
+
+- Verify isolation with two accounts and workspaces, including foreign IDs,
+  workspace deletion and personal versus full shared-area views.
+- Edit shared payments as both creator and another member. Check payer/splits,
+  delete permissions, settlement and subsequent independent personal changes.
+  Exercise real receipt copies separately; SQL rollback tests do not cover Files.
+- Check recurrence before/after the due boundary, future first payments, end dates,
+  missed runs and daylight-saving transitions with controlled test dates.
+- Restore personal/full backups into appropriate test targets, verify relationships
+  and receipt paths, and exercise failures without losing existing data.
+- Open report details through totals and composition rows; verify the selected
+  period, filters and amount perspective, nested Back navigation, editable saved
+  payments and history. Details are pages, not the former annual-detail modals.
+- Check prior-period/year comparisons, missing versus empty history, zero baselines,
+  ±5% thresholds and partial/leap periods against [report rules](../docs/reports.md).
+- Select Forecast, change a filter/breakdown, then visit Payments and return:
+  Forecast remains during report changes; the new visit starts with Development.
+- Print overview and detail pages with narrow/scrolled tables, active tabs, closed
+  sections, long labels and multi-page payments. Check A4 landscape/PDF, repeating
+  headings and all matching detail payments. Cancelling must preserve screen state.
+- Verify CSV, clipboard and an actual Files export, including displayed-section
+  versus whole-report scope, formatting, formula-safe text and filename conflicts.
+- Check mobile row editing/history, unsaved-draft protection and independent app
+  light/dark mode when Nextcloud uses the opposite theme.
+
+Report the revision, server/PHP/database, checks performed, fixture cleanup and
+anything not exercised. A passing build or historical report is not proof of
+current end-to-end behavior.
+
+## Planned payment notification delivery
+
+Run `php tests/integration/planned-notifications.php --nextcloud=/path/to/server
+--user=admin --other-user=testuser` against a local linked Nextcloud installation.
+The rollback-only fixture uses in-memory notification/Talk transports and sends
+no real messages. It checks default opt-out, first due timestamp, repeat cron,
+per-channel failures/retries, private-chat validation, shared recipients,
+projection/deletion/settlement exclusions, backup account remapping and log privacy.
+The recurring-payments fixture additionally verifies that future originals and
+generated repetitions are armed while personal projections remain unarmed.
+Actual mobile push/Talk transport requires a separately authorized live test.
+
+### Calendar reminders (native DAV)
+
+`php tests/integration/calendar-reminders.php --nextcloud=/path/to/server --user=admin --other-user=testuser`
+
+Requires the current migration and two existing local users. Uses temporary native
+DAV calendars and future reminders inside a rolled-back database transaction.
+Covers UTC/DST, start alarms, idempotency, changes, moves, deletion, membership,
+foreign-calendar rejection, absent writable calendars, retry and reset cleanup.
+Payment-controller checks clear the reminder date and verify automatic removal
+from the overview and the actual native calendar objects without calling sync
+manually. Cases include open/completed/archived personal reminders and shared
+payments edited by either the owner or another member; the payment amount stays
+unchanged. Field-update checks separately change date, title, description, clear
+the description and change all three together through payment saves. They verify
+the overview and native event/alarm data, stable event identities, DST dates and
+private descriptions for personal payments and both shared-area editors. They
+also verify automatic archival defaults for new reminders, preservation of each
+participant’s explicit choice, and re-enabling archival in the reminder editor.
+Per-entry sync checks cover failed writes (including unchanged content), successful
+siblings, historical skips, disabled-channel cleanup, old-target cleanup, retry
+recovery and ownership/authentication without changing reminder revisions or
+calendar preferences.
+Quick-postponement checks cover independent/personal/shared reminders, legacy empty
+titles, retained metadata, delivery re-arming, unchanged finances, native calendar
+updates, past/same dates, stale revisions, closed statuses and foreign/anonymous
+access. Frontend tests cover dirty-draft guards, duplicate actions and local 09:00
+across DST, year and leap-day boundaries.
+No attendees or invitations are created. Run on both supported local instances;
+actual device notification delivery still depends on Calendar/client settings.
+
+Notification/calendar integration fixtures enforce Nextcloud's 64-character
+`file_locks.key` limit with a temporary SQLite trigger. This catches overlong keys
+that SQLite would otherwise accept but length-enforcing databases reject. It is
+a targeted compatibility guard, not a substitute for a full database-engine matrix.
+
+The reminder integration fixtures also cover the personal organizer: independent
+CRUD, ownership, revision conflicts, personal shared-payment states, archival,
+reactivation, backup inclusion/reference remapping and delivery. Calendar tests
+exercise native DAV event identity, descriptions/deadlines, alarm removal on
+completion/archive, deletion and per-member isolation. All fixture data rolls
+back and transport messages are captured in memory. `reminder-organizer.mjs`
+checks frontend drafts, failures, concurrent submissions, stale search responses
+and filtering.
+
+### Bidirectional reminder/calendar synchronization
+
+`tests/integration/calendar-reminders.php` additionally exercises private-calendar
+imports, independent-field merges, conflicting edits and stale resolution tokens,
+legacy baselines, ETag write guards, event deletion/tombstones/reactivation,
+completion preservation, personal/shared-payment isolation, all-day DST conversion,
+past-date delivery suppression, deleted calendars and revoked access. All fixtures
+and native DAV writes are rolled back; no attendees or invitations are created.
+`ReminderCalendarMergeTest.php` covers merge policy; `reminder-organizer.mjs` checks
+explicit conflict choices and preservation of imported non-default hours.

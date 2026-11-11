@@ -72,11 +72,11 @@ export function createAnnualPrintDocument(source, { title, details = [], metadat
 		.annual-month-empty { color: #888; }
 		.annual-empty-message { padding: 2mm; text-align: center; }
 		.report-top-payments-table th, .report-top-payments-table td { text-align: start; white-space: normal; overflow-wrap: anywhere; }
-		.report-top-payments-table .numeric { text-align: end; white-space: nowrap; }
+		.report-top-payments-table .numeric, .report-top-payments-table .amount-cell, .report-top-payments-table .col-amount { text-align: end; white-space: nowrap; }
 		.report-top-payments-table thead th:first-child { width: 22mm; }
 		.report-top-payments-table thead th:nth-child(2) { width: 45%; }
 		.report-top-payments-table thead th:last-child { width: 29mm; }
-		.report-top-payments-table .report-top-date { white-space: nowrap; }
+		.report-top-payments-table .report-top-date, .report-top-payments-table .date-cell { white-space: nowrap; }
 		.report-summary { display: flex; gap: 4mm; margin: 0 0 4mm; break-inside: avoid; }
 		.report-summary-item { display: flex; align-items: baseline; justify-content: space-between; gap: 3mm; flex: 1; padding: 2mm 3mm; border: 0.2mm solid #ddd; border-radius: 2mm; }
 		.report-summary-label { color: #555; font-size: 8.5pt; }
@@ -170,6 +170,8 @@ export function reportNodeVisible(node, root) {
 
 function cleanReportTable(doc, source) {
 	const table = doc.importNode(source, true)
+	table.querySelectorAll('.mobile-only, .entry-area-marker').forEach(node => node.remove())
+	table.querySelectorAll('[data-report-export-label]').forEach(node => { node.textContent = node.getAttribute('data-report-export-label') })
 	if (table.querySelectorAll('tbody tr').length <= 12) table.classList.add('report-compact-table')
 	for (const node of [table, ...table.querySelectorAll('*')]) { node.removeAttribute('style'); node.removeAttribute('id'); node.removeAttribute('tabindex'); node.removeAttribute('aria-sort'); node.removeAttribute('aria-selected') }
 	table.querySelectorAll('.annual-comparison-icon, .sort-icon, svg, .report-payments-pagination').forEach(node => node.remove())

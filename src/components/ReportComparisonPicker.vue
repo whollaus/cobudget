@@ -1,33 +1,30 @@
 <template>
-	<NcPopover v-if="options.length" v-model:shown="shown" placement="bottom-end" popup-role="dialog" popover-base-class="report-comparison-popover">
-		<template #trigger>
-			<NcButton variant="tertiary" class="report-comparison-trigger" :class="{ 'is-open': shown }" :aria-label="$texts.annual.compare()">
-				{{ $texts.annual.compare() }}<span v-if="selectedCount"> ({{ selectedCount }})</span><ChevronDownIcon :size="18" />
-			</NcButton>
+	<NcActions v-if="options.length" v-model:open="shown" class="report-comparison-trigger cobudget-report-menu cobudget-action-menu"
+		variant="tertiary" force-menu placement="bottom-end"
+		:menu-name="`${$texts.annual.compare()}${selectedCount ? ` (${selectedCount})` : ''}`">
+		<template #icon><ChevronDownIcon :size="18" /></template>
+		<template v-for="group in optionGroups" :key="group.id">
+			<NcActionCaption :name="group.label" />
+			<NcActionButton v-for="value in group.options" :key="value.id" class="cobudget-report-menu-option cobudget-action-menu-option"
+				type="checkbox" :model-value="modelValue.includes(value.id)" :close-after-click="false"
+				@update:model-value="toggle(value.id, $event)">
+				{{ label(value) }}
+			</NcActionButton>
 		</template>
-		<div class="report-comparison-panel" role="dialog" :aria-label="$texts.annual.compare()">
-			<div v-for="group in optionGroups" :key="group.id" class="report-comparison-group" role="group" :aria-label="group.label">
-				<p class="report-comparison-group-title">{{ group.label }}</p>
-				<NcCheckboxRadioSwitch v-for="value in group.options" :key="value.id" type="checkbox" :model-value="modelValue.includes(value.id)"
-					@update:model-value="toggle(value.id, $event)">
-					{{ label(value) }}
-				</NcCheckboxRadioSwitch>
-			</div>
-		</div>
-	</NcPopover>
+	</NcActions>
 </template>
 
 <script>
-import NcButton from '@nextcloud/vue/components/NcButton'
-import NcPopover from '@nextcloud/vue/components/NcPopover'
-import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActionCaption from '@nextcloud/vue/components/NcActionCaption'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import { reportComparisonLabel } from '../services/reportComparisons'
 import { formatCalendarLabel } from '../utils/formatDate'
 
 export default {
 	name: 'ReportComparisonPicker',
-	components: { NcButton, NcPopover, NcCheckboxRadioSwitch, ChevronDownIcon },
+	components: { NcActions, NcActionButton, NcActionCaption, ChevronDownIcon },
 	props: { comparisons: { type: Array, required: true }, modelValue: { type: Array, default: () => [] } },
 	emits: ['update:modelValue'],
 	data: () => ({ shown: false }),
@@ -49,20 +46,3 @@ export default {
 	},
 }
 </script>
-
-<style scoped>
-.report-comparison-trigger.button-vue { min-width: 0; min-height: 36px; height: 36px; margin: 0; padding: 0 calc(var(--default-grid-baseline, 4px) * 2); border: 0; border-radius: var(--border-radius-element, 8px); background: transparent; color: var(--cobudget-text-muted); font: inherit; --font-weight-element: 400; }
-.report-comparison-trigger :deep(.button-vue__text) { display: inline-flex; align-items: center; gap: var(--default-grid-baseline, 4px); margin: 0; padding: 0 !important; }
-.report-comparison-trigger.button-vue:hover:not(:disabled),
-.report-comparison-trigger.button-vue:active:not(:disabled),
-.report-comparison-trigger.button-vue:focus-visible,
-.report-comparison-trigger.button-vue.is-open { background: var(--cobudget-surface-muted) !important; }
-.report-comparison-trigger.button-vue:focus-visible { outline: var(--cobudget-focus-outline) !important; outline-offset: 2px; box-shadow: none !important; }
-.report-comparison-panel { box-sizing: border-box; width: min(300px, calc(100vw - 32px)); max-height: min(70vh, 560px); overflow-y: auto; padding: calc(var(--default-grid-baseline, 4px) * 2); color: var(--cobudget-text, var(--color-main-text)); }
-.report-comparison-group + .report-comparison-group { margin-block-start: calc(var(--default-grid-baseline, 4px) * 2); padding-block-start: calc(var(--default-grid-baseline, 4px) * 2); border-top: 1px solid var(--color-border); }
-.report-comparison-group-title { margin: 0; padding-inline: calc(var(--default-grid-baseline, 4px) * 2); color: var(--cobudget-text-muted); font-size: var(--cobudget-font-caption); }
-@media (max-width: 768px) {
-	.report-comparison-trigger.button-vue { min-height: 44px; height: 44px; padding-inline: var(--default-grid-baseline, 4px); }
-	:global(.report-comparison-popover) { z-index: 10000 !important; }
-}
-</style>

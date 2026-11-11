@@ -20,7 +20,7 @@ try {
  for (const name of ['overview', 'forecast', 'detail', 'top']) {
   const html = name === 'top' ? fixtures.topSection : fixtures[name]
   await page.setContent(`<!doctype html><html lang="de"><head><style>:root { --cobudget-text:#222; --cobudget-text-muted:#666; --cobudget-border:#ddd; --cobudget-font-sm:14px; --cobudget-font-xs:12px; --cobudget-surface:#fff; } ${chartStyles}</style></head><body><main id="source">${html}</main></body></html>`)
-  if (name === 'top') await page.evaluate(html => { const template = document.createElement('template'); template.innerHTML = html; document.querySelector('.report-top-payments-table').replaceWith(template.content.firstElementChild) }, fixtures.topTable)
+  if (name === 'top') await page.evaluate(html => { const template = document.createElement('template'); template.innerHTML = html; document.querySelector('.report-top-payments').replaceWith(template.content.firstElementChild) }, fixtures.topTable)
   await page.addScriptTag({ content: script })
   if (name === 'detail') {
    assert.equal(await page.evaluate(() => { try { window.makeReport(document.getElementById('source'), { title: 'Pending report' }); return null } catch (error) { return error.code } }), 'REPORT_LOADING', 'A partially loaded section cannot silently disappear from a complete-looking report')
@@ -33,7 +33,10 @@ try {
    return { html: '<!doctype html>' + report.documentElement.outerHTML, tables: report.querySelectorAll('table').length, charts: report.querySelectorAll('.report-chart svg').length, payments: report.querySelectorAll('.report-payment-list tbody tr').length, text: report.body.textContent, controls: report.querySelectorAll('button, select, input, [role="tab"]').length, topRows: [...report.querySelectorAll('.report-top-payment-row')].map(row => [...row.cells].map(cell => cell.textContent)) }
   }, { metadata, payments, name })
   assert.equal(result.controls, 0, 'Reports contain content instead of live controls')
-  if (name === 'top') { assert.equal(result.tables, 1); assert.deepEqual(result.topRows.map(row => row.slice(1)), [['Hotel <script>', 'Travel', 'Hotel & Spa', '40.01'], ['', 'Food', 'Restaurant', '10.00']], 'Printing preserves the separate description, category, from/to and amount columns') }
+  if (name === 'top') {
+   assert.equal(result.tables, 1)
+   assert.deepEqual(result.topRows.map(row => row.slice(1).map(text => text.trim())), [['Hotel <script>', 'Travel', 'Hotel & Spa', '-€\u00a040,01'], ['', 'Food', 'Restaurant', '-€\u00a010,00']], 'Printing preserves the shared table fields, localized personal amounts and a single copy of each value')
+  }
   else assert.equal(result.charts, 1, 'Only the active development/forecast chart is printed')
   if (name === 'detail') assert.equal(result.payments, 75, 'The payment report includes all loaded rows')
   await page.setContent(result.html)

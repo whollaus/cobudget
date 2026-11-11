@@ -1,5 +1,5 @@
 <template>
-	<ul class="settings-list" data-cobudget-card="flush">
+	<ul class="settings-list" :class="{ 'settings-list--borderless': borderless }" data-cobudget-card="flush">
 		<li
 			v-for="(item, index) in items"
 			:key="itemKey(item, index)"
@@ -20,6 +20,7 @@ import { texts } from '../l10n/texts'
 export default {
 	name: 'SettingsList',
 	props: {
+		borderless: { type: Boolean, default: false },
 		items: {
 			type: Array,
 			default: () => []
@@ -62,6 +63,13 @@ export default {
 	margin: 0;
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
+
+.settings-list.settings-list--borderless {
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+}
+.settings-list--borderless .settings-list-item { padding-inline: 0; }
 
 .settings-list-item {
 	display: flex;

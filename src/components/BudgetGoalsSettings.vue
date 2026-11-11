@@ -1,14 +1,14 @@
 <template>
 	<section class="budget-goals-settings">
 		<div class="section-heading">
-			<h3>{{ $texts.budgetGoals.title() }}</h3>
+			<h3 class="cobudget-section-heading">{{ $texts.budgetGoals.title() }}</h3>
 			<p class="settings-hint">
 				{{ $texts.budgetGoals.settingsHint() }}
 			</p>
 		</div>
 
 		<form class="budget-form" @submit.prevent="saveGoal">
-			<h4>{{ editingId ? $texts.budgetGoals.editTitle() : $texts.budgetGoals.newTitle() }}</h4>
+			<h4 class="cobudget-subheading">{{ editingId ? $texts.budgetGoals.editTitle() : $texts.budgetGoals.newTitle() }}</h4>
 			<div class="budget-form-grid">
 				<div class="form-group">
 					<label for="budget-name">{{ $texts.common.name() }}</label>
@@ -38,7 +38,7 @@
 				<p class="criteria-note">{{ $texts.budgetGoals.noSelectionAllExpenses() }}</p>
 				<div class="criteria-columns">
 					<div class="criteria-block">
-						<h5>{{ $texts.budgetGoals.categories() }}</h5>
+						<h5 class="cobudget-subheading">{{ $texts.budgetGoals.categories() }}</h5>
 						<label v-for="category in categoryOptions" :key="category.id" class="criteria-check">
 							<input v-model="form.criteria.categoryIds" type="checkbox" :value="Number(category.id)">
 							<span>{{ category.name }}</span>
@@ -46,7 +46,7 @@
 						<p v-if="categoryOptions.length === 0" class="empty-note">{{ $texts.budgetGoals.noCategories() }}</p>
 					</div>
 					<div v-if="enableProjects" class="criteria-block">
-						<h5>{{ $texts.budgetGoals.areas() }}</h5>
+						<h5 class="cobudget-subheading">{{ $texts.budgetGoals.areas() }}</h5>
 						<label v-for="project in projectOptions" :key="project.id" class="criteria-check">
 							<input v-model="form.criteria.projectIds" type="checkbox" :value="Number(project.id)">
 							<span>{{ project.name }}</span>
@@ -54,7 +54,7 @@
 						<p v-if="projectOptions.length === 0" class="empty-note">{{ $texts.budgetGoals.noActiveAreas() }}</p>
 					</div>
 					<div class="criteria-block">
-						<h5>{{ $texts.budgetGoals.labels() }}</h5>
+						<h5 class="cobudget-subheading">{{ $texts.budgetGoals.labels() }}</h5>
 						<label v-for="tag in tagOptions" :key="tag.value" class="criteria-check">
 							<input v-model="form.criteria.tags" type="checkbox" :value="tag.value">
 							<span>{{ tag.label }}</span>
@@ -64,9 +64,9 @@
 			</div>
 
 			<div class="form-actions">
-				<NcButton v-if="editingId" variant="secondary" type="button" :disabled="saving" @click="resetForm">{{ $texts.common.cancel() }}</NcButton>
+				<NcButton v-if="editingId" variant="tertiary" type="button" :disabled="saving" @click="resetForm">{{ $texts.common.cancel() }}</NcButton>
 				<NcButton variant="primary" type="submit" :disabled="saving || !canSave">
-					{{ editingId ? $texts.common.save() : $texts.common.add() }}
+					{{ $texts.common.save() }}
 				</NcButton>
 			</div>
 		</form>
@@ -77,7 +77,7 @@
 			<article v-for="goal in goals" :key="goal.id" class="budget-card" :class="`status-${goal.evaluation.status}`">
 				<div class="budget-card-header">
 					<div>
-						<h4>{{ goal.name }}</h4>
+						<h4 class="cobudget-subheading">{{ goal.name }}</h4>
 						<p>{{ periodLabel(goal.period) }} · {{ modeLabel(goal.mode) }} · {{ criteriaLabel(goal.criteria) }}</p>
 					</div>
 					<strong>{{ formatAmount(goal.amount) }}</strong>
@@ -368,7 +368,7 @@ export default {
 
 .budget-form h4,
 .budget-card h4 {
-	font-size: var(--cobudget-font-md);
+	font-size: var(--cobudget-font-subheading);
 	margin: 0;
 }
 

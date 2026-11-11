@@ -1,5 +1,5 @@
 export const SHOW_NEXTCLOUD_HEADER_DESKTOP_DEFAULT = true
-export const SHOW_NEXTCLOUD_HEADER_MOBILE_DEFAULT = false
+export const SHOW_NEXTCLOUD_HEADER_MOBILE_DEFAULT = true
 
 export const NEXTCLOUD_HEADER_DESKTOP_HIDDEN_CLASS = 'cobudget-nextcloud-header-desktop-hidden'
 export const NEXTCLOUD_HEADER_MOBILE_HIDDEN_CLASS = 'cobudget-nextcloud-header-mobile-hidden'

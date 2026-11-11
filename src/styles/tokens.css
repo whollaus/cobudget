@@ -1,8 +1,21 @@
 :root {
+	--cobudget-color-scheme: light;
+	--cobudget-icon-invert: 0;
+	--cobudget-selection-opacity: 20%;
+	/* Match NcButton's quick linear color feedback; custom hover surfaces only. */
+	--cobudget-hover-duration: var(--animation-quick, 100ms);
+	/* Files-compatible interaction tints for custom controls only. Native components own their states. */
+	--cobudget-interaction-hover: color-mix(in srgb, var(--color-primary-element) 8%, transparent);
+	--cobudget-interaction-selected: color-mix(in srgb, var(--color-primary-element) 16%, transparent);
+	--cobudget-interaction-selected-hover: color-mix(in srgb, var(--color-primary-element) 22%, transparent);
 	--cobudget-primary: var(--color-primary-element, var(--color-primary, #0078a8));
 	--cobudget-primary-hover: var(--color-primary-element-hover, var(--color-primary-hover, #006a92));
 	--cobudget-primary-light: var(--color-primary-element-light, var(--color-primary-light, #e6f4fb));
 	--cobudget-primary-text: var(--color-primary-element-text, #fff);
+	--cobudget-label-fixed-cost-color: #e67e22;
+	--cobudget-label-children-color: #0f766e;
+	--cobudget-label-subscription-color: #8e44ad;
+	--cobudget-label-insurance-color: var(--cobudget-primary);
 	--cobudget-danger-text: #fff;
 	--cobudget-info-text: var(--color-primary-element-light-text, #006aa6);
 	--cobudget-info-background: color-mix(in srgb, var(--cobudget-primary) 12%, var(--cobudget-surface));
@@ -28,8 +41,8 @@
 	--cobudget-page-background: var(--color-main-background, #fff);
 	--cobudget-navigation-background: transparent;
 	--cobudget-mobile-navigation-background: var(--color-background-dark, var(--color-main-background, #fff));
-	--cobudget-navigation-hover-background: var(--color-background-hover, #f5f5f5);
-	--cobudget-navigation-active-background: var(--color-primary-element-light, var(--color-background-hover, #e6f4fb));
+	--cobudget-navigation-hover-background: var(--cobudget-interaction-hover);
+	--cobudget-navigation-active-background: var(--cobudget-interaction-selected);
 	--cobudget-border: var(--color-border, #ddd);
 	--cobudget-border-strong: var(--color-border-dark, #ccc);
 
@@ -54,6 +67,7 @@
 	--cobudget-dialog-padding: 24px;
 	--cobudget-dialog-title-size: var(--cobudget-font-xl);
 	--cobudget-menu-padding: 8px;
+	--cobudget-filter-menu-padding: var(--default-grid-baseline, 4px);
 	--cobudget-menu-item-radius: var(--cobudget-control-radius);
 	--cobudget-menu-item-height: var(--default-clickable-area, 34px);
 	/* Surfaces share the Nextcloud grid; dense financial tables and mobile
@@ -65,14 +79,21 @@
 	--cobudget-content-gap: calc(var(--default-grid-baseline, 4px) * 3);
 	--cobudget-section-gap: calc(var(--default-grid-baseline, 4px) * 6);
 	--cobudget-settings-section-gap: calc(var(--default-grid-baseline, 4px) * 8);
+	--cobudget-settings-heading-gap: calc(var(--default-grid-baseline, 4px) * 12);
 	--cobudget-form-inset: calc(var(--default-grid-baseline, 4px) * 7);
 	--cobudget-form-max-width: 900px;
-	--cobudget-table-radius: var(--cobudget-radius-lg);
-	--cobudget-table-header-background: var(--cobudget-surface-muted);
-	--cobudget-table-row-hover: var(--cobudget-surface-muted);
-	--cobudget-table-sort-hover: var(--cobudget-surface-strong);
+	--cobudget-table-radius: 0px;
+	--cobudget-table-header-background: var(--cobudget-surface);
+	--cobudget-table-header-font-size: var(--cobudget-font-body);
+	--cobudget-table-header-height: var(--cobudget-payment-table-header-height);
+	--cobudget-table-separator: var(--cobudget-border);
+	--cobudget-table-row-hover: color-mix(in srgb, var(--color-primary-element) 8%, var(--cobudget-surface));
+	--cobudget-table-sort-hover: var(--cobudget-table-row-hover);
+	--cobudget-table-row-selected: color-mix(in srgb, var(--color-primary-element) 16%, var(--cobudget-surface));
 	--cobudget-table-cell-padding: var(--default-grid-baseline, 4px) calc(var(--default-grid-baseline, 4px) * 2.5);
-	--cobudget-table-payment-padding: 0 calc(var(--default-grid-baseline, 4px) * 2.5);
+	--cobudget-table-payment-padding: 0 calc(var(--default-grid-baseline, 4px) * 3);
+	--cobudget-payment-table-row-height: calc(var(--default-grid-baseline, 4px) * 10);
+	--cobudget-payment-table-header-height: calc(var(--default-grid-baseline, 4px) * 11);
 	--cobudget-table-detail-padding: calc(var(--default-grid-baseline, 4px) * 3) calc(var(--default-grid-baseline, 4px) * 4);
 	--cobudget-card-hover-shadow: var(--cobudget-shadow-sm);
 
@@ -81,13 +102,16 @@
 	--cobudget-font-label: var(--cobudget-font-caption);
 	--cobudget-font-badge: var(--cobudget-font-caption);
 	--cobudget-font-badge-compact: 10px;
-	--cobudget-font-card-title: 18px;
-	--cobudget-font-subheading: 18px;
-	--cobudget-font-section-title: 22px;
-	--cobudget-font-page-title: 26px;
-	--cobudget-font-page-title-mobile: 20px;
+	--cobudget-font-card-title: var(--default-font-size, 15px);
+	--cobudget-font-subheading: var(--default-font-size, 15px);
+	--cobudget-font-section-title: 20px;
+	--cobudget-font-page-title: var(--cobudget-font-section-title);
+	--cobudget-font-page-title-mobile: var(--cobudget-font-section-title);
+	--cobudget-font-weight-heading: var(--font-weight-heading, 600);
 	--cobudget-font-metric: 22px;
 	--cobudget-font-metric-compact: 18px;
+	--cobudget-summary-card-width: calc(260px + var(--default-grid-baseline, 4px) * 2);
+	--cobudget-summary-card-gap: calc(var(--default-grid-baseline, 4px) * 6);
 	--cobudget-icon-inline: 16px;
 	--cobudget-icon-action: 20px;
 	--cobudget-icon-close: 24px;
@@ -102,8 +126,8 @@
 	--cobudget-font-base: var(--cobudget-font-body);
 	--cobudget-font-ui: 16px;
 	--cobudget-font-md: var(--cobudget-font-ui);
-	--cobudget-font-md-plus: var(--cobudget-font-card-title);
-	--cobudget-font-lg: var(--cobudget-font-card-title);
+	--cobudget-font-md-plus: var(--cobudget-font-metric-compact);
+	--cobudget-font-lg: var(--cobudget-font-metric-compact);
 	--cobudget-font-lg-plus: var(--cobudget-font-page-title-mobile);
 	--cobudget-font-xl: var(--cobudget-font-page-title-mobile);
 	--cobudget-font-section: var(--cobudget-font-section-title);
@@ -111,8 +135,8 @@
 	--cobudget-font-title-md: var(--cobudget-font-page-title);
 	--cobudget-font-title: var(--cobudget-font-page-title);
 	--cobudget-font-weight-action: var(--font-weight-element, 700);
-	--cobudget-report-header-height: calc(var(--default-grid-baseline, 4px) * 16);
-	--cobudget-report-section-gap: calc(var(--default-grid-baseline, 4px) * 6);
+	--cobudget-report-header-height: var(--default-clickable-area, 44px);
+	--cobudget-report-section-gap: var(--cobudget-settings-heading-gap);
 
 	--cobudget-button-height: var(--default-clickable-area, 34px);
 	--cobudget-button-height-large: 54px;
@@ -268,6 +292,9 @@ body.cobudget-theme-light {
 	--cobudget-tax: #7c3aed;
 	--cobudget-tax-light: #f3e8ff;
 	--cobudget-tax-dark: #5b21b6;
+	--cobudget-color-scheme: light;
+	--cobudget-icon-invert: 0;
+	--cobudget-selection-opacity: 20%;
 	--cobudget-text: #222;
 	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 70%, #000);
 	--cobudget-text-muted: #666;
@@ -277,8 +304,6 @@ body.cobudget-theme-light {
 	--cobudget-page-background: #fff;
 	--cobudget-navigation-background: transparent;
 	--cobudget-mobile-navigation-background: #dcecf8;
-	--cobudget-navigation-hover-background: #eef6fb;
-	--cobudget-navigation-active-background: #c8dff1;
 	--cobudget-border: #ddd;
 	--cobudget-border-strong: #ccc;
 	--cobudget-shadow-header: 0 3px 10px rgba(0, 0, 0, 0.18);
@@ -312,6 +337,9 @@ body[data-cobudget-theme="dark"] {
 	--cobudget-tax: #c4b5fd;
 	--cobudget-tax-light: rgba(124, 58, 237, 0.22);
 	--cobudget-tax-dark: #c4b5fd;
+	--cobudget-color-scheme: dark;
+	--cobudget-icon-invert: 1;
+	--cobudget-selection-opacity: 40%;
 	--cobudget-text: #f5f5f5;
 	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #b3b3b3;
@@ -321,8 +349,6 @@ body[data-cobudget-theme="dark"] {
 	--cobudget-page-background: #121212;
 	--cobudget-navigation-background: transparent;
 	--cobudget-mobile-navigation-background: #181818;
-	--cobudget-navigation-hover-background: #242424;
-	--cobudget-navigation-active-background: #303030;
 	--cobudget-border: #3a3a3a;
 	--cobudget-border-strong: #555;
 	--cobudget-shadow-header: 0 4px 14px rgba(0, 0, 0, 0.52);
@@ -371,6 +397,9 @@ body.theme--dark:not(.cobudget-theme-light) {
 	--cobudget-tax: #c4b5fd;
 	--cobudget-tax-light: rgba(124, 58, 237, 0.22);
 	--cobudget-tax-dark: #c4b5fd;
+	--cobudget-color-scheme: dark;
+	--cobudget-icon-invert: 1;
+	--cobudget-selection-opacity: 40%;
 	--cobudget-text: #f5f5f5;
 	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #b3b3b3;
@@ -424,8 +453,11 @@ body.theme--dark:not(.cobudget-theme-light) #content.app-cobudget {
 		--cobudget-tax: #c4b5fd;
 		--cobudget-tax-light: rgba(124, 58, 237, 0.22);
 		--cobudget-tax-dark: #c4b5fd;
+		--cobudget-color-scheme: dark;
+		--cobudget-icon-invert: 1;
+		--cobudget-selection-opacity: 40%;
 		--cobudget-text: #f5f5f5;
-	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
+		--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 		--cobudget-text-muted: #b3b3b3;
 		--cobudget-surface: #181818;
 		--cobudget-surface-muted: #242424;
@@ -448,6 +480,90 @@ body.theme--dark:not(.cobudget-theme-light) #content.app-cobudget {
 		--color-border-dark: var(--cobudget-border-strong);
 		--color-primary-light: rgba(0, 130, 201, 0.22);
 	}
+}
+
+/* Rebind native component roles inside the app and its explicitly marked
+ * teleported menus and dialogs. Never theme Nextcloud header/account popovers by presence
+ * of the app alone. Form boxes derive their extra-light colors from these
+ * primary roles; note cards use the semantic background/text pairs. */
+#content.app-cobudget,
+.cobudget-native-dialog,
+.cobudget-dialog,
+.cobudget-menu-popover,
+.cobudget-toast-container,
+/* The Files picker teleports its New folder input outside the theme container. */
+body:has(.cobudget-folder-picker) .action-item__popper:has(.action-input),
+.action-item__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option) {
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--color-background-dark: var(--cobudget-surface-muted);
+	--color-background-darker: var(--cobudget-surface-strong);
+	--color-border: var(--cobudget-border);
+	--color-border-dark: var(--cobudget-border-strong);
+	--color-text-selection: var(--cobudget-text);
+	--color-background-selection: color-mix(in srgb, var(--cobudget-primary) var(--cobudget-selection-opacity), transparent);
+	--color-primary-element-light: color-mix(in srgb, var(--cobudget-primary) 10%, var(--cobudget-surface));
+	--color-primary-element-light-hover: color-mix(in srgb, var(--color-primary-element-light) 90%, var(--cobudget-text));
+	--color-primary-element-light-text: var(--cobudget-info-text);
+	--color-info: var(--cobudget-info-background);
+	--color-info-text: var(--cobudget-info-text);
+	--color-success: var(--cobudget-success-light);
+	--color-success-text: var(--cobudget-success);
+	--color-warning: var(--cobudget-warning-light);
+	--color-warning-text: var(--cobudget-warning-dark);
+	--color-error: var(--cobudget-error-light);
+	--color-error-text: var(--cobudget-error);
+	color-scheme: var(--cobudget-color-scheme);
+}
+
+.cobudget-toast-container .toastify.dialogs {
+	--color-element-error: var(--cobudget-error);
+	--color-element-success: var(--cobudget-success);
+	--color-element-warning: var(--cobudget-warning);
+	--color-element-info: var(--cobudget-info-text);
+}
+.cobudget-toast-container .toastify.dialogs .toast-close.toast-close::before {
+	filter: brightness(0) invert(var(--cobudget-icon-invert));
+}
+
+/* Native shell surfaces must follow the app override, not the global theme.
+ * Keep Nextcloud's translucent shell while rebinding its palette locally. */
+#content.app-cobudget {
+	--color-main-background-blur: color-mix(in srgb, var(--cobudget-surface) 85%, transparent);
+	--color-main-background-translucent: color-mix(in srgb, var(--cobudget-surface) 97%, transparent);
+	--color-text-maxcontrast-default: var(--cobudget-text-muted);
+	--color-text-maxcontrast-background-blur: var(--cobudget-text-muted);
+	color-scheme: var(--cobudget-color-scheme);
+}
+
+/* NcSelect resolves its palette on body, before the app's native color overrides.
+ * Rebind it at the controls and their body-teleported menus, leaving the global
+ * Nextcloud header/theme untouched. Do not change native geometry or states. */
+#content.app-cobudget .cobudget-native-select,
+:is(.cobudget-native-dialog, .cobudget-dialog) .cobudget-native-select,
+body:has(#content.app-cobudget, .cobudget-native-dialog, .cobudget-dialog) > .vs__dropdown-menu {
+	--color-main-text: var(--cobudget-text);
+	--color-text-maxcontrast: var(--cobudget-text-muted);
+	--color-main-background: var(--cobudget-surface);
+	--color-background-hover: var(--cobudget-surface-muted);
+	--vs-search-input-color: var(--cobudget-text);
+	--vs-search-input-bg: var(--cobudget-surface);
+	--vs-search-input-placeholder-color: var(--cobudget-text-muted);
+	--vs-state-disabled-bg: var(--cobudget-surface-muted);
+	--vs-state-disabled-color: var(--cobudget-text-muted);
+	--vs-state-disabled-controls-color: var(--cobudget-text-muted);
+	--vs-disabled-bg: var(--cobudget-surface-muted);
+	--vs-disabled-color: var(--cobudget-text-muted);
+	--vs-controls-color: var(--cobudget-text);
+	--vs-selected-bg: var(--cobudget-surface-muted);
+	--vs-selected-color: var(--cobudget-text);
+	--vs-dropdown-bg: var(--cobudget-surface);
+	--vs-dropdown-color: var(--cobudget-text);
+	--vs-dropdown-option--active-bg: var(--cobudget-surface-muted);
+	--vs-dropdown-option--active-color: var(--cobudget-text);
+	color-scheme: var(--cobudget-color-scheme);
 }
 
 @media (max-width: 768px) {
@@ -501,6 +617,9 @@ body.theme--dark:not(.cobudget-theme-light) #content.app-cobudget {
 	.restore-report,
 	.restore-report-block
 ) {
+	--cobudget-color-scheme: dark;
+	--cobudget-icon-invert: 1;
+	--cobudget-selection-opacity: 40%;
 	--cobudget-text: #f5f5f5;
 	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #b3b3b3;
@@ -526,6 +645,9 @@ body:has(#content.app-cobudget) :where(
 	.confirm-modal-backdrop,
 	.project-create-modal-backdrop
 ) {
+	--cobudget-color-scheme: light;
+	--cobudget-icon-invert: 0;
+	--cobudget-selection-opacity: 20%;
 	--cobudget-text: #222;
 	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 70%, #000);
 	--cobudget-text-muted: #666;
@@ -650,6 +772,9 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 	.confirm-modal-backdrop,
 	.project-create-modal-backdrop
 ) {
+	--cobudget-color-scheme: dark;
+	--cobudget-icon-invert: 1;
+	--cobudget-selection-opacity: 40%;
 	--cobudget-text: #f5f5f5;
 	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #b3b3b3;
@@ -680,8 +805,11 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 		.confirm-modal-backdrop,
 		.project-create-modal-backdrop
 	) {
+		--cobudget-color-scheme: dark;
+		--cobudget-icon-invert: 1;
+		--cobudget-selection-opacity: 40%;
 		--cobudget-text: #f5f5f5;
-	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
+		--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 		--cobudget-text-muted: #b3b3b3;
 		--cobudget-surface: #181818;
 		--cobudget-surface-muted: #242424;
@@ -853,27 +981,6 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 	border-color: var(--cobudget-border) !important;
 }
 
-#content.app-cobudget .button-vue--primary,
-#content.app-cobudget .button-vue--primary:hover:not(:disabled),
-#content.app-cobudget .button-vue--primary:focus-visible:not(:disabled) {
-	background-color: var(--cobudget-primary) !important;
-	border-color: var(--cobudget-primary-hover) !important;
-	color: var(--cobudget-primary-text) !important;
-}
-
-#content.app-cobudget .button-vue--primary:hover:not(:disabled),
-#content.app-cobudget .button-vue--primary:focus-visible:not(:disabled) {
-	background-color: var(--cobudget-primary-hover) !important;
-}
-
-#content.app-cobudget .button-vue--primary .button-vue__icon,
-#content.app-cobudget .button-vue--primary .button-vue__text,
-#content.app-cobudget .button-vue--primary .material-design-icon,
-#content.app-cobudget .button-vue--primary .material-design-icon__svg {
-	color: var(--cobudget-primary-text) !important;
-	fill: currentColor !important;
-}
-
 :where(
 	html.cobudget-theme-dark,
 	body.cobudget-theme-dark,
@@ -998,8 +1105,11 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 		.restore-report,
 		.restore-report-block
 	) {
+		--cobudget-color-scheme: dark;
+		--cobudget-icon-invert: 1;
+		--cobudget-selection-opacity: 40%;
 		--cobudget-text: #f5f5f5;
-	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
+		--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 		--cobudget-text-muted: #b3b3b3;
 		--cobudget-surface: #181818;
 		--cobudget-surface-muted: #242424;
@@ -1020,94 +1130,43 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 }
 
 .cobudget-toolbar-icon-button,
-.cobudget-toolbar-icon-button.button-vue,
-.annual-export-menu .action-item__menutoggle {
+.cobudget-toolbar-icon-button.button-vue {
 	min-width: var(--cobudget-icon-button-size) !important;
 	width: var(--cobudget-icon-button-size) !important;
 	min-height: var(--cobudget-icon-button-size) !important;
 	height: var(--cobudget-icon-button-size) !important;
 	padding: 0 !important;
-	border-color: transparent !important;
-	background-color: transparent !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text) !important;
 }
 
-.cobudget-toolbar-icon-button:hover:not(:disabled),
-.cobudget-toolbar-icon-button:focus-visible:not(:disabled),
-.cobudget-toolbar-icon-button.button-vue:hover:not(:disabled),
-.cobudget-toolbar-icon-button.button-vue:focus-visible:not(:disabled),
-.annual-export-menu .action-item__menutoggle:hover:not(:disabled),
-.annual-export-menu .action-item__menutoggle:focus-visible:not(:disabled) {
-	border-color: transparent !important;
-	background-color: var(--cobudget-surface-muted) !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text) !important;
+/* Active payment filters retain the native tertiary surface and text color. */
+.cobudget-filter-active.button-vue {
+	position: relative;
 }
 
-.cobudget-toolbar-icon-button.is-active,
-.cobudget-toolbar-icon-button.button-vue.is-active {
-	color: var(--cobudget-primary) !important;
-	background-color: var(--cobudget-surface-muted) !important;
+.cobudget-filter-active.button-vue::after {
+	content: '';
+	position: absolute;
+	inset-block-start: var(--default-grid-baseline, 4px);
+	inset-inline-end: var(--default-grid-baseline, 4px);
+	pointer-events: none;
 }
 
-.cobudget-toolbar-icon-button .button-vue__icon,
-.annual-export-menu .action-item__menutoggle .button-vue__icon {
+.cobudget-filter-active.button-vue::after,
+.cobudget-filter-dot {
+	width: calc(var(--default-grid-baseline, 4px) * 1.5);
+	height: calc(var(--default-grid-baseline, 4px) * 1.5);
+	border-radius: 50%;
+	background-color: var(--cobudget-primary, var(--color-primary-element));
+	pointer-events: none;
+}
+
+.cobudget-filter-dot {
+	display: inline-block;
+	flex-shrink: 0;
+}
+
+.cobudget-toolbar-icon-button .button-vue__icon {
 	margin: 0 !important;
-}
-
-.cobudget-filter-sheet-backdrop {
-	position: fixed;
-	inset: 0;
-	z-index: 10050;
-	display: flex;
-	align-items: flex-start;
-	justify-content: flex-end;
-	padding: calc(var(--body-container-margin, 0px) + 70px) 16px 16px;
-	background: rgba(0, 0, 0, 0.18);
-	box-sizing: border-box;
-}
-
-.cobudget-filter-sheet {
-	width: min(420px, 100%);
-	max-height: min(720px, calc(100vh - 96px));
-	overflow: auto;
-	border: 1px solid var(--cobudget-border);
-	border-radius: var(--cobudget-radius-lg);
-	background: var(--cobudget-surface);
-	box-shadow: var(--cobudget-shadow-lg);
-	padding: 16px;
-	box-sizing: border-box;
-	color: var(--cobudget-text);
-}
-
-.cobudget-filter-sheet__header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	margin-bottom: 12px;
-}
-
-.cobudget-filter-sheet__header h3 {
-	margin: 0;
-	color: var(--cobudget-text);
-	font-size: var(--cobudget-font-lg);
-	font-weight: 700;
-}
-
-@media (max-width: 768px) {
-	.cobudget-filter-sheet-backdrop {
-		align-items: flex-end;
-		justify-content: stretch;
-		padding: 12px;
-	}
-
-	.cobudget-filter-sheet {
-		width: 100%;
-		max-height: min(80vh, 720px);
-		border-radius: var(--cobudget-radius-lg);
-	}
 }
 
 .cobudget-page-title-with-back {
@@ -1115,7 +1174,7 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 	align-items: center;
 	gap: 10px;
 	min-width: 0;
-	margin-top: -2px;
+	margin-top: 0;
 }
 
 .cobudget-page-title-with-back > span:last-child {
@@ -1125,49 +1184,11 @@ body:has(#content.app-cobudget.cobudget-theme-dark) :where(
 	white-space: nowrap;
 }
 
-.cobudget-header-back-button,
+/* Native tertiary back actions retain Nextcloud colors, hover and focus. */
 .cobudget-header-back-button.button-vue {
-	min-width: var(--cobudget-icon-button-size) !important;
-	width: var(--cobudget-icon-button-size) !important;
-	min-height: var(--cobudget-icon-button-size) !important;
-	height: var(--cobudget-icon-button-size) !important;
-	padding: 0 !important;
-	border-color: transparent !important;
-	background-color: var(--cobudget-surface-muted) !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text) !important;
-}
-
-.cobudget-header-back-button:hover:not(:disabled),
-.cobudget-header-back-button:focus-visible:not(:disabled),
-.cobudget-header-back-button.button-vue:hover:not(:disabled),
-.cobudget-header-back-button.button-vue:focus-visible:not(:disabled) {
-	border-color: transparent !important;
-	background-color: var(--cobudget-surface-strong) !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text) !important;
-}
-
-.cobudget-header-back-button .button-vue__icon {
-	margin: 0 !important;
-}
-
-.cobudget-toolbar-text-button,
-.cobudget-toolbar-text-button.button-vue {
-	background-color: transparent !important;
-	border-color: transparent !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text) !important;
-}
-
-.cobudget-toolbar-text-button:hover:not(:disabled),
-.cobudget-toolbar-text-button:focus-visible:not(:disabled),
-.cobudget-toolbar-text-button.button-vue:hover:not(:disabled),
-.cobudget-toolbar-text-button.button-vue:focus-visible:not(:disabled) {
-	background-color: var(--cobudget-surface-muted) !important;
-	border-color: transparent !important;
-	box-shadow: none !important;
-	color: var(--cobudget-text) !important;
+	min-width: var(--cobudget-icon-button-size);
+	min-height: var(--cobudget-icon-button-size);
+	flex-shrink: 0;
 }
 
 html.cobudget-theme-dark #content.app-cobudget,
@@ -1336,6 +1357,9 @@ html.cobudget-theme-dark .project-create-modal-backdrop,
 body.cobudget-theme-dark .project-create-modal-backdrop,
 html[data-cobudget-theme="dark"] .project-create-modal-backdrop,
 body[data-cobudget-theme="dark"] .project-create-modal-backdrop {
+	--cobudget-color-scheme: dark;
+	--cobudget-icon-invert: 1;
+	--cobudget-selection-opacity: 40%;
 	--cobudget-text: #f5f5f5;
 	--cobudget-info-text: color-mix(in srgb, var(--cobudget-primary) 40%, #fff);
 	--cobudget-text-muted: #c7c7c7;
@@ -1486,4 +1510,21 @@ body[data-cobudget-theme="dark"] .restore-status.missing {
 	background: rgba(209, 52, 56, 0.2) !important;
 	border-color: #f87171 !important;
 	color: #f87171 !important;
+}
+
+/* Touch selections and reduced-motion feedback do not wait for hover fades. */
+@media (hover: none), (prefers-reduced-motion: reduce) {
+	:root { --cobudget-hover-duration: 0s; }
+}
+
+/* Content heading roles; native toolbar titles and form labels retain their own roles. */
+.cobudget-section-heading {
+	font-size: var(--cobudget-font-section-title);
+	font-weight: var(--cobudget-font-weight-heading);
+	line-height: 1.5;
+}
+.cobudget-subheading {
+	font-size: var(--cobudget-font-subheading);
+	font-weight: var(--cobudget-font-weight-heading);
+	line-height: 1.5;
 }

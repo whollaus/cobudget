@@ -57,7 +57,7 @@
 			</ReportDetailSection>
 			<div v-if="!embedded" class="annual-details-actions">
 				<NcButton class="annual-details-payments" variant="tertiary" @click="showPayments">{{ $texts.analytics.showPayments() }}</NcButton>
-				<NcButton variant="secondary" @click="$emit('close')">{{ $texts.common.close() }}</NcButton>
+				<NcButton variant="tertiary" @click="$emit('close')">{{ $texts.common.close() }}</NcButton>
 			</div>
 		</div>
 </template>
@@ -69,7 +69,7 @@ import ReportDetailSection from './ReportDetailSection.vue'
 import { reportComparisonLabel, reportComparisonRange } from '../services/reportComparisons'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
-import { annualRequestParams, isoWeekNumber, isoWeekYear } from '../services/annualOverview'
+import { annualRequestParams, isoWeekNumber, isoWeekYear, reportPeriodLabel } from '../services/annualOverview'
 import { annualCellDetails, annualDetailComparison } from '../services/annualOverviewDetails'
 import { formatCalendarLabel } from '../utils/formatDate'
 import { getAppLocale } from '../utils/formatMoney'
@@ -177,6 +177,7 @@ export default {
 	},
 	computed: {
 		totalLabel() {
+			if (this.selection.timeRange === 'calendar-selection' && this.detail.index === this.report.periods.length - 1) return this.$texts.annual.periodTotal(reportPeriodLabel(this.selection, formatCalendarLabel))
 			const period = this.report.periods[this.detail.index]
 			const from = new Date(period.dateFrom * 1000), to = new Date(period.dateTo * 1000)
 			const next = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1)
@@ -202,6 +203,7 @@ export default {
 		rangeLabel() {
 			const period = this.report.periods[this.detail.index]
 			if (!period) return ''
+			if (this.selection.timeRange === 'calendar-selection' && this.detail.index === this.report.periods.length - 1) return reportPeriodLabel(this.selection, formatCalendarLabel)
 			const format = timestamp => formatCalendarLabel(new Date(timestamp * 1000), { day: 'numeric', month: 'long', year: 'numeric' })
 			return `${format(period.dateFrom)} – ${format(period.dateTo)}`
 		},
@@ -254,20 +256,14 @@ export default {
 <style scoped>
 .annual-details { padding: 52px 24px 24px; overflow-wrap: anywhere; }
 .annual-details.annual-details--embedded { padding: 0; }
-.annual-details--embedded .annual-details-table { font-size: var(--default-font-size, 15px); }
-.annual-details--embedded .annual-details-table th, .annual-details--embedded .annual-details-table td { padding-block: calc(var(--default-grid-baseline, 4px) * 2); }
-.annual-details-table { width: 100%; table-layout: fixed; margin: 0; border-collapse: separate; border-spacing: 0; border: 1px solid var(--cobudget-border, #ddd); border-radius: var(--border-radius-large, 8px); font-size: var(--cobudget-font-sm); }
-.annual-details-table th, .annual-details-table td { height: auto; padding: 4px 10px; border-bottom: 1px solid var(--cobudget-border, #ddd); font-weight: 400; line-height: 1.5; }
-.annual-details-table th { width: 48%; text-align: start; white-space: normal; overflow-wrap: anywhere; color: var(--cobudget-text-muted, #888); letter-spacing: 0.5px; background: var(--cobudget-surface-muted, #f9f9f9); }
+.annual-details-table { width: 100%; table-layout: fixed; margin: 0; border-collapse: separate; border-spacing: 0; border: 0; border-radius: 0; font-size: var(--cobudget-font-base); }
+.annual-details-table th, .annual-details-table td { box-sizing: border-box; height: var(--cobudget-payment-table-row-height); padding: var(--cobudget-table-payment-padding); border-bottom: 1px solid var(--cobudget-table-separator); vertical-align: middle; font-weight: 400; line-height: 1.5; }
+.annual-details-table th { width: 48%; text-align: start; white-space: normal; overflow-wrap: anywhere; color: var(--cobudget-text-muted, #888); letter-spacing: normal; background: var(--cobudget-surface); }
 .annual-details-table td { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .annual-details-table tr:last-child > * { border-bottom: 0; }
 .annual-details-table tr:hover { background: transparent; }
 .annual-details-basics { margin-bottom: 20px; }
 .annual-details-basics td { white-space: normal; }
-.annual-details-table tr:first-child th { border-start-start-radius: calc(var(--border-radius-large, 8px) - 1px); }
-.annual-details-table tr:first-child td { border-start-end-radius: calc(var(--border-radius-large, 8px) - 1px); }
-.annual-details-table tr:last-child th { border-end-start-radius: calc(var(--border-radius-large, 8px) - 1px); }
-.annual-details-table tr:last-child td { border-end-end-radius: calc(var(--border-radius-large, 8px) - 1px); }
 .annual-details-table .annual-details-total > * { color: var(--cobudget-text); font-weight: 600; }
 .annual-details-table .annual-details-total td.negative-balance,
 .annual-details-table .annual-details-average td.negative-balance,
@@ -277,8 +273,6 @@ export default {
 .annual-comparison-period { display: block; font-size: var(--cobudget-font-xs, 12px); letter-spacing: normal; }
 .annual-details-table .annual-comparison-status { white-space: normal; text-align: start; color: var(--cobudget-text-muted); }
 .annual-details-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.annual-details-payments { color: var(--cobudget-text-muted); background-color: var(--cobudget-surface-muted) !important; }
-.annual-details-payments:hover { background-color: var(--cobudget-surface-strong) !important; }
 .annual-details-payments :deep(.button-vue__text) { font-weight: 400; }
 @media (max-width: 480px) { .annual-details { padding: 52px 20px 20px; } }
 </style>

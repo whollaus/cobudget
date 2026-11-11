@@ -20,6 +20,7 @@ class ReportComparisonService {
 				if (isset($entry['assign_group']) && !$entry['assign_group']) continue;
 				$matches = (string)($entry['group_id'] ?? 0) === $id;
 				if ($grouping === 'categories' && !$direct && $id !== '0') $matches = $matches || (string)($entry['parent_id'] ?? '') === $id;
+				if (in_array($grouping, ['categories', 'paymentPartners'], true)) $matches = ReportLookupService::matchesAggregate($entry, $grouping, $id, $direct);
 				if (!$matches) continue;
 			}
 			$date = (int)$entry['date'];
@@ -35,25 +36,50 @@ class ReportComparisonService {
 			return $low;
 		};
 		$sum = static fn(\DateTimeImmutable $start, \DateTimeImmutable $stop): int => $stop < $start ? 0 : $prefix[$indexBefore($stop->getTimestamp() + 1)] - $prefix[$indexBefore($start->getTimestamp())];
-		$current = $sum($from, $to);
+		$current = 0;
+		$disjoint = false;
+		foreach ($periods as $index => $period) {
+			$current += $sum($now->setTimestamp($period['dateFrom']), $now->setTimestamp(min($period['dateTo'], $cutoff)));
+			if ($index > 0 && $period['dateFrom'] > $periods[$index - 1]['dateTo'] + 1) $disjoint = true;
+		}
+		if ($disjoint) $unit = 'range';
 		$history = $historyStart === null ? null : $now->setTimestamp($historyStart)->setTime(0, 0);
 		if ($history !== null && $unit === 'month') $history = $history->modify('first day of this month');
 		$partial = $to < $end;
 		$base = ['unit' => $unit, 'current' => $current, 'currentFrom' => $from->format('Y-m-d'), 'currentTo' => $to->format('Y-m-d'), 'partial' => $partial];
+		if ($disjoint) $base['currentPeriods'] = $periods;
 		$result = [];
 		$modes = $unit === 'year' ? ['previous'] : ['previous', 'year'];
 		foreach ($modes as $mode) {
 			[$previousFrom, $previousEnd] = $this->previous($from, $end, $unit, $mode);
 			$previousTo = $partial ? $this->elapsedEnd($from, $to, $previousFrom, $previousEnd, $unit) : $previousEnd;
 			$available = $history !== null && $previousFrom !== null && $previousTo !== null && $from <= $to && $previousFrom >= $history && $previousTo <= $now;
-			$referencePeriods = $previousFrom !== null && $previousFrom->format('Y-m-d') >= '1970-01-01' && $previousEnd !== null ? (new AnnualOverviewService())->periods($previousFrom->format('Y-m-d'), $previousEnd->format('Y-m-d'), $now->getTimezone(), $breakdown) : [];
+			$referencePeriods = !$disjoint && $previousFrom !== null && $previousFrom->format('Y-m-d') >= '1970-01-01' && $previousEnd !== null ? (new AnnualOverviewService())->periods($previousFrom->format('Y-m-d'), $previousEnd->format('Y-m-d'), $now->getTimezone(), $breakdown) : [];
+			if ($disjoint && $previousFrom !== null && $previousEnd !== null) {
+				$referencePeriods = [];
+				$shiftDays = (int)$previousFrom->diff($from)->format('%a');
+				foreach ($periods as $period) {
+					$shift = function(int $timestamp) use ($now, $mode, $shiftDays): \DateTimeImmutable {
+						$date = $now->setTimestamp($timestamp);
+						if ($mode !== 'year') return $date->modify('-' . $shiftDays . ' days');
+						$month = $date->modify('first day of this month')->modify('-1 year');
+						return $month->setDate((int)$month->format('Y'), (int)$month->format('n'), min((int)$date->format('j'), (int)$month->format('t')));
+					};
+					$referenceFrom = $shift($period['dateFrom'])->getTimestamp();
+					$referenceTo = $shift($period['dateTo'])->getTimestamp();
+					// A leap day can map onto the preceding February 28; count that date once.
+					if ($referencePeriods) $referenceFrom = max($referenceFrom, $referencePeriods[count($referencePeriods) - 1]['dateTo'] + 1);
+					$referencePeriods[] = ['dateFrom' => $referenceFrom, 'dateTo' => $referenceTo];
+				}
+				if ($partial) $previousTo = $shift($to->getTimestamp());
+			}
 			$series = [];
 			foreach ($referencePeriods as $period) {
 				$start = $now->setTimestamp($period['dateFrom']);
 				$stop = $now->setTimestamp(min($period['dateTo'], $previousTo?->getTimestamp() ?? 0));
 				$series[] = $available && $start <= $stop ? $sum($start, $stop) : null;
 			}
-			$result[] = $this->comparison($base + ['id' => $mode, 'kind' => 'period', 'previousFrom' => $previousFrom?->format('Y-m-d'), 'previousTo' => $previousTo?->format('Y-m-d'), 'values' => $series, 'periods' => $referencePeriods], $available ? $sum($previousFrom, $previousTo) : null);
+			$result[] = $this->comparison($base + ['id' => $mode, 'kind' => 'period', 'previousFrom' => $previousFrom?->format('Y-m-d'), 'previousTo' => $previousTo?->format('Y-m-d'), 'values' => $series, 'periods' => $referencePeriods], $available ? ($disjoint ? array_sum($series) : $sum($previousFrom, $previousTo)) : null);
 		}
 		$averageUnit = $averageUnit !== '' ? $averageUnit : ($unit === 'range' ? match ($breakdown) { 'year' => 'month', 'month' => 'day', default => $breakdown } : $unit);
 		return $unit === 'year' ? $result : array_merge($result, $this->previousAverages($sum, $periods, $from, $now, $cutoff, $history, $averageUnit));

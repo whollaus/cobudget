@@ -1,6 +1,6 @@
 <template>
-	<Teleport to="body">
-		<div v-if="show" class="confirm-modal-backdrop" @click.self="cancel">
+	<DialogTransition :show="show">
+		<div class="confirm-modal-backdrop" @click.self="cancel">
 			<div
 				ref="modal"
 				class="confirm-modal cobudget-dialog cobudget-dialog--contained"
@@ -12,14 +12,14 @@
 				@keydown.esc.stop.prevent="cancel">
 				<div class="confirm-modal-header cobudget-dialog-header">
 					<h2 :id="titleId">{{ title }}</h2>
-					<button
+					<NcButton variant="tertiary"
 						type="button"
-						class="confirm-modal-close-button cobudget-dialog-close cobudget-focusable"
+						class="confirm-modal-close-button cobudget-native-dialog-close"
 						:aria-label="closeLabel"
 						:title="closeLabel"
 						@click="cancel">
-						<CloseIcon :size="24" aria-hidden="true" />
-					</button>
+						<template #icon><CloseIcon :size="20" aria-hidden="true" /></template>
+					</NcButton>
 				</div>
 
 				<p v-if="message" class="confirm-modal-message">
@@ -43,19 +43,22 @@
 					@primary="$emit('confirm')" />
 			</div>
 		</div>
-	</Teleport>
+	</DialogTransition>
 </template>
 
 <script>
+import DialogTransition from './DialogTransition.vue'
 import ModalActions from './ModalActions.vue'
 import { texts } from '../l10n/texts'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 
 let nextConfirmModalId = 0
 
 export default {
 	name: 'ConfirmModal',
-	components: {
+	components: { DialogTransition,
+		NcButton,
 		ModalActions,
 		CloseIcon
 	},
@@ -137,7 +140,7 @@ export default {
 					return
 				}
 				const target = modal.querySelector('[data-autofocus]:not(:disabled)')
-					|| modal.querySelector('.cobudget-button--secondary:not(:disabled)')
+					|| modal.querySelector('.modal-cancel-button:not(:disabled)')
 					|| modal.querySelector('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [href], [tabindex]:not([tabindex="-1"])')
 					|| modal
 				target.focus({ preventScroll: true })
@@ -282,34 +285,6 @@ export default {
 .confirm-modal :deep(textarea::placeholder) {
 	color: var(--cobudget-text-muted) !important;
 	opacity: 1;
-}
-
-.confirm-modal :deep(.cobudget-button--primary) {
-	background: var(--cobudget-primary, var(--color-primary, #0082c9)) !important;
-	background-color: var(--cobudget-primary, var(--color-primary, #0082c9)) !important;
-	border-color: var(--cobudget-primary, var(--color-primary, #0082c9)) !important;
-	color: var(--cobudget-primary-text, var(--color-primary-text, #fff)) !important;
-}
-
-.confirm-modal :deep(.cobudget-button--primary:hover:not(:disabled)),
-.confirm-modal :deep(.cobudget-button--primary:focus-visible:not(:disabled)) {
-	background: var(--cobudget-primary-hover, var(--color-primary-hover, #006a92)) !important;
-	background-color: var(--cobudget-primary-hover, var(--color-primary-hover, #006a92)) !important;
-	border-color: var(--cobudget-primary-hover, var(--color-primary-hover, #006a92)) !important;
-	color: var(--cobudget-primary-text, var(--color-primary-text, #fff)) !important;
-}
-
-.confirm-modal :deep(.cobudget-button--secondary) {
-	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5)) !important;
-	border-color: transparent !important;
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
-}
-
-.confirm-modal :deep(.cobudget-button--secondary:hover:not(:disabled)),
-.confirm-modal :deep(.cobudget-button--secondary:focus-visible:not(:disabled)) {
-	background: var(--cobudget-surface-strong, var(--color-background-dark, #e5e5e5)) !important;
-	border-color: transparent !important;
-	color: var(--cobudget-text, var(--color-main-text, #222)) !important;
 }
 
 .confirm-modal :deep(.cobudget-button--secondary:disabled) {

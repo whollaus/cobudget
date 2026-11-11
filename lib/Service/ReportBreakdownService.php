@@ -6,7 +6,8 @@ namespace OCA\CoBudget\Service;
 
 /** Composition of an already authorized report subject. Money stays in integer cents. */
 class ReportBreakdownService {
-	public function build(iterable $rows, int $from, int $to, string $grouping, string $type, string $id, bool $direct, array $labels): array {
+	public function build(iterable $rows, int $from, int $to, string $grouping, string $type, string $id, bool $direct, array $labels, array $periods = []): array {
+		$calendar = new AnnualOverviewService();
 		$groups = [];
 		foreach (['categories', 'paymentPartners', 'labels', 'hashtags', 'projects'] as $dimension) {
 			$groups[$dimension] = ['income' => [], 'expense' => []];
@@ -14,6 +15,7 @@ class ReportBreakdownService {
 		$totals = ['income' => ['amountCents' => 0, 'count' => 0], 'expense' => ['amountCents' => 0, 'count' => 0]];
 		$overlaps = ['labels' => ['income' => false, 'expense' => false], 'hashtags' => ['income' => false, 'expense' => false]];
 		foreach ($this->payments($rows, $from, $to, $grouping, $type, $id, $direct, $labels) as $payment) {
+			if ($periods && $calendar->periodIndex((int)$payment['date'], $periods) < 0) continue;
 			$paymentLabels = [];
 			foreach ($labels as $key => $label) {
 				if ($this->flag($payment[$label['column']] ?? false)) $paymentLabels[$key] = ['id' => $key, 'name' => $label['name']];
@@ -23,7 +25,7 @@ class ReportBreakdownService {
 			$totals[$kind]['amountCents'] += $cents;
 			$totals[$kind]['count']++;
 			$choices = [
-				'categories' => [['id' => (int)($payment['category_id'] ?? 0), 'name' => (string)($payment['category_name'] ?? ''), 'parentName' => (string)($payment['parent_name'] ?? '')]],
+				'categories' => [['icon' => (string)($payment['category_icon'] ?? 'Shape'), 'id' => (int)($payment['category_id'] ?? 0), 'name' => (string)($payment['category_name'] ?? ''), 'parentName' => (string)($payment['parent_name'] ?? '')]],
 				'paymentPartners' => [['id' => (int)($payment['partner_id'] ?? 0), 'name' => (string)($payment['partner_name'] ?? '')]],
 				'projects' => [['id' => (int)($payment['project_id'] ?? 0), 'name' => (string)($payment['project_name'] ?? '')]],
 				'labels' => $paymentLabels ?: [['id' => '', 'name' => '']],
@@ -32,15 +34,29 @@ class ReportBreakdownService {
 			foreach ($choices as $dimension => $items) {
 				if (isset($overlaps[$dimension]) && count($items) > 1) $overlaps[$dimension][$kind] = true;
 				foreach ($items as $item) {
-					$key = (string)$item['id'];
-					if (!isset($groups[$dimension][$kind][$key])) $groups[$dimension][$kind][$key] = $item + ['amountCents' => 0, 'count' => 0];
+					$key = in_array($dimension, ['categories', 'paymentPartners'], true)
+						? ReportLookupService::key($dimension, $item['id'], $item['name'], $item['parentName'] ?? '') : (string)$item['id'];
+					$item['reportKey'] = $key;
+					if (!isset($groups[$dimension][$kind][$key])) $groups[$dimension][$kind][$key] = $item + ['amountCents' => 0, 'count' => 0, 'areas' => []];
 					$groups[$dimension][$kind][$key]['amountCents'] += $cents;
 					$groups[$dimension][$kind][$key]['count']++;
+					if (in_array($dimension, ['categories', 'paymentPartners'], true)) {
+						$areaId = (int)($payment['project_id'] ?? 0);
+						$areas = &$groups[$dimension][$kind][$key]['areas'];
+						if (!isset($areas[$areaId])) $areas[$areaId] = ['id' => $item['id'], 'reportKey' => $key . ':area:' . $areaId, 'areaId' => $areaId, 'lookupName' => implode(' · ', array_filter([$item['parentName'] ?? '', $item['name']])), 'name' => (string)($payment['project_name'] ?? ''), 'amountCents' => 0, 'count' => 0];
+						$areas[$areaId]['amountCents'] += $cents;
+						$areas[$areaId]['count']++;
+						unset($areas);
+					}
 				}
 			}
 		}
 		foreach ($groups as &$dimension) {
-			foreach ($dimension as &$items) $items = array_values($items);
+			foreach ($dimension as &$items) {
+				foreach ($items as &$item) $item['areas'] = array_values($item['areas']);
+				unset($item);
+				$items = array_values($items);
+			}
 			unset($items);
 		}
 		unset($dimension);
@@ -73,10 +89,7 @@ class ReportBreakdownService {
 
 	private function matches(array $payment, array $labels, string $grouping, string $id, bool $direct): bool {
 		if ($id === 'total') return $grouping !== 'labelsAndTags' || $labels !== [] || $payment['hashtags'] !== [];
-		if ($grouping === 'categories') {
-			return (int)($payment['category_id'] ?? 0) === (int)$id || (!$direct && (int)$id > 0 && (int)($payment['parent_id'] ?? 0) === (int)$id);
-		}
-		if ($grouping === 'paymentPartners') return (int)($payment['partner_id'] ?? 0) === (int)$id;
+		if (in_array($grouping, ['categories', 'paymentPartners'], true)) return ReportLookupService::matches($payment, $grouping, $id, $direct);
 		if (str_starts_with($id, 'label:')) return isset($labels[substr($id, 6)]);
 		if (str_starts_with($id, 'tag:')) return isset($payment['hashtags'][(int)substr($id, 4)]);
 		return false;

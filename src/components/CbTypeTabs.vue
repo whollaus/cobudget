@@ -44,8 +44,8 @@ export default {
 	padding: 8px 12px;
 	border: 0;
 	border-radius: calc(var(--cobudget-control-radius) - 3px);
-	background: transparent;
-	color: var(--cobudget-text-muted);
+	background: var(--color-primary-element-light);
+	color: var(--color-primary-element-light-text);
 	font: inherit;
 	font-size: var(--cobudget-font-base);
 	font-weight: 600;
@@ -55,13 +55,13 @@ export default {
 }
 
 .cobudget-type-tabs__button:hover {
-	background: var(--cobudget-surface-strong);
+	background: var(--color-primary-element-light-hover);
 	color: var(--cobudget-text);
 }
 
 .cobudget-type-tabs__button[aria-pressed="true"] {
-	background: var(--cobudget-surface);
-	color: var(--cobudget-info-text);
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 </style>

@@ -2,7 +2,7 @@
 	<div
 		ref="scroller"
 		class="drag-scroll"
-		:class="{ 'is-dragging': isDragging }"
+		:class="{ 'is-dragging': isDragging, 'show-scrollbar': showScrollbar, 'native-touch': nativeTouch }"
 		tabindex="0"
 		@pointerdown="onPointerDown"
 		@pointermove="onPointerMove"
@@ -10,6 +10,7 @@
 		@pointercancel="endDrag"
 		@pointerleave="endDrag"
 		@click.capture="onClickCapture"
+		@dragstart="onDragStart"
 		@keydown="onKeydown">
 		<slot />
 	</div>
@@ -18,6 +19,12 @@
 <script>
 export default {
 	name: 'DraggableScroller',
+	props: {
+		allowLinkDrag: { type: Boolean, default: false },
+		interactiveDragSelector: { type: String, default: '' },
+		showScrollbar: { type: Boolean, default: false },
+		nativeTouch: { type: Boolean, default: false },
+	},
 	data() {
 		return {
 			isDragging: false,
@@ -28,12 +35,17 @@ export default {
 		}
 	},
 	methods: {
+		onDragStart(event) { if (this.allowLinkDrag) event.preventDefault() },
 		onPointerDown(event) {
+			this.suppressClick = false;
+			if (this.nativeTouch && event.pointerType !== 'mouse') return;
+			if (event.target.closest('[data-drag-scroll-ignore]')) return;
 			if (event.pointerType === 'mouse' && event.button !== 0) {
 				return;
 			}
 
-			if (event.target.closest('button, a, input, select, textarea, [role="button"], [role="link"]')) {
+			const control = event.target.closest(this.allowLinkDrag ? 'button, input, select, textarea, [role="button"]' : 'button, a, input, select, textarea, [role="button"], [role="link"]');
+			if (control && (!this.interactiveDragSelector || !control.matches(this.interactiveDragSelector))) {
 				return;
 			}
 
@@ -47,18 +59,20 @@ export default {
 			this.dragStartScrollLeft = scroller.scrollLeft;
 			this.suppressClick = false;
 			this.pointerId = event.pointerId;
-			scroller.setPointerCapture && scroller.setPointerCapture(event.pointerId);
+			if (!this.allowLinkDrag && !this.interactiveDragSelector) scroller.setPointerCapture && scroller.setPointerCapture(event.pointerId);
 		},
 		onPointerMove(event) {
-			if (!this.isDragging) {
+			if (!this.isDragging || event.pointerId !== this.pointerId) {
 				return;
 			}
 
 			const deltaX = event.clientX - this.dragStartX;
-			if (Math.abs(deltaX) > 4) {
+			if (!this.suppressClick) {
+				if (Math.abs(deltaX) <= 4) return;
 				this.suppressClick = true;
-				event.preventDefault();
+				if (this.allowLinkDrag || this.interactiveDragSelector) this.$refs.scroller.setPointerCapture?.(event.pointerId);
 			}
+			event.preventDefault();
 			this.$refs.scroller.scrollLeft = this.dragStartScrollLeft - deltaX;
 		},
 		endDrag() {
@@ -76,22 +90,18 @@ export default {
 			}
 			this.isDragging = false;
 			this.pointerId = null;
-
-			if (this.suppressClick) {
-				window.setTimeout(() => {
-					this.suppressClick = false;
-				}, 50);
-			}
 		},
 		onClickCapture(event) {
-			if (!this.suppressClick) {
+			if (!this.suppressClick || event.detail === 0) {
 				return;
 			}
 
+			this.suppressClick = false;
 			event.preventDefault();
 			event.stopPropagation();
 		},
 		onKeydown(event) {
+			if (event.defaultPrevented || event.target !== event.currentTarget) return;
 			if (event.key === 'ArrowLeft') {
 				event.preventDefault();
 				this.scrollByKeyboard(-1);
@@ -108,7 +118,7 @@ export default {
 
 			scroller.scrollBy({
 				left: direction * 280,
-				behavior: 'smooth'
+				behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 			});
 		}
 	}
@@ -119,13 +129,14 @@ export default {
 .drag-scroll {
 	overflow-x: auto;
 	overflow-y: hidden;
-	scrollbar-width: none;
-	-ms-overflow-style: none;
 	cursor: grab;
 	touch-action: pan-y;
 }
 
-.drag-scroll::-webkit-scrollbar {
+.drag-scroll:not(.show-scrollbar) { scrollbar-width: none; -ms-overflow-style: none; }
+.drag-scroll.native-touch { touch-action: auto; }
+
+.drag-scroll:not(.show-scrollbar)::-webkit-scrollbar {
 	display: none;
 }
 

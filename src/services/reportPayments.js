@@ -5,7 +5,7 @@ import { showRequestError, showToast } from './notifications'
 // Read every matching saved payment without changing the visible list page.
 export async function loadReportPayments(params, isCurrent = () => true) {
 	if (!isCurrent()) throw new Error('Report selection changed')
-	if (Number(params.dateFrom) > Number(params.dateTo)) return []
+	if (params.dateFrom != null && params.dateTo != null && Number(params.dateFrom) > Number(params.dateTo)) return []
 	const entries = [], seen = new Set()
 	let total = null
 	while (total === null || entries.length < total) {

@@ -1,57 +1,42 @@
 <template>
 	<div class="entry-description-cell">
 		<div class="mobile-only mobile-entry-summary">
-			<div class="mobile-primary-title" :title="mobilePrimaryTitle">
-				<template v-if="entry.description">
+			<div class="mobile-entry-icons">
+				<span class="mobile-entry-icon">
+					<TableTooltip v-if="mobileArea" :text="[mobileArea.name, mobileArea.statusTooltip].filter(Boolean).join('\n')">
+						<span class="mobile-area-details" :data-report-export-label="mobileArea.name" aria-hidden="true">
+							<component :is="mobileIconComponent" v-bind="mobileIconProps" />
+						</span>
+					</TableTooltip>
+					<span v-else aria-hidden="true">
+						<component :is="mobileIconComponent" v-bind="mobileIconProps" />
+					</span>
+				</span>
+			</div>
+			<div class="mobile-entry-content" :class="{ 'mobile-entry-content--labels': hasEntryBadges }">
+				<div class="mobile-entry-heading">
+					<div class="mobile-entry-heading-text">
+						<div class="mobile-primary-title" :title="mobilePrimaryTitle">{{ mobilePrimaryTitle }}</div>
+						<div v-if="entry.paymentPartner" class="mobile-payment-partner" :title="entry.paymentPartner">{{ entry.paymentPartner }}</div>
+						<span v-if="showMobileDate" class="mobile-secondary-item mobile-date">{{ dateText }}</span>
+					</div>
+					<PaymentLabelList v-if="hasEntryBadges" class="mobile-badges" :labels="allPaymentLabels" summary />
+				</div>
+				<div v-if="entry.description" class="mobile-description" :class="{ 'mobile-description--beside-label': hasEntryBadges && !showMobileDate && !entry.paymentPartner }" :title="entry.description">
 					<template v-for="(part, index) in descriptionParts" :key="`mobile-description-${index}`">
 						<span v-if="part.isTag" class="description-hashtag">#{{ part.text }}</span>
 						<span v-else>{{ part.text }}</span>
 					</template>
-				</template>
-				<template v-else>{{ mobilePrimaryTitle }}</template>
-			</div>
-			<div v-if="hasMobileSecondary" class="mobile-secondary">
-				<span v-if="showMobileDate" class="mobile-secondary-item mobile-date">{{ dateText }}</span>
-				<span v-if="showMobileCategory" class="mobile-secondary-item mobile-category">
-					<CategoryIcon v-if="entry.category_icon" :icon="entry.category_icon" :size="12" />
-					<span class="mobile-secondary-text">{{ entry.category_name }}</span>
-				</span>
-				<span v-if="showMobilePaymentPartner" class="mobile-secondary-item">
-					<span class="mobile-secondary-text">{{ entry.paymentPartner }}</span>
-				</span>
-				<span v-if="paidByName" class="mobile-secondary-item mobile-paid-by">
+				</div>
+				<div v-if="paidByName" class="mobile-secondary-item mobile-paid-by" :aria-label="$texts.entry.paidByPerson(paidByName)">
 					<NcAvatar :user="entry.user_id" :display-name="paidByName" :size="16" />
 					<span class="mobile-secondary-text">{{ paidByName }}</span>
-				</span>
-			</div>
-			<div v-if="hasMobileBadges" class="mobile-badges">
-				<span v-if="showProjectChip" class="entry-badge mobile-project-badge" data-cobudget-badge="custom" data-cobudget-badge-size="compact" :style="projectStyle">{{ projectName }}</span>
-				<span v-if="entry.is_important && enableImportantPayments" class="entry-badge badge-important" data-cobudget-badge="warning" data-cobudget-badge-size="compact">{{ $texts.labels.important() }}</span>
-				<span v-if="entry.needs_review && enableReviewPayments" class="entry-badge badge-review" data-cobudget-badge="error" data-cobudget-badge-size="compact">{{ $texts.labels.review() }}</span>
-				<span v-if="entry.is_fixed_cost && enableFixedCosts" class="entry-badge badge-fixed" data-cobudget-badge="info" data-cobudget-badge-size="compact">{{ $texts.labels.fixedCosts() }}</span>
-				<span v-if="entry.is_child_related && enableChildRelated" class="entry-badge badge-child" data-cobudget-badge="info" data-cobudget-badge-size="compact">{{ $texts.labels.children() }}</span>
-				<span v-if="entry.is_subscription && enableSubscriptions" class="entry-badge badge-abo" data-cobudget-badge="info" data-cobudget-badge-size="compact">{{ $texts.labels.subscription() }}</span>
-				<span v-if="entry.is_tax_relevant && enableTaxRelevant" class="entry-badge badge-tax" data-cobudget-badge="tax" data-cobudget-badge-size="compact">{{ $texts.labels.taxRelevant() }}</span>
-				<span v-if="entry.is_insurance && enableInsurance" class="entry-badge badge-insurance" data-cobudget-badge="info" data-cobudget-badge-size="compact">{{ $texts.labels.insurance() }}</span>
+				</div>
 			</div>
 		</div>
-		<div
-			v-if="hasDesktopContent"
-			class="desc-text"
-			:class="{ 'mobile-hidden-content': !hasDescriptionContent }">
-			<span v-if="entry.is_important && enableImportantPayments" class="entry-badge badge-important" data-cobudget-badge="warning" data-cobudget-badge-size="compact">{{ $texts.labels.important() }}</span>
-			<span v-if="entry.needs_review && enableReviewPayments" class="entry-badge badge-review" data-cobudget-badge="error" data-cobudget-badge-size="compact">{{ $texts.labels.review() }}</span>
-			<span v-if="entry.is_fixed_cost && enableFixedCosts" class="entry-badge badge-fixed" data-cobudget-badge="info" data-cobudget-badge-size="compact">{{ $texts.labels.fixedCosts() }}</span>
-			<span v-if="entry.is_child_related && enableChildRelated" class="entry-badge badge-child" data-cobudget-badge="info" data-cobudget-badge-size="compact">{{ $texts.labels.children() }}</span>
-			<span v-if="entry.is_subscription && enableSubscriptions" class="entry-badge badge-abo" data-cobudget-badge="info" data-cobudget-badge-size="compact">{{ $texts.labels.subscription() }}</span>
-			<span v-if="entry.is_tax_relevant && enableTaxRelevant" class="entry-badge badge-tax" data-cobudget-badge="tax" data-cobudget-badge-size="compact">{{ $texts.labels.taxRelevant() }}</span>
-			<span v-if="entry.is_insurance && enableInsurance" class="entry-badge badge-insurance" data-cobudget-badge="info" data-cobudget-badge-size="compact">{{ $texts.labels.insurance() }}</span>
-			<span
-				v-if="showProjectChip"
-				class="project-chip desktop-only entry-badge" data-cobudget-badge="custom" data-cobudget-badge-size="compact"
-				:style="projectStyle">
-				{{ projectName }}
-			</span>
+		<div v-if="hasDescriptionContent" class="desc-text">
+			<PaymentLabelList v-if="statusLabels.length" class="desktop-status-labels" :labels="statusLabels" />
+			<PaymentLabelList v-if="metadataLabels.length" :labels="metadataLabels" collapse :description-present="!!entry.description" :status-count="statusLabels.length" />
 			<span v-if="entry.description" class="main-title">
 				<template v-for="(part, index) in descriptionParts" :key="`description-${index}`">
 					<span v-if="part.isTag" class="description-hashtag">#{{ part.text }}</span>
@@ -64,15 +49,24 @@
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'
+import TrendingDownIcon from 'vue-material-design-icons/TrendingDown.vue'
 import CategoryIcon from './CategoryIcon.vue'
+import PaymentLabelList from './PaymentLabelList.vue'
+import TableTooltip from './TableTooltip.vue'
 
 export default {
 	name: 'EntryDescriptionCell',
 	components: {
+		TrendingUpIcon,
+		TrendingDownIcon,
 		CategoryIcon,
+		PaymentLabelList,
+		TableTooltip,
 		NcAvatar
 	},
 	props: {
+		mobileArea: { type: Object, default: null },
 		entry: {
 			type: Object,
 			required: true
@@ -113,75 +107,41 @@ export default {
 			type: Boolean,
 			default: true
 		},
-		projectName: {
-			type: String,
-			default: ''
-		},
-		projectStyle: {
-			type: Object,
-			default: () => ({})
-		},
-		showProjectChip: {
-			type: Boolean,
-			default: false
-		},
 		paidByName: {
 			type: String,
 			default: ''
 		}
 	},
 	computed: {
-		hasEntryBadges() {
-			return Boolean(
-				(this.entry.is_important && this.enableImportantPayments)
-				|| (this.entry.needs_review && this.enableReviewPayments)
-				|| (this.entry.is_fixed_cost && this.enableFixedCosts)
-				|| (this.entry.is_child_related && this.enableChildRelated)
-				|| (this.entry.is_subscription && this.enableSubscriptions)
-				|| (this.entry.is_tax_relevant && this.enableTaxRelevant)
-				|| (this.entry.is_insurance && this.enableInsurance)
-			)
+		mobileIconComponent() {
+			return this.entry.category_name ? CategoryIcon : this.entry.type === 'income' ? TrendingUpIcon : TrendingDownIcon
 		},
+		mobileIconProps() {
+			return this.entry.category_name ? { size: 24, icon: this.entry.category_icon || 'Shape' } : { size: 24 }
+		},
+		statusLabels() {
+			const labels = []
+			if (this.entry.is_important && this.enableImportantPayments) labels.push({ key: 'important', icon: 'important', tone: 'warning', text: this.$texts.labels.important() })
+			if (this.entry.needs_review && this.enableReviewPayments) labels.push({ key: 'review', icon: 'review', tone: 'error', text: this.$texts.labels.review() })
+			if (this.entry.is_tax_relevant && this.enableTaxRelevant) labels.push({ key: 'tax', icon: 'taxRelevant', tone: 'tax', text: this.$texts.labels.taxRelevant() })
+			return labels
+		},
+		metadataLabels() {
+			const labels = []
+			if (this.entry.is_fixed_cost && this.enableFixedCosts) labels.push({ key: 'fixed', icon: 'fixedCost', tone: 'neutral', text: this.$texts.labels.fixedCosts() })
+			if (this.entry.is_child_related && this.enableChildRelated) labels.push({ key: 'child', icon: 'childRelated', tone: 'neutral', text: this.$texts.labels.children() })
+			if (this.entry.is_subscription && this.enableSubscriptions) labels.push({ key: 'abo', icon: 'subscription', tone: 'neutral', text: this.$texts.labels.subscription() })
+			if (this.entry.is_insurance && this.enableInsurance) labels.push({ key: 'insurance', icon: 'insurance', tone: 'neutral', text: this.$texts.labels.insurance() })
+			return labels
+		},
+		allPaymentLabels() { return [...this.statusLabels, ...this.metadataLabels] },
+		hasEntryBadges() { return this.allPaymentLabels.length > 0 },
 		hasDescriptionContent() {
 			return Boolean(this.entry.description) || this.hasEntryBadges
 		},
-		hasDesktopContent() {
-			return this.hasDescriptionContent || this.showProjectChip
-		},
-		mobileTitleKind() {
-			if (this.entry.description) {
-				return 'description'
-			}
-			if (this.entry.paymentPartner) {
-				return 'paymentPartner'
-			}
-			if (this.entry.category_name) {
-				return 'category'
-			}
-			return 'fallback'
-		},
 		mobilePrimaryTitle() {
-			return this.entry.description
-				|| this.entry.paymentPartner
-				|| this.entry.category_name
-				|| this.$texts.common.payment()
-		},
-		showMobileCategory() {
-			return Boolean(this.entry.category_name) && this.mobileTitleKind !== 'category'
-		},
-		showMobilePaymentPartner() {
-			return Boolean(this.entry.paymentPartner) && this.mobileTitleKind !== 'paymentPartner'
-		},
-		hasMobileSecondary() {
-			return Boolean(
-				this.showMobileDate
-					|| this.showMobileCategory
-					|| this.showMobilePaymentPartner
-					|| this.paidByName
-			)
-		},
-		hasMobileBadges() {
-			return this.hasEntryBadges || this.showProjectChip
+			return this.entry.category_name
+				|| (this.entry.type === 'income' ? this.$texts.common.income() : this.$texts.common.expense())
 		},
 		descriptionParts() {
 			const text = String(this.entry.description || '')
@@ -227,7 +187,11 @@ export default {
 	font-weight: 400;
 }
 
+.desktop-status-labels { flex: 0 0 auto; }
+
 .main-title {
+	flex: 1 1 auto;
+	min-width: 0;
 	white-space: normal;
 	word-break: break-word;
 	font-weight: 400;
@@ -243,34 +207,92 @@ export default {
 }
 
 .mobile-entry-summary {
-	flex-direction: column;
+	--payment-mobile-heading-height: calc(var(--cobudget-font-base, 15px) * 1.4 + 3px + var(--cobudget-font-caption, 12px) * 1.4);
+	align-items: stretch;
 	min-width: 0;
-	gap: var(--default-grid-baseline, 4px);
+	gap: calc(var(--default-grid-baseline, 4px) * 3);
 }
-
+.mobile-entry-icons {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 24px;
+	width: 24px;
+	max-height: var(--payment-mobile-heading-height);
+}
+.mobile-entry-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1 1 auto;
+	width: 24px;
+	min-height: 0;
+	/* Anchor the icon to the first two text lines, regardless of later details. */
+	max-height: var(--payment-mobile-heading-height);
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast));
+}
+.mobile-entry-icon :deep(.category-icon) { margin: 0; }
+.mobile-entry-icon :deep(.table-tooltip-trigger) {
+	width: 24px;
+	height: 24px;
+	justify-content: center;
+}
+.mobile-area-details { display: inline-flex; }
+.mobile-entry-content {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-width: 0;
+	gap: 3px;
+}
+.mobile-entry-heading {
+	display: flex;
+	align-items: stretch;
+	gap: 8px;
+	min-width: 0;
+}
+.mobile-entry-content--labels .mobile-entry-heading { padding-inline-end: 40px; }
+.mobile-entry-heading-text {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	gap: 3px;
+	min-width: 0;
+}
 .mobile-primary-title {
 	display: -webkit-box;
 	min-width: 0;
 	overflow: hidden;
+	overflow-wrap: anywhere;
 	color: var(--cobudget-text, var(--color-main-text));
-	font-size: var(--cobudget-font-base, 14px);
-	font-weight: 600;
-	line-height: 1.3;
+	font-size: var(--cobudget-font-base, 15px);
+	font-weight: var(--font-weight-element, 500);
+	line-height: 1.4;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
 }
-
-.mobile-secondary {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: calc(var(--default-grid-baseline, 4px) / 2) calc(var(--default-grid-baseline, 4px) * 2);
+.mobile-payment-partner,
+.mobile-description,
+.mobile-secondary-item {
 	min-width: 0;
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast));
-	font-size: var(--cobudget-font-compact, 12px);
-	line-height: 1.35;
+	font-size: var(--cobudget-font-caption, 12px);
+	font-weight: 400;
+	line-height: 1.4;
 }
-
+.mobile-payment-partner {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.mobile-description {
+	display: -webkit-box;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+.mobile-description--beside-label { padding-inline-end: 40px; }
 .mobile-secondary-item {
 	display: inline-flex;
 	align-items: center;
@@ -286,23 +308,18 @@ export default {
 	white-space: nowrap;
 }
 
-.mobile-category :deep(.material-design-icon),
 .mobile-paid-by :deep(.avatardiv) {
 	flex: 0 0 auto;
 }
 
 .mobile-badges {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: var(--default-grid-baseline, 4px);
-	min-width: 0;
-}
-
-.mobile-project-badge {
-	max-width: 100%;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline-end: 0;
+	width: 32px;
+	height: var(--payment-mobile-heading-height);
+	justify-content: flex-end;
+	max-height: 100%;
 }
 
 @media (max-width: 768px) {

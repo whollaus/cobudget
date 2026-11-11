@@ -1,8 +1,7 @@
 const LABEL_KEYS = ['important', 'review', 'fixedCost', 'childRelated', 'subscription', 'taxRelevant', 'insurance']
 const FILTER_LIMIT = 50
-const ANNUAL_SECTIONS = ['income', 'expense', 'total', 'areas', 'chart', 'forecast', 'detail-chart', 'detail-forecast', 'detail-metrics', 'detail-averages', 'detail-comparisons', 'detail-breakdown', 'detail-payments']
 
-function annualSectionStorageKey() {
+function annualChartAccountKey() {
 	let userId = ''
 	try {
 		if (typeof window !== 'undefined' && typeof window.OC?.getCurrentUser === 'function') {
@@ -15,44 +14,23 @@ function annualSectionStorageKey() {
 	return userId ? `cobudget_annual_sections:${userId}` : 'cobudget_annual_sections'
 }
 
-function readAnnualSectionPreference() {
-	try {
-		if (typeof window === 'undefined' || !window.localStorage) return {}
-		const saved = JSON.parse(window.localStorage.getItem(annualSectionStorageKey()) || '{}')
-		return saved && typeof saved === 'object' ? saved : {}
-	} catch {
-		return {}
-	}
-}
+// Keep tab choices through report reloads, but never across visits to Reports.
+const annualChartViews = new Map()
 
-export function readAnnualSectionOpen(section) {
-	if (!ANNUAL_SECTIONS.includes(section)) return true
-	return readAnnualSectionPreference()[section] !== false
-}
-
-export function rememberAnnualSection(section, open) {
-	if (!ANNUAL_SECTIONS.includes(section)) return
-	try {
-		if (typeof window === 'undefined' || !window.localStorage) return
-		const saved = readAnnualSectionPreference()
-		saved[section] = open === true
-		window.localStorage.setItem(annualSectionStorageKey(), JSON.stringify(saved))
-	} catch {
-		// The choice still applies until the page is left.
-	}
+export function resetAnnualChartViews() {
+	annualChartViews.clear()
 }
 
 export function readAnnualChartView(section = 'chart') {
-	return readAnnualSectionPreference()[`${section}-view`] === 'forecast' ? 'forecast' : 'development'
+	return annualChartViews.get(annualChartAccountKey())?.[section] || 'development'
 }
 
 export function rememberAnnualChartView(section, view) {
 	if (!['chart', 'detail-chart'].includes(section)) return
-	try {
-		const saved = readAnnualSectionPreference()
-		saved[`${section}-view`] = view === 'forecast' ? 'forecast' : 'development'
-		window.localStorage.setItem(annualSectionStorageKey(), JSON.stringify(saved))
-	} catch { /* Keep the local choice when storage is unavailable. */ }
+	const key = annualChartAccountKey()
+	const views = annualChartViews.get(key) || {}
+	views[section] = view === 'forecast' ? 'forecast' : 'development'
+	annualChartViews.set(key, views)
 }
 
 function queryText(value) {
@@ -80,6 +58,11 @@ function parseIdList(value, allowZero) {
 		if (ids.length >= FILTER_LIMIT) break
 	}
 	return ids
+}
+
+function parseLookupList(value) {
+	const tokens = queryText(value).split(',').map(token => token.trim())
+	return [...parseIdList(value, true), ...['income', 'expense'].filter(kind => tokens.includes(kind))]
 }
 
 function parseLabelList(value) {
@@ -176,15 +159,40 @@ export function parseReportDate(value) {
 	return reportDate(date) === value ? date : null
 }
 
-const REPORT_RANGES = ['year', 'current-year', 'last-year', 'current-month', 'last-month', 'last-12-months', 'custom']
+const REPORT_RANGES = ['all', 'year', 'current-year', 'last-year', 'current-month', 'last-month', 'last-12-months', 'custom', 'calendar-selection']
+
+function calendarSelection(query) {
+	const years = parseIdList(query.periodYears, false).filter(year => year >= 1970 && year <= 9999).sort((a, b) => a - b)
+	const months = parseIdList(query.periodMonths, false).filter(month => month <= 12).sort((a, b) => a - b)
+	return { periodYears: years.length ? years : [Number(query.year) || new Date().getFullYear()], periodMonths: months.length === 12 ? [] : months }
+}
+
+// Merge adjacent selected months, preserving gaps between years/months.
+export function reportCalendarRanges(selection) {
+	if (selection.timeRange !== 'calendar-selection') return []
+	const { periodYears, periodMonths } = calendarSelection(selection)
+	const ranges = []
+	for (const year of periodYears) for (const month of periodMonths.length ? periodMonths : Array.from({ length: 12 }, (_, index) => index + 1)) {
+		const from = new Date(year, month - 1, 1), next = new Date(year, month, 1)
+		const last = ranges.at(-1)
+		if (last && last.next === reportDate(from)) { last.dateTo = reportDate(new Date(year, month, 0)); last.next = reportDate(next) }
+		else ranges.push({ dateFrom: reportDate(from), dateTo: reportDate(new Date(year, month, 0)), next: reportDate(next) })
+	}
+	return ranges.map(({ dateFrom, dateTo }) => ({ dateFrom, dateTo }))
+}
 
 export function reportRange(query, now = new Date()) {
 	const year = Number(query.year) || now.getFullYear()
 	let from, to
 	switch (query.timeRange) {
+		case 'calendar-selection': {
+			const ranges = reportCalendarRanges(query)
+			return { dateFrom: ranges[0].dateFrom, dateTo: ranges.at(-1).dateTo }
+		}
 		case 'current-month': from = new Date(now.getFullYear(), now.getMonth(), 1); to = new Date(now.getFullYear(), now.getMonth() + 1, 0); break
 		case 'last-month': from = new Date(now.getFullYear(), now.getMonth() - 1, 1); to = new Date(now.getFullYear(), now.getMonth(), 0); break
 		case 'last-12-months': from = new Date(now.getFullYear(), now.getMonth() - 11, 1); to = new Date(now.getFullYear(), now.getMonth() + 1, 0); break
+		case 'all': return { dateFrom: firstText(query.dateFrom) || `${year}-01-01`, dateTo: firstText(query.dateTo) || `${year}-12-31` }
 		case 'custom': return { dateFrom: firstText(query.dateFrom), dateTo: firstText(query.dateTo) }
 		default: {
 			const selected = query.timeRange === 'last-year' ? now.getFullYear() - 1 : query.timeRange === 'current-year' ? now.getFullYear() : year
@@ -195,12 +203,23 @@ export function reportRange(query, now = new Date()) {
 }
 
 export function reportRangeError(selection) {
+	if (selection.timeRange === 'calendar-selection') {
+		let columns = 0
+		for (const range of reportCalendarRanges(selection)) {
+			columns += reportRangeColumns({ ...selection, ...range })
+		}
+		return columns > 3660 ? 'columns' : ''
+	}
+	return reportRangeColumns(selection) > 3660 ? 'columns' : reportRangeColumns(selection) < 1 ? 'dates' : ''
+}
+
+function reportRangeColumns(selection) {
 	const from = parseReportDate(selection.dateFrom), to = parseReportDate(selection.dateTo)
-	if (!from || !to || from > to) return 'dates'
+	if (!from || !to || from > to) return 0
 	const days = Math.round((Date.UTC(to.getFullYear(), to.getMonth(), to.getDate()) - Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())) / 86400000) + 1
 	const months = (to.getFullYear() - from.getFullYear()) * 12 + to.getMonth() - from.getMonth() + 1
 	const columns = selection.period === 'day' ? days : selection.period === 'week' ? Math.ceil((days + (from.getDay() + 6) % 7) / 7) : selection.period === 'quarter' ? Math.floor((to.getFullYear() * 12 + to.getMonth()) / 3) - Math.floor((from.getFullYear() * 12 + from.getMonth()) / 3) + 1 : months
-	return columns > 3660 ? 'columns' : ''
+	return columns
 }
 
 export function reportContainsToday(selection, now = new Date()) {
@@ -232,6 +251,11 @@ export function reportSelectionWithDates(selection, dates) {
 
 // The heading describes the applied dates, including custom full months or years.
 export function reportPeriodLabel(selection, formatMonth, formatDate) {
+	if (selection.timeRange === 'calendar-selection') {
+		const { periodYears, periodMonths } = calendarSelection(selection)
+		const months = periodMonths.map(month => formatMonth(new Date(2000, month - 1, 1), { month: 'short' })).join(', ')
+		return [months, periodYears.join(', ')].filter(Boolean).join(' · ')
+	}
 	const { dateFrom, dateTo } = selection.timeRange ? selection : annualReportSelection(selection)
 	const from = parseReportDate(dateFrom), to = parseReportDate(dateTo)
 	if (!from || !to || from > to) return ''
@@ -329,16 +353,18 @@ export function annualSelection(query = {}) {
 	}
 	return {
 		year: selectedYear,
+		...(firstText(query.search) ? { search: firstText(query.search) } : {}),
 		period,
 		month,
 		quarter,
 		grouping,
+		...(parseIdList(query.projects, true).length ? { projects: parseIdList(query.projects, true) } : {}),
 		projectId: Number.isSafeInteger(projectId) && projectId > 0 ? projectId : null,
 		...(query.withoutArea === true || query.withoutArea === 'true' ? { withoutArea: true } : {}),
 		entryScope: Number.isSafeInteger(projectId) && projectId > 0 && query.entryScope === 'shared' ? 'shared' : 'personal',
 		includeFuturePayments: annualPeriodIsFuture(selectedYear, period, month) || (containsToday && (query.includeFuturePayments === true || query.includeFuturePayments === 'true')),
-		categories: sections.categories ? parseIdList(query.categories, true) : [],
-		partners: sections.partners ? parseIdList(query.partners, true) : [],
+		categories: sections.categories ? parseLookupList(query.categories) : [],
+		partners: sections.partners ? parseLookupList(query.partners) : [],
 		labels: sections.labels ? parseLabelList(query.labels) : [],
 		hashtags: parseIdList(query.hashtags, false),
 		amountMin,
@@ -346,6 +372,7 @@ export function annualSelection(query = {}) {
 		...(typeof query.reportFilters === 'string' && query.reportFilters ? { reportFilters: query.reportFilters } : {}),
 		...(range ? {
 			timeRange: query.timeRange,
+			...(query.timeRange === 'calendar-selection' ? calendarSelection({ ...query, year: selectedYear }) : {}),
 			...range,
 			period: rangePeriod,
 			month: 0,
@@ -356,8 +383,11 @@ export function annualSelection(query = {}) {
 
 function filterQuery(value) {
 	return {
+		...(value.timeRange === 'calendar-selection' ? { periodYears: value.periodYears.join(','), ...(value.periodMonths.length ? { periodMonths: value.periodMonths.join(',') } : {}) } : {}),
+		...(value.search ? { search: value.search } : {}),
 		...(value.reportFilters ? { reportFilters: value.reportFilters } : {}),
 		...(value.withoutArea ? { withoutArea: 'true' } : {}),
+		...(value.projects?.length ? { projects: value.projects.join(',') } : {}),
 		...(value.categories.length ? { categories: value.categories.join(',') } : {}),
 		...(value.partners.length ? { partners: value.partners.join(',') } : {}),
 		...(value.labels.length ? { labels: value.labels.join(',') } : {}),
@@ -395,6 +425,7 @@ export function annualRequestParams(selection, extra = {}) {
 	const value = annualSelection({ ...selection, ...extra })
 	if (value.timeRange) return {
 		year: value.year, period: value.period, dateFrom: value.dateFrom, dateTo: value.dateTo,
+		...(value.timeRange === 'all' ? { allTime: true } : {}),
 		grouping: value.grouping, projectId: value.projectId, entryScope: value.entryScope, includeFuturePayments: value.includeFuturePayments,
 		...(extra.comparison && extra.comparison !== 'none' ? { comparison: extra.comparison } : {}),
 		...filterQuery(value),
@@ -424,9 +455,12 @@ export function annualReturnRoute(value) {
 }
 
 function appendNarrowing(query, value) {
-	if (value.categories.length === 1 && query.categoryId === undefined) query.categoryId = String(value.categories[0])
+	if (value.search) query.search = value.search
+	if (value.projects?.length) query.projects = value.projects.join(',')
+	else if (value.withoutArea) query.projects = '0'
+	if (value.categories.length === 1 && typeof value.categories[0] === 'number' && query.categoryId === undefined) query.categoryId = String(value.categories[0])
 	else if (value.categories.length > 1 || (value.categories.length === 1 && String(query.categoryId) !== String(value.categories[0]))) query.categories = value.categories.join(',')
-	if (value.partners.length === 1 && query.paymentPartnerId === undefined) query.paymentPartnerId = String(value.partners[0])
+	if (value.partners.length === 1 && typeof value.partners[0] === 'number' && query.paymentPartnerId === undefined) query.paymentPartnerId = String(value.partners[0])
 	else if (value.partners.length > 1 || (value.partners.length === 1 && String(query.paymentPartnerId) !== String(value.partners[0]))) query.partners = value.partners.join(',')
 	if (value.labels.length === 1 && query.tags === undefined) query.tags = value.labels[0]
 	else if (value.labels.length > 1 || (value.labels.length === 1 && query.tags !== value.labels[0])) query.labels = value.labels.join(',')
@@ -452,13 +486,22 @@ export function annualPaymentRoute(selection, period = null, type = 'all', row =
 		includeFuturePayments: String(value.includeFuturePayments),
 		annualReturn: JSON.stringify(annualRouteQuery(value)),
 	}
+	if (value.timeRange === 'calendar-selection' && reportCalendarRanges(value).filter(range => !period || (parseReportDate(range.dateFrom).getTime() / 1000 <= period.dateTo && parseReportDate(range.dateTo).getTime() / 1000 + 86399 >= period.dateFrom)).length > 1) {
+		query.timeRange = 'calendarSelection'
+		query.periodYears = value.periodYears.join(',')
+		if (value.periodMonths.length) query.periodMonths = value.periodMonths.join(',')
+	}
 	if (row && value.grouping === 'labelsAndTags') {
 		if (row.kind === 'hashtag') query.hashtagId = String(row.filter)
 		else if (row.kind === 'label') query.tags = String(row.filter)
+	} else if (row?.reportKey) {
+		const filters = value.reportFilters ? JSON.parse(value.reportFilters) : []
+		query.reportFilters = JSON.stringify([...filters, { dimension: value.grouping, id: row.reportKey, direct: Boolean(row.direct) }])
 	} else if (row) {
 		query[value.grouping === 'categories' ? 'categoryId' : 'paymentPartnerId'] = String(row.id)
 		if (value.grouping === 'categories' && row.children?.length) query.includeSubcategories = 'true'
 	}
+	if (!query.reportFilters && value.reportFilters) query.reportFilters = value.reportFilters
 	return value.projectId && value.entryScope === 'shared'
 		? { name: 'project-payments', params: { id: String(value.projectId) }, query: appendNarrowing(query, value) }
 		: { name: 'payments', query: appendNarrowing({ ...query, ...(value.projectId ? { projectId: String(value.projectId) } : {}) }, value) }
@@ -516,16 +559,18 @@ export function annualFilterChips(selection, context = {}) {
 	const or = context.or || 'or'
 	const join = names => names.join(` ${or} `)
 	const chips = []
+	if (value.withoutArea) chips.push({ key: 'withoutArea', label: context.withoutArea || 'Without area' })
+	if (value.search) chips.push({ key: 'search', label: `“${value.search}”` })
 	if (value.categories.length) {
 		chips.push({
 			key: 'categories',
-			label: join(value.categories.map(id => id === 0 ? (context.noCategory || String(id)) : markedChoiceName(context.categoryNames, context.categoryTypes, id, String(id)))),
+			label: join(value.categories.map(id => id === 0 ? (context.noCategory || String(id)) : (context.categoryGroupLabels?.[id] || markedChoiceName(context.categoryNames, context.categoryTypes, id, String(id))))),
 		})
 	}
 	if (value.partners.length) {
 		chips.push({
 			key: 'partners',
-			label: join(value.partners.map(id => id === 0 ? (context.noPartner || String(id)) : markedChoiceName(context.partnerNames, context.partnerTypes, id, String(id)))),
+			label: join(value.partners.map(id => id === 0 ? (context.noPartner || String(id)) : (context.partnerGroupLabels?.[id] || markedChoiceName(context.partnerNames, context.partnerTypes, id, String(id))))),
 		})
 	}
 	if (value.amountMin !== null || value.amountMax !== null) {

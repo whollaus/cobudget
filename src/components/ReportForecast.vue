@@ -40,7 +40,7 @@ export default {
 			const params = annualRequestParams(this.selection)
 			for (const key of ['year', 'month', 'quarter', 'period', 'comparison', 'includeFuturePayments']) delete params[key]
 			return { ...params, period: this.chartPeriod === 'month' ? 'day' : this.chartPeriod, dateFrom: reportDate(new Date(this.period.dateFrom * 1000)), dateTo: reportDate(new Date(this.period.dateTo * 1000)),
-				detailType: this.detail?.row.type || (this.$enableIncomes === false ? 'expense' : 'all'), detailId: !this.detail || this.detail.total ? 'total' : String(this.detail.row.id), detailDirect: Boolean(this.detail?.row.direct) }
+				detailType: this.detail?.row.type || (this.$enableIncomes === false ? 'expense' : 'all'), detailId: !this.detail || this.detail.total ? 'total' : String(this.detail.row.reportKey ?? this.detail.row.id), detailDirect: Boolean(this.detail?.row.direct) }
 		},
 		requestContext() { return { params: this.params, report: this.report } },
 		showIncome() { return this.$enableIncomes !== false && (!this.detail || this.detail.row.type !== 'expense') },
@@ -92,21 +92,21 @@ export default {
 .report-forecast-note { margin: 0 0 calc(var(--default-grid-baseline, 4px) * 2); color: var(--cobudget-text-muted); font-size: var(--cobudget-font-sm); }
 .report-forecast-scroll { overflow-x: auto; border-radius: var(--cobudget-table-radius); }
 .report-forecast-scroll:focus-visible { outline: var(--cobudget-focus-outline); outline-offset: 2px; }
-.report-forecast-table { width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; border: 1px solid var(--cobudget-border); border-radius: var(--cobudget-table-radius); font-size: var(--cobudget-font-sm); }
-.report-forecast-table th, .report-forecast-table td { padding: var(--cobudget-table-cell-padding); height: auto; border-bottom: 1px solid var(--cobudget-border); color: var(--cobudget-text); background: var(--cobudget-surface); font-size: inherit; font-weight: 400; vertical-align: middle; }
+.report-forecast-table { width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; border: 0; border-radius: var(--cobudget-table-radius); font-size: var(--cobudget-font-base); }
+.report-forecast-table th, .report-forecast-table td { box-sizing: border-box; padding: var(--cobudget-table-payment-padding); height: var(--cobudget-payment-table-row-height); border-bottom: 1px solid var(--cobudget-table-separator); color: var(--cobudget-text); background: var(--cobudget-surface); font-size: inherit; font-weight: 400; vertical-align: middle; }
 .report-forecast-table th { text-align: start; white-space: normal; }
 .report-forecast-table td { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.report-forecast-table thead th { color: var(--cobudget-text-muted); letter-spacing: 0.5px; background: var(--cobudget-table-header-background); }
+.report-forecast-table thead th { padding: var(--cobudget-table-payment-padding); color: var(--cobudget-text-muted); letter-spacing: normal; font-size: var(--cobudget-table-header-font-size); font-weight: 400; height: var(--cobudget-table-header-height); background: var(--cobudget-table-header-background); }
 .report-forecast-table thead th:not(:first-child) { text-align: end; }
 .report-forecast-table thead th:first-child { border-start-start-radius: max(0px, calc(var(--cobudget-table-radius) - 1px)); }
 .report-forecast-table thead th:last-child { border-start-end-radius: max(0px, calc(var(--cobudget-table-radius) - 1px)); }
-.report-forecast-table tfoot th, .report-forecast-table tfoot td { font-weight: 600; border-bottom: 0; background: var(--cobudget-surface-muted); }
+.report-forecast-table tfoot th, .report-forecast-table tfoot td { font-weight: 600; border-top: 1px solid var(--color-border-maxcontrast, var(--cobudget-border-strong)); border-bottom: 0; background: var(--cobudget-surface); }
+.report-forecast-table tbody tr:last-child > * { border-bottom: 0; }
 .report-forecast-table tfoot th { border-end-start-radius: max(0px, calc(var(--cobudget-table-radius) - 1px)); }
 .report-forecast-table tfoot td:last-child { border-end-end-radius: max(0px, calc(var(--cobudget-table-radius) - 1px)); }
 .report-forecast-table .report-forecast-estimate th, .report-forecast-table .report-forecast-estimate td { border-top: 1px dashed var(--cobudget-border); }
 @media (max-width: 768px) {
 	/* Mobile reports meet the viewport edge, including individual corner cells. */
 	.report-forecast { --cobudget-table-radius: 0px; }
-	.report-forecast-table th, .report-forecast-table td { padding-inline: calc(var(--default-grid-baseline, 4px) * 2); }
 }
 </style>

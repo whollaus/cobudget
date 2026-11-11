@@ -7,7 +7,7 @@
 				@update:modelValue="onSearch"
 				:placeholder="placeholder"
 				@focus="showDropdown = true"
-			/>
+			 class="cobudget-native-field"/>
 			<NcLoadingIcon v-if="loading" class="search-spinner" :size="20" />
 		</div>
 
@@ -201,10 +201,10 @@ export default {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	transition: background 0.15s;
+	transition: background-color var(--cobudget-hover-duration) linear;
 }
 .search-result-item:hover {
-	background: var(--cobudget-surface-muted, #f0f0f0);
+	background: var(--cobudget-interaction-hover);
 }
 .search-result-item :deep(.material-design-icon) {
 	flex-shrink: 0;
@@ -267,7 +267,7 @@ export default {
 }
 .remove-btn:hover {
 	opacity: 1;
-	background: var(--cobudget-surface-strong);
+	background: var(--cobudget-interaction-hover);
 }
 
 @media (max-width: 768px) {
@@ -279,4 +279,5 @@ export default {
 		width: var(--cobudget-mobile-touch-size);
 	}
 }
+.search-result-item:is(:focus-visible, :active) { transition: none; }
 </style>

@@ -56,8 +56,8 @@ export function annualDetailComparison(report, detail) {
 	if (!report || detail.index === periodTotalIndex(report, detail.row)) return null
 	const { row, index, total } = detail
 	if (total) return report.totals[row.type === 'all' ? 'balance' : row.type]?.comparisons?.[index] ?? null
-	const groups = report.groups[row.type] || []
-	const match = !row.direct && groups.find(group => group.id === row.id)
-	const source = match || groups.flatMap(group => group.children || []).find(child => child.id === row.id)
+	const flatten = rows => rows.flatMap(item => [item, ...flatten(item.children || []), ...flatten(item.areas || [])])
+	const identity = item => String(item.reportKey ?? item.id)
+	const source = flatten(report.groups[row.type] || []).find(item => identity(item) === identity(row) && Boolean(item.direct) === Boolean(row.direct))
 	return source?.comparisons?.[index] ?? null
 }

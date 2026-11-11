@@ -372,7 +372,10 @@ class DataIntegrityService {
 			}
 			if ($kind === 'category') {
 				$result['subcategoriesUpdated'] = $this->replaceReferences('cobudget_categories', 'parent_category_id', $keepId, $mergeIds);
-				$result['areaVisibilityUpdated'] = $this->replaceProjectHiddenCategoryReferences($keepId, $mergeIds);
+				$result['areaVisibilityUpdated'] = $this->replaceProjectHiddenLookupReferences('hidden_category_ids', $keepId, $mergeIds);
+			}
+			if ($kind === 'payment_partner') {
+				$result['areaVisibilityUpdated'] = $this->replaceProjectHiddenLookupReferences('hidden_payment_partner_ids', $keepId, $mergeIds);
 			}
 			$result['removedRows'] = $this->deleteRows($table, $mergeIds);
 			$this->db->commit();
@@ -627,10 +630,10 @@ class DataIntegrityService {
 		return $updated;
 	}
 
-	private function replaceProjectHiddenCategoryReferences(int $keepId, array $mergeIds): int {
+	private function replaceProjectHiddenLookupReferences(string $column, int $keepId, array $mergeIds): int {
 		$mergeIdLookup = array_fill_keys($mergeIds, true);
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'hidden_category_ids')
+		$qb->select('id', $column)
 			->from('cobudget_projects');
 		$result = $qb->executeQuery();
 		$projects = $result->fetchAll();
@@ -638,7 +641,7 @@ class DataIntegrityService {
 
 		$updated = 0;
 		foreach ($projects as $project) {
-			$hiddenIds = json_decode((string)($project['hidden_category_ids'] ?? '[]'), true);
+			$hiddenIds = json_decode((string)($project[$column] ?? '[]'), true);
 			if (!is_array($hiddenIds)) {
 				continue;
 			}
@@ -663,7 +666,7 @@ class DataIntegrityService {
 
 			$update = $this->db->getQueryBuilder();
 			$update->update('cobudget_projects')
-				->set('hidden_category_ids', $update->createNamedParameter(json_encode(array_values($nextIds)) ?: '[]'))
+				->set($column, $update->createNamedParameter(json_encode(array_values($nextIds)) ?: '[]'))
 				->where($update->expr()->eq('id', $update->createNamedParameter((int)$project['id'], \PDO::PARAM_INT)));
 			$updated += $update->executeStatement();
 		}

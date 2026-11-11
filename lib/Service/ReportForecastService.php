@@ -9,12 +9,20 @@ class ReportForecastService {
 	public function build(iterable $rows, int $from, int $to, \DateTimeImmutable $now, string $grouping, string $type, string $id, bool $direct, array $labels, array $periods = []): array {
 		$timestamp = $now->getTimestamp();
 		if ($to < $timestamp) return ['status' => 'past'];
-		$start = $now->setTimestamp($from)->setTime(0, 0);
-		$last = $now->setTimestamp($to)->setTime(0, 0);
 		$today = $now->setTime(0, 0);
 		$future = $from > $timestamp;
-		$elapsedDays = $future ? 0 : (int)$start->diff($today)->days + 1;
-		$remainingDays = $future ? (int)$start->diff($last)->days + 1 : (int)$today->diff($last)->days;
+		$periods = $periods ?: [['dateFrom' => $from, 'dateTo' => $to]];
+		$calendar = new AnnualOverviewService();
+		$elapsedDays = 0; $remainingDays = 0; $futureDays = [];
+		foreach ($periods as $index => $period) {
+			$firstDay = $now->setTimestamp($period['dateFrom'])->setTime(0, 0);
+			$lastDay = $now->setTimestamp($period['dateTo'])->setTime(0, 0);
+			$elapsedEnd = min($today, $lastDay);
+			if ($firstDay <= $elapsedEnd) $elapsedDays += (int)$firstDay->diff($elapsedEnd)->days + 1;
+			$futureStart = max($today->modify('+1 day'), $firstDay);
+			$futureDays[$index] = $futureStart <= $lastDay ? (int)$futureStart->diff($lastDay)->days + 1 : 0;
+			$remainingDays += $futureDays[$index];
+		}
 		$actual = ['incomeCents' => 0, 'expenseCents' => 0];
 		$planned = $actual;
 		$variable = [];
@@ -22,7 +30,6 @@ class ReportForecastService {
 		$variableCount = 0;
 		$historyStart = $now->modify('-5 years')->getTimestamp();
 		$payments = (new ReportBreakdownService())->payments($rows, min($from, $historyStart), $to, $grouping, $type, $id, $direct, $labels);
-		$periods = $periods ?: [['dateFrom' => $from, 'dateTo' => $to]];
 		$chart = ['periods' => $periods];
 		foreach (['actual', 'planned', 'estimated'] as $component) {
 			$chart[$component] = ['income' => array_fill(0, count($periods), 0), 'expense' => array_fill(0, count($periods), 0)];
@@ -38,7 +45,7 @@ class ReportForecastService {
 			}
 		};
 		foreach ($payments as $payment) {
-			if ((int)$payment['date'] < $from) continue;
+			if ($calendar->periodIndex((int)$payment['date'], $periods) < 0) continue;
 			$cents = (int)$payment['amount_cents'];
 			$key = $payment['type'] . 'Cents';
 			$category = (int)($payment['category_id'] ?? 0);
@@ -55,7 +62,7 @@ class ReportForecastService {
 				}
 			}
 		}
-		$available = !$future && $remainingDays > 0 && $variableCount > 0;
+		$available = !$future && $elapsedDays > 0 && $remainingDays > 0 && $variableCount > 0;
 		$estimated = 0;
 		if ($available) {
 			foreach ($variable as $category => $cents) {
@@ -69,22 +76,19 @@ class ReportForecastService {
 		$income = !$future && $type !== 'expense' ? (new ReportIncomePatternService())->project($payments, $now, $to) : ['patterns' => 0, 'payments' => []];
 		$estimatedIncome = 0;
 		foreach ($income['payments'] as $payment) {
-			if ((int)$payment['date'] < $from) continue;
+			if ($calendar->periodIndex((int)$payment['date'], $periods) < 0) continue;
 			$estimatedIncome += (int)$payment['amount_cents'];
 			$add('estimated', $payment);
 		}
 		// Distribute only the additional expense estimate, preserving every cent.
 		// Prefix allocation over local days handles clipped weeks, leap days and DST.
 		if ($expenseAvailable) {
-			$first = $today->modify('+1 day');
 			$base = intdiv($estimated, $remainingDays); $residual = $estimated % $remainingDays;
-			foreach ($periods as $index => $period) {
-				$bucketStart = max($first, $now->setTimestamp($period['dateFrom'])->setTime(0, 0));
-				$bucketEnd = min($last, $now->setTimestamp($period['dateTo'])->setTime(0, 0));
-				if ($bucketStart > $bucketEnd) continue;
-				$before = (int)$first->diff($bucketStart)->days;
-				$after = (int)$first->diff($bucketEnd)->days + 1;
-				$chart['estimated']['expense'][$index] = $base * ($after - $before) + min($residual, $after) - min($residual, $before);
+			$before = 0;
+			foreach ($futureDays as $index => $days) {
+				$after = $before + $days;
+				$chart['estimated']['expense'][$index] = $base * $days + min($residual, $after) - min($residual, $before);
+				$before = $after;
 			}
 		}
 		foreach (['actual', 'planned', 'estimated'] as $component) {

@@ -9,8 +9,8 @@
 			:enable-fixed-costs="$enableFixedCosts" :enable-subscriptions="$enableSubscriptions" :enable-child-related="$enableChildRelated"
 			:enable-important-payments="$enableImportantPayments" :enable-review-payments="$enableReviewPayments"
 			:enable-tax-relevant="$enableTaxRelevant" :enable-insurance="$enableInsurance"
-			:amount-resolver="amount" :project-name-resolver="projectName" :is-shared-project-resolver="isSharedProject"
-			:show-paid-by="selection.entryScope === 'shared' && isSharedProject(selection.projectId)" @row-click="editEntry" @edit="editEntry" @history="openHistory" @sort="sort">
+			:amount-resolver="amount" :project-name-resolver="projectName" :project-color-resolver="projectColor" :is-shared-project-resolver="isSharedProject"
+			:show-paid-by="selection.entryScope !== 'shared' || isSharedProject(selection.projectId)" @row-click="editEntry" @edit="editEntry" @history="openHistory" @sort="sort">
 			<template #pagination>
 				<nav class="report-payments-pagination" :class="{ 'is-single': total <= limit }" :aria-label="$texts.annual.savedPayments()">
 					<NcButton v-if="total > limit" variant="tertiary" :disabled="page <= 1" @click="setPage(page - 1)">{{ $texts.common.previous() }}</NcButton>
@@ -19,11 +19,14 @@
 				</nav>
 			</template>
 		</EntryTable>
-		<EntryHistoryModal v-if="historyOpen" :loading="historyLoading" :history="history" @close="closeHistory" />
+		<DialogTransition :show="!!(historyOpen)" v-slot="{ returnFocus }">
+			<EntryHistoryModal :container="null" :set-return-focus="returnFocus" :loading="historyLoading" :history="history" :error="historyError" @retry="openHistory(historyEntry)" @close="closeHistory" />
+		</DialogTransition>
 	</ReportDetailSection>
 </template>
 
 <script>
+import DialogTransition from './DialogTransition.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import EntryTable from './EntryTable.vue'
 import EntryHistoryModal from './EntryHistoryModal.vue'
@@ -33,19 +36,19 @@ import { generateUrl } from '@nextcloud/router'
 import { normalizeEntryPageSize } from '../services/pagination'
 import { reportPaymentParams } from '../services/reportDetails'
 import { openReportPayment, loadReportPayments } from '../services/reportPayments'
-import { showRequestError } from '../services/notifications'
+import { extractError } from '../services/notifications'
 import { reportPaymentExportSection, reportDisplayedTableExport, reportExportNotReady } from '../services/reportExport'
 import { formatCalendarLabel } from '../utils/formatDate'
 
 export default {
 	name: 'ReportPayments',
-	components: { NcButton, EntryTable, EntryHistoryModal, ReportDetailSection },
+	components: { DialogTransition, NcButton, EntryTable, EntryHistoryModal, ReportDetailSection },
 	props: {
 		detail: { type: Object, required: true }, selection: { type: Object, required: true }, report: { type: Object, required: true },
 		projects: { type: Array, default: () => [] }, selectedEntryId: { type: [Number, String], default: null },
 	},
 	emits: ['open-entry-sidebar', 'selected-entry-missing'],
-	data: () => ({ entries: [], dateGroups: null, total: 0, loading: true, error: false, request: 0, historyOpen: false, historyLoading: false, history: [], historyRequest: 0 }),
+	data: () => ({ entries: [], dateGroups: null, total: 0, loading: true, error: false, request: 0, historyOpen: false, historyLoading: false, history: [], historyRequest: 0, historyError: '', historyEntry: null }),
 	computed: {
 		limit() { return normalizeEntryPageSize(this.$entriesPerPage) },
 		page() { const value = Number(this.$route.query.detailPage); return Number.isInteger(value) && value > 0 ? value : 1 },
@@ -55,7 +58,7 @@ export default {
 		params() { return reportPaymentParams(this.detail.route, this.selection, this.report.cutoff, { limit: this.limit, offset: this.offset, sortBy: this.sortBy, sortDir: this.sortDir }) },
 		requestKey() { return JSON.stringify(this.params) },
 	},
-	watch: { requestKey: { handler: 'load', immediate: true } },
+	watch: { requestKey: { handler() { this.closeHistory(); this.load() }, immediate: true } },
 	mounted() { window.addEventListener('entry-saved', this.load) },
 	beforeUnmount() { this.request++; this.historyRequest++; window.removeEventListener('entry-saved', this.load) },
 	methods: {
@@ -89,17 +92,20 @@ export default {
 			const cents = this.selection.entryScope === 'shared' ? entry.amount_cents : entry.personal_amount_cents ?? entry.amount_cents
 			return cents !== undefined && cents !== null ? Number(cents) / 100 : Number(entry.amount || 0)
 		},
+		projectColor(id) { return this.projects.find(project => Number(project.id) === Number(id))?.color || '' },
 		projectName(id) { return this.projects.find(project => Number(project.id) === Number(id))?.name || '' },
 		isSharedProject(id) { return Number(this.projects.find(project => Number(project.id) === Number(id))?.member_count || 0) > 1 },
 		editEntry(entry) { return openReportPayment(entry, this.selection, this.$texts, payload => this.$emit('open-entry-sidebar', payload)) },
 		async openHistory(entry) {
+			if (!entry) return
+			this.historyEntry = entry; this.historyError = ''
 			const request = ++this.historyRequest
 			this.historyOpen = true; this.historyLoading = true; this.history = []
 			try { const { data } = await axios.get(generateUrl(`/apps/cobudget/api/entries/${entry.id}/history`)); if (request === this.historyRequest) this.history = data.history || [] }
-			catch (error) { if (request === this.historyRequest) showRequestError(error, this.$texts.entry.historyFetchError()) }
+			catch (error) { if (request === this.historyRequest) this.historyError = extractError(error, this.$texts.entry.historyFetchError()) }
 			finally { if (request === this.historyRequest) this.historyLoading = false }
 		},
-		closeHistory() { this.historyRequest++; this.historyOpen = false; this.history = []; this.historyLoading = false },
+		closeHistory() { this.historyRequest++; this.historyError = ''; this.historyEntry = null; this.historyOpen = false; this.history = []; this.historyLoading = false },
 	},
 }
 </script>

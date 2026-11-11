@@ -12,7 +12,7 @@ use Psr\Log\LoggerInterface;
 
 class RecurringEntriesJob extends TimedJob {
 
-	private const RECURRENCE_HOUR = 9;
+	private const RECURRENCE_HOUR = 6;
 	private const RECURRENCE_MINUTE = 0;
 	private const JOB_INTERVAL_SECONDS = 5 * 60;
 
@@ -30,12 +30,12 @@ class RecurringEntriesJob extends TimedJob {
 		$this->entryProjectionService = $entryProjectionService;
 		$this->dataChangeService = $dataChangeService;
 		
-		// Match common web-cron setups and allow due recurrences to run shortly after 09:00.
+		// Match common web-cron setups and allow due recurrences to run shortly after 06:00.
 		$this->setInterval(self::JOB_INTERVAL_SECONDS);
 	}
 
 	protected function run($argument) {
-		$now = time();
+		$now = $this->time->getTime();
 		$dueCutoff = $this->recurrenceDueCutoff($now);
 		
 		$qb = $this->db->getQueryBuilder();
@@ -67,14 +67,20 @@ class RecurringEntriesJob extends TimedJob {
 					continue;
 				}
 
-				if (!empty($entry['recurrence_end_date']) && $runDate > (int)$entry['recurrence_end_date']) {
+				$endDate = empty($entry['recurrence_end_date']) ? null : (int)$entry['recurrence_end_date'];
+				if ($endDate !== null) {
+					$end = (new \DateTimeImmutable())->setTimestamp($endDate);
+					// Keep explicit instants from other client timezones; only expand legacy date-only values.
+					if ($end->format('H:i:s') === '00:00:00') $endDate = $end->setTime(23, 59, 59)->getTimestamp();
+				}
+				if ($endDate !== null && $runDate > $endDate) {
 					$this->db->commit();
 					$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
 					continue;
 				}
 
 				$nextDate = $this->calculateNextDate($runDate, $entry['recurrence_interval'], (int)$entry['recurrence_multiplier']);
-				$hasNextRun = empty($entry['recurrence_end_date']) || $nextDate <= (int)$entry['recurrence_end_date'];
+				$hasNextRun = $endDate === null || $nextDate <= $endDate;
 
 				$insertQb = $this->db->getQueryBuilder();
 				$insertQb->insert('cobudget_entries')
@@ -91,6 +97,7 @@ class RecurringEntriesJob extends TimedJob {
 						'amount_cents' => $insertQb->createNamedParameter($amountCents, \PDO::PARAM_INT),
 						'currency' => $insertQb->createNamedParameter($entry['currency']),
 						'date' => $insertQb->createNamedParameter($runDate, \PDO::PARAM_INT),
+						'planned_notified' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
 						'category_id' => $insertQb->createNamedParameter($entry['category_id'], $entry['category_id'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
 						'description' => $insertQb->createNamedParameter($entry['description']),
 						'payment_partner_id' => $insertQb->createNamedParameter($entry['payment_partner_id'] ?? null, ($entry['payment_partner_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
@@ -150,7 +157,12 @@ class RecurringEntriesJob extends TimedJob {
 	}
 
 	private function recurrenceDueCutoff(int $now): int {
-		return $now;
+		// Include legacy 09:00 heads on the same due day without rewriting saved series.
+		$day = (new \DateTimeImmutable())->setTimestamp($now);
+		if ($now < $day->setTime(self::RECURRENCE_HOUR, self::RECURRENCE_MINUTE)->getTimestamp()) {
+			return $day->modify('-1 day')->setTime(23, 59, 59)->getTimestamp();
+		}
+		return $day->setTime(23, 59, 59)->getTimestamp();
 	}
 
 	private function deactivateCurrentSeriesHead(array $entry): bool {

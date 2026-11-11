@@ -4,7 +4,7 @@
 		:projects="projects" :labels="labels" :label-titles="labelTitles" :axis-labels="axisLabels" :selected-entry-id="selectedEntryId"
 		@back="$emit('back')" @open-entry-sidebar="$emit('open-entry-sidebar', $event)" @selected-entry-missing="$emit('selected-entry-missing', $event)" />
 	<div v-else class="report-area-detail-status">
-		<NcButton variant="tertiary" @click="$emit('back')">{{ $texts.annual.back() }}</NcButton>
+		<NcButton class="cobudget-native-button" variant="tertiary" @click="$emit('back')">{{ $texts.annual.back() }}</NcButton>
 		<p v-if="loading" role="status">{{ $texts.common.loading() }}</p>
 		<div v-else-if="error" role="alert"><p>{{ $texts.annual.loadError() }}</p><NcButton @click="load">{{ $texts.annual.retry() }}</NcButton></div>
 		<p v-else>{{ $texts.annual.detailUnavailable() }}</p>
@@ -34,7 +34,7 @@ export default {
 		detailIdentity() { return JSON.stringify({ type: this.query.detailType, id: this.query.detailId, period: this.query.detailPeriod }) },
 		areaSelection() {
 			const { scope, tags } = JSON.parse(this.scopeIdentity)
-			return annualSelection({ ...this.selection, projectId: this.areaId || null, withoutArea: this.areaId === 0, entryScope: scope === 'shared' ? 'shared' : 'personal',
+			return annualSelection({ ...this.selection, ...(this.selection.timeRange === 'all' ? { timeRange: 'custom' } : {}), projectId: this.areaId || null, withoutArea: this.areaId === 0, entryScope: scope === 'shared' ? 'shared' : 'personal',
 				...(this.areaId > 0 && scope === 'shared' && tags ? { hashtags: tags } : {}) })
 		},
 		requestKey() { return JSON.stringify([this.areaId, annualRequestParams(this.areaSelection)]) },

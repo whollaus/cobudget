@@ -98,7 +98,7 @@ class AnnualOverviewService {
 
 	/**
 	 * Dates RecurringEntriesJob would store for one series.
-	 * The first date is the saved next occurrence. Later dates use its 09:00
+	 * The first date is the saved next occurrence. Later dates use its 06:00
 	 * server-time step, including the native month overflow. Dates at or
 	 * before $after stay out. The walk stops at $until and after the series end.
 	 *
@@ -112,6 +112,10 @@ class AnnualOverviewService {
 			$interval = 'month';
 		}
 		$multiplier = max(1, $multiplier);
+		if ($end !== null) {
+			$endDate = (new \DateTimeImmutable('@' . $end))->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+			if ($endDate->format('H:i:s') === '00:00:00') $end = $endDate->setTime(23, 59, 59)->getTimestamp();
+		}
 		$run = $this->recurrenceInstant($next);
 		if ($end !== null && $run > $end) {
 			return [];
@@ -137,19 +141,22 @@ class AnnualOverviewService {
 	private function recurrenceInstant(int $timestamp): int {
 		$date = (new \DateTimeImmutable('@' . $timestamp))->setTimezone(new \DateTimeZone(date_default_timezone_get()));
 
-		return $date->setTime(9, 0, 0)->getTimestamp();
+		return $date->setTime(6, 0, 0)->getTimestamp();
 	}
 
 	private function recurrenceStep(int $timestamp, string $interval, int $multiplier): int {
-		$date = (new \DateTimeImmutable('@' . $timestamp))->setTimezone(new \DateTimeZone(date_default_timezone_get()))->setTime(9, 0, 0);
+		$date = (new \DateTimeImmutable('@' . $timestamp))->setTimezone(new \DateTimeZone(date_default_timezone_get()))->setTime(6, 0, 0);
 		$step = $interval === 'day' ? '+' . $multiplier . ' day' : ($interval === 'week' ? '+' . $multiplier . ' week' : '+' . $multiplier . ' month');
 		$next = $date->modify($step);
 
-		return $next->setTime(9, 0, 0)->getTimestamp();
+		return $next->setTime(6, 0, 0)->getTimestamp();
 	}
 
 	/** Calendar buckets are clipped to the inclusive selected dates, including partial weeks. */
-	public function periods(string $dateFrom, string $dateTo, \DateTimeZone $timezone, string $breakdown): array {
+	public function periods(string $dateFrom, string $dateTo, \DateTimeZone $timezone, string $breakdown, string $periodYears = '', string $periodMonths = ''): array {
+		if ($periodYears !== '' || $periodMonths !== '') {
+			return $this->selectedCalendarPeriods($dateFrom, $dateTo, $timezone, $breakdown, $periodYears, $periodMonths);
+		}
 		$from = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateFrom, $timezone);
 		$to = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateTo, $timezone);
 		if (!$from || !$to || $from->format('Y-m-d') !== $dateFrom || $to->format('Y-m-d') !== $dateTo || $dateFrom < '1970-01-01' || $dateTo > '9999-12-31' || $from > $to) {
@@ -173,7 +180,46 @@ class AnnualOverviewService {
 		return $periods;
 	}
 
-	private function periodIndex(int $timestamp, array $periods): int {
+	/** Build only selected calendar segments; no gap can become an aggregate bucket. */
+	private function selectedCalendarPeriods(string $dateFrom, string $dateTo, \DateTimeZone $timezone, string $breakdown, string $years, string $months): array {
+		$parse = static function(string $text, int $min, int $max, int $limit): array {
+			$values = [];
+			foreach (explode(',', $text) as $token) {
+				if (!ctype_digit($token) || (int)$token < $min || (int)$token > $max) throw new \InvalidArgumentException('Invalid calendar selection');
+				$values[(int)$token] = true;
+			}
+			if (count($values) > $limit) throw new \InvalidArgumentException('Too many calendar choices');
+			$values = array_keys($values); sort($values, SORT_NUMERIC); return $values;
+		};
+		$years = $parse($years, 1970, 9999, 50);
+		$months = $months === '' ? range(1, 12) : $parse($months, 1, 12, 12);
+		$segments = [];
+		$calendar = new \DateTimeImmutable('2000-01-01', $timezone);
+		foreach ($years as $year) foreach ($months as $month) {
+			$start = $calendar->setDate($year, $month, 1);
+			$next = $start->modify('+1 month');
+			$last = count($segments) - 1;
+			if ($last >= 0 && $segments[$last][1] == $start) $segments[$last][1] = $next;
+			else $segments[] = [$start, $next];
+		}
+		// Validate explicit clipping dates independently of the selection.
+		foreach ([$dateFrom, $dateTo] as $date) {
+			$parsed = $date === '' ? null : \DateTimeImmutable::createFromFormat('!Y-m-d', $date, $timezone);
+			if ($date !== '' && (!preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $date) || $date < '1970-01-01' || $date > '9999-12-31' || !$parsed || $parsed->format('Y-m-d') !== $date)) throw new \InvalidArgumentException('Invalid report dates');
+		}
+		$periods = [];
+		foreach ($segments as [$start, $next]) {
+			$from = max($start->format('Y-m-d'), $dateFrom ?: '1970-01-01');
+			$to = min($next->modify('-1 day')->format('Y-m-d'), $dateTo ?: '9999-12-31');
+			if ($from > $to) continue;
+			array_push($periods, ...$this->periods($from, $to, $timezone, $breakdown));
+			if (count($periods) > 3660) throw new \InvalidArgumentException('Too many report columns');
+		}
+		if (!$periods) throw new \InvalidArgumentException('Empty calendar selection');
+		return $periods;
+	}
+
+	public function periodIndex(int $timestamp, array $periods): int {
 		$low = 0;
 		$high = count($periods) - 1;
 		while ($low <= $high) {
@@ -237,31 +283,45 @@ class AnnualOverviewService {
 			}
 			$parentId = $grouping === 'categories' ? (int)($entry['parent_id'] ?? 0) : 0;
 			$rootId = $parentId ?: $id;
-			if (!isset($groups[$type][$rootId])) {
-				$groups[$type][$rootId] = $this->emptyRow($buckets) + [
-					'id' => $rootId,
+			$lookup = in_array($grouping, ['categories', 'paymentPartners'], true);
+			$key = $lookup ? ReportLookupService::key($grouping, (int)$id, (string)($entry['group_name'] ?? ''), $parentId ? (string)($entry['parent_name'] ?? '') : '') : (string)$id;
+			$rootKey = $parentId ? ReportLookupService::key($grouping, $parentId, (string)($entry['parent_name'] ?? '')) : $key;
+			if (!isset($groups[$type][$rootKey])) {
+				$groups[$type][$rootKey] = $this->emptyRow($buckets) + [
+					'id' => $rootId, 'reportKey' => $rootKey, 'areas' => [],
 					'name' => (string)($parentId ? $entry['parent_name'] : ($entry['group_name'] ?? '')),
+					'icon' => $grouping === 'categories' ? (string)($entry[$parentId ? 'parent_icon' : 'group_icon'] ?? 'Shape') : null,
 					'children' => [],
 				];
 				if ($grouping === 'labelsAndTags') {
-					$groups[$type][$rootId]['kind'] = (string)($entry['group_kind'] ?? '');
-					$groups[$type][$rootId]['filter'] = (string)($entry['group_filter'] ?? '');
+					$groups[$type][$rootKey]['kind'] = (string)($entry['group_kind'] ?? '');
+					$groups[$type][$rootKey]['filter'] = (string)($entry['group_filter'] ?? '');
 				}
 			}
-			$root = &$groups[$type][$rootId];
+			$root = &$groups[$type][$rootKey];
 			$this->add($root, $bucket, $cents, $count);
-			if (!isset($root['children'][$id])) {
-				$root['children'][$id] = $this->emptyRow($buckets) + [
-					'id' => $id, 'name' => (string)($entry['group_name'] ?? ''), 'direct' => $id === $rootId,
+			if (!isset($root['children'][$key])) {
+				$root['children'][$key] = $this->emptyRow($buckets) + [
+					'icon' => $grouping === 'categories' ? (string)($entry['group_icon'] ?? 'Shape') : null,
+					'id' => $id, 'reportKey' => $key, 'name' => (string)($entry['group_name'] ?? ''), 'direct' => $key === $rootKey, 'areas' => [],
 				];
 			}
-			$this->add($root['children'][$id], $bucket, $cents, $count);
+			$this->add($root['children'][$key], $bucket, $cents, $count);
+			if ($lookup && array_key_exists('project_id', $entry)) {
+				$this->addArea($root, $entry, $bucket, $buckets, $cents, $count);
+				$this->addArea($root['children'][$key], $entry, $bucket, $buckets, $cents, $count);
+			}
 			unset($root);
 		}
 		foreach ($groups as &$rows) {
 			foreach ($rows as &$row) {
-				$hasChildren = count($row['children']) > 1 || !isset($row['children'][$row['id']]);
+				$row['areas'] = array_values($row['areas']);
+				foreach ($row['children'] as &$child) $child['areas'] = array_values($child['areas']);
+				unset($child);
+				$hasChildren = count($row['children']) > 1 || !isset($row['children'][$row['reportKey']]);
 				$row['children'] = $grouping === 'categories' && $hasChildren ? array_values($row['children']) : [];
+				foreach ($row['areas'] as &$area) $area['includesSubcategories'] = $row['children'] !== [];
+				unset($area);
 			}
 			unset($row);
 			$rows = array_values($rows);
@@ -291,19 +351,7 @@ class AnnualOverviewService {
 			$anchor = $daily ? $now->setDate($year, $month, 1)->setTime(0, 0) : $now->setDate($year, 1, 1)->setTime(0, 0);
 			$bucketCount = $daily ? (int)$anchor->format('t') : ($quarterly ? 4 : 12);
 		}
-		$flatten = static function(array $data): array {
-			$result = [];
-			foreach ($data['totals'] as $type => $row) $result['total-' . $type] = $row;
-			foreach ($data['groups'] as $type => $rows) {
-				foreach ($rows as $row) {
-					$result[$type . '-' . $row['id']] = $row;
-					foreach ($row['children'] as $child) $result[$type . '-' . $row['id'] . '-' . $child['id']] = $child;
-					// A direct category still needs a key when it has no children in this period.
-					if (!$row['children']) $result[$type . '-' . $row['id'] . '-' . $row['id']] = $row;
-				}
-			}
-			return $result;
-		};
+		$flatten = fn(array $data): array => $this->comparisonRows($data);
 		$comparisons = [];
 		for ($index = 0; $index < $bucketCount; $index++) {
 			if ($daily || $dailyYear) {
@@ -404,12 +452,7 @@ class AnnualOverviewService {
 		foreach ($report['totals'] as $type => &$row) $attach($row, 'total-' . $type);
 		unset($row);
 		foreach ($report['groups'] as $type => &$rows) {
-			foreach ($rows as &$row) {
-				$attach($row, $type . '-' . $row['id']);
-				foreach ($row['children'] as &$child) $attach($child, $type . '-' . $row['id'] . '-' . $child['id']);
-				unset($child);
-			}
-			unset($row);
+			$this->attachComparisons($rows, $type, $attach);
 		}
 		unset($rows);
 		return $report;
@@ -417,18 +460,7 @@ class AnnualOverviewService {
 
 	/** Compare the same clipped calendar slice, never the full edge month or week. */
 	public function comparePeriods(array $report, array $entries, array $periods, \DateTimeImmutable $now, string $grouping, string $mode, string $breakdown): array {
-		$flatten = static function(array $data): array {
-			$result = [];
-			foreach ($data['totals'] as $type => $row) $result['total-' . $type] = $row;
-			foreach ($data['groups'] as $type => $rows) {
-				foreach ($rows as $row) {
-					$result[$type . '-' . $row['id']] = $row;
-					foreach ($row['children'] as $child) $result[$type . '-' . $row['id'] . '-' . $child['id']] = $child;
-					if (!$row['children']) $result[$type . '-' . $row['id'] . '-' . $row['id']] = $row;
-				}
-			}
-			return $result;
-		};
+		$flatten = fn(array $data): array => $this->comparisonRows($data);
 		$comparisons = [];
 		$keys = array_keys($flatten($report));
 		$anchor = $now->setDate(2000, 1, 1)->setTime(0, 0);
@@ -470,15 +502,44 @@ class AnnualOverviewService {
 		foreach ($report['totals'] as $type => &$row) $attach($row, 'total-' . $type);
 		unset($row);
 		foreach ($report['groups'] as $type => &$rows) {
-			foreach ($rows as &$row) {
-				$attach($row, $type . '-' . $row['id']);
-				foreach ($row['children'] as &$child) $attach($child, $type . '-' . $row['id'] . '-' . $child['id']);
-				unset($child);
-			}
-			unset($row);
+			$this->attachComparisons($rows, $type, $attach);
 		}
 		unset($rows);
 		return $report;
+	}
+
+	private function addArea(array &$row, array $entry, int $bucket, int $buckets, int $cents, int $count): void {
+		$id = (int)($entry['project_id'] ?? 0);
+		if (!isset($row['areas'][$id])) $row['areas'][$id] = $this->emptyRow($buckets) + [
+			'id' => $row['id'], 'reportKey' => $row['reportKey'] . ':area:' . $id,
+			'areaId' => $id, 'name' => (string)($entry['project_name'] ?? ''),
+			'direct' => $row['direct'] ?? false,
+		];
+		$this->add($row['areas'][$id], $bucket, $cents, $count);
+	}
+
+	private function comparisonRows(array $data): array {
+		$result = [];
+		foreach ($data['totals'] as $type => $row) $result['total-' . $type] = $row;
+		$walk = function(array $rows, string $type) use (&$walk, &$result): void {
+			foreach ($rows as $row) {
+				$key = $type . '-' . ($row['reportKey'] ?? $row['id']);
+				$result[$key . (!empty($row['direct']) ? '-direct' : '')] = $row;
+				if (empty($row['children']) && empty($row['direct']) && empty($row['includesSubcategories'])) $result[$key . '-direct'] = $row;
+				$walk($row['children'] ?? [], $type);
+				$walk($row['areas'] ?? [], $type);
+			}
+		};
+		foreach ($data['groups'] as $type => $rows) $walk($rows, $type);
+		return $result;
+	}
+
+	private function attachComparisons(array &$rows, string $type, callable $attach): void {
+		foreach ($rows as &$row) {
+			$attach($row, $type . '-' . ($row['reportKey'] ?? $row['id']) . (!empty($row['direct']) ? '-direct' : ''));
+			foreach (['children', 'areas'] as $field) if (isset($row[$field])) $this->attachComparisons($row[$field], $type, $attach);
+		}
+		unset($row);
 	}
 
 	private function shiftComparisonDate(\DateTimeImmutable $date, string $mode, string $breakdown): ?\DateTimeImmutable {

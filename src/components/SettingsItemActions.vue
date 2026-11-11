@@ -17,7 +17,7 @@
 
 <script>
 import CbIconButton from './CbIconButton.vue'
-import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
+import DeleteOutlineIcon from 'vue-material-design-icons/TrashCanOutline.vue'
 import EyeOffIcon from 'vue-material-design-icons/EyeOff.vue'
 import PencilIcon from 'vue-material-design-icons/Pencil.vue'
 import EyeIcon from 'vue-material-design-icons/Eye.vue'

@@ -4,7 +4,7 @@
 			<ReportDetailView v-if="activeDetail && !loading && !error" :key="pageKey" v-bind="$attrs" :detail="activeDetail" :report="activeReport" :selection="activeSelection" />
 		</KeepAlive>
 		<div v-if="loading || error || !activeDetail" class="report-detail-status">
-			<NcButton variant="tertiary" @click="$attrs.onBack?.()">{{ $texts.annual.back() }}</NcButton>
+			<NcButton class="cobudget-native-button" variant="tertiary" @click="$attrs.onBack?.()">{{ $texts.annual.back() }}</NcButton>
 			<p v-if="loading" role="status">{{ $texts.common.loading() }}</p>
 			<div v-else-if="error" role="alert"><p>{{ $texts.annual.loadError() }}</p><NcButton @click="load">{{ $texts.annual.retry() }}</NcButton></div>
 			<p v-else role="status">{{ $texts.annual.detailUnavailable() }}</p>
@@ -32,7 +32,7 @@ export default {
 		pathText() { return this.$route.query.detailPath },
 		path() { return reportDrilldownPath({ detailPath: this.pathText }) },
 		filters() { return reportDrilldownFilters(this.detail, this.selection, this.path) },
-		pageKey() { return JSON.stringify([this.detail.row.type, this.detail.row.id, this.detail.index, this.path]) },
+		pageKey() { return JSON.stringify([this.detail.row.type, this.detail.row.reportKey ?? this.detail.row.id, this.detail.index, this.path]) },
 		activeSelection() { return this.path?.length && this.filters ? annualSelection({ ...this.selection, reportFilters: JSON.stringify(this.filters) }) : this.selection },
 		activeReport() { return this.path?.length ? this.nestedReport : this.report },
 		activeDetail() {

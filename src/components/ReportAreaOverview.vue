@@ -1,21 +1,13 @@
 <template>
 	<AnnualOverviewTable ref="table" class="report-area-table" section="areas" :title="$texts.analytics.areas()" :print-title="exportTitle" :first-heading="$texts.analytics.area()" :export-disabled="loading || error"
 		:columns="columns" :column-titles="columnTitles" :rows="rows" :total-row="totalRow" :total-interactive="false" area-order
-		:selection="selection" :periods="report.periods" :detail-location-resolver="detailLocation">
+		:selection="selection" :periods="report.periods" :detail-location-resolver="detailLocation" :scroll-navigation="scrollNavigation">
 		<template #controls>
 			<div class="report-area-controls no-print">
-				<label v-if="$enableIncomes !== false" class="report-area-select">
-					<span aria-hidden="true">{{ metricLabel }}<ChevronDownIcon :size="18" /></span>
-					<select :value="effectiveMetric" :aria-label="$texts.annual.areaMetric()" @change="$emit('update:metric', $event.target.value)">
-						<option value="expense">{{ $texts.annual.expenses() }}</option><option value="income">{{ $texts.annual.income() }}</option><option value="balance">{{ $texts.analytics.balance() }}</option>
-					</select>
-				</label>
-				<label class="report-area-select">
-					<span aria-hidden="true">{{ amountLabel }}<ChevronDownIcon :size="18" /></span>
-					<select :value="amountView" :aria-label="$texts.annual.amountScope()" @change="$emit('update:amountView', $event.target.value)">
-						<option value="personal">{{ $texts.annual.personalShare() }}</option><option value="area">{{ $texts.annual.areaTotals() }}</option>
-					</select>
-				</label>
+				<ReportSelect v-if="$enableIncomes !== false" :model-value="effectiveMetric" :label="$texts.annual.areaMetric()"
+				:options="[{ value: 'expense', label: $texts.annual.expenses() }, { value: 'income', label: $texts.annual.income() }, { value: 'balance', label: $texts.analytics.balance() }]" @update:model-value="$emit('update:metric', $event)" />
+				<ReportSelect :model-value="amountView" :label="$texts.annual.amountScope()"
+				:options="[{ value: 'personal', label: $texts.annual.personalShare() }, { value: 'area', label: $texts.annual.areaTotals() }]" @update:model-value="$emit('update:amountView', $event)" />
 			</div>
 		</template>
 		<template #empty>
@@ -27,8 +19,8 @@
 </template>
 
 <script>
+import ReportSelect from './ReportSelect.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
 import AnnualOverviewTable from './AnnualOverviewTable.vue'
 import axios from '../services/http'
 import { generateUrl } from '@nextcloud/router'
@@ -38,10 +30,11 @@ import { sortAreasByName } from '../utils/areaSorting'
 
 export default {
 	name: 'ReportAreaOverview',
-	components: { NcButton, ChevronDownIcon, AnnualOverviewTable },
+	components: { ReportSelect, NcButton, AnnualOverviewTable },
 	props: {
 		selection: { type: Object, required: true }, report: { type: Object, required: true }, columns: { type: Array, required: true }, columnTitles: { type: Array, default: () => [] },
 		amountView: { type: String, default: 'personal' }, metric: { type: String, default: 'expense' },
+		scrollNavigation: { type: Object, default: null },
 	},
 	emits: ['update:amountView', 'update:metric'],
 	data: () => ({ result: null, loading: true, error: false, request: 0 }),
@@ -103,10 +96,5 @@ export default {
 
 <style scoped>
 .report-area-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--default-grid-baseline, 4px); max-width: 100%; font-size: var(--cobudget-font-base); font-weight: 400; }
-.report-area-select { position: relative; display: inline-flex; min-width: 0; max-width: 100%; border-radius: var(--border-radius-element, 8px); color: var(--cobudget-text-muted); font-weight: 400; }
-.report-area-select > span { display: flex; align-items: center; gap: 4px; min-height: 36px; padding-inline: 8px; white-space: nowrap; }
-.report-area-select:hover { background: var(--cobudget-surface-muted); }
-.report-area-select:focus-within { outline: var(--cobudget-focus-outline); outline-offset: -2px; }
-.report-area-select select { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; opacity: 0; cursor: pointer; }
-@media (max-width: 768px) { .report-area-select > span { min-height: 44px; } }
+
 </style>

@@ -33,6 +33,7 @@ class ResetAllCommand extends Command {
 		'cobudget_settlement_transfers',
 		'cobudget_budget_goals',
 		'cobudget_budget_snapshots',
+		'cobudget_reminders',
 	];
 
 	private const APP_VALUE_KEYS_TO_RESET = [
@@ -49,6 +50,7 @@ class ResetAllCommand extends Command {
 	public function __construct(
 		private IDBConnection $db,
 		private IConfig $config,
+		private \OCA\CoBudget\Service\CalendarReminderService $calendarReminders,
 	) {
 		parent::__construct();
 	}
@@ -107,6 +109,8 @@ class ResetAllCommand extends Command {
 			return Command::FAILURE;
 		}
 
+		// Retain failed external cleanup links until the reminder job can remove them.
+		$this->calendarReminders->resetConnections();
 		$totalRows = array_sum($tableCounts);
 		$output->writeln('<info>CoBudget wurde zurueckgesetzt.</info>');
 		$output->writeln(sprintf('Geloeschte Tabellenzeilen: %d', $totalRows));

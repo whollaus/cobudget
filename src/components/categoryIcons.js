@@ -1,0 +1,43 @@
+// Keep these keys stable: category records and exports store them.
+import Airplane from 'vue-material-design-icons/Airplane.vue'
+import BabyCarriage from 'vue-material-design-icons/BabyCarriage.vue'
+import Bank from 'vue-material-design-icons/BankOutline.vue'
+import Briefcase from 'vue-material-design-icons/BriefcaseOutline.vue'
+import Car from 'vue-material-design-icons/CarOutline.vue'
+import Cart from 'vue-material-design-icons/CartOutline.vue'
+import Cash from 'vue-material-design-icons/Cash.vue'
+import Cellphone from 'vue-material-design-icons/Cellphone.vue'
+import Dog from 'vue-material-design-icons/Dog.vue'
+import Dumbbell from 'vue-material-design-icons/Dumbbell.vue'
+import Flash from 'vue-material-design-icons/FlashOutline.vue'
+import GamepadVariant from 'vue-material-design-icons/GamepadVariantOutline.vue'
+import Gift from 'vue-material-design-icons/GiftOutline.vue'
+import Heart from 'vue-material-design-icons/HeartOutline.vue'
+import HelpCircle from 'vue-material-design-icons/HelpCircleOutline.vue'
+import Home from 'vue-material-design-icons/HomeOutline.vue'
+import School from 'vue-material-design-icons/SchoolOutline.vue'
+import Shape from 'vue-material-design-icons/ShapeOutline.vue'
+import Sofa from 'vue-material-design-icons/SofaOutline.vue'
+import Television from 'vue-material-design-icons/Television.vue'
+import Train from 'vue-material-design-icons/Train.vue'
+import TshirtCrew from 'vue-material-design-icons/TshirtCrewOutline.vue'
+import Water from 'vue-material-design-icons/WaterOutline.vue'
+import FoodApple from 'vue-material-design-icons/FoodAppleOutline.vue'
+import SilverwareForkKnife from 'vue-material-design-icons/SilverwareForkKnife.vue'
+import Sprout from 'vue-material-design-icons/SproutOutline.vue'
+import Tree from 'vue-material-design-icons/TreeOutline.vue'
+import Cat from 'vue-material-design-icons/Cat.vue'
+import Paw from 'vue-material-design-icons/PawOutline.vue'
+import Run from 'vue-material-design-icons/Run.vue'
+import Bike from 'vue-material-design-icons/Bike.vue'
+import MusicNote from 'vue-material-design-icons/MusicNoteOutline.vue'
+import Pill from 'vue-material-design-icons/Pill.vue'
+import GasStation from 'vue-material-design-icons/GasStationOutline.vue'
+import BookOpenVariant from 'vue-material-design-icons/BookOpenVariantOutline.vue'
+import Wrench from 'vue-material-design-icons/WrenchOutline.vue'
+
+export const categoryIcons = {
+	Shape, Home, Cart, Car, Train, Flash, Water, Briefcase, Heart, Dumbbell, School, BabyCarriage, Dog, Sofa, Television, GamepadVariant, Airplane, Gift, TshirtCrew, Cellphone, Wrench, Bank, Cash, HelpCircle, FoodApple, SilverwareForkKnife, Sprout, Tree, Cat, Paw, Run, Bike, MusicNote, Pill, GasStation, BookOpenVariant
+}
+
+export const categoryIconNames = Object.keys(categoryIcons)

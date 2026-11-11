@@ -1,22 +1,17 @@
 <template>
-	<section class="annual-chart" :class="{ 'is-collapsed': !open, 'is-embedded': embedded, 'has-forecast': customSeries !== null }">
+	<section class="annual-chart" :class="{ 'is-embedded': embedded, 'has-forecast': customSeries !== null }">
 		<header v-if="!embedded" class="annual-chart-header">
 			<div class="annual-chart-heading">
-				<h3>{{ $texts.analytics.development() }}</h3>
-				<ReportSectionMenu class="annual-chart-menu" :open="open" :title="$texts.analytics.development()" :controls="`${hintId}-body`" :export-data="exportData" @toggle="toggleSection" />
+				<h3 class="cobudget-section-heading">{{ $texts.analytics.development() }}</h3>
+				<ReportSectionMenu class="annual-chart-menu" :title="$texts.analytics.development()" :export-data="exportData" />
 			</div>
-			<div v-show="open" class="annual-chart-controls">
+			<div class="annual-chart-controls">
 				<slot name="controls" />
-				<label class="annual-chart-mode" :title="modeHint">
-					<span aria-hidden="true">{{ modeLabel }}<ChevronDownIcon :size="18" /></span>
-					<select :value="mode" :aria-label="$texts.annual.chartDisplay()" @change="$emit('update:mode', $event.target.value)">
-						<option value="period">{{ $texts.annual.chartPerPeriod() }}</option>
-						<option value="cumulative">{{ $texts.annual.chartCumulative() }}</option>
-					</select>
-				</label>
+				<ReportSelect :title="modeHint" :model-value="mode" :label="$texts.annual.chartDisplay()"
+				:options="[{ value: 'period', label: $texts.annual.chartPerPeriod() }, { value: 'cumulative', label: $texts.annual.chartCumulative() }]" @update:model-value="$emit('update:mode', $event)" />
 			</div>
 		</header>
-		<div v-show="open" :id="`${hintId}-body`">
+		<div :id="`${hintId}-body`">
 			<div
 				ref="plot"
 				class="annual-chart-plot"
@@ -53,7 +48,7 @@
 					</g>
 					<text v-for="index in axisTicks" :key="index" :x="geometry.x(index)" :y="geometry.height - 10" text-anchor="middle" class="annual-chart-axis">{{ axisLabels[index] || labels[index] }}</text>
 				</svg>
-				<div v-if="activeIndex >= 0" class="annual-chart-tooltip" :style="tooltipStyle" aria-hidden="true">
+				<div v-if="activeIndex >= 0" class="annual-chart-tooltip cobudget-tooltip-surface" :style="tooltipStyle" aria-hidden="true">
 					<strong>{{ labelTitles[activeIndex] || labels[activeIndex] }}</strong>
 					<div v-for="item in visibleSeries" :key="item.id" class="annual-chart-tooltip-row" :class="`annual-chart-series--${item.id}`">
 						<span><i class="annual-chart-swatch" />{{ seriesLabel(item.id) }}<small v-if="item.titles?.[activeIndex]">{{ item.titles[activeIndex] }}</small></span>
@@ -75,9 +70,8 @@
 </template>
 
 <script>
-import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
+import ReportSelect from './ReportSelect.vue'
 import ReportSectionMenu from './ReportSectionMenu.vue'
-import { readAnnualSectionOpen, rememberAnnualSection } from '../services/annualOverview'
 import { annualChartGeometry, annualChartPointerIndex, annualChartScale, annualChartSeries, annualChartTicks } from '../services/annualOverviewChart'
 import { reportExportMoney, reportExportDisplayedValue } from '../services/reportExport'
 
@@ -85,7 +79,7 @@ let chartSequence = 0
 
 export default {
 	name: 'AnnualOverviewChart',
-	components: { ChevronDownIcon, ReportSectionMenu },
+	components: { ReportSelect, ReportSectionMenu },
 	emits: ['update:mode', 'update:hiddenSeries'],
 	props: {
 		embedded: { type: Boolean, default: false },
@@ -99,13 +93,10 @@ export default {
 		mode: { type: String, default: 'cumulative' },
 		hiddenSeries: { type: Array, default: () => [] },
 		seriesIds: { type: Array, default: null },
-		initialOpen: { type: Boolean, default: null },
-		rememberState: { type: Boolean, default: true },
-		sectionKey: { type: String, default: 'chart' },
 		formatCents: { type: Function, required: true },
 	},
 	data() {
-		return { open: this.embedded || (this.initialOpen ?? readAnnualSectionOpen(this.sectionKey || 'chart')), chartWidth: 800, activeIndex: -1, hasFocus: false, resizeObserver: null, hintId: `annual-chart-hint-${++chartSequence}` }
+		return { chartWidth: 800, activeIndex: -1, hasFocus: false, resizeObserver: null, hintId: `annual-chart-hint-${++chartSequence}` }
 	},
 	computed: {
 		series() { return this.customSeries ?? annualChartSeries(this.report, this.labels.length, { incomeEnabled: this.incomeEnabled, cumulative: this.mode === 'cumulative' }).filter(item => !this.seriesIds || this.seriesIds.includes(item.id)).concat(this.comparisonSeries) },
@@ -155,13 +146,7 @@ export default {
 			}]
 		},
 		componentLabel(component) { return component === 'actual' ? this.$texts.annual.paymentsUntilToday() : component === 'planned' ? this.$texts.annual.forecastKnownFuture() : this.$texts.annual.forecastAdditional() },
-		toggleSection() {
-			this.open = !this.open
-			if (this.rememberState !== false) rememberAnnualSection(this.sectionKey || 'chart', this.open)
-			if (this.open) this.$nextTick(this.measurePlot)
-			else { this.hasFocus = false; this.activeIndex = -1 }
-		},
-		measurePlot() { if (this.open) this.chartWidth = Math.max(180, Math.round(this.$refs.plot?.clientWidth || 800)) },
+		measurePlot() { this.chartWidth = Math.max(180, Math.round(this.$refs.plot?.clientWidth || 800)) },
 		seriesLabel(id) {
 			const comparison = this.comparisonSeries.find(item => item.id === id)
 			if (comparison) return comparison.label
@@ -206,11 +191,10 @@ export default {
 .annual-chart {
 	box-sizing: border-box;
 	min-width: 0;
-	margin: 0 0 var(--cobudget-report-section-gap, 24px);
+	margin: 0 0 var(--cobudget-report-section-gap, 48px);
 	padding: 0;
 	background: var(--cobudget-surface);
 }
-.annual-chart.is-collapsed { margin-bottom: 0; }
 .annual-chart.is-embedded { margin: 0; padding: 0; }
 .annual-chart-forecast-shade { fill: var(--cobudget-text-muted); opacity: 0.06; }
 .has-forecast .annual-chart-area { display: none; }
@@ -220,15 +204,10 @@ export default {
 .annual-chart-components dt, .annual-chart-components dd { margin: 0; padding: 0; }
 .annual-chart-components dt { width: auto; white-space: normal; text-align: start; }
 .annual-chart-components dd { white-space: nowrap; text-align: end; font-variant-numeric: tabular-nums; }
-.annual-chart-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: var(--cobudget-report-header-height, 64px); margin: 0; }
+.annual-chart-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: var(--cobudget-report-header-height, 44px); margin: 0 0 var(--cobudget-content-gap); }
 .annual-chart-heading { display: flex; align-items: center; gap: var(--default-grid-baseline, 4px); min-width: 0; }
 .annual-chart-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--default-grid-baseline, 4px); min-width: 0; max-width: 100%; margin-inline-start: auto; }
-.annual-chart-header h3 { margin: 0; padding: 2px 4px; font-size: var(--cobudget-font-lg); font-weight: 600; color: var(--cobudget-text); }
-.annual-chart-mode { position: relative; display: inline-flex; border-radius: var(--border-radius-element, 8px); color: var(--cobudget-text-muted); }
-.annual-chart-mode > span { display: flex; align-items: center; gap: 4px; min-height: 36px; padding-inline: 8px; }
-.annual-chart-mode select { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; opacity: 0; cursor: pointer; }
-.annual-chart-mode:hover { background: var(--cobudget-surface-muted); }
-.annual-chart-mode:focus-within,
+.annual-chart-header h3 { margin: 0;  color: var(--cobudget-text); }
 .annual-chart-plot:focus-visible { outline: 2px solid var(--cobudget-primary); outline-offset: 2px; }
 .annual-chart-plot { position: relative; min-width: 0; border-radius: var(--border-radius, 6px); touch-action: pan-y; }
 .annual-chart-plot svg { display: block; width: 100%; height: 220px; overflow: visible; }
@@ -260,7 +239,7 @@ export default {
 .annual-chart-guide { stroke: var(--cobudget-text-muted); stroke-dasharray: 2 3; }
 .annual-chart-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 0 0; font-size: var(--cobudget-font-sm); color: var(--cobudget-text-muted); }
 .annual-chart-legend > button { min-height: 32px; margin: 0; padding: 4px 6px; border: 0; border-radius: var(--border-radius-element, 8px); background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.annual-chart-legend > button:hover:enabled { background: var(--cobudget-surface-muted); }
+.annual-chart-legend > button:hover:enabled { background: var(--cobudget-interaction-hover); }
 .annual-chart-legend > button:focus-visible { outline: 2px solid var(--cobudget-primary); outline-offset: 2px; }
 .annual-chart-legend > button.is-hidden { text-decoration: line-through; }
 .annual-chart-legend > button.is-hidden .annual-chart-swatch { opacity: 0.45; }
@@ -268,10 +247,10 @@ export default {
 .annual-chart-legend > button,
 .annual-chart-tooltip-row > span { display: inline-flex; align-items: center; gap: 6px; }
 .annual-chart-swatch { display: inline-block; flex: 0 0 auto; width: 16px; height: 0; border-top: 3px var(--series-border) var(--series-color); }
-.annual-chart-tooltip { position: absolute; top: 8px; z-index: 2; box-sizing: border-box; padding: 10px 12px; pointer-events: none; border: 1px solid var(--cobudget-border); border-radius: var(--border-radius-large, 8px); background: var(--cobudget-surface); color: var(--cobudget-text); box-shadow: var(--box-shadow); font-size: var(--cobudget-font-sm); text-align: start; }
+.annual-chart-tooltip { position: absolute; top: 8px; z-index: 2; box-sizing: border-box; padding: 10px 12px; pointer-events: none; border-radius: var(--border-radius-large, 8px); text-align: start; }
 .annual-chart-tooltip > strong { display: block; margin-bottom: 8px; overflow-wrap: anywhere; }
 .annual-chart-tooltip-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-top: 4px; }
 .annual-chart-tooltip-row b { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-@media (max-width: 768px) { .annual-chart:not(.is-embedded) { padding: 12px 0; } .annual-chart-mode > span, .annual-chart-legend > button { min-height: 44px; } }
+@media (max-width: 768px) { .annual-chart:not(.is-embedded) { padding: 12px 0; } .annual-chart-legend > button { min-height: 44px; } }
 </style>

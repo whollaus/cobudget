@@ -1,6 +1,19 @@
 <?php
 return [
 	'routes' => [
+        ['name'=>'reminder#index','url'=>'/api/reminders','verb'=>'GET'],
+        ['name'=>'reminder#payments','url'=>'/api/reminders/payments','verb'=>'GET'],
+        ['name'=>'reminder#save','url'=>'/api/reminders','verb'=>'POST'],
+        ['name'=>'reminder#status','url'=>'/api/reminders/{id}/status','verb'=>'PUT'],
+        ['name'=>'reminder#postpone','url'=>'/api/reminders/{id}/postpone','verb'=>'POST'],
+        ['name'=>'reminder#refreshCalendar','url'=>'/api/reminders/calendar-refresh','verb'=>'POST'],
+        ['name'=>'reminder#resolveCalendar','url'=>'/api/reminders/{id}/calendar-resolve','verb'=>'POST'],
+        ['name'=>'reminder#retryCalendar','url'=>'/api/reminders/{id}/calendar-sync','verb'=>'POST'],
+        ['name'=>'reminder#destroy','url'=>'/api/reminders/{id}','verb'=>'DELETE'],
+		['name' => 'calendar#state', 'url' => '/api/settings/calendar-reminders', 'verb' => 'GET'],
+		['name' => 'calendar#update', 'url' => '/api/settings/calendar-reminders', 'verb' => 'POST'],
+		['name' => 'master_data#save', 'url' => '/api/master-data', 'verb' => 'POST'],
+		['name' => 'master_data#adminSave', 'url' => '/api/admin/master-data', 'verb' => 'POST'],
 		// Page route
 		['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
 		

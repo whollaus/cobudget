@@ -15,6 +15,7 @@ class BeforeUserDeletedListener implements IEventListener {
 	public function __construct(
 		private UserDeletionService $userDeletionService,
 		private LoggerInterface $logger,
+		private \OCA\CoBudget\Service\CalendarReminderService $calendarReminders,
 	) {
 	}
 
@@ -26,6 +27,7 @@ class BeforeUserDeletedListener implements IEventListener {
 		$user = $event->getUser();
 		try {
 			$report = $this->userDeletionService->deleteUser($user->getUID(), $user->getDisplayName());
+			$this->calendarReminders->forgetUser($user->getUID());
 			$this->logger->info('CoBudget prepared data for a deleted Nextcloud user', [
 				'app' => 'cobudget',
 				'report' => $report,

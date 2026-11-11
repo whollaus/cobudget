@@ -1,9 +1,22 @@
+// A lone Without area subtotal repeats the parent and adds no origin information.
+export function reportAreaRows(row) {
+	const areas = row.areas || []
+	return areas.length === 1 && areas[0].areaId === 0 ? [] : areas
+}
+
+export const reportRowIdentity = row => String(row.reportKey ?? row.id)
+export const isReportLookupKey = value => /^(?:name:[a-f0-9]{64}|0)(?::area:(?:0|[1-9][0-9]{0,15}))?$/.test(value)
+
+export function reportDescendants(rows) {
+	return rows.flatMap(row => [row, ...reportDescendants(row.children || []), ...reportDescendants(row.areas || [])])
+}
+
 // Detail links contain identities only. Resolve labels, amounts and permission-scoped
 // rows from the current report after navigation or a reload.
 export function reportDetailQuery(detail, periods) {
 	return {
 		detailType: detail.row.type,
-		detailId: detail.total ? 'total' : String(detail.row.id),
+		detailId: detail.total ? 'total' : reportRowIdentity(detail.row),
 		...(detail.row.direct ? { detailDirect: '1' } : {}),
 		detailPeriod: detail.index === periods.length - 1 ? 'total' : String(detail.index),
 	}
@@ -27,11 +40,17 @@ export function resolveReportDetail(query, report, rows, totals, directLabel) {
 	const total = query.detailId === 'total'
 	let row = total ? totals.find(row => row.type === type) : null
 	if (!total) {
-		for (const parent of rows.filter(row => row.type === type)) {
-			if (String(parent.id) === query.detailId && query.detailDirect !== '1') { row = parent; break }
-			const child = (parent.children || []).find(child => String(child.id) === query.detailId && Boolean(child.direct) === (query.detailDirect === '1'))
-			if (child) { row = { ...child, type, label: `${parent.label} · ${child.direct ? directLabel : child.name}` }; break }
+		const find = (items, prefix = '') => {
+			for (const item of items) {
+				const label = item.label ?? (item.areaId !== undefined ? (item.areaLabel || item.name) : item.direct ? directLabel : item.name)
+				const fullLabel = prefix ? `${prefix} · ${label}` : label
+				if ((reportRowIdentity(item) === query.detailId || (!String(query.detailId).startsWith('name:') && String(item.id) === query.detailId)) && Boolean(item.direct) === (query.detailDirect === '1')) return { ...item, type, label: fullLabel }
+				const child = find(item.children || [], fullLabel) || find(item.areas || [], fullLabel)
+				if (child) return child
+			}
+			return null
 		}
+		row = find(rows.filter(row => row.type === type))
 	}
 	const index = query.detailPeriod === 'total' || query.detailPeriod === undefined
 		? report.periods.length - 1
@@ -43,9 +62,8 @@ export function resolveReportDetail(query, report, rows, totals, directLabel) {
 export function reportDetailRow(report, detail) {
 	if (detail.total) return report.totals[detail.row.type === 'all' ? 'balance' : detail.row.type]
 	const rows = report.groups[detail.row.type] || []
-	const parent = rows.find(row => String(row.id) === String(detail.row.id))
-	return (parent && (!detail.row.direct || !parent.children?.length) && parent)
-		|| rows.flatMap(row => row.children || []).find(row => String(row.id) === String(detail.row.id) && Boolean(row.direct) === Boolean(detail.row.direct))
+	const match = reportDescendants(rows).find(row => reportRowIdentity(row) === reportRowIdentity(detail.row) && Boolean(row.direct) === Boolean(detail.row.direct))
+	return match || (!detail.row.direct ? null : reportDescendants(rows).find(row => reportRowIdentity(row) === reportRowIdentity(detail.row) && !row.children?.length && !row.includesSubcategories))
 		|| { months: Array(report.periods.length - 1).fill(0), counts: Array(report.periods.length - 1).fill(0), total: 0, totalCount: 0 }
 }
 
@@ -53,7 +71,7 @@ export function reportDetailRow(report, detail) {
 // Use their exact total rather than multiplying a rounded per-period average.
 export function reportAnnualTotal(report, detail) {
 	const period = report?.periods?.at(-1)
-	if (!period) return null
+	if (!period || report.periods.slice(0, -1).some((item, index, items) => index > 0 && item.dateFrom > items[index - 1].dateTo + 1)) return null
 	const from = new Date(period.dateFrom * 1000), to = new Date(period.dateTo * 1000)
 	if (from.getMonth() !== 0 || from.getDate() !== 1 || to.getMonth() !== 11 || to.getDate() !== 31 || from.getFullYear() !== to.getFullYear()) return null
 	return { year: from.getFullYear(), amount: reportDetailRow(report, detail).total }
@@ -73,13 +91,13 @@ export function reportChartLabels(periods, selection, format) {
 export function reportPaymentParams(route, selection, cutoff, { limit = 25, offset = 0, sortBy = 'date', sortDir = 'desc' } = {}) {
 	const query = route.query
 	const params = { limit, offset, sortBy, sortDir, type: query.type, projectId: selection.projectId,
-		...(selection.reportFilters ? { reportFilters: selection.reportFilters } : {}),
+		...((query.reportFilters || selection.reportFilters) ? { reportFilters: query.reportFilters || selection.reportFilters } : {}),
 		...(selection.withoutArea ? { withoutArea: true } : {}),
 		entryScope: selection.projectId && selection.entryScope === 'shared' ? 'shared' : 'personal', reportGrouping: selection.grouping,
 		includeFuturePayments: selection.includeFuturePayments, includeSubcategories: query.includeSubcategories === 'true',
 		dateFrom: Number(query.dateFrom), dateTo: Math.min(Number(query.dateTo), Number(cutoff)),
 	}
-	for (const key of ['categoryId', 'paymentPartnerId', 'hashtagId', 'categories', 'partners', 'labels', 'hashtags', 'amountMin', 'amountMax']) {
+	for (const key of ['periodYears', 'periodMonths', 'search', 'projects', 'categoryId', 'paymentPartnerId', 'hashtagId', 'categories', 'partners', 'labels', 'hashtags', 'amountMin', 'amountMax']) {
 		if (query[key] !== undefined) params[key] = query[key]
 	}
 	const flags = { important: 'isImportant', review: 'needsReview', fixedCost: 'isFixedCost', childRelated: 'isChildRelated', subscription: 'isSubscription', taxRelevant: 'isTaxRelevant', insurance: 'isInsurance' }
@@ -102,7 +120,7 @@ export function reportDrilldownPath(query) {
 			if (!step || !BREAKDOWN_DIMENSIONS.includes(step.dimension) || seen.has(step.dimension) || !['income', 'expense'].includes(step.type)) return null
 			if (typeof step.id !== 'string' || (step.dimension === 'labels'
 				? step.id !== '' && !BREAKDOWN_LABELS.includes(step.id)
-				: !/^(0|[1-9]\d*)$/.test(step.id) || !Number.isSafeInteger(Number(step.id)))) return null
+				: !(['categories', 'paymentPartners'].includes(step.dimension) && isReportLookupKey(step.id)) && (!/^(0|[1-9]\d*)$/.test(step.id) || !Number.isSafeInteger(Number(step.id))))) return null
 			seen.add(step.dimension)
 		}
 		if (path.some(step => step.type !== path[0].type)) return null
@@ -113,7 +131,7 @@ export function reportDrilldownPath(query) {
 export function reportBreakdownRoute(query, dimension, row, type) {
 	const path = reportDrilldownPath(query)
 	if (!path) return null
-	const next = { ...query, detailPath: JSON.stringify([...path, { dimension, id: String(row.id), type }]) }
+	const next = { ...query, detailPath: JSON.stringify([...path, { dimension, id: reportRowIdentity(row), type }]) }
 	if (!reportDrilldownPath(next)) return null
 	for (const key of ['detailPage', 'detailSort', 'detailDir']) delete next[key]
 	return { name: 'annual-overview', query: next }
@@ -142,7 +160,7 @@ export function reportDrilldownFilters(detail, selection, path) {
 	if (!path?.length || (detail.row.type !== 'all' && path[0].type !== detail.row.type)) return null
 	const filters = [{ dimension: 'type', id: path[0].type }]
 	if (!detail.total) {
-		let dimension = selection.grouping, id = String(detail.row.id)
+		let dimension = selection.grouping, id = reportRowIdentity(detail.row)
 		if (dimension === 'labelsAndTags') {
 			dimension = id.startsWith('label:') ? 'labels' : 'hashtags'
 			id = id.slice(dimension === 'labels' ? 6 : 4)
@@ -155,17 +173,18 @@ export function reportDrilldownFilters(detail, selection, path) {
 }
 
 export function reportBreakdownLabel(row, dimension, texts) {
+	if (row.areaId !== undefined) return [row.lookupName, row.areaId === 0 ? texts.annual.withoutArea() : row.name].filter(Boolean).join(' · ')
 	if (dimension === 'categories') return Number(row.id) === 0 ? texts.annual.noCategory() : [row.parentName, row.name].filter(Boolean).join(' · ')
 	if (dimension === 'paymentPartners') return Number(row.id) === 0 ? texts.annual.noPartner() : row.name
 	if (dimension === 'labels') return row.id === '' ? texts.annual.withoutLabel() : row.name
 	if (dimension === 'hashtags') return Number(row.id) === 0 ? texts.annual.withoutHashtag() : `#${row.name.replace(/^#/, '')}`
-	return Number(row.id) === 0 ? texts.annual.personalPayments() : row.name
+	return Number(row.id) === 0 ? texts.annual.withoutArea() : row.name
 }
 
 export function reportDrilldownLabels(breakdown, path, texts) {
 	const labels = []
 	for (const step of path) {
-		const row = breakdown.groups?.[step.dimension]?.[step.type]?.find(row => String(row.id) === step.id)
+		const row = reportDescendants(breakdown.groups?.[step.dimension]?.[step.type] || []).find(row => reportRowIdentity(row) === step.id)
 		if (!row) return null
 		labels.push(reportBreakdownLabel(row, step.dimension, texts))
 	}

@@ -1,90 +1,15 @@
 <template>
 	<div class="cobudget-admin-settings settings-section">
-		<h2>{{ $texts.admin.title() }}</h2>
+		<h2 class="cobudget-section-heading">{{ $texts.admin.title() }}</h2>
 		<p class="settings-hint">{{ $texts.admin.hint() }}</p>
 
-		<div class="settings-grid">
-			<!-- Kategorien -->
-			<div class="settings-column">
-				<h3>{{ $texts.admin.globalCategories() }}</h3>
-				<CbTypeTabs v-model="categoryTab" :label="$texts.admin.globalCategories()" />
-				<form @submit.prevent="addCategory" class="add-form">
-					<IconPicker v-model="newCategoryIcon" />
-					<input type="text" class="form-control" data-cobudget-field="compact" v-model="newCategory" :placeholder="$texts.admin.newCategory()" required>
-					<NcButton variant="primary" type="submit" :disabled="loading || !newCategory.trim()" :aria-label="$texts.common.add()"
-						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
-				</form>
-				<SettingsList :items="filteredCategories" :empty-text="$texts.admin.noGlobalCategories()">
-					<template #item="{ item: cat }">
-						<div class="settings-list-info">
-							<IconPicker :value="cat.icon || 'Shape'" @input="updateCategoryIcon(cat, $event)" />
-							<div class="category-list-label">
-								<small v-if="cat.code" class="category-list-code">{{ cat.code }}</small>
-								<span>{{ cat.name }}</span>
-							</div>
-							<span class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
-							<span v-if="cat.is_hidden" class="badge-hidden" data-cobudget-badge="neutral">{{ $texts.admin.hidden() }}</span>
-						</div>
-						<SettingsItemActions
-							class="settings-list-actions"
-							:can-edit="true"
-							:can-delete="!cat.has_children"
-							:can-hide="!cat.is_hidden"
-							:can-unhide="cat.is_hidden"
-							:edit-label="$texts.admin.editGlobalCategory()"
-							:delete-label="$texts.admin.deleteGlobalCategory()"
-							:hide-label="$texts.admin.hideGlobalCategory()"
-							:unhide-label="$texts.admin.unhideGlobalCategory()"
-							@edit="openRenameAdminItem('category', cat)"
-							@hide="hideCategory(cat.id)"
-							@delete="deleteCategory(cat.id)"
-							@unhide="unhideCategory(cat.id)" />
-					</template>
-				</SettingsList>
-			</div>
+		<NcNoteCard v-if="loadError" type="error" :text="loadError" />
+		<MasterDataSettings ref="masterData" admin class="admin-master-data" />
 
-			<!-- Zahlungspartner -->
-			<div class="settings-column">
-				<h3>{{ $texts.admin.globalPaymentPartners() }}</h3>
-				<CbTypeTabs v-model="paymentPartnerTab" :label="$texts.admin.globalPaymentPartners()" />
-				<form @submit.prevent="addPaymentPartner" class="add-form">
-					<input type="text" class="form-control" data-cobudget-field="compact" v-model="newPaymentPartner" :placeholder="paymentPartnerPlaceholder" required>
-					<NcButton variant="primary" type="submit" :disabled="loading || !newPaymentPartner.trim()" :aria-label="$texts.common.add()"
-						style="flex-shrink: 0; margin: 0;">{{ $texts.common.add() }}</NcButton>
-				</form>
-				<SettingsList :items="filteredPaymentPartners" :empty-text="paymentPartnerEmptyText">
-					<template #item="{ item: paymentPartner }">
-						<div class="settings-list-info">
-							<div class="category-list-label">
-								<small v-if="paymentPartner.number" class="category-list-code">{{ paymentPartner.number }}</small>
-								<span>{{ paymentPartner.name }}</span>
-							</div>
-							<span class="badge-global" data-cobudget-badge="info">{{ $texts.common.global() }}</span>
-							<span v-if="paymentPartner.is_hidden" class="badge-hidden" data-cobudget-badge="neutral">{{ $texts.admin.hidden() }}</span>
-						</div>
-						<SettingsItemActions
-							class="settings-list-actions"
-							:can-edit="true"
-							:can-delete="true"
-							:can-hide="!paymentPartner.is_hidden"
-							:can-unhide="paymentPartner.is_hidden"
-							:edit-label="$texts.admin.editGlobalPaymentPartner()"
-							:delete-label="$texts.admin.deleteGlobalPaymentPartner()"
-							:hide-label="$texts.admin.hideGlobalPaymentPartner()"
-							:unhide-label="$texts.admin.unhideGlobalPaymentPartner()"
-							@edit="openRenameAdminItem('paymentPartner', paymentPartner)"
-							@hide="hidePaymentPartner(paymentPartner.id)"
-							@delete="deletePaymentPartner(paymentPartner.id)"
-							@unhide="unhidePaymentPartner(paymentPartner.id)" />
-					</template>
-				</SettingsList>
-			</div>
-		</div>
-
-		<div class="integrity-card" data-cobudget-card="">
+		<div class="integrity-card">
+			<h3 class="cobudget-section-heading">{{ $texts.admin.dataQuality() }}</h3>
 			<div class="integrity-card-header">
 				<div>
-					<h3>{{ $texts.admin.dataQuality() }}</h3>
 					<p>{{ $texts.admin.dataQualityHint() }}</p>
 				</div>
 				<div class="integrity-actions">
@@ -101,18 +26,17 @@
 				</div>
 			</div>
 
-			<p v-if="integrityLoading" class="integrity-status">
+			<NcNoteCard v-if="integrityError" type="error" :text="integrityError" />
+			<p v-if="integrityLoading" class="integrity-status settings-loading" role="status"><NcLoadingIcon :size="20" />
 				{{ $texts.admin.checkingDataQuality() }}
 			</p>
 			<p v-else-if="!integrityReport" class="integrity-status">
 				{{ $texts.admin.noCheckLoaded() }}
 			</p>
-			<p v-else-if="integrityIsClean" class="integrity-status integrity-status-clean">
-				{{ $texts.admin.noDataQualityIssues() }}
-			</p>
+			<NcNoteCard v-else-if="integrityIsClean && !integrityError" type="success" :text="$texts.admin.noDataQualityIssues()" />
 			<div v-else class="integrity-results">
 				<div v-if="integrityOrphanCount > 0" class="integrity-group">
-					<h4>{{ $texts.admin.orphanReferences(integrityOrphanCount) }}</h4>
+					<h4 class="cobudget-subheading">{{ $texts.admin.orphanReferences(integrityOrphanCount) }}</h4>
 					<p>{{ $texts.admin.orphanReferencesHint() }}</p>
 					<ul class="integrity-list">
 						<li v-for="issue in integrityOrphanReferences" :key="`${issue.sourceTable}-${issue.column}`">
@@ -123,7 +47,7 @@
 				</div>
 
 				<div v-if="integrityProjectionCount > 0" class="integrity-group">
-					<h4>{{ $texts.admin.projectionIssues(integrityProjectionCount) }}</h4>
+					<h4 class="cobudget-subheading">{{ $texts.admin.projectionIssues(integrityProjectionCount) }}</h4>
 					<p>{{ $texts.admin.projectionIssuesHint() }}</p>
 					<ul class="integrity-list">
 						<li v-for="issue in integrityProjectionIssues" :key="`${issue.code}-${issue.table}-${issue.id}`">
@@ -134,7 +58,7 @@
 				</div>
 
 				<div v-if="integrityDuplicateCount > 0" class="integrity-group">
-					<h4>{{ $texts.admin.visibleDuplicates(integrityDuplicateCount) }}</h4>
+					<h4 class="cobudget-subheading">{{ $texts.admin.visibleDuplicates(integrityDuplicateCount) }}</h4>
 					<p>{{ $texts.admin.visibleDuplicatesHint() }}</p>
 					<div class="integrity-duplicate-list">
 						<div
@@ -146,7 +70,7 @@
 								<span>{{ typeLabel(issue.type) }} · IDs: {{ formatIntegrityIds(issue.ids) }}</span>
 							</div>
 							<div class="integrity-merge-actions">
-								<button
+								<NcButton variant="tertiary"
 									v-for="id in integrityIds(issue)"
 									:key="id"
 									type="button"
@@ -154,7 +78,7 @@
 									:disabled="integrityMergingKey === integrityMergeKey(issue, id)"
 									@click="mergeIntegrityDuplicate(issue, id)">
 									{{ $texts.admin.keepId(id) }}
-								</button>
+								</NcButton>
 							</div>
 						</div>
 					</div>
@@ -162,77 +86,55 @@
 			</div>
 		</div>
 
-		<div class="admin-backup-card" data-cobudget-card="">
+		<div class="admin-backup-card">
 			<div class="integrity-card-header">
 				<div>
-					<h3>{{ $texts.admin.fullBackups() }}</h3>
+					<h3 class="cobudget-section-heading">{{ $texts.admin.fullBackups() }}</h3>
 					<p>{{ $texts.admin.fullBackupsHint() }}</p>
-				</div>
-				<div class="integrity-actions">
-					<NcButton
-						variant="primary"
-						:disabled="fullBackupCreating || !fullBackupStorageUser.trim()"
-						@click="createFullBackupNow">
-						{{ fullBackupCreating ? $texts.admin.fullBackupCreating() : $texts.admin.fullBackupCreateNow() }}
-					</NcButton>
 				</div>
 			</div>
 
-			<p v-if="fullBackupSettingsLoading" class="integrity-status">
+			<NcNoteCard v-if="fullBackupError" type="error" :text="fullBackupError" />
+			<NcNoteCard v-if="fullBackupSettingsError" type="error"><p>{{ fullBackupSettingsError }}</p><NcButton variant="tertiary" :disabled="fullBackupBusy || folderPickerOpen || !!fullBackupValidationError" @click="saveFullBackupSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+			<NcNoteCard v-if="fullBackupValidationError && fullBackupRetentionValid && !fullBackupSettingsLoading && !fullBackupLoadError" type="warning" :text="fullBackupValidationError" />
+			<NcNoteCard v-if="fullBackupLoadError" type="error"><p>{{ fullBackupLoadError }}</p><NcButton variant="tertiary" :disabled="fullBackupSettingsLoading" @click="fetchFullBackupSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+			<p v-if="fullBackupSettingsLoading" class="integrity-status settings-loading" role="status"><NcLoadingIcon :size="20" />
 				{{ $texts.admin.fullBackupSettingsLoading() }}
 			</p>
-			<div v-else class="admin-backup-settings-grid">
-				<label class="admin-backup-field">
-					{{ $texts.admin.fullBackupStorageUser() }}
-					<span>{{ $texts.admin.fullBackupStorageUserHint() }}</span>
-					<input
-						v-model="fullBackupStorageUser"
-						class="form-control" data-cobudget-field="compact"
-						type="text"
-						:placeholder="$texts.admin.fullBackupStorageUserPlaceholder()">
-				</label>
-				<label class="admin-backup-field">
-					{{ $texts.admin.fullBackupFolder() }}
-					<span>{{ $texts.admin.fullBackupFolderHint() }}</span>
-					<input
-						v-model="fullBackupStorageFolder"
-						class="form-control" data-cobudget-field="compact"
-						type="text">
-				</label>
-				<label class="admin-backup-field">
-					{{ $texts.admin.fullBackupRetention() }}
-					<span>{{ $texts.admin.fullBackupRetentionHint() }}</span>
-					<input
-						v-model.number="fullBackupRetentionCount"
-						class="form-control" data-cobudget-field="compact"
-						type="number"
-						min="1"
-						max="100">
-				</label>
-				<label class="admin-backup-field">
-					{{ $texts.admin.fullBackupSchedule() }}
-					<span>{{ $texts.admin.fullBackupScheduleHint() }}</span>
-					<select v-model="fullBackupSchedule" class="form-control" data-cobudget-field="compact">
-						<option value="none">{{ $texts.admin.fullBackupScheduleNone() }}</option>
-						<option value="daily">{{ $texts.admin.fullBackupScheduleDaily() }}</option>
-						<option value="weekly">{{ $texts.admin.fullBackupScheduleWeekly() }}</option>
-						<option value="monthly">{{ $texts.admin.fullBackupScheduleMonthly() }}</option>
-					</select>
-				</label>
-				<div class="admin-backup-save-action">
-					<NcButton
-						variant="primary"
-						:disabled="fullBackupSettingsSaving"
-						@click="saveFullBackupSettings">
-						{{ fullBackupSettingsSaving ? $texts.common.saveBusy() : $texts.common.save() }}
-					</NcButton>
+			<form v-else class="admin-backup-settings-grid" :aria-busy="fullBackupBusy" @submit.prevent="saveFullBackupSettings">
+				<NcRadioGroup :model-value="fullBackupSchedule" @update:model-value="setFullBackupSchedule" class="cobudget-form-group admin-backup-schedule" :label="$texts.admin.fullBackupSchedule()" :description="$texts.admin.fullBackupScheduleHint()">
+					<NcRadioGroupButton value="none" :label="$texts.admin.fullBackupScheduleNone()" :disabled="fullBackupSettingsDisabled" />
+					<NcRadioGroupButton value="daily" :label="$texts.admin.fullBackupScheduleDaily()" :disabled="fullBackupSettingsDisabled" />
+					<NcRadioGroupButton value="weekly" :label="$texts.admin.fullBackupScheduleWeekly()" :disabled="fullBackupSettingsDisabled" />
+					<NcRadioGroupButton value="monthly" :label="$texts.admin.fullBackupScheduleMonthly()" :disabled="fullBackupSettingsDisabled" />
+				</NcRadioGroup>
+				<NcFormGroup class="cobudget-form-group admin-backup-wide" :description="$texts.admin.fullBackupStorageUserHint()">
+					<template #label><label class="cobudget-form-label" for="admin-backup-user">{{ $texts.admin.fullBackupStorageUser() }}</label></template>
+					<NcSelect v-model="selectedStorageUser" input-id="admin-backup-user" class="cobudget-native-select" label-outside :input-label="$texts.admin.fullBackupStorageUser()" :options="storageUsers" label="displayName" :filterable="false" :loading="storageUsersLoading" :disabled="fullBackupSettingsDisabled || folderPickerOpen" :placeholder="$texts.areas.searchUsers()" @search="searchStorageUsers">
+						<template #option="user"><MemberIdentity :user-id="user.id" :display-name="user.displayName" :size="32" /></template>
+						<template #selected-option="user"><MemberIdentity :user-id="user.id" :display-name="user.displayName" /></template>
+						<template #no-options>{{ $texts.memberSearch.noResults() }}</template>
+					</NcSelect>
+					<NcNoteCard v-if="storageUsersError" type="error"><p>{{ storageUsersError }}</p><NcButton variant="tertiary" :disabled="storageUsersLoading" @click="fetchStorageUsers">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+				</NcFormGroup>
+				<NcFormGroup class="cobudget-form-group admin-backup-wide" :description="fullBackupStorageUser && !canBrowseBackupFolder ? $texts.admin.fullBackupOtherUserFolderHint() : ''">
+					<template #label><label class="cobudget-form-label" for="admin-backup-folder">{{ $texts.admin.fullBackupFolder() }}</label></template>
+					<NcFormBoxButton v-if="canBrowseBackupFolder || !fullBackupStorageUser" id="admin-backup-folder" :label="'/' + fullBackupStorageFolder.replace(/^\/+/, '')" :disabled="fullBackupSettingsDisabled || folderPickerOpen || !canBrowseBackupFolder" @click="chooseFullBackupFolder"><template #icon><FolderOpenOutlineIcon :size="24" /></template></NcFormBoxButton>
+					<NcInputField v-else id="admin-backup-folder" v-model="fullBackupStorageFolder" label-outside :label="$texts.admin.fullBackupFolder()" class="cobudget-native-field" :disabled="fullBackupSettingsDisabled" @blur="saveFullBackupSettings" @keydown.enter.prevent="$event.target.blur()" />
+				</NcFormGroup>
+				<NcFormGroup class="cobudget-form-group" :description="$texts.admin.fullBackupRetentionHint()">
+					<template #label><label class="cobudget-form-label" for="admin-backup-retention">{{ $texts.admin.fullBackupRetention() }}</label></template>
+					<NcInputField id="admin-backup-retention" v-model.number="fullBackupRetentionCount" label-outside :label="$texts.admin.fullBackupRetention()" class="cobudget-native-field" :disabled="fullBackupSettingsDisabled" type="number" min="1" max="100" step="1" required :error="!fullBackupRetentionValid" :helper-text="!fullBackupRetentionValid ? $texts.settings.invalidRetentionCount() : ''" @blur="saveFullBackupSettings" @keydown.enter.prevent="$event.target.blur()" />
+				</NcFormGroup>
+				<div class="admin-backup-create-action">
+					<DisabledActionHint :reason="fullBackupCreateHint" :label="$texts.admin.fullBackupCreateNow()"><NcButton variant="secondary" :disabled="!!fullBackupCreateHint" @click="createFullBackupNow"><template #icon><PlusIcon :size="20" /></template>{{ fullBackupCreating ? $texts.admin.fullBackupCreating() : $texts.admin.fullBackupCreateNow() }}</NcButton></DisabledActionHint>
 				</div>
-			</div>
+			</form>
 			<div v-if="!fullBackupSettingsLoading" class="admin-backup-list">
 				<div class="admin-backup-list-header">
 					<div>
-						<h4>{{ $texts.admin.fullBackupLastBackups() }}</h4>
-						<p>{{ $texts.admin.fullBackupRestoreOccHint() }}</p>
+						<h4 class="cobudget-subheading">{{ $texts.admin.fullBackupLastBackups() }}</h4>
+						<p>{{ $texts.admin.fullBackupHistoryHint() }}</p>
 					</div>
 				</div>
 				<p v-if="fullBackups.length === 0" class="integrity-status">
@@ -245,27 +147,23 @@
 						class="admin-backup-item">
 						<div class="admin-backup-info">
 							<strong>{{ formatBackupDate(backup.created_at) }}</strong>
-							<span>{{ backup.file_name }}</span>
 							<small>{{ backup.file_path }} · {{ formatBackupSize(backup.file_size) }}</small>
 							<details class="admin-backup-occ">
 								<summary>{{ $texts.admin.fullBackupRestoreOccCommand() }}</summary>
+								<p class="cobudget-form-hint">{{ $texts.admin.fullBackupRestoreOccHint() }}</p>
 								<code>{{ fullBackupOccCommand(backup) }}</code>
 							</details>
 						</div>
 						<div class="admin-backup-item-actions">
+							<DisabledActionHint :reason="fullBackupRestoringFileName ? $texts.admin.fullBackupRestoring() : fullBackupSettingsSaving ? $texts.common.saveBusy() : ''" :label="$texts.admin.fullBackupRestore()"><NcButton
+								variant="tertiary"
+								:disabled="!!fullBackupRestoringFileName || fullBackupSettingsSaving"
+								@click="openFullBackupRestore(backup)">
+								{{ $texts.admin.fullBackupRestore() }}
+							</NcButton></DisabledActionHint>
+
 							<NcButton
-								type="tertiary-no-background"
-								class="admin-backup-icon-button"
-								:aria-label="$texts.admin.fullBackupDeleteAria(backup.file_name)"
-								:title="$texts.admin.fullBackupDeleteAria(backup.file_name)"
-								:disabled="fullBackupDeletingFileName === backup.file_name || !!fullBackupRestoringFileName"
-								@click="deleteFullBackup(backup)">
-								<template #icon>
-									<DeleteOutlineIcon :size="20" />
-								</template>
-							</NcButton>
-							<NcButton
-								type="tertiary-no-background"
+								variant="tertiary"
 								class="admin-backup-icon-button"
 								:aria-label="$texts.admin.fullBackupDownloadAria(backup.file_name)"
 								:title="$texts.admin.fullBackupDownloadAria(backup.file_name)"
@@ -275,240 +173,124 @@
 									<DownloadIcon :size="20" />
 								</template>
 							</NcButton>
+
 							<NcButton
-								variant="secondary"
-								:disabled="!!fullBackupRestoringFileName"
-								@click="openFullBackupRestore(backup)">
-								{{ $texts.admin.fullBackupRestore() }}
+								variant="tertiary"
+								class="admin-backup-icon-button"
+								:aria-label="$texts.admin.fullBackupDeleteAria(backup.file_name)"
+								:title="$texts.admin.fullBackupDeleteAria(backup.file_name)"
+								:disabled="fullBackupDeletingFileName === backup.file_name || !!fullBackupRestoringFileName || fullBackupSettingsSaving"
+								@click="deleteFullBackup(backup)">
+								<template #icon>
+									<DeleteOutlineIcon :size="20" />
+								</template>
 							</NcButton>
 						</div>
 					</li>
 				</ul>
 			</div>
 		</div>
-		<Teleport to="body">
-			<div
-				v-if="renameAdminItem"
-				class="settings-modal-backdrop"
-				tabindex="-1"
-				@click.self="closeRenameAdminItemModal"
-				@keydown.esc.stop.prevent="closeRenameAdminItemModal">
-				<div
-					class="settings-modal cobudget-dialog cobudget-dialog--contained"
-					:class="{ 'settings-modal--payment-partner': renameAdminItemType === 'paymentPartner' }"
-					role="dialog"
-					aria-modal="true"
-					aria-labelledby="admin-rename-title">
-					<div class="modal-header cobudget-dialog-header">
-						<h2 id="admin-rename-title">{{ renameAdminItemTitle }}</h2>
-						<button
-							type="button"
-							class="settings-modal-close-button cobudget-dialog-close cobudget-focusable"
-							:aria-label="$texts.common.close()"
-							:title="$texts.common.close()"
-							@click="closeRenameAdminItemModal">
-							<CloseIcon :size="24" aria-hidden="true" />
-						</button>
-					</div>
-					<p class="modal-note">
-						{{ renameAdminItemType === 'paymentPartner'
-							? $texts.paymentPartnerDetails.internalNote()
-							: $texts.admin.renameNote() }}
-					</p>
 
-					<form @submit.prevent="saveRenameAdminItem">
-						<template v-if="renameAdminItemType === 'category'">
-							<div class="rename-fields has-category-number">
-								<div class="form-group">
-									<label for="admin-category-code">{{ $texts.common.number() }}</label>
-									<input
-										id="admin-category-code"
-										ref="renameAdminItemCodeInput"
-										v-model="renameAdminItemCode"
-										class="form-control" data-cobudget-field="compact"
-										type="text"
-										maxlength="128"
-										autocomplete="off"
-										spellcheck="false">
-								</div>
-								<div class="form-group">
-									<label for="admin-rename-name">{{ $texts.common.name() }}</label>
-									<input
-										id="admin-rename-name"
-										ref="renameAdminItemInput"
-										v-model="renameAdminItemName"
-										class="form-control" data-cobudget-field="compact"
-										type="text"
-										maxlength="128"
-										required>
-								</div>
-							</div>
-							<div class="form-group category-parent-field">
-								<label for="admin-category-parent">{{ $texts.common.parentCategoryOptional() }}</label>
-								<select
-									id="admin-category-parent"
-									v-model="renameAdminItemParentId"
-									class="form-control" data-cobudget-field="compact"
-									:disabled="!!renameAdminItem.has_children">
-									<option value="">{{ $texts.common.noParentMainCategory() }}</option>
-									<option
-										v-for="category in renameAdminItemParentOptions"
-										:key="category.id"
-										:value="String(category.id)">
-										{{ category.name }}
-									</option>
-								</select>
-								<p v-if="renameAdminItem.has_children" class="category-parent-hint">
-									{{ $texts.common.mainCategoryHasChildrenHint() }}
-								</p>
-							</div>
-						</template>
-						<PaymentPartnerEditFields
-							v-else
-							ref="renamePaymentPartnerFields"
-							id-prefix="admin-payment-partner"
-							:name="renameAdminItemName"
-							:details="renamePaymentPartnerDetails"
-							@update:name="renameAdminItemName = $event"
-							@update:details="renamePaymentPartnerDetails = $event" />
-						<p v-if="renameAdminItemError" class="modal-error">{{ renameAdminItemError }}</p>
-						<ModalActions
-							:cancel-disabled="renameAdminItemSaving"
-							:primary-disabled="!canRenameAdminItem"
-							:primary-busy="renameAdminItemSaving"
-							:primary-label="$texts.common.save()"
-							:primary-busy-label="$texts.common.saveBusy()"
-							@cancel="closeRenameAdminItemModal" />
-					</form>
-				</div>
-			</div>
-		</Teleport>
-		<Teleport to="body">
-			<div
-				v-if="fullBackupRestoreCandidate"
-				class="settings-modal-backdrop"
-				tabindex="-1"
-				@click.self="closeFullBackupRestoreModal"
-				@keydown.esc.stop.prevent="closeFullBackupRestoreModal">
-				<div class="settings-modal cobudget-dialog cobudget-dialog--contained" role="dialog" aria-modal="true" aria-labelledby="admin-full-backup-restore-title">
-					<div class="modal-header cobudget-dialog-header">
-						<h2 id="admin-full-backup-restore-title">{{ $texts.admin.fullBackupRestoreTitle() }}</h2>
-						<button
-							type="button"
-							class="settings-modal-close-button cobudget-dialog-close cobudget-focusable"
-							:aria-label="$texts.common.close()"
-							:title="$texts.common.close()"
-							:disabled="!!fullBackupRestoringFileName"
-							@click="closeFullBackupRestoreModal">
-							<CloseIcon :size="24" aria-hidden="true" />
-						</button>
+		<DialogTransition :show="!!(fullBackupRestoreCandidate)" v-slot="{ returnFocus }">
+			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog cobudget-standard-dialog" :name="$texts.admin.fullBackupRestoreTitle()" :no-close="!!fullBackupRestoringFileName" :close-on-click-outside="!fullBackupRestoringFileName" is-form @submit="confirmFullBackupRestore" @closing="closeFullBackupRestoreModal">
+				<p class="cobudget-confirm-message">{{ $texts.admin.fullBackupRestoreMessage(fullBackupRestoreCandidate.file_name) }}</p>
+				<NcFormGroup class="cobudget-form-group">
+					<template #description><span id="admin-full-backup-restore-hint">{{ $texts.admin.fullBackupRestoreConfirmHint() }}</span></template>
+					<template #label><label class="cobudget-form-label" for="admin-full-backup-restore-confirm">{{ $texts.admin.fullBackupRestoreConfirmation() }}</label></template>
+					<NcInputField id="admin-full-backup-restore-confirm" aria-describedby="admin-full-backup-restore-hint" v-model="fullBackupRestoreConfirmation" label-outside :label="$texts.admin.fullBackupRestoreConfirmation()" class="cobudget-native-field" autocomplete="off" autocapitalize="off" :spellcheck="false" :disabled="!!fullBackupRestoringFileName" />
+				</NcFormGroup>
+				<NcNoteCard v-if="fullBackupRestoreError" type="error" :text="fullBackupRestoreError" />
+				<template #actions>
+					<div class="cobudget-confirm-actions">
+						<NcButton variant="tertiary" :disabled="!!fullBackupRestoringFileName" @click="closeFullBackupRestoreModal">{{ $texts.common.cancel() }}</NcButton>
+						<DisabledActionHint :reason="fullBackupRestoreHint" :label="$texts.admin.fullBackupRestore()"><NcButton variant="error" type="submit" :disabled="!canRestoreFullBackup">{{ fullBackupRestoringFileName ? $texts.admin.fullBackupRestoring() : $texts.admin.fullBackupRestore() }}</NcButton></DisabledActionHint>
 					</div>
-					<p class="modal-note">
-						{{ $texts.admin.fullBackupRestoreMessage(fullBackupRestoreCandidate.file_name) }}
-					</p>
-					<div class="form-group">
-						<label for="admin-full-backup-restore-confirm">{{ $texts.admin.fullBackupRestoreConfirmation() }}</label>
-						<input
-							id="admin-full-backup-restore-confirm"
-							v-model="fullBackupRestoreConfirmation"
-							class="form-control" data-cobudget-field="compact"
-							type="text"
-							autocomplete="off"
-							:placeholder="$texts.admin.fullBackupRestoreConfirmHint()">
+				</template>
+			</NcDialog>
+		</DialogTransition>
+		<DialogTransition :show="!!(confirmDialog)" v-slot="{ returnFocus }">
+			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog cobudget-standard-dialog" :name="confirmDialog.title" close-on-click-outside @closing="resolveConfirm(false)">
+				<p class="cobudget-confirm-message">{{ confirmDialog.message }}</p>
+				<template #actions>
+					<div class="cobudget-confirm-actions">
+						<NcButton variant="tertiary" @click="resolveConfirm(false)">{{ $texts.common.cancel() }}</NcButton>
+						<NcButton :variant="confirmDialog.confirmVariant === 'danger' ? 'error' : 'primary'" @click="resolveConfirm(true)">{{ confirmDialog.confirmLabel }}</NcButton>
 					</div>
-					<ModalActions
-						primary-type="button"
-						primary-variant="danger"
-						:cancel-disabled="!!fullBackupRestoringFileName"
-						:primary-disabled="!canRestoreFullBackup"
-						:primary-busy="!!fullBackupRestoringFileName"
-						:primary-label="$texts.admin.fullBackupRestore()"
-						:primary-busy-label="$texts.admin.fullBackupRestoring()"
-						@cancel="closeFullBackupRestoreModal"
-						@primary="confirmFullBackupRestore" />
-				</div>
-			</div>
-		</Teleport>
-		<ConfirmModal
-			:show="!!confirmDialog"
-			:title="confirmDialog ? confirmDialog.title : ''"
-			:message="confirmDialog ? confirmDialog.message : ''"
-			:confirm-label="confirmDialog ? confirmDialog.confirmLabel : ''"
-			:confirm-variant="confirmDialog ? confirmDialog.confirmVariant : 'primary'"
-			@confirm="resolveConfirm(true)"
-			@cancel="resolveConfirm(false)" />
+				</template>
+			</NcDialog>
+		</DialogTransition>
 	</div>
 </template>
 
 <script>
-import CbTypeTabs from './CbTypeTabs.vue'
+import DialogTransition from './DialogTransition.vue'
+import { getCurrentUser } from '@nextcloud/auth'
+import { getFilePickerBuilder } from '@nextcloud/dialogs'
+import pickFolder from '../services/folderPicker'
+import { Permission } from '@nextcloud/files'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
+import NcFormBoxButton from '@nextcloud/vue/components/NcFormBoxButton'
+import MemberIdentity from './MemberIdentity.vue'
+import PlusIcon from 'vue-material-design-icons/Plus.vue'
+import FolderOpenOutlineIcon from 'vue-material-design-icons/FolderOpenOutline.vue'
+import DisabledActionHint from './DisabledActionHint.vue'
 import { getAppLocale } from '../utils/formatMoney'
-import { defineAsyncComponent } from 'vue'
 import axios from '../services/http'
-import { generateUrl } from '@nextcloud/router'
+import { generateUrl, generateOcsUrl } from '@nextcloud/router'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
+import NcInputField from '@nextcloud/vue/components/NcInputField'
+import NcFormGroup from '@nextcloud/vue/components/NcFormGroup'
+import NcRadioGroup from '@nextcloud/vue/components/NcRadioGroup'
+import NcRadioGroupButton from '@nextcloud/vue/components/NcRadioGroupButton'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import ConfirmModal from './ConfirmModal.vue'
-import ModalActions from './ModalActions.vue'
-import PaymentPartnerEditFields from './PaymentPartnerEditFields.vue'
-import SettingsItemActions from './SettingsItemActions.vue'
-import SettingsList from './SettingsList.vue'
-import CloseIcon from 'vue-material-design-icons/Close.vue'
-import DeleteOutlineIcon from 'vue-material-design-icons/DeleteOutline.vue'
+import MasterDataSettings from './MasterDataSettings.vue'
+import DeleteOutlineIcon from 'vue-material-design-icons/TrashCanOutline.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
-import { extractError, showRequestError, showToast } from '../services/notifications'
-import { mainCategoryOptions, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
-import {
-	createPaymentPartnerDetails,
-	isValidPaymentPartnerEmail,
-	paymentPartnerDetailsChanged,
-	paymentPartnerDetailsPayload
-} from '../utils/paymentPartnerDetails'
-
-const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-icon-picker" */ './IconPicker.vue'))
+import { extractError, showToast } from '../services/notifications'
 
 export default {
 	name: 'AdminSettings',
-	components: {
-		CbTypeTabs,
+	components: { DialogTransition, NcLoadingIcon, DisabledActionHint, NcSelect, NcFormBoxButton, MemberIdentity, PlusIcon, FolderOpenOutlineIcon,
+		MasterDataSettings,
+		NcDialog,
+		NcInputField,
+		NcFormGroup,
+		NcRadioGroup,
+		NcRadioGroupButton,
+		NcNoteCard,
 		NcButton,
-		IconPicker,
-		ConfirmModal,
-		ModalActions,
-		PaymentPartnerEditFields,
-		SettingsItemActions,
-		SettingsList,
-		CloseIcon,
 		DeleteOutlineIcon,
 		DownloadIcon,
 	},
 	data() {
 		return {
 			loading: false,
-			categories: [],
-			paymentPartners: [],
-			newCategory: '',
-			newCategoryIcon: 'Shape',
-			newCategoryType: 'expense',
-			newPaymentPartner: '',
-			newPaymentPartnerType: 'expense',
-			categoryTab: 'expense',
-			paymentPartnerTab: 'expense',
-			renameAdminItemType: '',
-			renameAdminItem: null,
-			renameAdminItemName: '',
-			renameAdminItemCode: '',
-			renameAdminItemParentId: '',
-			renamePaymentPartnerDetails: createPaymentPartnerDetails(),
-			renameAdminItemError: '',
-			renameAdminItemSaving: false,
+			loadError: '',
+			integrityError: '',
+			fullBackupError: '',
+			fullBackupLoadError: '',
+			fullBackupRestoreError: '',
 			integrityReport: null,
 			integrityLoading: false,
 			integrityRepairing: false,
 			integrityMergingKey: '',
 			fullBackupSettingsLoading: false,
 			fullBackupSettingsSaving: false,
+			fullBackupSettingsError: '',
+			queuedFullBackupSettings: null,
 			fullBackupCreating: false,
 			fullBackupStorageUser: '',
+			currentUserId: getCurrentUser()?.uid || '',
+			storageUsers: [],
+			storageUsersLoading: false,
+			storageUsersError: '',
+			storageUserSearch: '',
+			storageUserSearchTimer: null,
+			storageUserRequest: 0,
+			folderPickerOpen: false,
+			savedFullBackupSettings: null,
 			fullBackupStorageFolder: 'CoBudget/Backups',
 			fullBackupRetentionCount: 7,
 			fullBackupSchedule: 'none',
@@ -521,54 +303,37 @@ export default {
 		}
 	},
 	computed: {
-		filteredCategories() {
-			return sortCategoriesHierarchically(this.categories.filter(c => c.type === this.categoryTab));
+		selectedStorageUser: {
+			get() { return this.storageUsers.find(user => user.id === this.fullBackupStorageUser) || (this.fullBackupStorageUser ? { id: this.fullBackupStorageUser, displayName: this.fullBackupStorageUser } : null); },
+			set(user) { this.fullBackupStorageUser = user?.id || ''; this.saveFullBackupSettings(); },
 		},
-		activePaymentPartnerTab() {
-			return this.paymentPartnerTab;
+		canBrowseBackupFolder() { return !!this.currentUserId && this.fullBackupStorageUser === this.currentUserId; },
+		fullBackupSettingsDisabled() { return this.fullBackupSettingsLoading || !!this.fullBackupLoadError || this.fullBackupCreating || !!this.fullBackupRestoringFileName || !!this.fullBackupDeletingFileName || !!this.confirmDialog || !!this.fullBackupRestoreCandidate; },
+		fullBackupRetentionValid() { const value = Number(this.fullBackupRetentionCount); return Number.isInteger(value) && value >= 1 && value <= 100; },
+		fullBackupSettingsPayload() {
+			return { storage_user_id: this.fullBackupStorageUser.trim(), storage_folder: this.fullBackupStorageFolder.trim().replace(/^\/+|\/+$/g, ''), retention_count: Number(this.fullBackupRetentionCount), schedule: this.fullBackupSchedule };
 		},
-		filteredPaymentPartners() {
-			return this.paymentPartners.filter(p => p.type === this.activePaymentPartnerTab);
+		fullBackupValidationError() {
+			const payload = this.fullBackupSettingsPayload;
+			if (!payload.storage_user_id && payload.schedule !== 'none') return this.$texts.admin.fullBackupSelectUser();
+			if (!payload.storage_folder || payload.storage_folder.length > 180 || /[\\\x00-\x1f]/.test(payload.storage_folder) || /(^|\/)\.\.(\/|$)/.test(payload.storage_folder)) return this.$texts.admin.fullBackupInvalidFolder();
+			if (!this.fullBackupRetentionValid) return this.$texts.settings.invalidRetentionCount();
+			return '';
 		},
-		paymentPartnerPlaceholder() {
-			return this.activePaymentPartnerTab === 'income'
-				? this.$texts.admin.newPaymentPartnerIncome()
-				: this.$texts.admin.newPaymentPartnerExpense();
+		fullBackupSettingsDirty() { return !this.savedFullBackupSettings || Object.entries(this.fullBackupSettingsPayload).some(([key, value]) => value !== this.savedFullBackupSettings[key]); },
+		fullBackupCreateHint() {
+			if (this.fullBackupLoadError) return this.fullBackupLoadError;
+			if (this.fullBackupBusy || this.folderPickerOpen) return this.$texts.common.waitBusy();
+			if (!this.fullBackupStorageUser.trim()) return this.$texts.admin.fullBackupSelectUser();
+			if (!this.fullBackupStorageFolder.trim()) return this.$texts.admin.fullBackupSelectFolder();
+			if (this.fullBackupValidationError) return this.fullBackupValidationError;
+			if (this.fullBackupSettingsError) return this.fullBackupSettingsError;
+			const saved = this.savedFullBackupSettings;
+			if (this.fullBackupSettingsDirty) return this.$texts.admin.fullBackupUnsaved();
+			if (!saved.storage_user_exists || !saved.storage_user_is_admin) return this.$texts.admin.fullBackupSelectUser();
+			return '';
 		},
-		paymentPartnerEmptyText() {
-			return this.activePaymentPartnerTab === 'income'
-				? this.$texts.admin.noIncomePaymentPartners()
-				: this.$texts.admin.noExpensePaymentPartners();
-		},
-		renameAdminItemTitle() {
-			return this.renameAdminItemType === 'category'
-				? this.$texts.admin.renameGlobalCategory()
-				: this.$texts.admin.renameGlobalPaymentPartner();
-		},
-		renameAdminItemParentOptions() {
-			if (this.renameAdminItemType !== 'category' || !this.renameAdminItem) {
-				return [];
-			}
-			return mainCategoryOptions(this.categories, this.renameAdminItem);
-		},
-		canRenameAdminItem() {
-			if (!this.renameAdminItem || !this.renameAdminItemName.trim() || this.renameAdminItemSaving) {
-				return false;
-			}
-			if (this.renameAdminItemType === 'paymentPartner'
-				&& !isValidPaymentPartnerEmail(this.renamePaymentPartnerDetails.email)) {
-				return false;
-			}
-
-			const nameChanged = this.renameAdminItemName.trim() !== this.renameAdminItem.name;
-			const codeChanged = this.renameAdminItemType === 'category'
-				&& this.renameAdminItemCode.trim() !== String(this.renameAdminItem.code || '').trim();
-			const parentChanged = this.renameAdminItemType === 'category'
-				&& this.renameAdminItemParentId !== String(this.renameAdminItem.parent_category_id || '');
-			const detailsChanged = this.renameAdminItemType === 'paymentPartner'
-				&& paymentPartnerDetailsChanged(this.renameAdminItem, this.renamePaymentPartnerDetails);
-			return nameChanged || codeChanged || parentChanged || detailsChanged;
-		},
+		fullBackupBusy() { return this.fullBackupSettingsLoading || !!this.fullBackupLoadError || this.fullBackupSettingsSaving || this.fullBackupCreating || !!this.fullBackupRestoringFileName || !!this.fullBackupDeletingFileName; },
 		integrityOrphanReferences() {
 			return this.integrityReport?.orphanReferences || [];
 		},
@@ -593,6 +358,10 @@ export default {
 				&& this.integrityProjectionCount === 0
 				&& this.integrityDuplicateCount === 0;
 		},
+		fullBackupRestoreHint() {
+			if (this.fullBackupRestoringFileName) return this.$texts.admin.fullBackupRestoring();
+			return this.canRestoreFullBackup ? '' : this.$texts.admin.fullBackupRestoreConfirmHint();
+		},
 		canRestoreFullBackup() {
 			return !!this.fullBackupRestoreCandidate
 				&& this.fullBackupRestoreConfirmation === 'RESTORE'
@@ -603,8 +372,49 @@ export default {
 		this.fetchData()
 		this.fetchIntegrityReport()
 		this.fetchFullBackupSettings()
+		this.fetchStorageUsers()
 	},
+	beforeUnmount() { clearTimeout(this.storageUserSearchTimer); this.storageUserRequest++; },
 	methods: {
+		searchStorageUsers(term) {
+			this.storageUserSearch = term;
+			this.storageUserRequest++;
+			clearTimeout(this.storageUserSearchTimer);
+			this.storageUserSearchTimer = setTimeout(() => this.fetchStorageUsers(), 250);
+		},
+		async fetchStorageUsers() {
+			const request = ++this.storageUserRequest;
+			this.storageUsersLoading = true;
+			this.storageUsersError = '';
+			try {
+				const response = await axios.get(generateOcsUrl('/cloud/groups/admin/users/details'), { params: { search: this.storageUserSearch, limit: 50, offset: 0 }, skipWorkspaceHeader: true });
+				if (request !== this.storageUserRequest) return;
+				this.storageUsers = Object.entries(response.data?.ocs?.data?.users || {}).map(([id, user]) => ({ id, displayName: user.displayname || user.displayName || id }));
+			} catch (error) {
+				if (request === this.storageUserRequest) this.storageUsersError = extractError(error, this.$texts.memberSearch.searchError());
+			} finally { if (request === this.storageUserRequest) this.storageUsersLoading = false; }
+		},
+		async chooseFullBackupFolder() {
+			if (this.fullBackupSettingsDisabled || this.folderPickerOpen || !this.canBrowseBackupFolder) return;
+			this.folderPickerOpen = true;
+			this.fullBackupError = '';
+			const userId = this.fullBackupStorageUser;
+			let changed = false;
+			try {
+				const canPick = node => node.type === 'folder' && node.path !== '/' && !!(node.permissions & Permission.CREATE);
+				const folder = await pickFolder(getFilePickerBuilder(this.$texts.admin.fullBackupFolder())
+					.setMultiSelect(false).allowDirectories(true).setMimeTypeFilter(['httpd/unix-directory'])
+					.startAt('/').setCanPick(canPick)
+					.setButtonFactory(nodes => [{ label: this.$texts.settings.selectFolder(), variant: 'primary', disabled: nodes.length !== 1 || !canPick(nodes[0]), callback() {} }]));
+				if (typeof folder === 'string' && this.fullBackupStorageUser === userId && folder.replace(/^\/+|\/+$/g, '')) {
+					this.fullBackupStorageFolder = folder.replace(/^\/+|\/+$/g, '');
+					changed = true;
+				}
+			} catch (error) {
+				if (error?.name !== 'FilePickerClosed') this.fullBackupError = extractError(error, this.$texts.admin.fullBackupSaveError());
+			} finally { this.folderPickerOpen = false; }
+			if (changed) await this.saveFullBackupSettings();
+		},
 		openConfirm({ title, message, confirmLabel, confirmVariant = 'primary' }) {
 			return new Promise(resolve => {
 				this.confirmDialog = {
@@ -624,25 +434,24 @@ export default {
 			}
 		},
 		async fetchData() {
+			this.loadError = '';
 			this.loading = true;
 			try {
-				const catRes = await axios.get(generateUrl('/apps/cobudget/api/admin/categories'));
-				this.categories = this.normalizeAdminItems(catRes.data || []);
-				const paymentPartnerRes = await axios.get(generateUrl('/apps/cobudget/api/admin/payment-partners'));
-				this.paymentPartners = this.normalizeAdminItems(paymentPartnerRes.data || []);
+				await this.$refs.masterData?.load();
 			} catch (e) {
-				showRequestError(e, this.$texts.admin.loadError(), 'Failed to fetch admin data');
+				this.loadError = extractError(e, this.$texts.admin.loadError());
 			} finally {
 				this.loading = false;
 			}
 		},
 		async fetchIntegrityReport() {
+			this.integrityError = '';
 			this.integrityLoading = true;
 			try {
 				const response = await axios.get(generateUrl('/apps/cobudget/api/admin/integrity'));
 				this.integrityReport = response.data || null;
 			} catch (e) {
-				showRequestError(e, this.$texts.admin.dataQualityLoadError(), 'Failed to fetch integrity report');
+				this.integrityError = extractError(e, this.$texts.admin.dataQualityLoadError());
 			} finally {
 				this.integrityLoading = false;
 			}
@@ -656,13 +465,14 @@ export default {
 			});
 			if (!confirmed) return;
 
+			this.integrityError = '';
 			this.integrityRepairing = true;
 			try {
 				const response = await axios.post(generateUrl('/apps/cobudget/api/admin/integrity/repair'));
 				this.integrityReport = response.data || null;
 				showToast(this.$texts.admin.qualityRepaired());
 			} catch (e) {
-				showRequestError(e, this.$texts.admin.dataQualityRepairError(), 'Failed to repair integrity report');
+				this.integrityError = extractError(e, this.$texts.admin.dataQualityRepairError());
 			} finally {
 				this.integrityRepairing = false;
 			}
@@ -682,6 +492,7 @@ export default {
 			if (!confirmed) return;
 
 			const mergeKey = this.integrityMergeKey(issue, keepId);
+			this.integrityError = '';
 			this.integrityMergingKey = mergeKey;
 			try {
 				const response = await axios.post(generateUrl('/apps/cobudget/api/admin/integrity/merge'), {
@@ -693,7 +504,7 @@ export default {
 				await this.fetchData();
 				showToast(this.$texts.admin.duplicatesMerged());
 			} catch (e) {
-				showRequestError(e, this.$texts.admin.duplicateMergeError(), 'Failed to merge duplicate names');
+				this.integrityError = extractError(e, this.$texts.admin.duplicateMergeError());
 			} finally {
 				if (this.integrityMergingKey === mergeKey) {
 					this.integrityMergingKey = '';
@@ -726,6 +537,7 @@ export default {
 			this.fullBackupStorageFolder = settings?.storage_folder || 'CoBudget/Backups';
 			this.fullBackupRetentionCount = Number(settings?.retention_count || 7);
 			this.fullBackupSchedule = settings?.schedule || 'none';
+			this.savedFullBackupSettings = { ...settings, storage_user_id: this.fullBackupStorageUser, storage_folder: this.fullBackupStorageFolder, retention_count: this.fullBackupRetentionCount, schedule: this.fullBackupSchedule };
 		},
 		normalizeFullBackups(backups) {
 			return Array.isArray(backups) ? backups : [];
@@ -735,34 +547,57 @@ export default {
 			this.fullBackups = this.normalizeFullBackups(data?.backups);
 		},
 		async fetchFullBackupSettings() {
+			this.fullBackupLoadError = '';
 			this.fullBackupSettingsLoading = true;
 			try {
 				const response = await axios.get(generateUrl('/apps/cobudget/api/admin/full-backup/settings'), { skipWorkspaceHeader: true });
 				this.applyFullBackupResponse(response.data || {});
 			} catch (e) {
-				showRequestError(e, this.$texts.admin.fullBackupLoadError(), 'Failed to fetch full backup settings');
+				this.fullBackupLoadError = extractError(e, this.$texts.admin.fullBackupLoadError());
 			} finally {
 				this.fullBackupSettingsLoading = false;
 			}
 		},
+		setFullBackupSchedule(value) {
+			this.fullBackupSchedule = value;
+			this.saveFullBackupSettings();
+		},
 		async saveFullBackupSettings() {
+			if (this.fullBackupSettingsDisabled || this.folderPickerOpen || !this.savedFullBackupSettings) return false;
+			// Invalid edits supersede any queued snapshot but must never reach the API.
+			if (this.fullBackupValidationError) { this.queuedFullBackupSettings = null; return false; }
+			this.queuedFullBackupSettings = { ...this.fullBackupSettingsPayload };
+			if (this.fullBackupSettingsSaving) return false;
+			if (!this.fullBackupSettingsDirty && !this.fullBackupSettingsError) { this.queuedFullBackupSettings = null; return true; }
 			this.fullBackupSettingsSaving = true;
 			try {
-				const response = await axios.post(generateUrl('/apps/cobudget/api/admin/full-backup/settings'), {
-					storage_user_id: this.fullBackupStorageUser.trim(),
-					storage_folder: this.fullBackupStorageFolder.trim(),
-					retention_count: this.fullBackupRetentionCount,
-					schedule: this.fullBackupSchedule
-				}, { skipWorkspaceHeader: true });
-				this.applyFullBackupResponse(response.data || {});
-				showToast(this.$texts.admin.fullBackupSettingsSaved());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.fullBackupSaveError(), 'Failed to save full backup settings');
-			} finally {
-				this.fullBackupSettingsSaving = false;
-			}
+				while (this.queuedFullBackupSettings) {
+					const payload = this.queuedFullBackupSettings;
+					this.queuedFullBackupSettings = null;
+					const response = await axios.post(generateUrl('/apps/cobudget/api/admin/full-backup/settings'), payload, { skipWorkspaceHeader: true });
+					const saved = response.data?.settings;
+					if (!saved) throw new Error(this.$texts.admin.fullBackupSaveError());
+					const current = this.fullBackupSettingsPayload;
+					const fields = { storage_user_id: 'fullBackupStorageUser', storage_folder: 'fullBackupStorageFolder', retention_count: 'fullBackupRetentionCount', schedule: 'fullBackupSchedule' };
+					// A response must not overwrite text or a selection changed during this request.
+					for (const [key, field] of Object.entries(fields)) {
+						if (current[key] === payload[key]) this[field] = saved[key];
+					}
+					this.savedFullBackupSettings = { ...saved };
+					this.fullBackups = this.normalizeFullBackups(response.data?.backups);
+					this.fullBackupSettingsError = '';
+					if (this.queuedFullBackupSettings && Object.entries(this.queuedFullBackupSettings).every(([key, value]) => value === saved[key])) this.queuedFullBackupSettings = null;
+				}
+				return true;
+			} catch (error) {
+				this.queuedFullBackupSettings = null;
+				this.fullBackupSettingsError = extractError(error, this.$texts.admin.fullBackupSaveError());
+				return false;
+			} finally { this.fullBackupSettingsSaving = false; }
 		},
 		async createFullBackupNow() {
+			if (this.fullBackupCreateHint) return;
+			this.fullBackupError = '';
 			this.fullBackupCreating = true;
 			try {
 				const response = await axios.post(generateUrl('/apps/cobudget/api/admin/full-backup'), {}, { skipWorkspaceHeader: true });
@@ -770,7 +605,7 @@ export default {
 				const filePath = response.data?.backup?.file_path || '';
 				showToast(filePath ? this.$texts.admin.fullBackupCreated(filePath) : this.$texts.admin.fullBackupCreatedToast());
 			} catch (e) {
-				showRequestError(e, this.$texts.admin.fullBackupCreateError(), 'Failed to create full backup');
+				this.fullBackupError = extractError(e, this.$texts.admin.fullBackupCreateError());
 			} finally {
 				this.fullBackupCreating = false;
 			}
@@ -782,7 +617,7 @@ export default {
 			window.location.href = generateUrl(`/apps/cobudget/api/admin/full-backup/${encodeURIComponent(backup.file_name)}/download`);
 		},
 		async deleteFullBackup(backup) {
-			if (!backup?.file_name) {
+			if (!backup?.file_name || this.fullBackupSettingsSaving) {
 				return;
 			}
 			const confirmed = await this.openConfirm({
@@ -794,18 +629,21 @@ export default {
 			if (!confirmed) {
 				return;
 			}
+			this.fullBackupError = '';
 			this.fullBackupDeletingFileName = backup.file_name;
 			try {
 				const response = await axios.delete(generateUrl(`/apps/cobudget/api/admin/full-backup/${encodeURIComponent(backup.file_name)}`), { skipWorkspaceHeader: true });
 				this.applyFullBackupResponse(response.data || {});
 				showToast(this.$texts.admin.fullBackupDeleted());
 			} catch (e) {
-				showRequestError(e, this.$texts.admin.fullBackupDeleteError(), 'Failed to delete full backup');
+				this.fullBackupError = extractError(e, this.$texts.admin.fullBackupDeleteError());
 			} finally {
 				this.fullBackupDeletingFileName = '';
 			}
 		},
 		openFullBackupRestore(backup) {
+			if (this.fullBackupSettingsSaving) return;
+			this.fullBackupRestoreError = '';
 			this.fullBackupRestoreCandidate = backup;
 			this.fullBackupRestoreConfirmation = '';
 		},
@@ -821,6 +659,7 @@ export default {
 				return;
 			}
 			const fileName = this.fullBackupRestoreCandidate.file_name;
+			this.fullBackupRestoreError = '';
 			this.fullBackupRestoringFileName = fileName;
 			try {
 				const response = await axios.post(generateUrl('/apps/cobudget/api/admin/full-backup/restore'), {
@@ -832,7 +671,7 @@ export default {
 				this.fullBackupRestoreConfirmation = '';
 				showToast(this.$texts.admin.fullBackupRestored());
 			} catch (e) {
-				showRequestError(e, this.$texts.admin.fullBackupRestoreError(), 'Failed to restore full backup');
+				this.fullBackupRestoreError = extractError(e, this.$texts.admin.fullBackupRestoreError());
 			} finally {
 				this.fullBackupRestoringFileName = '';
 			}
@@ -876,216 +715,17 @@ export default {
 				this.shellQuote(backup?.file_name || '')
 			].join(' ');
 		},
-		normalizeAdminItems(items) {
-			return sortCategoriesHierarchically((items || []).map(item => ({
-				...item,
-				is_hidden: item.is_hidden === true || item.is_hidden === 1 || item.is_hidden === '1' || item.is_hidden === 'true',
-				is_global: item.is_global === true || item.is_global === 1 || item.is_global === '1' || item.is_global === 'true',
-				parent_category_id: Number(item.parent_category_id || 0) || null
-			})));
-		},
-		async addCategory() {
-			if (!this.newCategory.trim()) return;
-			this.loading = true;
-			try {
-				await axios.post(generateUrl('/apps/cobudget/api/admin/categories'), { name: this.newCategory.trim(), icon: this.newCategoryIcon, type: this.categoryTab });
-				this.newCategory = '';
-				this.newCategoryIcon = 'Shape';
-				await this.fetchData();
-				showToast(this.$texts.admin.globalCategorySaved());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalCategoryCreateError(), 'Failed to add category');
-			} finally {
-				this.loading = false;
-			}
-		},
-		async updateCategoryIcon(cat, newIcon) {
-			try {
-				await axios.put(generateUrl(`/apps/cobudget/api/admin/categories/${cat.id}/icon`), { icon: newIcon });
-				cat.icon = newIcon;
-				showToast(this.$texts.admin.globalCategorySaved());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalCategoryIconSaveError(), 'Failed to update category icon');
-			}
-		},
-		openRenameAdminItem(type, item) {
-			this.renameAdminItemType = type;
-			this.renameAdminItem = item;
-			this.renameAdminItemName = item.name;
-			this.renameAdminItemCode = type === 'category' ? String(item.code || '') : '';
-			this.renameAdminItemParentId = type === 'category' ? String(item.parent_category_id || '') : '';
-			this.renamePaymentPartnerDetails = type === 'paymentPartner'
-				? createPaymentPartnerDetails(item)
-				: createPaymentPartnerDetails();
-			this.renameAdminItemError = '';
-			this.renameAdminItemSaving = false;
-			this.$nextTick(() => {
-				if (type === 'paymentPartner') {
-					this.$refs.renamePaymentPartnerFields?.focusName();
-					return;
-				}
-				this.$refs.renameAdminItemCodeInput?.focus();
-				this.$refs.renameAdminItemCodeInput?.select();
-			});
-		},
-		closeRenameAdminItemModal() {
-			if (this.renameAdminItemSaving) {
-				return;
-			}
-			this.resetRenameAdminItemModal();
-		},
-		resetRenameAdminItemModal() {
-			this.renameAdminItemType = '';
-			this.renameAdminItem = null;
-			this.renameAdminItemName = '';
-			this.renameAdminItemCode = '';
-			this.renameAdminItemParentId = '';
-			this.renamePaymentPartnerDetails = createPaymentPartnerDetails();
-			this.renameAdminItemError = '';
-			this.renameAdminItemSaving = false;
-		},
-		async saveRenameAdminItem() {
-			if (!this.canRenameAdminItem) {
-				return;
-			}
-
-			const item = this.renameAdminItem;
-			const type = this.renameAdminItemType;
-			const endpoint = type === 'category'
-				? `/apps/cobudget/api/admin/categories/${item.id}`
-				: `/apps/cobudget/api/admin/payment-partners/${item.id}`;
-			const localizedSuccessMessage = type === 'category'
-				? this.$texts.admin.globalCategorySaved()
-				: this.$texts.admin.globalPaymentPartnerSaved();
-			const payload = { name: this.renameAdminItemName.trim() };
-			if (type === 'category') {
-				payload.code = this.renameAdminItemCode.trim();
-				payload.parentCategoryId = this.renameAdminItemParentId
-					? Number(this.renameAdminItemParentId)
-					: 0;
-			} else {
-				Object.assign(payload, paymentPartnerDetailsPayload(this.renamePaymentPartnerDetails));
-			}
-
-			this.renameAdminItemSaving = true;
-			this.renameAdminItemError = '';
-			try {
-				await axios.put(generateUrl(endpoint), payload);
-				this.renameAdminItemSaving = false;
-				this.resetRenameAdminItemModal();
-				await this.fetchData();
-				showToast(localizedSuccessMessage);
-			} catch (e) {
-				this.renameAdminItemError = extractError(e, this.$texts.settings.genericSaveError());
-			} finally {
-				this.renameAdminItemSaving = false;
-			}
-		},
-		async hideCategory(id) {
-			this.loading = true;
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/admin/categories/${id}/hide`));
-				await this.fetchData();
-				showToast(this.$texts.admin.globalCategoryHidden());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalCategoryHideError(), 'Failed to hide category');
-			} finally {
-				this.loading = false;
-			}
-		},
-		async unhideCategory(id) {
-			this.loading = true;
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/admin/categories/${id}/unhide`));
-				await this.fetchData();
-				showToast(this.$texts.admin.globalCategoryShown());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalCategoryShowError(), 'Failed to unhide category');
-			} finally {
-				this.loading = false;
-			}
-		},
-		async deleteCategory(id) {
-			const confirmed = await this.openConfirm({
-				title: this.$texts.admin.deleteCategoryTitle(),
-				message: this.$texts.admin.deleteCategoryMessage(),
-				confirmLabel: this.$texts.admin.deleteCategoryConfirm(),
-				confirmVariant: 'danger'
-			});
-			if (!confirmed) return;
-			this.loading = true;
-			try {
-				await axios.delete(generateUrl(`/apps/cobudget/api/admin/categories/${id}`));
-				await this.fetchData();
-				showToast(this.$texts.admin.globalCategoryDeleted());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalCategoryDeleteError(), 'Failed to delete category');
-			} finally {
-				this.loading = false;
-			}
-		},
-		async addPaymentPartner() {
-			if (!this.newPaymentPartner.trim()) return;
-			this.loading = true;
-			try {
-				await axios.post(generateUrl('/apps/cobudget/api/admin/payment-partners'), { name: this.newPaymentPartner.trim(), type: this.activePaymentPartnerTab });
-				this.newPaymentPartner = '';
-				await this.fetchData();
-				showToast(this.$texts.admin.globalPaymentPartnerSaved());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalPaymentPartnerCreateError(), 'Failed to add paymentPartner');
-			} finally {
-				this.loading = false;
-			}
-		},
-		async hidePaymentPartner(id) {
-			this.loading = true;
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/admin/payment-partners/${id}/hide`));
-				await this.fetchData();
-				showToast(this.$texts.admin.globalPaymentPartnerHidden());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalPaymentPartnerHideError(), 'Failed to hide paymentPartner');
-			} finally {
-				this.loading = false;
-			}
-		},
-		async unhidePaymentPartner(id) {
-			this.loading = true;
-			try {
-				await axios.post(generateUrl(`/apps/cobudget/api/admin/payment-partners/${id}/unhide`));
-				await this.fetchData();
-				showToast(this.$texts.admin.globalPaymentPartnerShown());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalPaymentPartnerShowError(), 'Failed to unhide paymentPartner');
-			} finally {
-				this.loading = false;
-			}
-		},
-		async deletePaymentPartner(id) {
-			const confirmed = await this.openConfirm({
-				title: this.$texts.admin.deletePaymentPartnerTitle(),
-				message: this.$texts.admin.deletePaymentPartnerMessage(),
-				confirmLabel: this.$texts.admin.deletePaymentPartnerConfirm(),
-				confirmVariant: 'danger'
-			});
-			if (!confirmed) return;
-			this.loading = true;
-			try {
-				await axios.delete(generateUrl(`/apps/cobudget/api/admin/payment-partners/${id}`));
-				await this.fetchData();
-				showToast(this.$texts.admin.globalPaymentPartnerDeleted());
-			} catch (e) {
-				showRequestError(e, this.$texts.admin.globalPaymentPartnerDeleteError(), 'Failed to delete paymentPartner');
-			} finally {
-				this.loading = false;
-			}
-		}
 	}
 }
 </script>
 
 <style scoped>
+/* Nextcloud Settings' .section p rule must not offset native note content. */
+.cobudget-admin-settings :deep(.notecard p) {
+	margin-block: 0;
+	color: inherit;
+}
+
 .settings-section {
 	display: block;
 	margin: var(--cobudget-form-inset);
@@ -1112,10 +752,17 @@ export default {
 	margin-bottom: 28px;
 }
 
+.admin-master-data { margin-block: 0; }
+.admin-master-data :deep(.master-section + .master-section) { margin-block-start: var(--cobudget-settings-heading-gap); }
+.settings-section > h2 { font-size: var(--cobudget-font-page-title); font-weight: var(--cobudget-font-weight-heading); line-height: 1.3; margin-block: 0 12px; overflow-wrap: anywhere; }
+.admin-master-data :deep(.master-section > h3) { font-size: var(--cobudget-font-section-title); font-weight: var(--cobudget-font-weight-heading); }
+.admin-master-data :deep(.master-heading h4) { font-size: var(--cobudget-font-subheading); font-weight: var(--cobudget-font-weight-heading); }
+.admin-master-data :deep(.master-section > h3) { margin-block: 0 12px; }
 .integrity-card,
-.admin-backup-card {
-	margin: 0 0 var(--cobudget-section-gap) 0;
-}
+.admin-backup-card { margin-block: var(--cobudget-settings-heading-gap) 0; }
+.settings-loading { display: flex; align-items: center; gap: var(--cobudget-space-2, 8px); }
+.admin-backup-settings-grid > *, .integrity-card-header > div { min-width: 0; }
+.integrity-list li, .integrity-duplicate-row, .integrity-group h4 { overflow-wrap: anywhere; }
 
 .integrity-card-header {
 	align-items: flex-start;
@@ -1126,13 +773,15 @@ export default {
 
 .integrity-card h3,
 .admin-backup-card h3 {
-	font-size: var(--cobudget-font-lg);
-	font-weight: 700;
-	margin: 0 0 6px 0;
+	font-size: var(--cobudget-font-section-title);
+	font-weight: var(--cobudget-font-weight-heading);
+	margin: 0 0 12px 0;
 }
 
-.integrity-card p,
-.admin-backup-card p {
+.integrity-card-header p,
+.integrity-status,
+.integrity-group > p,
+.admin-backup-list-header p {
 	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
 	line-height: 1.45;
 	margin: 0;
@@ -1149,40 +798,16 @@ export default {
 .admin-backup-settings-grid {
 	align-items: end;
 	display: grid;
-	gap: 16px;
-	grid-template-columns: minmax(220px, 2fr) minmax(180px, 1.5fr) minmax(130px, 0.7fr) minmax(160px, 0.9fr) auto;
-	margin-top: 18px;
+	gap: var(--cobudget-section-gap) var(--cobudget-settings-section-gap);
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	margin-top: var(--cobudget-section-gap);
 }
 
-.admin-backup-field {
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	display: grid;
-	font-size: var(--cobudget-font-compact);
-	font-weight: 600;
-	gap: 6px;
-	min-width: 0;
-}
-
-.admin-backup-field span {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	font-size: var(--cobudget-font-sm);
-	font-weight: 400;
-	line-height: 1.35;
-}
-
-.admin-backup-field .form-control {
-	min-width: 0;
-}
-
-.admin-backup-save-action {
-	display: flex;
-	justify-content: flex-end;
-}
+.admin-backup-wide, .admin-backup-schedule { grid-column: 1 / -1; min-width: 0; }
+.admin-backup-create-action { display: flex; justify-content: flex-end; min-width: 0; }
 
 .admin-backup-list {
-	border-top: 1px solid var(--cobudget-border, #ddd);
-	margin-top: 20px;
-	padding-top: 18px;
+	margin-top: 32px;
 }
 
 .admin-backup-list-header {
@@ -1195,14 +820,14 @@ export default {
 
 .admin-backup-list-header h4 {
 	color: var(--cobudget-text, var(--color-main-text, #222));
-	font-size: var(--cobudget-font-md);
-	font-weight: 700;
+	font-size: var(--cobudget-font-subheading);
+	font-weight: var(--cobudget-font-weight-heading);
 	margin: 0 0 4px 0;
 }
 
 .admin-backup-items {
 	display: grid;
-	gap: 12px;
+	gap: 0;
 	list-style: none;
 	margin: 0;
 	padding: 0;
@@ -1211,12 +836,12 @@ export default {
 .admin-backup-item {
 	align-items: center;
 	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	border: 1px solid var(--cobudget-border, #ddd);
-	border-radius: var(--border-radius-large, 8px);
+	border-bottom: 1px solid var(--cobudget-border, #ddd);
 	display: flex;
 	gap: 16px;
 	justify-content: space-between;
-	padding: 18px 20px;
+	padding: var(--cobudget-table-detail-padding);
+	padding-inline: 0;
 }
 
 .admin-backup-info {
@@ -1227,9 +852,9 @@ export default {
 
 .admin-backup-info strong {
 	color: var(--cobudget-text, var(--color-main-text, #222));
-	font-size: var(--cobudget-font-md);
-	font-weight: 700;
-	line-height: 1.25;
+	font-size: var(--font-size, 15px);
+	font-weight: var(--font-weight-element, 500);
+	line-height: 1.5;
 }
 
 .admin-backup-info span {
@@ -1245,15 +870,12 @@ export default {
 }
 
 .admin-backup-item-actions {
+	flex-wrap: wrap;
 	align-items: center;
 	display: flex;
 	flex: 0 0 auto;
-	gap: 10px;
+	gap: var(--default-grid-baseline, 4px);
 	justify-content: flex-end;
-}
-
-.admin-backup-icon-button {
-
 }
 
 .admin-backup-occ {
@@ -1285,13 +907,10 @@ export default {
 }
 
 .integrity-status {
-	margin-top: 16px !important;
+	margin-top: var(--cobudget-section-gap);
 }
 
-.integrity-status-clean {
-	color: #008000!important;
-	font-weight: 600;
-}
+.admin-backup-item:last-child { border-bottom: 0; }
 
 .integrity-results {
 	display: grid;
@@ -1306,9 +925,9 @@ export default {
 }
 
 .integrity-group h4 {
-	font-size: var(--cobudget-font-md);
-	font-weight: 700;
-	margin: 0 0 6px 0;
+	font-size: var(--font-size, 15px);
+	font-weight: var(--font-weight-element, 500);
+	margin: 0 0 12px 0;
 }
 
 .integrity-list {
@@ -1363,169 +982,18 @@ export default {
 	justify-content: flex-end;
 }
 
-.integrity-merge-button {
-	background: var(--cobudget-page-background, #fff);
-	border: 1px solid var(--cobudget-border-strong, #aaa);
-	border-radius: var(--border-radius, 6px);
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	cursor: pointer;
-	font-weight: 600;
-	min-height: 34px;
-	padding: 0 12px;
-}
-
-.integrity-merge-button:hover,
-.integrity-merge-button:focus {
-	border-color: var(--color-primary, #0076a8);
-	color: var(--color-primary, #0076a8);
-	outline: none;
-}
-
-.integrity-merge-button:disabled {
-	cursor: wait;
-	opacity: 0.6;
-}
-
-.settings-column {
-	flex: 1;
-}
-
-.settings-column h3 {
-	margin-top: 0;
-	margin-bottom: 16px;
-	font-weight: bold;
-	font-size: var(--cobudget-font-section-title);
-}
-
-.add-form {
-	display: flex;
-	gap: 10px;
-	margin-bottom: 20px;
-	margin-top: 10px;
-	align-items: center;
-}
-
-.form-control {
-	flex: 1;
-}
-
-.settings-list-info {
-	color: var(--cobudget-text, var(--color-main-text, #222));
-}
-
-.category-list-label {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	line-height: 1.25;
-}
-
-.category-list-label > span {
-	color: inherit;
-	overflow-wrap: anywhere;
-}
-
-.category-list-code {
-	color: var(--cobudget-text-muted, var(--color-text-light));
-	font-size: var(--cobudget-font-sm);
-	line-height: 1.3;
-	overflow-wrap: anywhere;
-}
-
-:deep(.settings-list-item.is-hidden) .settings-list-info {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-}
-
-
-.settings-modal-backdrop {
-	--color-main-text: var(--cobudget-text);
-	--color-text-maxcontrast: var(--cobudget-text-muted);
-	--color-main-background: var(--cobudget-surface);
-	--color-background-hover: var(--cobudget-surface-muted);
-	--color-background-dark: var(--cobudget-surface-muted);
-	--color-border: var(--cobudget-border);
-	--color-border-dark: var(--cobudget-border-strong);
-
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100vw;
-	height: 100vh;
-	background: var(--cobudget-dialog-backdrop);
-	backdrop-filter: blur(2px);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: 10000;
-}
-
-.settings-modal {
-	background: var(--cobudget-surface, var(--color-main-background, #fff));
-	border-radius: var(--cobudget-dialog-radius);
-	box-shadow: var(--cobudget-dialog-shadow);
-	color: var(--cobudget-text, var(--color-main-text, #222));
-	max-width: 520px;
-	padding: var(--cobudget-dialog-padding);
-	width: 90%;
-}
-
-.settings-modal.settings-modal--payment-partner {
-	box-sizing: border-box;
-	max-height: calc(100vh - 32px);
-	max-width: 760px;
-	overflow-y: auto;
-}
-
-.modal-note {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
-	font-size: var(--cobudget-font-base);
-	line-height: 1.5;
-	margin: 0 0 20px 0;
-}
-
-.form-group {
-	margin-bottom: 16px;
-}
-
-.rename-fields {
+/* NcRadioGroup renders its buttons in an NcFormBox row without wrapping. */
+.admin-backup-schedule :deep([class*="ncFormBox_row"]) {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 12px;
-	margin-bottom: 16px;
-}
-
-.rename-fields.has-category-number {
-	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-}
-
-.rename-fields .form-group {
-	min-width: 0;
-	margin-bottom: 0;
-}
-
-.category-parent-hint {
-	color: var(--cobudget-text-muted, var(--color-text-light));
-	font-size: var(--cobudget-font-sm);
-	line-height: 1.4;
-	margin: 6px 0 0;
-}
-
-.form-group label {
-	display: block;
-  color: var(--cobudget-text-muted, #888);
-  font-size: var(--cobudget-font-label);
-  letter-spacing: normal;
-}
-
-.modal-error {
-	color: var(--cobudget-error);
-	margin: 0 0 16px 0;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 768px) {
+	.settings-section { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
+	.settings-section > h2 { font-size: var(--cobudget-font-page-title-mobile); }
 	.settings-section {
-		margin: 16px;
-		width: calc(100% - 32px);
+		margin: 0;
+		width: 100%;
 	}
 
 	.settings-grid {
@@ -1544,15 +1012,16 @@ export default {
 
 	.integrity-actions,
 	.integrity-merge-actions {
-		justify-content: flex-start;
+		justify-content: flex-end;
 	}
 
 	.admin-backup-settings-grid {
 		grid-template-columns: 1fr;
 	}
 
-	.admin-backup-save-action {
-		justify-content: flex-start;
+	.admin-backup-schedule :deep([class*="ncFormBox_row"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.admin-backup-create-action {
+		justify-content: flex-end;
 	}
 
 	.admin-backup-item {
@@ -1561,11 +1030,12 @@ export default {
 	}
 
 	.admin-backup-item-actions {
-		justify-content: flex-start;
+		justify-content: flex-end;
+		max-width: 100%;
 	}
+	.integrity-actions { flex: 1 1 auto; }
+	.integrity-actions :deep(.button-vue), .integrity-merge-actions :deep(.button-vue), .admin-backup-create-action :deep(.button-vue) { max-width: 100%; height: auto; }
+	.integrity-actions :deep(.button-vue__text), .integrity-merge-actions :deep(.button-vue__text), .admin-backup-create-action :deep(.button-vue__text) { white-space: normal; overflow-wrap: anywhere; }
 
-	.rename-fields.has-category-number {
-		grid-template-columns: minmax(0, 1fr);
-	}
 }
 </style>

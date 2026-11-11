@@ -31,7 +31,7 @@ for (const [, section, key] of (read('src/components/ReportForecast.vue') + read
 	assert.equal(typeof texts[section]?.[key], 'function', `Missing forecast text helper ${section}.${key}`)
 	annualTextHelpers.add(`${section}.${key}`)
 }
-for (const file of ['src/components/ReportPaymentSection.vue', 'src/components/ReportTopPayments.vue', 'src/components/ReportAreaOverview.vue', 'src/components/ReportAreaDetailView.vue', 'src/components/ReportBreakdown.vue', 'src/components/ReportComparisonPicker.vue', 'src/components/ReportPeriodPicker.vue', 'src/components/ReportSummary.vue', 'src/components/ReportDetailView.vue', 'src/components/ReportPayments.vue', 'src/views/AnnualOverviewView.vue', 'src/components/AnnualOverviewChart.vue', 'src/components/AnnualOverviewTable.vue', 'src/components/AnnualOverviewDetails.vue', 'src/components/AnnualOverviewFilters.vue', 'src/components/AnnualComparison.vue', 'src/components/TableFilters.vue']) {
+for (const file of ['src/components/ReportPaymentSection.vue', 'src/components/ReportTopPayments.vue', 'src/components/ReportAreaOverview.vue', 'src/components/ReportAreaDetailView.vue', 'src/components/ReportBreakdown.vue', 'src/components/ReportComparisonPicker.vue', 'src/components/ReportPeriodPicker.vue', 'src/components/ReportSummary.vue', 'src/components/ReportDetailView.vue', 'src/components/ReportPayments.vue', 'src/views/AnnualOverviewView.vue', 'src/components/AnnualOverviewChart.vue', 'src/components/AnnualOverviewTable.vue', 'src/components/AnnualOverviewDetails.vue', 'src/components/AnnualOverviewFilters.vue', 'src/components/AnnualComparison.vue', 'src/components/TableFilters.vue', 'src/components/PaymentFilterBar.vue']) {
 	for (const [, section, key] of read(file).matchAll(/\$texts\.(\w+)\.(\w+)\(/g)) {
 		assert.equal(typeof texts[section]?.[key], 'function', `Missing text helper ${section}.${key} in ${file}`)
 		if (file !== 'src/components/TableFilters.vue' || section === 'annual') annualTextHelpers.add(`${section}.${key}`)
@@ -78,6 +78,10 @@ for (const [language, translations, incomeHeading, reportHeading] of [
 // Run the actual Nextcloud translation library, including fallback, plural and interpolation paths.
 setLanguage('en')
 unregister('cobudget')
+assert.equal(texts.common.retry(), 'Try again')
+assert.equal(texts.entry.newIncome(), 'New income')
+assert.equal(texts.entry.description(), 'Description')
+assert.equal(texts.entry.descriptionPlaceholder(), 'Payment reference or note')
 assert.equal(texts.analytics.currentYear(), 'Current year')
 assert.equal(texts.dashboard.incomes(), 'Total income')
 assert.equal(texts.analytics.usedOfBudget('$5.00', '$10.00'), '$5.00 of $10.00')
@@ -87,6 +91,9 @@ assert.equal(texts.analytics.breakdownInArea('Expenses', 'Home & family', 'Categ
 
 setLanguage('de')
 register('cobudget', catalog)
+assert.equal(texts.entry.newIncome(), 'Neue Einnahme')
+assert.equal(texts.entry.description(), 'Beschreibung')
+assert.equal(texts.entry.descriptionPlaceholder(), 'Verwendungszweck oder Anmerkung')
 assert.equal(texts.analytics.currentYear(), 'Aktuelles Jahr')
 assert.equal(texts.analytics.usedOfBudget('5,00 €', '10,00 €'), '5,00 € von 10,00 €')
 assert.equal(texts.analytics.daysRemaining(1), '1 Tag verbleibend')
@@ -95,6 +102,7 @@ assert.equal(texts.analytics.daysRemaining(2), '2 Tage verbleibend')
 setLanguage('fr')
 unregister('cobudget')
 register('cobudget', frenchCatalog)
+assert.equal(texts.entry.newIncome(), 'Nouveau revenu')
 assert.equal(texts.analytics.currentYear(), 'Année en cours')
 assert.equal(texts.dashboard.incomes(), 'Total des revenus')
 assert.equal(texts.analytics.usedOfBudget('5,00 €', '10,00 €'), '5,00 € sur 10,00 €')
@@ -109,6 +117,7 @@ assert.equal(texts.analytics.daysRemaining(2), '2 jours restants')
 setLanguage('es')
 unregister('cobudget')
 register('cobudget', spanishCatalog)
+assert.equal(texts.entry.newIncome(), 'Nuevo ingreso')
 assert.equal(texts.analytics.currentYear(), 'Año actual')
 assert.equal(texts.dashboard.incomes(), 'Total de ingresos')
 assert.equal(texts.analytics.usedOfBudget('5,00 €', '10,00 €'), '5,00 € de 10,00 €')
@@ -158,6 +167,7 @@ for (const [language, translations, month, summary, dateHeading, descriptionHead
 	const label = formatCalendarLabel(new Date(2026, 9, 1), { month: 'long' })
 	assert.equal(label, month)
 	assert.equal(texts.entry.groupTotal(label), summary)
+	assert.equal(texts.entry.groupClosingTitle(label), { en: 'October total', de: 'Oktober gesamt', fr: 'octobre — total', es: 'octubre: total' }[language], 'Period closing labels put the month first')
 	assert.equal(texts.entry.tableDate(), dateHeading)
 	assert.equal(texts.entry.tableDescription(), descriptionHeading)
 	assert.equal(formatPeriodLabel('2026-10'), new Intl.DateTimeFormat(language, { month: 'short', year: 'numeric' }).format(new Date(2026, 9, 1)))
@@ -230,7 +240,9 @@ function scan(directory) {
 				assert.ok(fixedLiterals.has(node.content.trim()), `Untranslated text in ${filename}: ${node.content.trim()}`)
 			}
 			for (const prop of node.props || []) {
-				if (prop.type === NodeTypes.ATTRIBUTE && ['title', 'placeholder', 'aria-label', 'label', 'alt'].includes(prop.name) && /[A-Za-z]/.test(prop.value?.content || '')) {
+				// NcSelect.label identifies an option property; input-label is the visible label.
+				if (node.tag === 'NcSelect' && prop.name === 'label') continue
+				if (prop.type === NodeTypes.ATTRIBUTE && ['title', 'placeholder', 'aria-label', 'label', 'input-label', 'alt'].includes(prop.name) && /[A-Za-z]/.test(prop.value?.content || '')) {
 					assert.ok(fixedLiterals.has(prop.value.content), `Untranslated ${prop.name} in ${filename}: ${prop.value.content}`)
 				}
 			}

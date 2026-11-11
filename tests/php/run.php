@@ -8,6 +8,7 @@ require_once __DIR__ . '/Support/TestRunner.php';
 
 $root = dirname(__DIR__, 2);
 $runner = new TestRunner($root);
+require_once $root . '/lib/Service/ReportLookupService.php';
 
 $testFiles = glob(__DIR__ . '/*Test.php') ?: [];
 sort($testFiles);

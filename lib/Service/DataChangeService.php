@@ -13,7 +13,7 @@ final class DataChangeService {
 
 	private const APP_ID = 'cobudget';
 	private const REVISION_CONFIG_KEY = 'data_revision';
-	private const DOMAINS = ['entries', 'projects', 'settlements', 'budgets', 'analytics'];
+	private const DOMAINS = ['entries', 'projects', 'settlements', 'budgets', 'analytics', 'reminders'];
 
 	private bool $pushQueueResolved = false;
 	private ?object $pushQueue = null;
@@ -22,6 +22,7 @@ final class DataChangeService {
 		private IDBConnection $db,
 		private IConfig $config,
 		private LoggerInterface $logger,
+		private CalendarReminderService $calendarReminders,
 	) {
 	}
 
@@ -100,6 +101,9 @@ final class DataChangeService {
 				return;
 			}
 
+			if (array_intersect($domains, ['entries', 'projects', 'settlements']) !== []) {
+				foreach ($userIds as $userId) $this->calendarReminders->syncUser($userId);
+			}
 			$revision = bin2hex(random_bytes(16));
 			foreach ($userIds as $userId) {
 				$this->config->setUserValue($userId, self::APP_ID, self::REVISION_CONFIG_KEY, $revision);

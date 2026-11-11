@@ -9,7 +9,7 @@ require_once dirname(__DIR__, 2) . '/lib/Service/ReportBreakdownService.php';
 
 $labels = ['important' => ['column' => 'is_important', 'name' => 'Important'], 'insurance' => ['column' => 'is_insurance', 'name' => 'Insurance']];
 $payment = static fn(int|string $id, int $cents, array $extra = []): array => array_replace([
-	'id' => $id, 'date' => 100, 'amount_cents' => $cents, 'type' => 'expense', 'category_id' => 10, 'category_name' => 'Home', 'partner_id' => 20, 'partner_name' => 'Shop',
+	'id' => $id, 'date' => 100, 'amount_cents' => $cents, 'type' => 'expense', 'category_icon' => 'Home', 'category_id' => 10, 'category_name' => 'Home', 'partner_id' => 20, 'partner_name' => 'Shop',
 ], $extra);
 $build = static fn(array $rows, string $grouping = 'categories', string $id = 'total', bool $direct = false, string $type = 'expense'): array => (new ReportBreakdownService())->build($rows, 50, 150, $grouping, $type, $id, $direct, $labels);
 
@@ -23,9 +23,10 @@ return [
 			$payment(4, 800, ['type' => 'income']),
 		];
 		$report = $build($rows, type: 'all');
+		$t->assertSame('Home', $report['groups']['categories']['expense'][0]['icon'], 'Composition carries category icons from authorized payments');
 		$t->assertSame(['amountCents' => 303, 'count' => 3], $report['totals']['expense'], 'Joined tags must not multiply cents or payment counts');
 		$t->assertSame(['amountCents' => 800, 'count' => 1], $report['totals']['income'], 'Balance details retain separate denominators for income and expenses');
-		$t->assertSame(3, count($report['groups']['paymentPartners']['expense']), 'Partners with equal names and unassigned payments keep distinct identities');
+		$t->assertSame(2, count($report['groups']['paymentPartners']['expense']), 'Equal partner names merge while unassigned payments stay separate');
 		$t->assertSame(303, array_sum(array_column($report['groups']['categories']['expense'], 'amountCents')), 'Flat direct category assignments never duplicate parent and child amounts');
 		$t->assertSame('Home', $report['groups']['categories']['expense'][1]['parentName'], 'Subcategory rows retain their context');
 		$t->assertSame(true, $report['overlaps']['hashtags']['expense'], 'Only overlapping dimensions need the explanation');

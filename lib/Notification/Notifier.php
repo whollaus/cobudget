@@ -32,12 +32,26 @@ class Notifier implements INotifier {
 
 		$l = $this->l10nFactory->get('cobudget', $languageCode);
 
+		if ($notification->getSubject() === 'organizer_reminder') {
+			$params = $notification->getSubjectParameters();
+			$notification->setParsedSubject($l->t('CoBudget reminder: %s', [$this->param($params, 'title')]))
+				->setLink($this->urlGenerator->linkToRouteAbsolute('cobudget.page.index') . '#/reminders?reminder=' . (int)($params['id'] ?? 0));
+			return $this->setParsedMessageWhenPresent($notification, $this->param($params, 'description'));
+		}
+
+		if ($notification->getSubject() === 'planned_payment_due') {
+			$params = $notification->getSubjectParameters();
+			$notification->setParsedSubject($l->t('Planned payment due'))
+				->setLink($this->projectLink($this->param($params, 'projectId')));
+			return $this->setParsedMessageWhenPresent($notification, $this->buildReminderMessage($params, $l));
+		}
+
 		if ($notification->getSubject() === 'reminder') {
 			$params = $notification->getSubjectParameters();
 			$title = $this->param($params, 'title') ?: ($this->param($params, 'description') ?: $l->t('Payment without description'));
 
 			$notification->setParsedSubject($l->t('CoBudget reminder: %s', [$title]))
-				->setLink($this->appLink());
+				->setLink(!empty($params['organizerId']) ? $this->appLink() . '#/reminders?reminder=' . (int)$params['organizerId'] : $this->appLink());
 			return $this->setParsedMessageWhenPresent($notification, $this->buildReminderMessage($params, $l));
 		}
 

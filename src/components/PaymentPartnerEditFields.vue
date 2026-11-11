@@ -1,89 +1,91 @@
 <template>
 	<div class="payment-partner-edit-fields">
-		<div class="payment-partner-primary-fields">
-			<div class="form-group payment-partner-field">
-				<label :for="`${idPrefix}-number`">{{ $texts.common.number() }}</label>
-				<input
-					:id="`${idPrefix}-number`"
-					class="form-control" data-cobudget-field="compact"
-					type="text"
-					maxlength="128"
-					:value="detailValue('number')"
-					autocomplete="off"
-					spellcheck="false"
-					@input="updateDetail('number', $event.target.value)">
-			</div>
-			<div class="form-group payment-partner-field">
-				<label :for="`${idPrefix}-display-name`">{{ $texts.paymentPartnerDetails.displayName() }}</label>
-				<input
+		<div v-if="!hideName" class="payment-partner-primary-fields">
+			<NcFormGroup class="form-group payment-partner-field cobudget-form-group">
+				<template #label><label class="cobudget-form-label" :for="`${idPrefix}-display-name`">{{ $texts.paymentPartnerDetails.displayName() }}</label></template>
+				<NcInputField
 					:id="`${idPrefix}-display-name`"
 					ref="displayNameInput"
-					class="form-control" data-cobudget-field="compact"
+					label-outside
+					:label="$texts.paymentPartnerDetails.displayName()"
+					:disabled="disabled"
 					type="text"
 					maxlength="128"
-					:value="name"
+					:model-value="name"
 					required
-					@input="$emit('update:name', $event.target.value)">
-			</div>
+					@update:model-value="$emit('update:name', $event)" class="cobudget-native-field" />
+			</NcFormGroup>
 		</div>
 
-		<details
+		<div
 			v-for="group in groups"
 			:key="group.key"
-			class="payment-partner-group"
-			:open="initialOpenGroups[group.key]">
-			<summary>
-				<span>{{ groupLabel(group) }}</span>
-			</summary>
-			<div class="payment-partner-group-fields">
-				<div
+			class="payment-partner-group">
+			<NcFormBoxButton
+				:label="groupLabel(group)"
+				:description="openGroup === group.key ? undefined : groupSummary(group)"
+				:aria-expanded="openGroup === group.key"
+				:aria-controls="`${idPrefix}-${group.key}-fields`"
+				@click="openGroup = openGroup === group.key ? null : group.key">
+				<template #icon>
+					<ChevronDown v-if="openGroup === group.key" :size="20" aria-hidden="true" />
+					<ChevronRight v-else :size="20" aria-hidden="true" />
+				</template>
+			</NcFormBoxButton>
+			<div v-show="openGroup === group.key" :id="`${idPrefix}-${group.key}-fields`" class="payment-partner-group-fields">
+				<NcFormGroup
 					v-for="field in group.fields"
 					:key="field.key"
-					class="form-group payment-partner-field"
+					class="form-group payment-partner-field cobudget-form-group"
 					:class="{ 'payment-partner-field--wide': field.wide }">
-					<label :for="fieldId(field)">{{ fieldLabel(field) }}</label>
-					<textarea
+					<template #label><label class="cobudget-form-label" :for="fieldId(field)">{{ fieldLabel(field) }}</label></template>
+					<NcTextArea
 						v-if="field.multiline"
 						:id="fieldId(field)"
-						class="form-control payment-partner-textarea" data-cobudget-field="compact"
+						label-outside
+						:label="fieldLabel(field)"
+						:disabled="disabled"
 						:maxlength="field.maxLength"
-						:value="detailValue(field.key)"
+						:model-value="detailValue(field.key)"
 						rows="3"
-						@input="updateDetail(field.key, $event.target.value)"></textarea>
-					<input
+						resize="vertical"
+						@update:model-value="updateDetail(field.key, $event)" class="cobudget-native-field" />
+					<NcInputField
 						v-else
 						:id="fieldId(field)"
-						class="form-control" data-cobudget-field="compact"
-						:class="{ 'is-invalid': field.key === 'email' && emailInvalid }"
+						label-outside
+						:label="fieldLabel(field)"
+						:disabled="disabled"
+						:error="field.key === 'email' && emailInvalid"
+						:helper-text="field.key === 'email' && emailInvalid ? $texts.paymentPartnerDetails.invalidEmail() : ''"
 						:type="field.type || 'text'"
 						:maxlength="field.maxLength"
 						:pattern="field.pattern"
 						:inputmode="field.inputmode"
-						:value="detailValue(field.key)"
+						:model-value="detailValue(field.key)"
 						autocomplete="off"
 						:aria-invalid="field.key === 'email' && emailInvalid ? 'true' : 'false'"
-						:aria-describedby="field.key === 'email' && emailInvalid ? `${fieldId(field)}-error` : undefined"
-						@input="updateDetail(field.key, $event.target.value)">
-					<p
-						v-if="field.key === 'email' && emailInvalid"
-						:id="`${fieldId(field)}-error`"
-						class="payment-partner-field-error"
-						role="alert">
-						{{ $texts.paymentPartnerDetails.invalidEmail() }}
-					</p>
-				</div>
+						@update:model-value="updateDetail(field.key, $event)" class="cobudget-native-field" />
+				</NcFormGroup>
 			</div>
-		</details>
+		</div>
 	</div>
 </template>
 
 <script>
+import NcFormGroup from '@nextcloud/vue/components/NcFormGroup'
+import NcFormBoxButton from '@nextcloud/vue/components/NcFormBoxButton'
+import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
+import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
+import NcInputField from '@nextcloud/vue/components/NcInputField'
+import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import { isValidPaymentPartnerEmail } from '../utils/paymentPartnerDetails'
 
 const PAYMENT_PARTNER_GROUPS = [
 	{
 		key: 'personAndCompany',
 		fields: [
+			{ key: 'number', maxLength: 128 },
 			{ key: 'salutation', maxLength: 64 },
 			{ key: 'title', maxLength: 128 },
 			{ key: 'companyName', maxLength: 255, wide: true },
@@ -146,7 +148,10 @@ const groupHasValues = (details, group) => group.fields.some(field => {
 
 export default {
 	name: 'PaymentPartnerEditFields',
+	components: { NcFormGroup, NcFormBoxButton, ChevronDown, ChevronRight, NcInputField, NcTextArea },
 	props: {
+		disabled: Boolean,
+		hideName: Boolean,
 		name: {
 			type: String,
 			default: ''
@@ -164,9 +169,7 @@ export default {
 	data() {
 		return {
 			groups: PAYMENT_PARTNER_GROUPS,
-			initialOpenGroups: Object.fromEntries(
-				PAYMENT_PARTNER_GROUPS.map(group => [group.key, groupHasValues(this.details, group)])
-			),
+			openGroup: PAYMENT_PARTNER_GROUPS.find(group => groupHasValues(this.details, group))?.key ?? null,
 		}
 	},
 	computed: {
@@ -184,7 +187,11 @@ export default {
 			return `${this.idPrefix}-${suffix}`
 		},
 		fieldLabel(field) {
-			return this.$texts.paymentPartnerDetails[field.key]()
+			return field.key === 'number' ? this.$texts.common.number() : this.$texts.paymentPartnerDetails[field.key]()
+		},
+		groupSummary(group) {
+			const summary = group.fields.map(field => this.detailValue(field.key).trim()).filter(Boolean).slice(0, 2).join(' · ').replace(/\s+/g, ' ')
+			return summary.length > 100 ? `${summary.slice(0, 100)}…` : summary || undefined
 		},
 		groupLabel(group) {
 			return this.$texts.paymentPartnerDetails[group.key]()
@@ -206,7 +213,7 @@ export default {
 <style scoped>
 .payment-partner-edit-fields {
 	display: grid;
-	gap: 10px;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
 }
 
 .payment-partner-primary-fields,
@@ -218,7 +225,7 @@ export default {
 
 .payment-partner-group-fields {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	padding: 14px;
+	padding: calc(var(--default-grid-baseline, 4px) * 3);
 }
 
 .form-group {
@@ -226,84 +233,10 @@ export default {
 	margin-bottom: 0;
 }
 
-.form-group label {
-	display: block;
-	color: var(--cobudget-text-muted, var(--color-text-light));
-	font-size: var(--cobudget-font-sm);
-	letter-spacing: normal;
-}
 
-.form-control.is-invalid {
-	border-color: var(--cobudget-error, var(--color-error));
-}
-
-.payment-partner-textarea {
-	height: auto;
-	min-height: 84px;
-	padding: 8px 12px;
-	line-height: 1.4;
-	resize: vertical;
-}
 
 .payment-partner-field--wide {
 	grid-column: 1 / -1;
-}
-
-.payment-partner-field-error {
-	margin: 4px 0 0;
-	color: var(--cobudget-error, var(--color-error));
-	font-size: var(--cobudget-font-sm);
-	line-height: 1.35;
-}
-
-.payment-partner-group {
-	overflow: clip;
-	border: 1px solid var(--cobudget-border, var(--color-border));
-	border-radius: var(--cobudget-card-radius);
-	background: var(--cobudget-surface, var(--color-main-background));
-	color: var(--cobudget-text, var(--color-main-text));
-}
-
-.payment-partner-group summary {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	list-style: none;
-	padding: 12px 16px;
-	background: var(--cobudget-surface-muted, var(--color-background-hover));
-	color: var(--cobudget-text, var(--color-main-text));
-	cursor: pointer;
-	font-weight: 600;
-	line-height: 1.35;
-}
-
-.payment-partner-group summary::-webkit-details-marker {
-	display: none;
-}
-
-.payment-partner-group summary::before {
-	content: '▶';
-	flex: 0 0 auto;
-	font-size: 0.75em;
-	line-height: 1;
-	transition: transform 120ms ease;
-}
-
-.payment-partner-group[open] summary::before {
-	transform: rotate(90deg);
-}
-
-.payment-partner-group summary:hover {
-	background: var(--cobudget-surface-strong);
-}
-
-.payment-partner-group summary:focus-visible {
-	outline: var(--cobudget-focus-outline);
-	outline-offset: -2px;
-}
-
-.payment-partner-group[open] summary {
-	border-bottom: 1px solid var(--cobudget-border, var(--color-border));
 }
 
 @media (max-width: 768px) {

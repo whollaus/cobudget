@@ -3,6 +3,7 @@ namespace OCA\CoBudget\Controller;
 
 use OCA\CoBudget\Service\CsvCellSanitizer;
 use OCA\CoBudget\Service\AnnualOverviewService;
+use OCA\CoBudget\Service\ReportLookupService;
 use OCA\CoBudget\Service\ReportComparisonService;
 use OCA\CoBudget\Service\ReportBreakdownService;
 use OCA\CoBudget\Service\ReportScopeService;
@@ -15,6 +16,7 @@ use OCA\CoBudget\Service\EntryAttachmentProjectionService;
 use OCA\CoBudget\Service\DataChangeService;
 use OCA\CoBudget\Service\ProjectNotificationService;
 use OCA\CoBudget\Service\ParticipantService;
+use OCA\CoBudget\Service\ReminderService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
@@ -38,6 +40,8 @@ class EntryController extends Controller {
 	use WorkspaceAwareTrait;
 
 	private const EXPORT_LIMIT = 50000;
+	private const CLIPBOARD_EXPORT_LIMIT = 1000;
+	private int $reportLookupWorkspaceId;
 	private const MAX_PAGE_SIZE = 250;
 	private const MAX_PAGE_OFFSET = 1000000;
 	private const EXPORT_ATTACHMENT_CHUNK_SIZE = 500;
@@ -146,8 +150,17 @@ class EntryController extends Controller {
 	private IRootFolder $rootFolder;
 	private IL10N $l10n;
 	private string $entryScope = 'personal';
+	private ?int $exportSettlementId = null;
+	private bool $exportSettledSharedProject = false;
 	private bool $includeFuturePayments = false;
 	private bool $includeSubcategories = false;
+	/** @var list<int> */
+	private array $paymentProjectIds = [];
+	private bool $includeAssignedPaymentAreas = false;
+	private array $excludedPaymentProjectIds = [];
+	private array $paymentCalendarRanges = [];
+	/** @var list<int> Additional OR area predicates, intersecting the authorized report scope. */
+	private array $reportProjectIds = [];
 	private bool $reportLabeledOnly = false;
 	private bool $reportWithoutArea = false;
 	/** @var list<int>|null Shared areas authorized in the active personal workspace. */
@@ -164,7 +177,7 @@ class EntryController extends Controller {
 		'amountMax' => null,
 	];
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, HashtagService $hashtagService, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, EntryAttachmentProjectionService $attachmentProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IRootFolder $rootFolder, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IConfig $config, HashtagService $hashtagService, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, EntryAttachmentProjectionService $attachmentProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IRootFolder $rootFolder, IL10N $l10n, private ReminderService $reminderService) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
@@ -220,17 +233,24 @@ class EntryController extends Controller {
 		string $amountMax = '',
 		string $reportGrouping = '',
 		bool $withoutArea = false,
-		string $reportFilters = ''
+		string $reportFilters = '',
+		string $projects = '',
+		string $periodYears = '',
+		string $periodMonths = ''
 	): DataResponse {
 		$this->reportWithoutArea = $withoutArea;
 		$this->includeFuturePayments = $includeFuturePayments;
 		$this->includeSubcategories = $includeSubcategories;
+		$this->paymentProjectIds = $this->parseAnnualIdList($projects, true);
+		$this->includeAssignedPaymentAreas = in_array('assigned', explode(',', $projects), true);
+		$this->excludedPaymentProjectIds = $this->parseExcludedPaymentProjectIds($projects);
 		$this->reportLabeledOnly = $reportGrouping === 'labelsAndTags';
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
 			}
+			$this->paymentCalendarRanges = $this->paymentCalendarRanges($periodYears, $periodMonths);
 			$this->paymentNarrowing = $this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters);
 			[$limit, $offset] = $this->normalizePagination($limit, $offset);
 
@@ -241,6 +261,9 @@ class EntryController extends Controller {
 			}
 			$payload = $this->fetchEntryListPayload($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, null, true, $isInsurance);
 			unset($payload['_aggregate']);
+			if ($projectId !== null) {
+				$payload['years'] = $this->annualOverviewYears($workspaceId, $projectId, $this->calendarDate()->getTimezone());
+			}
 
 			return new DataResponse($payload);
 		} catch (\InvalidArgumentException $error) {
@@ -252,7 +275,8 @@ class EntryController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
-	public function annualOverview(int $year = 0, string $grouping = 'categories', ?int $projectId = null, bool $includeFuturePayments = false, string $comparison = 'none', string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', string $period = 'year', int $month = 0, int $quarter = 0, string $dateFrom = '', string $dateTo = '', string $entryScope = 'personal', string $detailType = '', string $detailId = 'total', bool $detailDirect = false, string $detailAverageUnit = '', bool $withoutArea = false, string $reportFilters = ''): DataResponse {
+	public function annualOverview(int $year = 0, string $grouping = 'categories', ?int $projectId = null, bool $includeFuturePayments = false, string $comparison = 'none', string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', string $period = 'year', int $month = 0, int $quarter = 0, string $dateFrom = '', string $dateTo = '', string $entryScope = 'personal', string $detailType = '', string $detailId = 'total', bool $detailDirect = false, string $detailAverageUnit = '', bool $withoutArea = false, string $reportFilters = '', string $search = '', bool $allTime = false, string $projects = '', string $periodYears = '', string $periodMonths = ''): DataResponse {
+		$this->reportProjectIds = $this->parseAnnualIdList($projects, true);
 		$this->reportLabeledOnly = false;
 		$this->reportWithoutArea = $withoutArea;
 		try {
@@ -264,7 +288,7 @@ class EntryController extends Controller {
 			if ($year < 1970 || $year > 9999 || !in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true) || !in_array($comparison, ['none', 'month', 'year', 'detail'], true) || !in_array($period, ['year', 'month', 'quarter', 'week', 'day'], true) || ($period === 'month' && ($month < 1 || $month > 12)) || ($period === 'day' && ($month < 0 || $month > 12))) {
 				return $this->errorResponse('Invalid annual overview selection', Http::STATUS_BAD_REQUEST);
 			}
-			if ($comparison === 'detail' && (!in_array($detailType, ['income', 'expense', 'all'], true) || ($detailType === 'all' && $detailId !== 'total') || !preg_match('/^(total|[0-9]+|label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D', $detailId) || !in_array($detailAverageUnit, ['', 'day', 'week', 'month', 'quarter'], true))) {
+			if ($comparison === 'detail' && (!in_array($detailType, ['income', 'expense', 'all'], true) || ($detailType === 'all' && $detailId !== 'total') || (!preg_match('/^(total|[0-9]+|label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D', $detailId) && !ReportLookupService::isKey($detailId)) || !in_array($detailAverageUnit, ['', 'day', 'week', 'month', 'quarter'], true))) {
 				return $this->errorResponse('Invalid report comparison subject', Http::STATUS_BAD_REQUEST);
 			}
 			if ($period !== 'month' && !($period === 'day' && $month >= 1 && $month <= 12)) {
@@ -285,15 +309,23 @@ class EntryController extends Controller {
 			if ($workspaceId === null) {
 				return $this->errorResponse('Workspace not found', Http::STATUS_FORBIDDEN);
 			}
+			$availableYears = $this->annualOverviewYears($workspaceId, $projectId, $now->getTimezone());
+			if ($allTime) {
+				$rangeYears = array_merge($availableYears, [(int)$now->format('Y')]);
+				$dateFrom = min($rangeYears) . '-01-01';
+				$dateTo = max($rangeYears) . '-12-31';
+			}
 			$selectedPeriods = [];
-			if ($dateFrom !== '' || $dateTo !== '') {
+			if ($dateFrom !== '' || $dateTo !== '' || $periodYears !== '' || $periodMonths !== '') {
 				try {
-					$selectedPeriods = $service->periods($dateFrom, $dateTo, $now->getTimezone(), $period);
+					$selectedPeriods = $service->periods($dateFrom, $dateTo, $now->getTimezone(), $period, $periodYears, $periodMonths);
 				} catch (\InvalidArgumentException $error) {
 					return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
 				}
 				$start = $now->setTimestamp($selectedPeriods[0]['dateFrom']);
 				$end = $selectedPeriods[count($selectedPeriods) - 1]['dateTo'];
+				$dateFrom = $start->format('Y-m-d');
+				$dateTo = $now->setTimestamp($end)->format('Y-m-d');
 			} elseif ($monthSpan) {
 				$start = $now->setDate($year, $month, 1)->setTime(0, 0);
 				$end = $start->modify('+1 month')->getTimestamp() - 1;
@@ -307,7 +339,7 @@ class EntryController extends Controller {
 			$cutoff = $includeFuturePayments ? $end : min($end, $now->getTimestamp());
 			$rangeStart = $comparison === 'none' ? $start->getTimestamp() : $start->setDate(1970, 1, 1)->getTimestamp();
 			$narrowing = $this->annualNarrowingForGrouping(
-				$this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters),
+				$this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters, $search),
 				$grouping
 			);
 			// Planned occurrences stay out of "payments up to today". They follow the series head and are not saved yet.
@@ -325,16 +357,17 @@ class EntryController extends Controller {
 			} else {
 				$qb = $this->buildVisibleEntriesQuery($workspaceId);
 				$alias = $grouping === 'categories' ? 'c' : 'p';
-				$qb->select('e.date', 'e.type', $alias . '.id AS group_id', $alias . '.name AS group_name')
+				$qb->select('e.date', 'e.type', $alias . '.id AS group_id', $alias . '.name AS group_name', 'e.project_id', 'lookup_area.name AS project_name')
+					->leftJoin('e', 'cobudget_projects', 'lookup_area', $qb->expr()->eq('e.project_id', 'lookup_area.id'))
 					->selectAlias($qb->createFunction('SUM(e.amount_cents)'), 'amount_cents')
 					->selectAlias($qb->createFunction('COUNT(e.id)'), 'payment_count')
 					->andWhere($qb->expr()->gte('e.date', $qb->createNamedParameter($rangeStart, IQueryBuilder::PARAM_INT)))
 					->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_INT)))
-					->groupBy('e.date', 'e.type', $alias . '.id', $alias . '.name');
+					->groupBy('e.date', 'e.type', $alias . '.id', $alias . '.name', 'e.project_id', 'lookup_area.name');
 				if ($grouping === 'categories') {
 					$qb->leftJoin('c', 'cobudget_categories', 'parent_category', $qb->expr()->eq('c.parent_category_id', 'parent_category.id'))
-						->addSelect('parent_category.id AS parent_id', 'parent_category.name AS parent_name')
-						->addGroupBy('parent_category.id', 'parent_category.name');
+						->addSelect('parent_category.id AS parent_id', 'parent_category.name AS parent_name', 'c.icon AS group_icon', 'parent_category.icon AS parent_icon')
+						->addGroupBy('parent_category.id', 'parent_category.name', 'c.icon', 'parent_category.icon');
 				}
 				if ($projectId !== null) {
 					$qb->andWhere($qb->expr()->eq('e.project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)));
@@ -406,7 +439,7 @@ class EntryController extends Controller {
 				'range' => $selectedPeriods ? ['dateFrom' => $dateFrom, 'dateTo' => $dateTo] : null,
 				'cutoff' => $cutoff,
 				'periods' => $periods,
-				'years' => $this->annualOverviewYears($workspaceId, $projectId, $now->getTimezone()),
+				'years' => $availableYears,
 				'hashtags' => $this->annualHashtagChoices($workspaceId, $projectId, $start->getTimestamp(), $end),
 				'filterChoices' => $this->annualFilterChoices($workspaceId, $projectId, $start->getTimestamp(), $end),
 			]);
@@ -419,7 +452,8 @@ class EntryController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
-	public function reportBreakdown(string $dateFrom = '', string $dateTo = '', string $grouping = 'categories', string $detailType = 'expense', string $detailId = 'total', bool $detailDirect = false, ?int $projectId = null, string $entryScope = 'personal', bool $includeFuturePayments = false, string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', bool $withoutArea = false, string $reportFilters = ''): DataResponse {
+	public function reportBreakdown(string $dateFrom = '', string $dateTo = '', string $grouping = 'categories', string $detailType = 'expense', string $detailId = 'total', bool $detailDirect = false, ?int $projectId = null, string $entryScope = 'personal', bool $includeFuturePayments = false, string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', bool $withoutArea = false, string $reportFilters = '', string $search = '', string $projects = '', string $periodYears = '', string $periodMonths = ''): DataResponse {
+		$this->reportProjectIds = $this->parseAnnualIdList($projects, true);
 		$this->reportLabeledOnly = false;
 		$this->reportWithoutArea = $withoutArea;
 		try {
@@ -427,12 +461,12 @@ class EntryController extends Controller {
 			if (!in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true)
 				|| !in_array($detailType, ['income', 'expense', 'all'], true)
 				|| ($detailType === 'all' && $detailId !== 'total')
-				|| ($detailId !== 'total' && !preg_match($grouping === 'labelsAndTags' ? '/^(label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D' : '/^[0-9]+$/D', $detailId))) {
+				|| ($detailId !== 'total' && !ReportLookupService::isKey($detailId) && !preg_match($grouping === 'labelsAndTags' ? '/^(label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D' : '/^[0-9]+$/D', $detailId))) {
 				return $this->errorResponse('Invalid report breakdown subject', Http::STATUS_BAD_REQUEST);
 			}
 			$now = $this->calendarDate();
 			try {
-				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), 'year');
+				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), 'year', $periodYears, $periodMonths);
 			} catch (\InvalidArgumentException $error) {
 				return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
 			}
@@ -443,9 +477,9 @@ class EntryController extends Controller {
 			$from = $periods[0]['dateFrom'];
 			$to = $periods[count($periods) - 1]['dateTo'];
 			$cutoff = $includeFuturePayments ? $to : min($to, $now->getTimestamp());
-			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters), $grouping);
+			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters, $search), $grouping);
 			$qb = $this->buildVisibleEntriesQuery($workspaceId);
-			$qb->select('e.id', 'e.date', 'e.type', 'e.amount_cents', 'c.id AS category_id', 'c.name AS category_name', 'parent_category.id AS parent_id', 'parent_category.name AS parent_name', 'p.id AS partner_id', 'p.name AS partner_name', 'e.project_id', 'report_project.name AS project_name', 'report_hashtag.id AS hashtag_id', 'report_hashtag.display_name AS hashtag_name')
+			$qb->select('e.id', 'e.date', 'e.type', 'e.amount_cents', 'c.id AS category_id', 'c.name AS category_name', 'c.icon AS category_icon', 'parent_category.id AS parent_id', 'parent_category.name AS parent_name', 'p.id AS partner_id', 'p.name AS partner_name', 'e.project_id', 'report_project.name AS project_name', 'report_hashtag.id AS hashtag_id', 'report_hashtag.display_name AS hashtag_name')
 				->leftJoin('c', 'cobudget_categories', 'parent_category', $qb->expr()->eq('c.parent_category_id', 'parent_category.id'))
 				->leftJoin('e', 'cobudget_projects', 'report_project', $qb->expr()->eq('e.project_id', 'report_project.id'))
 				->leftJoin('e', 'cobudget_entry_hashtags', 'report_entry_tag', $qb->expr()->andX($qb->expr()->eq('report_entry_tag.entry_id', 'e.id'), $qb->expr()->eq('report_entry_tag.workspace_id', 'e.workspace_id')))
@@ -462,7 +496,7 @@ class EntryController extends Controller {
 					while ($row = $result->fetch()) yield $row;
 					yield from $projected;
 				})();
-				return new DataResponse((new ReportBreakdownService())->build($rows, $from, $cutoff, $grouping, $detailType, $detailId, $detailDirect, $this->enabledAnnualLabels()));
+				return new DataResponse((new ReportBreakdownService())->build($rows, $from, $cutoff, $grouping, $detailType, $detailId, $detailDirect, $this->enabledAnnualLabels(), $periods));
 			} finally { $result->closeCursor(); }
 		} catch (\InvalidArgumentException $error) {
 			return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
@@ -473,7 +507,8 @@ class EntryController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
-	public function reportForecast(string $dateFrom = '', string $dateTo = '', string $grouping = 'categories', string $detailType = 'all', string $detailId = 'total', bool $detailDirect = false, ?int $projectId = null, string $entryScope = 'personal', string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', bool $withoutArea = false, string $period = 'year', string $reportFilters = ''): DataResponse {
+	public function reportForecast(string $dateFrom = '', string $dateTo = '', string $grouping = 'categories', string $detailType = 'all', string $detailId = 'total', bool $detailDirect = false, ?int $projectId = null, string $entryScope = 'personal', string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', bool $withoutArea = false, string $period = 'year', string $reportFilters = '', string $search = '', string $projects = '', string $periodYears = '', string $periodMonths = ''): DataResponse {
+		$this->reportProjectIds = $this->parseAnnualIdList($projects, true);
 		$this->reportLabeledOnly = false;
 		$this->reportWithoutArea = $withoutArea;
 		try {
@@ -481,12 +516,12 @@ class EntryController extends Controller {
 			if (!in_array($period, ['year', 'quarter', 'week', 'day'], true) || !in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true)
 				|| !in_array($detailType, ['income', 'expense', 'all'], true)
 				|| ($detailType === 'all' && $detailId !== 'total')
-				|| ($detailId !== 'total' && !preg_match($grouping === 'labelsAndTags' ? '/^(label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D' : '/^[0-9]+$/D', $detailId))) {
+				|| ($detailId !== 'total' && !ReportLookupService::isKey($detailId) && !preg_match($grouping === 'labelsAndTags' ? '/^(label:[a-zA-Z]+|tag:[1-9][0-9]*)$/D' : '/^[0-9]+$/D', $detailId))) {
 				return $this->errorResponse('Invalid report forecast subject', Http::STATUS_BAD_REQUEST);
 			}
 			$now = $this->calendarDate();
 			try {
-				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), $period);
+				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), $period, $periodYears, $periodMonths);
 			} catch (\InvalidArgumentException $error) {
 				return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
 			}
@@ -497,9 +532,9 @@ class EntryController extends Controller {
 			$from = $periods[0]['dateFrom'];
 			$to = $periods[count($periods) - 1]['dateTo'];
 			if ($to < $now->getTimestamp()) return new DataResponse(['status' => 'past']);
-			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters), $grouping);
+			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters, $search), $grouping);
 			$qb = $this->buildVisibleEntriesQuery($workspaceId);
-			$qb->select('e.id', 'e.date', 'e.type', 'e.amount_cents', 'e.project_id', 'e.description', 'e.recurrence_interval', 'e.recurrence_series_id', 'e.recurrence_parent_id', 'c.id AS category_id', 'parent_category.id AS parent_id', 'p.id AS partner_id', 'report_hashtag.id AS hashtag_id', 'report_hashtag.display_name AS hashtag_name')
+			$qb->select('e.id', 'e.date', 'e.type', 'e.amount_cents', 'e.project_id', 'e.description', 'e.recurrence_interval', 'e.recurrence_series_id', 'e.recurrence_parent_id', 'c.id AS category_id', 'c.name AS category_name', 'parent_category.id AS parent_id', 'parent_category.name AS parent_name', 'p.id AS partner_id', 'p.name AS partner_name', 'report_hashtag.id AS hashtag_id', 'report_hashtag.display_name AS hashtag_name')
 				->leftJoin('c', 'cobudget_categories', 'parent_category', $qb->expr()->eq('c.parent_category_id', 'parent_category.id'))
 				->leftJoin('e', 'cobudget_entries', 'forecast_source', $qb->expr()->andX($qb->expr()->eq('forecast_source.id', 'e.source_entry_id'), $qb->expr()->eq('forecast_source.project_id', 'e.project_id')))
 				->addSelect('forecast_source.recurrence_interval AS source_recurrence_interval', 'forecast_source.recurrence_series_id AS source_recurrence_series_id', 'forecast_source.recurrence_parent_id AS source_recurrence_parent_id')
@@ -532,7 +567,8 @@ class EntryController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 120, period: 60)]
-	public function areaOverview(string $dateFrom = '', string $dateTo = '', string $period = 'year', string $amountView = 'personal', string $grouping = 'categories', bool $includeFuturePayments = false, string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = ''): DataResponse {
+	public function areaOverview(string $dateFrom = '', string $dateTo = '', string $period = 'year', string $amountView = 'personal', string $grouping = 'categories', bool $includeFuturePayments = false, string $categories = '', string $partners = '', string $labels = '', string $hashtags = '', string $amountMin = '', string $amountMax = '', string $search = '', string $projects = '', string $periodYears = '', string $periodMonths = ''): DataResponse {
+		$this->reportProjectIds = $this->parseAnnualIdList($projects, true);
 		$this->reportWithoutArea = false;
 		$this->reportLabeledOnly = $grouping === 'labelsAndTags';
 		try {
@@ -540,7 +576,7 @@ class EntryController extends Controller {
 			if (!in_array($amountView, ['personal', 'area'], true) || !in_array($period, ['year', 'quarter', 'week', 'day'], true) || !in_array($grouping, ['categories', 'paymentPartners', 'labelsAndTags'], true)) return $this->errorResponse('Invalid area overview selection', Http::STATUS_BAD_REQUEST);
 			$now = $this->calendarDate();
 			try {
-				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), $period);
+				$periods = (new AnnualOverviewService())->periods($dateFrom, $dateTo, $now->getTimezone(), $period, $periodYears, $periodMonths);
 			} catch (\InvalidArgumentException $error) {
 				return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
 			}
@@ -563,7 +599,7 @@ class EntryController extends Controller {
 			$from = $periods[0]['dateFrom'];
 			$to = $periods[count($periods) - 1]['dateTo'];
 			$cutoff = $includeFuturePayments ? $to : min($to, $now->getTimestamp());
-			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax), $grouping);
+			$narrowing = $this->annualNarrowingForGrouping($this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, '', $search), $grouping);
 			// Resolve cross-workspace tag identities by normalized name. The full
 			// amount view and its detail links must apply the same visible tag filter.
 			$sourceNarrowing = $narrowing;
@@ -685,6 +721,8 @@ class EntryController extends Controller {
 			'e.recurrence_end_date',
 			'e.category_id',
 			'c.name AS category_name',
+			'c.icon AS category_icon',
+			'parent_category.icon AS parent_icon',
 			'parent_category.id AS parent_id',
 			'parent_category.name AS parent_name',
 			'e.payment_partner_id',
@@ -719,13 +757,11 @@ class EntryController extends Controller {
 			return $empty;
 		}
 		$projectNames = [];
-		if ($withPayments) {
-			$projectIds = array_values(array_unique(array_filter(array_column($heads, 'project_id'))));
-			if ($projectIds !== []) {
-				$projects = $this->db->getQueryBuilder();
-				$projects->select('id', 'name')->from('cobudget_projects')->where($projects->expr()->in('id', $projects->createNamedParameter($projectIds, IQueryBuilder::PARAM_INT_ARRAY)));
-				foreach ($this->fetchAnnualAggregate($projects) as $project) $projectNames[(int)$project['id']] = (string)$project['name'];
-			}
+		$projectIds = array_values(array_unique(array_filter(array_column($heads, 'project_id'))));
+		if ($projectIds !== []) {
+			$projects = $this->db->getQueryBuilder();
+			$projects->select('id', 'name')->from('cobudget_projects')->where($projects->expr()->in('id', $projects->createNamedParameter($projectIds, IQueryBuilder::PARAM_INT_ARRAY)));
+			foreach ($this->fetchAnnualAggregate($projects) as $project) $projectNames[(int)$project['id']] = (string)$project['name'];
 		}
 		$tagsByEntry = [];
 		$hasDescriptionTags = [];
@@ -794,10 +830,13 @@ class EntryController extends Controller {
 					'type' => (string)$head['type'],
 					'amount_cents' => $amountCents,
 					'payment_count' => 1,
+					'project_id' => (int)($head['project_id'] ?? 0),
+					'project_name' => $projectNames[(int)($head['project_id'] ?? 0)] ?? '',
 				];
 				if ($withPayments) $empty['payments'][] = $base + $flags + [
 					'id' => 'projected:' . $head['id'] . ':' . $date, 'description' => (string)($head['description'] ?? ''),
 					'category_id' => (int)($head['category_id'] ?? 0), 'category_name' => (string)($head['category_name'] ?? ''),
+					'category_icon' => (string)($head['category_icon'] ?? 'Shape'),
 					'parent_id' => (int)($head['parent_id'] ?? 0), 'parent_name' => (string)($head['parent_name'] ?? ''),
 					'partner_id' => (int)($head['payment_partner_id'] ?? 0), 'partner_name' => (string)($head['partner_name'] ?? ''),
 					'project_id' => (int)($head['project_id'] ?? 0), 'project_name' => $projectNames[(int)($head['project_id'] ?? 0)] ?? '', 'hashtags' => $tags,
@@ -806,6 +845,8 @@ class EntryController extends Controller {
 				$empty['categories'][] = $base + [
 					'group_id' => (int)($head['category_id'] ?? 0),
 					'group_name' => (string)($head['category_name'] ?? ''),
+					'group_icon' => (string)($head['category_icon'] ?? 'Shape'),
+					'parent_icon' => (string)($head['parent_icon'] ?? 'Shape'),
 					'parent_id' => (int)($head['parent_id'] ?? 0),
 					'parent_name' => (string)($head['parent_name'] ?? ''),
 				];
@@ -939,7 +980,7 @@ class EntryController extends Controller {
 	 *
 	 * @return array{categoryIds: list<int>, partnerIds: list<int>, labelKeys: list<string>, labelsRequested: bool, hashtagIds: list<int>, amountMin: ?int, amountMax: ?int}
 	 */
-	private function parseAnnualPaymentNarrowing(string $categories, string $partners, string $labels, string $hashtags, string $amountMin, string $amountMax, string $reportFilters = ''): array {
+	private function parseAnnualPaymentNarrowing(string $categories, string $partners, string $labels, string $hashtags, string $amountMin, string $amountMax, string $reportFilters = '', string $search = ''): array {
 		$min = $this->parseAnnualAmount($amountMin);
 		$max = $this->parseAnnualAmount($amountMax);
 		if ($min !== null && $max !== null && $min > $max) {
@@ -948,14 +989,29 @@ class EntryController extends Controller {
 
 		return [
 			'categoryIds' => $this->parseAnnualIdList($categories, true),
+			'categoryKinds' => array_values(array_intersect(['income', 'expense'], explode(',', $categories))),
 			'partnerIds' => $this->parseAnnualIdList($partners, true),
+			'partnerKinds' => array_values(array_intersect(['income', 'expense'], explode(',', $partners))),
 			'labelKeys' => $this->parseAnnualLabelList($labels),
 			'labelsRequested' => $this->annualListWasRequested($labels),
 			'hashtagIds' => $this->parseAnnualIdList($hashtags, false),
 			'amountMin' => $min,
 			'amountMax' => $max,
 			'reportFilters' => (new ReportScopeService())->parse($reportFilters),
+			'search' => $search,
 		];
+	}
+
+	private function parseExcludedPaymentProjectIds(string $projects): array {
+		$ids = [];
+		foreach (explode(',', $projects) as $part) {
+			if (preg_match('/^except-(\d+)$/D', $part, $match) === 1) {
+				$id = (int)$match[1];
+				$ids[$id] = $id;
+				if (count($ids) >= 500) break;
+			}
+		}
+		return array_values($ids);
 	}
 
 	/** @return list<int> */
@@ -1029,8 +1085,10 @@ class EntryController extends Controller {
 	private function annualNarrowingForGrouping(array $narrowing, string $grouping): array {
 		if ($grouping === 'categories') {
 			$narrowing['categoryIds'] = [];
+			$narrowing['categoryKinds'] = [];
 		} elseif ($grouping === 'paymentPartners') {
 			$narrowing['partnerIds'] = [];
+			$narrowing['partnerKinds'] = [];
 		} elseif ($grouping === 'labelsAndTags') {
 			$narrowing['labelKeys'] = [];
 			$narrowing['labelsRequested'] = false;
@@ -1043,7 +1101,9 @@ class EntryController extends Controller {
 	private function annualNarrowingIsActive(array $narrowing): bool {
 		return ($narrowing['reportFilters'] ?? []) !== []
 			|| ($narrowing['categoryIds'] ?? []) !== []
+			|| ($narrowing['categoryKinds'] ?? []) !== []
 			|| ($narrowing['partnerIds'] ?? []) !== []
+			|| ($narrowing['partnerKinds'] ?? []) !== []
 			|| !empty($narrowing['labelsRequested'])
 			|| ($narrowing['hashtagIds'] ?? []) !== []
 			|| ($narrowing['amountMin'] ?? null) !== null
@@ -1051,17 +1111,17 @@ class EntryController extends Controller {
 	}
 
 	/** @param list<int> $ids */
-	private function applyAnnualIdChoice($qb, array $ids, string $column, string $joinedId): void {
-		if ($ids === []) {
+	private function applyAnnualIdChoice($qb, array $ids, string $column, string $joinedId, ?string $parentColumn = null, array $parts = []): void {
+		if ($ids === [] && $parts === []) {
 			return;
 		}
-		$parts = [];
 		$positive = array_values(array_filter($ids, static fn(int $id): bool => $id > 0));
 		if (in_array(0, $ids, true)) {
 			$parts[] = $qb->expr()->isNull($joinedId);
 		}
 		if ($positive !== []) {
 			$parts[] = $qb->expr()->in($column, $qb->createNamedParameter($positive, IQueryBuilder::PARAM_INT_ARRAY));
+			if ($parentColumn !== null) $parts[] = $qb->expr()->in($parentColumn, $qb->createNamedParameter($positive, IQueryBuilder::PARAM_INT_ARRAY));
 		}
 		if (count($parts) === 1) {
 			$qb->andWhere($parts[0]);
@@ -1076,7 +1136,9 @@ class EntryController extends Controller {
 		foreach ($filters as $filter) {
 			$id = $filter['id'];
 			$dimension = $filter['dimension'];
-			if ($dimension === 'type') {
+			if (in_array($dimension, ['categories', 'paymentPartners'], true) && (str_starts_with($id, 'name:') || str_contains($id, ':area:'))) {
+				$this->applyReportLookupScope($qb, $filter);
+			} elseif ($dimension === 'type') {
 				$qb->andWhere($qb->expr()->eq('e.type', $qb->createNamedParameter($id)));
 			} elseif ($dimension === 'categories') {
 				if ($id === '0') $qb->andWhere($qb->expr()->isNull('c.id'));
@@ -1108,15 +1170,42 @@ class EntryController extends Controller {
 		}
 	}
 
+	/** Resolve display groups from authorized history and series heads, then narrow the original query. */
+	private function applyReportLookupScope($qb, array $filter): void {
+		[$key, $area] = ReportLookupService::split($filter['id']);
+		$lookups = $this->buildVisibleEntriesQuery($this->reportLookupWorkspaceId, true);
+		$category = $filter['dimension'] === 'categories';
+		$alias = $category ? 'c' : 'p';
+		$lookups->selectDistinct($alias . '.id AS group_id')->addSelect($alias . '.name AS group_name');
+		if ($category) $lookups->leftJoin('c', 'cobudget_categories', 'scope_lookup_parent', $lookups->expr()->eq('c.parent_category_id', 'scope_lookup_parent.id'))
+			->addSelect('scope_lookup_parent.id AS parent_id', 'scope_lookup_parent.name AS parent_name');
+		$ids = [];
+		foreach ($this->fetchAnnualAggregate($lookups) as $row) {
+			if (ReportLookupService::matchesAggregate($row, $filter['dimension'], $key, $filter['direct'])) $ids[] = (int)($row['group_id'] ?? 0);
+		}
+		if ($ids === []) $qb->andWhere($qb->expr()->eq('e.id', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+		else $this->applyAnnualIdChoice($qb, array_values(array_unique($ids)), $category ? 'e.category_id' : 'e.payment_partner_id', $alias . '.id');
+		if ($area !== null) $this->applyReportScope($qb, [['dimension' => 'projects', 'id' => (string)$area, 'direct' => true]]);
+	}
+
 	/** @param array{categoryIds?: list<int>, partnerIds?: list<int>, labelKeys?: list<string>, labelsRequested?: bool, hashtagIds?: list<int>, amountMin?: ?int, amountMax?: ?int, reportFilters?: list<array>} $narrowing */
 	private function applyAnnualPaymentNarrowing($qb, array $narrowing): void {
+		$this->applyEntrySearch($qb, $narrowing['search'] ?? '');
 		if ($this->reportLabeledOnly) $qb->andWhere($this->annualQualifyingCondition($qb, $this->enabledAnnualLabels()));
 		if (!$this->annualNarrowingIsActive($narrowing)) {
 			return;
 		}
 		$this->applyReportScope($qb, $narrowing['reportFilters'] ?? []);
-		$this->applyAnnualIdChoice($qb, $narrowing['categoryIds'] ?? [], 'e.category_id', 'c.id');
-		$this->applyAnnualIdChoice($qb, $narrowing['partnerIds'] ?? [], 'e.payment_partner_id', 'p.id');
+		foreach ([
+			['category', 'e.category_id', 'c', $this->includeSubcategories ? 'c.parent_category_id' : null],
+			['partner', 'e.payment_partner_id', 'p', null],
+		] as [$lookup, $column, $alias, $parentColumn]) {
+			$kinds = $narrowing[$lookup . 'Kinds'] ?? [];
+			$parts = $kinds === [] ? [] : [
+				$qb->expr()->in($alias . '.type', $qb->createNamedParameter($kinds, IQueryBuilder::PARAM_STR_ARRAY)),
+			];
+			$this->applyAnnualIdChoice($qb, $narrowing[$lookup . 'Ids'] ?? [], $column, $alias . '.id', $parentColumn, $parts);
+		}
 
 		$enabled = $this->enabledAnnualLabels();
 		$labelKeys = array_values(array_filter(
@@ -1366,7 +1455,7 @@ class EntryController extends Controller {
 			}
 
 			$qb = $this->db->getQueryBuilder();
-			$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.user_id AS source_user_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled')
+			$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.user_id AS source_user_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled', 'source_e.amount_cents AS source_amount_cents')
 				->from('cobudget_entries', 'e')
 				->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
 				->leftJoin('e', 'cobudget_payment_partners', 'p', $qb->expr()->eq('e.payment_partner_id', 'p.id'))
@@ -1427,30 +1516,65 @@ class EntryController extends Controller {
 		string $labels = '',
 		string $hashtags = '',
 		string $amountMin = '',
-		string $amountMax = ''
+		string $amountMax = '',
+		string $projects = '',
+		string $periodYears = '',
+		string $periodMonths = '',
+		bool $clipboard = false,
+		?int $settlementId = null
 	): Response {
+		$this->exportSettlementId = null;
+		$this->exportSettledSharedProject = false;
 		$this->includeFuturePayments = $includeFuturePayments;
 		$this->includeSubcategories = $includeSubcategories;
+		$this->paymentProjectIds = $this->parseAnnualIdList($projects, true);
+		$this->includeAssignedPaymentAreas = in_array('assigned', explode(',', $projects), true);
+		$this->excludedPaymentProjectIds = $this->parseExcludedPaymentProjectIds($projects);
 		$this->paymentNarrowing = $this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax);
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
 			}
+			if ($settlementId !== null) {
+				if ($validationError = $this->validatePositiveId($settlementId)) {
+					return $validationError;
+				}
+				if ($validationError = $this->validatePositiveId((int)$projectId)) {
+					return $validationError;
+				}
+				$entryScope = 'shared';
+				$isSettled = true;
+				$this->includeFuturePayments = true;
+				$this->exportSettlementId = $settlementId;
+			}
+			$this->exportSettledSharedProject = $isSettled === true || $settlementId !== null;
 
+			$this->paymentCalendarRanges = $this->paymentCalendarRanges($periodYears, $periodMonths);
 			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
 			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
 			if ($workspaceId === null) {
 				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
 			}
+			if ($settlementId !== null && !$this->settlementBelongsToProject($settlementId, (int)$projectId, $workspaceId)) {
+				return $this->errorResponse('Settlement not found', Http::STATUS_NOT_FOUND);
+			}
 			$projectShareBasisPoints = $this->projectShareBasisPointsFromProjects($this->fetchDashboardProjects($workspaceId));
-			$entries = $this->fetchEntryRows($workspaceId, self::EXPORT_LIMIT, 0, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints, $isInsurance);
+			$entries = $clipboard
+				? $this->fetchEntryRows($workspaceId, self::CLIPBOARD_EXPORT_LIMIT + 1, 0, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints, $isInsurance)
+				: $this->fetchEntryRows($workspaceId, self::EXPORT_LIMIT, 0, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints, $isInsurance);
+			if ($clipboard && count($entries) > self::CLIPBOARD_EXPORT_LIMIT) {
+				return $this->errorResponse($this->l10n->t('At most %s payments can be copied to the clipboard. Please narrow your filters or export a CSV file.', [(string)self::CLIPBOARD_EXPORT_LIMIT]), Http::STATUS_BAD_REQUEST);
+			}
 			$csv = $this->buildEntriesCsv($entries, $projectShareBasisPoints);
 			$filename = 'cobudget-zahlungen-' . date('Ymd-His') . '.csv';
 
 			return new DataDownloadResponse($csv, $filename, 'text/csv; charset=UTF-8');
 			} catch (\Throwable $e) {
 				return $this->loggedErrorResponse($e);
+			} finally {
+				$this->exportSettlementId = null;
+				$this->exportSettledSharedProject = false;
 			}
 	}
 
@@ -1490,11 +1614,18 @@ class EntryController extends Controller {
 		string $labels = '',
 		string $hashtags = '',
 		string $amountMin = '',
-		string $amountMax = ''
+		string $amountMax = '',
+		string $reportFilters = '',
+		string $projects = '',
+		string $periodYears = '',
+		string $periodMonths = ''
 	): DataResponse {
 		$this->includeFuturePayments = $includeFuturePayments;
 		$this->includeSubcategories = $includeSubcategories;
-		$this->paymentNarrowing = $this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax);
+		$this->paymentProjectIds = $this->parseAnnualIdList($projects, true);
+		$this->includeAssignedPaymentAreas = in_array('assigned', explode(',', $projects), true);
+		$this->excludedPaymentProjectIds = $this->parseExcludedPaymentProjectIds($projects);
+		$this->paymentNarrowing = $this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters);
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
 		$isSummaryOnly = ($summaryOnly === true || $summaryOnly === 'true' || $summaryOnly === 1 || $summaryOnly === '1');
 		try {
@@ -1503,6 +1634,7 @@ class EntryController extends Controller {
 			}
 			[$limit, $offset] = $this->normalizePagination($limit, $offset);
 
+			$this->paymentCalendarRanges = $this->paymentCalendarRanges($periodYears, $periodMonths);
 			$this->entryScope = $this->normalizeEntryScope($entryScope, $projectId);
 			$workspaceId = $this->entryScope === 'shared' ? $this->workspaceIdForEntryScope($projectId) : $this->getWorkspaceId();
 			if ($workspaceId === null) {
@@ -1526,15 +1658,17 @@ class EntryController extends Controller {
 			$calendarNow = $this->calendarDate();
 			$currentYearStart = $calendarNow->setDate((int)$calendarNow->format('Y'), 1, 1)->setTime(0, 0)->getTimestamp();
 			$currentYearData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $currentYearStart, null, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, false, $projectShareBasisPoints, $isInsurance);
-			$futureData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, 'date', 'asc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true, $projectShareBasisPoints, $isInsurance);
+			$futureData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, 'date', 'asc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true, $projectShareBasisPoints, $isInsurance);
 
 			return new DataResponse([
 				'entries' => $main['entries'],
+				'filterAvailability' => $main['filterAvailability'],
 				'total' => $main['total'],
 				'limit' => $main['limit'],
 				'offset' => $main['offset'],
 				'dateGroups' => $main['dateGroups'],
 				'metrics' => $this->buildDashboardMetricsFromAggregates($mainAggregate, $currentYearData, $futureData),
+				'years' => $this->annualOverviewYears($workspaceId, null, $calendarNow->getTimezone()),
 				'tagCounts' => $this->dashboardTagCountsFromAggregates($mainAggregate, $futureData),
 				'lookups' => [
 					'categories' => $this->fetchDashboardCategories($workspaceId),
@@ -1585,7 +1719,22 @@ class EntryController extends Controller {
 		$aggregate = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints, $isInsurance);
 		$entries = $this->fetchEntryRows($workspaceId, $limit, $offset, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $sortBy, $sortDir, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints, $isInsurance);
 
+		// Availability spans every matching payment, not just the current page.
+		// Ignore these two filters themselves so they cannot hide one another.
+		$availabilityQuery = $this->buildVisibleEntriesQuery($workspaceId, $isFuture);
+		$this->applyFilters($availabilityQuery, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, null, null, $hashtagId, $isFuture, $isInsurance);
+		$availabilityQuery->leftJoin('e', 'cobudget_entry_attachments', 'available_attachment', $availabilityQuery->expr()->eq('available_attachment.entry_id', 'e.id'));
+		$availabilityQuery->selectAlias($availabilityQuery->createFunction('MAX(CASE WHEN e.reminder_date IS NOT NULL THEN 1 ELSE 0 END)'), 'has_reminders')
+			->selectAlias($availabilityQuery->createFunction('MAX(CASE WHEN available_attachment.id IS NOT NULL THEN 1 ELSE 0 END)'), 'has_attachments');
+		$availabilityResult = $availabilityQuery->executeQuery();
+		$availability = $availabilityResult->fetch() ?: [];
+		$availabilityResult->closeCursor();
+
 		$payload = [
+			'filterAvailability' => [
+				'hasReminders' => (int)($availability['has_reminders'] ?? 0) > 0,
+				'hasAttachments' => (int)($availability['has_attachments'] ?? 0) > 0,
+			],
 			'entries' => $entries,
 			'total' => $aggregate['count'],
 			'limit' => $limit,
@@ -1834,7 +1983,7 @@ class EntryController extends Controller {
 	}
 
 	private function buildDashboardMetricsFromAggregates(array $main, array $currentYear, array $future): array {
-		$currentMonthMetrics = $currentYear['monthlyMetrics'][$this->calendarDate()->format('Y-m')] ?? $this->zeroDashboardMetrics();
+		$currentMonthMetrics = $main['monthlyMetrics'][$this->calendarDate()->format('Y-m')] ?? $this->zeroDashboardMetrics();
 
 		return [
 			'total' => $main['metrics'],
@@ -1875,7 +2024,18 @@ class EntryController extends Controller {
 			}
 		}
 
-		return $this->divideDashboardMetrics($summary, $this->monthSpanInclusive($first->getTimestamp(), $last->getTimestamp()));
+		$monthCount = $this->monthSpanInclusive($first->getTimestamp(), $last->getTimestamp());
+		if ($this->paymentCalendarRanges !== []) {
+			$monthCount = 0;
+			foreach ($this->paymentCalendarRanges as [$start, $end]) {
+				$from = max($start, $first);
+				$to = min($end, $last->modify('+1 month'));
+				if ($from < $to) {
+					$monthCount += $this->monthSpanInclusive($from->getTimestamp(), $to->modify('-1 second')->getTimestamp());
+				}
+			}
+		}
+		return $this->divideDashboardMetrics($summary, $monthCount);
 	}
 
 	private function dashboardTagCountsFromAggregates(array $main, array $future): array {
@@ -1886,7 +2046,7 @@ class EntryController extends Controller {
 	}
 
 	private function dateGroupTimestamp(array $entry, bool $isFuture): int {
-		if ($isFuture && !empty($entry['recurrence_next_date'])) {
+		if ($isFuture && !empty($entry['recurrence_next_date']) && (int)($entry['date'] ?? 0) <= time()) {
 			return (int)$entry['recurrence_next_date'];
 		}
 
@@ -1899,6 +2059,30 @@ class EntryController extends Controller {
 			'year-' . $date->format('Y'),
 			'month-' . $date->format('Y-m'),
 		];
+	}
+
+	/** @return list<array{0: \DateTimeImmutable, 1: \DateTimeImmutable}> */
+	private function paymentCalendarRanges(string $years, string $months): array {
+		if ($years === '') return [];
+		$years = array_slice(array_values(array_filter($this->parseAnnualIdList($years, false), static fn(int $year): bool => $year >= 1970 && $year <= 9999)), 0, 50);
+		$months = $months === '' ? range(1, 12) : array_filter($this->parseAnnualIdList($months, false), static fn(int $month): bool => $month <= 12);
+		sort($years);
+		sort($months);
+		$ranges = [];
+		$calendar = $this->calendarDate()->setTime(0, 0);
+		foreach ($years as $year) {
+			foreach ($months as $month) {
+				$start = $calendar->setDate($year, $month, 1);
+				$end = $start->modify('+1 month')->setTime(0, 0);
+				$last = count($ranges) - 1;
+				if ($last >= 0 && $ranges[$last][1] == $start) {
+					$ranges[$last][1] = $end;
+				} else {
+					$ranges[] = [$start, $end];
+				}
+			}
+		}
+		return $ranges;
 	}
 
 	private function calendarDate(?int $timestamp = null): \DateTimeImmutable {
@@ -1944,7 +2128,7 @@ class EntryController extends Controller {
 		$qb = $this->buildVisibleEntriesQuery($workspaceId, $isFuture);
 		$qb->leftJoin('e', 'cobudget_entries', 'source_e', $qb->expr()->eq('e.source_entry_id', 'source_e.id'))
 			->leftJoin('e', 'cobudget_projects', 'pr', $qb->expr()->eq('e.project_id', 'pr.id'));
-		$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.user_id AS source_user_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled');
+		$qb->select('e.*', 'c.name AS category_name', 'c.icon AS category_icon', 'p.name AS paymentPartner', 'pr.name AS project_name', 'pr.owner_id AS project_owner_id', 'source_e.user_id AS source_user_id', 'source_e.created_by AS source_created_by', 'source_e.is_settled AS source_is_settled', 'source_e.amount_cents AS source_amount_cents');
 		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $isInsurance);
 		// PostgreSQL needs each selected table's primary key when deduplicating joined rows.
 		$qb->groupBy('e.id')
@@ -1978,9 +2162,8 @@ class EntryController extends Controller {
 
 		if ($isFuture) {
 			foreach ($entries as &$entry) {
-				if (!empty($entry['recurrence_next_date'])) {
-					$entry['date'] = $entry['recurrence_next_date'];
-				}
+				$entry['original_date'] = $entry['date'];
+				$entry['date'] = $this->dateGroupTimestamp($entry, true);
 			}
 		}
 
@@ -2297,6 +2480,7 @@ class EntryController extends Controller {
 	}
 
 	private function buildVisibleEntriesQuery(int $workspaceId, bool $includeSharedFutureSources = false) {
+		$this->reportLookupWorkspaceId = $workspaceId;
 		$qb = $this->db->getQueryBuilder();
 		$qb->from('cobudget_entries', 'e')
 			->leftJoin('e', 'cobudget_categories', 'c', $qb->expr()->eq('e.category_id', 'c.id'))
@@ -2356,16 +2540,39 @@ class EntryController extends Controller {
 		}
 
 		if ($this->reportWithoutArea) $qb->andWhere($qb->expr()->isNull('e.project_id'));
+		$this->applyAnnualIdChoice($qb, $this->reportProjectIds, 'e.project_id', 'e.project_id');
 		return $qb;
 	}
 
 	private function normalizeEntryScope(string $entryScope, ?int $projectId): string {
 		$entryScope = strtolower(trim($entryScope));
 		if ($entryScope === 'shared' && $projectId !== null && $projectId > 0) {
-			return $this->projectUsesSharedEntries($projectId) ? 'shared' : 'personal';
+			if ($this->projectUsesSharedEntries($projectId) || ($this->exportSettledSharedProject && $this->projectVisibleForCurrentUser($projectId) !== null)) {
+				return 'shared';
+			}
 		}
 
 		return 'personal';
+	}
+
+	private function settlementBelongsToProject(int $settlementId, int $projectId, int $workspaceId): bool {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')
+			->from('cobudget_settlements')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($settlementId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT)))
+			->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+			->setMaxResults(1);
+		$result = $qb->executeQuery();
+		$exists = $result->fetchOne() !== false;
+		$result->closeCursor();
+
+		return $exists;
+	}
+
+	private function plannedDateExpression($qb) {
+		$now = $qb->createNamedParameter(time(), \PDO::PARAM_INT);
+		return $qb->createFunction('CASE WHEN e.date > ' . $now . ' THEN e.date ELSE COALESCE(e.recurrence_next_date, e.date) END');
 	}
 
 	private function applyEntryOrdering($qb, string $sortBy, string $sortDir, bool $isFuture): void {
@@ -2378,12 +2585,12 @@ class EntryController extends Controller {
 			} elseif ($sortBy === 'amount') {
 				$qb->orderBy('e.amount_cents', $dir);
 			} elseif ($sortBy === 'date' && $isFuture) {
-				$qb->orderBy($qb->createFunction('COALESCE(e.recurrence_next_date, e.date)'), $dir);
+				$qb->orderBy($this->plannedDateExpression($qb), $dir);
 			} else {
 				$qb->orderBy('e.' . $sortBy, $dir);
 			}
 		} elseif ($isFuture) {
-			$qb->orderBy('e.recurrence_next_date', 'ASC');
+			$qb->orderBy($this->plannedDateExpression($qb), 'ASC');
 		} else {
 			$qb->orderBy('e.date', 'DESC');
 		}
@@ -2667,13 +2874,22 @@ class EntryController extends Controller {
 	}
 
 	private function normalizeEntryRow(array $entry): array {
+		unset($entry['planned_delivery'], $entry['planned_notified']);
 		$entry = $this->normalizeAmountRow($entry);
+		// Expose the job's effective time without rewriting legacy series timestamps.
+		$entry['recurrence_due_date'] = !empty($entry['recurrence_next_date'])
+			? (new \DateTimeImmutable())->setTimestamp((int)$entry['recurrence_next_date'])->setTime(6, 0, 0)->getTimestamp()
+			: null;
 		foreach (['is_subscription', 'is_fixed_cost', 'is_child_related', 'is_important', 'needs_review', 'is_tax_relevant', 'is_insurance', 'is_settled', 'is_locked', 'source_is_settled', 'reminder_notified'] as $key) {
 			if (array_key_exists($key, $entry)) {
 				$entry[$key] = $this->dbBool($entry[$key]);
 			}
 		}
 		$entry['area_is_settled'] = $this->areaIsSettled($entry);
+		// Only open, linked personal shares expose the canonical payment total.
+		$entry['source_amount_cents'] = !empty($entry['is_locked']) && !empty($entry['source_entry_id'])
+			&& !$entry['area_is_settled'] && isset($entry['source_amount_cents'])
+			? (int)$entry['source_amount_cents'] : null;
 
 		if (!empty($entry['user_id'])) {
 			$userId = (string)$entry['user_id'];
@@ -2699,6 +2915,18 @@ class EntryController extends Controller {
 			|| (int)($entry['settled_at'] ?? 0) > 0;
 	}
 
+	private function applyEntrySearch($qb, string $search): void {
+		if ($search !== '') {
+			$searchParam = $qb->createNamedParameter('%' . $search . '%');
+			$qb->andWhere($qb->expr()->orX(
+				$qb->expr()->iLike('e.description', $searchParam),
+				$qb->expr()->iLike('p.name', $searchParam),
+				$qb->expr()->iLike('c.name', $searchParam),
+				$qb->expr()->iLike('c.code', $searchParam)
+			));
+		}
+	}
+
 	private function applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring = null, $isSubscription = null, $isFixedCost = null, $isChildRelated = null, $isImportant = null, $needsReview = null, $isTaxRelevant = null, $hasReminder = null, $hasAttachment = null, ?int $hashtagId = null, $isFuturePayments = false, ?bool $isInsurance = null) {
 		$now = time();
 		if ($isFuturePayments) {
@@ -2717,16 +2945,12 @@ class EntryController extends Controller {
 		if ($isSettled !== null) {
 			$qb->andWhere($qb->expr()->eq('e.is_settled', $qb->createNamedParameter($isSettled, \PDO::PARAM_BOOL)));
 		}
-		
-		if (!empty($search)) {
-			$searchParam = $qb->createNamedParameter('%' . $search . '%');
-			$qb->andWhere($qb->expr()->orX(
-				$qb->expr()->iLike('e.description', $searchParam),
-				$qb->expr()->iLike('p.name', $searchParam),
-				$qb->expr()->iLike('c.name', $searchParam),
-				$qb->expr()->iLike('c.code', $searchParam)
-			));
+
+		if ($this->exportSettlementId !== null) {
+			$qb->andWhere($qb->expr()->eq('e.settlement_id', $qb->createNamedParameter($this->exportSettlementId, \PDO::PARAM_INT)));
 		}
+
+		$this->applyEntrySearch($qb, (string)$search);
 
 		if ($paymentPartnerId !== null) {
 			$qb->andWhere($paymentPartnerId === 0
@@ -2754,8 +2978,18 @@ class EntryController extends Controller {
 		}
 
 		$effectiveDateColumn = $isFuturePayments
-			? $qb->createFunction('COALESCE(e.recurrence_next_date, e.date)')
+			? $this->plannedDateExpression($qb)
 			: 'e.date';
+		if ($this->paymentCalendarRanges !== []) {
+			$ranges = [];
+			foreach ($this->paymentCalendarRanges as [$start, $end]) {
+				$ranges[] = $qb->expr()->andX(
+					$qb->expr()->gte($effectiveDateColumn, $qb->createNamedParameter($start->getTimestamp(), \PDO::PARAM_INT)),
+					$qb->expr()->lt($effectiveDateColumn, $qb->createNamedParameter($end->getTimestamp(), \PDO::PARAM_INT)),
+				);
+			}
+			$qb->andWhere($qb->expr()->orX(...$ranges));
+		}
 		if ($dateFrom !== null) {
 			$qb->andWhere($qb->expr()->gte($effectiveDateColumn, $qb->createNamedParameter($dateFrom, \PDO::PARAM_INT)));
 		}
@@ -2816,6 +3050,17 @@ class EntryController extends Controller {
 			}
 		}
 
+		if ($this->excludedPaymentProjectIds !== []) {
+			$excludedAreas = array_values(array_filter($this->excludedPaymentProjectIds));
+			$excludeUnassigned = in_array(0, $this->excludedPaymentProjectIds, true);
+			if ($excludeUnassigned) $qb->andWhere($qb->expr()->isNotNull('e.project_id'));
+			if ($excludedAreas !== []) {
+				$match = $qb->expr()->notIn('e.project_id', $qb->createNamedParameter($excludedAreas, IQueryBuilder::PARAM_INT_ARRAY));
+				$qb->andWhere($excludeUnassigned ? $match : $qb->expr()->orX($qb->expr()->isNull('e.project_id'), $match));
+			}
+		}
+		$areaParts = $this->includeAssignedPaymentAreas ? [$qb->expr()->isNotNull('e.project_id')] : [];
+		$this->applyAnnualIdChoice($qb, $this->paymentProjectIds, 'e.project_id', 'e.project_id', null, $areaParts);
 		$this->applyAnnualPaymentNarrowing($qb, $this->paymentNarrowing);
 	}
 
@@ -2847,11 +3092,19 @@ class EntryController extends Controller {
 		?string $userId = null,
 		?string $splitMode = null,
 		?string $splitUserId = null,
-		?bool $isInsurance = null
+		?bool $isInsurance = null,
+		?array $reminderDetails = null
 	): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
+			}
+
+			if ($this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_reminders', 'yes') !== 'yes') {
+				$reminderDate = null;
+				$reminderText = null;
+				$reminderNotified = false;
+				$reminderDetails = null;
 			}
 
 			if ($date === 0) {
@@ -2892,8 +3145,14 @@ class EntryController extends Controller {
 				);
 			}
 
+			$reminderLocked = false;
 			$this->db->beginTransaction();
 			try {
+				if ($reminderDetails !== null) {
+					$this->reminderService->lockPaymentEdit((string)$this->userId);
+					$reminderLocked = true;
+					$reminderDraft = $this->reminderService->paymentDraft((string)$this->userId, null, $reminderDetails);
+				}
 				$qb = $this->db->getQueryBuilder();
 				$qb->insert('cobudget_entries')
 				->values([
@@ -2927,6 +3186,7 @@ class EntryController extends Controller {
 					'is_tax_relevant' => $qb->createNamedParameter($isTaxRelevant, \PDO::PARAM_BOOL),
 					'is_insurance' => $qb->createNamedParameter($isInsurance ?? false, \PDO::PARAM_BOOL),
 					'reminder_date' => $qb->createNamedParameter($reminderDate, $reminderDate === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+					'planned_notified' => $qb->createNamedParameter($date <= time(), \PDO::PARAM_BOOL),
 					'reminder_notified' => $qb->createNamedParameter($reminderNotified, \PDO::PARAM_BOOL),
 					'reminder_text' => $qb->createNamedParameter($reminderText, $reminderText === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
 					'recurrence_parent_id' => $qb->createNamedParameter($recurrenceParentId, $recurrenceParentId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
@@ -2940,6 +3200,7 @@ class EntryController extends Controller {
 				if ($recurrenceInterval !== null) {
 					$this->setEntryRecurrenceSeriesId($id, $id, $workspaceId);
 				}
+				if ($reminderDetails !== null) $this->reminderService->savePaymentDetails((string)$this->userId, $id, $reminderDetails, $reminderDraft);
 				if ($entryKind === 'shared') {
 					// File-backed receipt copies are the last mutating step before commit.
 					$this->entryProjectionService->syncSharedEntry($id);
@@ -2948,6 +3209,8 @@ class EntryController extends Controller {
 			} catch (\Throwable $e) {
 				$this->db->rollBack();
 				throw $e;
+			} finally {
+				if ($reminderLocked) $this->reminderService->unlockPaymentEdit((string)$this->userId);
 			}
 			if ($entryKind === 'shared') {
 				try {
@@ -2974,6 +3237,8 @@ class EntryController extends Controller {
 
 			return new DataResponse(['id' => $id, 'status' => 'success']);
 		} catch (\Throwable $e) {
+			if ($reminderDetails !== null && $e instanceof \DomainException) return $this->errorResponse($this->l10n->t('The reminder has changed or already exists. Reload the overview.'), 409);
+			if ($reminderDetails !== null && $e instanceof \InvalidArgumentException) return $this->errorResponse($this->l10n->t('Check the reminder fields. To reactivate, choose a future reminder time.'), 400);
 			return $this->loggedErrorResponse($e);
 		}
 	}
@@ -3006,7 +3271,8 @@ class EntryController extends Controller {
 		?string $userId = null,
 		?string $splitMode = null,
 		?string $splitUserId = null,
-		?bool $isInsurance = null
+		?bool $isInsurance = null,
+		?array $reminderDetails = null
 	): DataResponse {
 			try {
 				if ($error = $this->authErrorResponse()) {
@@ -3026,6 +3292,14 @@ class EntryController extends Controller {
 			}
 			if (!empty($entry['is_locked'])) {
 				return $this->errorResponse('This personal payment is controlled by an open shared payment.', Http::STATUS_CONFLICT);
+			}
+			// Hiding reminders must not clear or reschedule existing reminders when editing payments.
+			$remindersEnabled = $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_reminders', 'yes') === 'yes';
+			if (!$remindersEnabled) {
+				$reminderDate = isset($entry['reminder_date']) ? (int)$entry['reminder_date'] : null;
+				$reminderText = $entry['reminder_text'];
+				$reminderNotified = (bool)$entry['reminder_notified'];
+				$reminderDetails = null;
 			}
 			$currentWorkspaceId = (int)$entry['workspace_id'];
 			$oldEntryKind = (string)($entry['entry_kind'] ?? (empty($entry['project_id']) ? 'personal' : 'shared'));
@@ -3126,8 +3400,14 @@ class EntryController extends Controller {
 			$updatedEntry['reminder_notified'] = $reminderNotified;
 			$updatedEntry['reminder_text'] = $reminderText;
 
+			$reminderLocked = false;
 			$this->db->beginTransaction();
 			try {
+				if ($reminderDetails !== null) {
+					$this->reminderService->lockPaymentEdit((string)$this->userId);
+					$reminderLocked = true;
+					$reminderDraft = $this->reminderService->paymentDraft((string)$this->userId, $id, $reminderDetails);
+				}
 				$projectionEntriesBefore = $oldEntryKind === 'shared'
 					? $this->entryProjectionService->personalEntriesForSource($id)
 					: [];
@@ -3159,11 +3439,15 @@ class EntryController extends Controller {
 				->set('needs_review', $qb->createNamedParameter($needsReview, \PDO::PARAM_BOOL))
 				->set('is_tax_relevant', $qb->createNamedParameter($isTaxRelevant, \PDO::PARAM_BOOL))
 				->set('is_insurance', $qb->createNamedParameter($isInsurance ?? false, \PDO::PARAM_BOOL))
-				->set('reminder_date', $qb->createNamedParameter($reminderDate, $reminderDate === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT))
-				->set('reminder_notified', $qb->createNamedParameter($reminderNotified, \PDO::PARAM_BOOL))
-				->set('reminder_text', $qb->createNamedParameter($reminderText, $reminderText === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR))
+				->set('planned_notified', $qb->createNamedParameter(($date > time() && $date !== (int)$entry['date'] && empty($entry['planned_delivery'])) ? false : (bool)($entry['planned_notified'] ?? true), \PDO::PARAM_BOOL))
 				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
 				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($currentWorkspaceId, \PDO::PARAM_INT)));
+				if ($remindersEnabled) {
+					$qb
+						->set('reminder_date', $qb->createNamedParameter($reminderDate, $reminderDate === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT))
+						->set('reminder_notified', $qb->createNamedParameter($reminderNotified, \PDO::PARAM_BOOL))
+						->set('reminder_text', $qb->createNamedParameter($reminderText, $reminderText === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR));
+				}
 				$qb->executeStatement();
 				if ($targetEntryKind !== 'shared' && $oldEntryKind === 'shared') {
 					throw new \RuntimeException('Shared payments cannot be converted to personal payments.');
@@ -3174,6 +3458,7 @@ class EntryController extends Controller {
 				if ($recurrenceInterval !== null) {
 					$this->setEntryRecurrenceSeriesId($id, empty($entry['recurrence_series_id']) ? $id : (int)$entry['recurrence_series_id'], $workspaceId);
 				}
+				if ($reminderDetails !== null) $this->reminderService->savePaymentDetails((string)$this->userId, $id, $reminderDetails, $reminderDraft);
 				if ($targetEntryKind === 'shared') {
 					// Keep physical receipt projection after all rollback-capable metadata work.
 					$this->entryProjectionService->syncSharedEntry($id);
@@ -3187,11 +3472,15 @@ class EntryController extends Controller {
 			} catch (\Throwable $e) {
 				$this->db->rollBack();
 				throw $e;
+			} finally {
+				if ($reminderLocked) $this->reminderService->unlockPaymentEdit((string)$this->userId);
 			}
 			$this->dataChangeService->publishForEntryChange($entry, $updatedEntry, ['entries', 'projects', 'analytics', 'budgets']);
 
 				return new DataResponse(['status' => 'success']);
 			} catch (\Throwable $e) {
+			if ($reminderDetails !== null && $e instanceof \DomainException) return $this->errorResponse($this->l10n->t('The reminder has changed or already exists. Reload the overview.'), 409);
+			if ($reminderDetails !== null && $e instanceof \InvalidArgumentException) return $this->errorResponse($this->l10n->t('Check the reminder fields. To reactivate, choose a future reminder time.'), 400);
 			return $this->loggedErrorResponse($e);
 		}
 	}

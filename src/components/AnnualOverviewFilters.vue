@@ -1,127 +1,175 @@
 <template>
-	<div class="annual-filter-cluster">
-		<ul v-if="chips.length" class="annual-filter-chips">
-			<li v-for="chip in chips" :key="chip.key" class="annual-filter-chip">
-				<span class="annual-filter-chip-label">{{ chip.label }}</span>
-				<button type="button" class="annual-filter-remove" :aria-label="$texts.annual.removeFilter()" :title="$texts.annual.removeFilter()" @click="$emit('clear', chip.key)">
-					<CloseIcon :size="18" />
-				</button>
-			</li>
-		</ul>
-		<NcPopover class="annual-filter-popover" placement="bottom-start" @update:shown="onPopoverShown" @after-show="scheduleFit">
+	<div v-if="sectionAvailable && (!chipsOnly || chips.length)" class="annual-filter-cluster" :class="{ 'annual-filter-cluster--chips': chipsOnly }">
+		<div v-if="!hideChips && !section && chips.length" class="annual-filter-chips">
+			<NcChip v-for="chip in chips" :key="chip.key" class="cobudget-filter-chip" :text="chip.label" :title="chip.label" :icon-path="filterChipIcon(chip.key === 'labels' && normalized.labels.length === 1 ? `label:${normalized.labels[0]}` : chip.key)"
+				:aria-label-close="$texts.annual.removeFilter()" @close="$emit('clear', chip.key)" />
+		</div>
+		<AnchoredPopover v-if="!chipsOnly" class="annual-filter-popover" placement="bottom-end" :set-return-focus="returnTrigger" @update:shown="onPopoverShown" @after-show="focusPanel">
 			<template #trigger>
 				<span ref="trigger" class="annual-filter-trigger">
-					<NcButton variant="tertiary" class="cobudget-toolbar-icon-button" :class="{ 'is-active': chips.length }" :aria-label="$texts.annual.filterPayments()" :title="$texts.annual.filterPayments()">
-						<template #icon><FilterVariantIcon :size="20" /></template>
+					<NcButton variant="tertiary" class="annual-filter-button cobudget-filter-control" :class="{ 'cobudget-filter-active': triggerActive }" :aria-description="triggerActive ? $texts.filters.active() : undefined" :aria-label="triggerLabel" :title="triggerLabel">
+						<span v-if="section" class="annual-filter-shortcut-caption"><component :is="sectionIcon" :size="20" aria-hidden="true" />{{ triggerLabel }}<ChevronDownIcon :size="18" /></span>
+						<template v-if="!section" #icon><FilterVariantIcon :size="20" /></template>
+						<span v-if="!section" class="annual-filter-caption">{{ $texts.filters.filter() }}</span>
 					</NcButton>
 				</span>
 			</template>
-			<div ref="panel" class="annual-filter-panel" :style="panelStyle">
-				<section v-if="sections.categories && categoryOptions.length" class="annual-filter-section">
-					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'categories' }" :aria-expanded="open.categories" @mousedown.prevent @mouseleave="clearQuiet('categories')" @click="toggleSection('categories', $event)">
+			<div ref="panel" class="annual-filter-panel" :class="{ 'annual-filter-panel--submenu': activeSubmenu }" :style="panelStyle" @keydown.esc="onEscape" @keyup.esc="onEscapeKeyup">
+				<NcButton v-if="activeSubmenu && !section" ref="back" variant="tertiary" wide alignment="start" class="annual-filter-back"
+					:aria-label="$texts.filters.backToFilters()" @click="backToFilters">
+					<template #icon><ArrowLeftIcon :size="20" /></template>{{ submenuTitle }}
+				</NcButton>
+				<NcInputField ref="search" v-show="!activeSubmenu" v-model="searchText" type="search" class="annual-filter-search cobudget-native-field" :label="$texts.filters.search()" @update:model-value="scheduleSearch" @keydown.enter.prevent="applySearch" @blur="applySearch" />
+				<section v-show="!activeSubmenu || activeSubmenu === 'period'" class="annual-filter-section">
+					<NcButton v-show="!activeSubmenu" ref="periodTrigger" variant="tertiary" wide alignment="start" class="annual-filter-toggle cobudget-filter-disclosure"
+						:aria-description="periodActive ? $texts.filters.active() : undefined" :aria-expanded="activeSubmenu === 'period'" @click="toggleSection('period')">
+						<CalendarOutlineIcon :size="20" aria-hidden="true" />
+						<span class="annual-filter-heading">{{ $texts.analytics.period() }}</span>
+						<span v-if="periodActive" class="cobudget-filter-dot" aria-hidden="true" />
+						<ChevronRightIcon :size="18" />
+					</NcButton>
+					<ReportPeriodPicker v-if="activeSubmenu === 'period'" inline calendar-multiple report-calendar-selection :selection="selection" :years="years"
+						:label="$texts.analytics.period()" @change="applyPeriod" />
+				</section>
+				<section v-if="areaOptions.length" v-show="!activeSubmenu || activeSubmenu === 'areas'" class="annual-filter-section">
+					<NcButton v-show="!activeSubmenu" ref="areasTrigger" variant="tertiary" wide alignment="start" class="annual-filter-toggle cobudget-filter-disclosure"
+						:aria-description="activeSections.areas ? $texts.filters.active() : undefined" :aria-expanded="activeSubmenu === 'areas'" @click="toggleSection('areas')">
+						<FolderIcon :size="20" aria-hidden="true" /><span class="annual-filter-heading">{{ $texts.analytics.areas() }}</span>
+						<span v-if="activeSections.areas" class="cobudget-filter-dot" aria-hidden="true" /><ChevronRightIcon :size="18" />
+					</NcButton>
+					<div v-show="activeSubmenu === 'areas'" class="annual-filter-body">
+						<div class="annual-filter-options">
+							<NcFormBoxSwitch v-for="option in areaOptions" :key="String(option.value)" class="annual-filter-option"
+								:model-value="option.value === null ? !areaIds.length : areaIds.includes(option.value)" @update:model-value="toggleArea(option.value)">
+								<span class="annual-filter-category"><AreaIcon v-if="option.icon" :without-area="option.icon === 'without-area'" :color="option.color" aria-hidden="true" /><span>{{ option.label }}</span></span>
+							</NcFormBoxSwitch>
+						</div>
+						<ReportSelect v-if="showAmountScope" :model-value="selection.entryScope" :label="$texts.annual.amountScope()"
+							:options="[{ value: 'personal', label: $texts.annual.personalShare() }, { value: 'shared', label: $texts.annual.wholeArea() }]" @update:model-value="$emit('scope-change', $event)" />
+					</div>
+				</section>
+				<section v-if="sections.categories && categoryOptions.length" class="annual-filter-section" v-show="!activeSubmenu || activeSubmenu === 'categories'">
+					<NcButton v-show="!activeSubmenu" ref="categoriesTrigger" variant="tertiary" wide alignment="start" class="annual-filter-toggle cobudget-filter-disclosure" :aria-description="activeSections.categories ? $texts.filters.active() : undefined" :aria-expanded="activeSubmenu === 'categories'" @click="toggleSection('categories')">
+						<ShapeOutlineIcon :size="20" aria-hidden="true" />
 						<span class="annual-filter-heading">{{ $texts.analytics.category() }}</span>
-						<ChevronUpIcon v-if="open.categories" :size="18" /><ChevronDownIcon v-else :size="18" />
-					</button>
-					<div v-show="open.categories" class="annual-filter-body">
-						<input v-if="categoryOptions.length > 8" v-model="categoryQuery" type="search" class="annual-filter-search" :aria-label="$texts.filters.search()" :placeholder="$texts.filters.search()">
-						<div class="annual-filter-options">
-							<label v-for="option in visibleCategories" :key="option.id" class="annual-filter-option" :class="{ child: option.child }">
-								<input type="checkbox" :checked="normalized.categories.includes(option.id)" @change="toggle('categories', option.id)">
-								<span v-if="showKind(option)" class="annual-filter-kind" :class="`is-${option.type}`" :title="kindLabel(option.type)">
-									<svg class="annual-filter-kind-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path :d="option.type === 'income' ? 'M4 8h8M8 4v8' : 'M4 8h8'" /></svg>
-									<span class="visually-hidden">{{ kindLabel(option.type) }}</span>
-								</span>
-								<span>{{ option.label }}</span>
-							</label>
-						</div>
-					</div>
+						<span v-if="activeSections.categories" class="cobudget-filter-dot" aria-hidden="true" />
+						<ChevronRightIcon :size="18" />
+					</NcButton>
+					<PaymentFilterSelect v-show="activeSubmenu === 'categories'" :open="activeSubmenu === 'categories'" :show-back="false" multiple
+						:model-value="normalized.categories" :options="categoryChoices" :label="$texts.analytics.category()"
+						:group-kinds="$enableIncomes !== false ? ['income', 'expense'] : ['expense']" :group-labels="categoryGroupLabels"
+						:group-disclosure-label="$texts.filters.chooseCategories()" @update:model-value="setSelection('categories', $event)" />
 				</section>
-				<section v-if="sections.partners && partnerOptions.length" class="annual-filter-section">
-					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'partners' }" :aria-expanded="open.partners" @mousedown.prevent @mouseleave="clearQuiet('partners')" @click="toggleSection('partners', $event)">
+				<section v-if="sections.partners && partnerOptions.length" class="annual-filter-section" v-show="!activeSubmenu || activeSubmenu === 'partners'">
+					<NcButton v-show="!activeSubmenu" ref="partnersTrigger" variant="tertiary" wide alignment="start" class="annual-filter-toggle cobudget-filter-disclosure" :aria-description="activeSections.partners ? $texts.filters.active() : undefined" :aria-expanded="activeSubmenu === 'partners'" @click="toggleSection('partners')">
+						<AccountOutlineIcon :size="20" aria-hidden="true" />
 						<span class="annual-filter-heading">{{ $texts.analytics.paymentPartner() }}</span>
-						<ChevronUpIcon v-if="open.partners" :size="18" /><ChevronDownIcon v-else :size="18" />
-					</button>
-					<div v-show="open.partners" class="annual-filter-body">
-						<input v-if="partnerOptions.length > 8" v-model="partnerQuery" type="search" class="annual-filter-search" :aria-label="$texts.filters.search()" :placeholder="$texts.filters.search()">
-						<div class="annual-filter-options">
-							<label v-for="option in visiblePartners" :key="option.id" class="annual-filter-option">
-								<input type="checkbox" :checked="normalized.partners.includes(option.id)" @change="toggle('partners', option.id)">
-								<span v-if="showKind(option)" class="annual-filter-kind" :class="`is-${option.type}`" :title="kindLabel(option.type)">
-									<svg class="annual-filter-kind-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path :d="option.type === 'income' ? 'M4 8h8M8 4v8' : 'M4 8h8'" /></svg>
-									<span class="visually-hidden">{{ kindLabel(option.type) }}</span>
-								</span>
-								<span>{{ option.label }}</span>
-							</label>
-						</div>
-					</div>
+						<span v-if="activeSections.partners" class="cobudget-filter-dot" aria-hidden="true" />
+						<ChevronRightIcon :size="18" />
+					</NcButton>
+					<PaymentFilterSelect v-show="activeSubmenu === 'partners'" :open="activeSubmenu === 'partners'" :show-back="false" multiple
+						:model-value="normalized.partners" :options="partnerChoices" :label="$texts.analytics.paymentPartner()"
+						:group-kinds="$enableIncomes !== false ? ['income', 'expense'] : ['expense']" :group-labels="partnerGroupLabels"
+						:group-disclosure-label="$texts.filters.choosePaymentPartners()" @update:model-value="setSelection('partners', $event)" />
 				</section>
-				<section class="annual-filter-section">
-					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'amount' }" :aria-expanded="open.amount" @mousedown.prevent @mouseleave="clearQuiet('amount')" @click="toggleSection('amount', $event)">
-						<span class="annual-filter-heading">{{ $texts.entry.amount() }}</span>
-						<ChevronUpIcon v-if="open.amount" :size="18" /><ChevronDownIcon v-else :size="18" />
-					</button>
-					<div v-show="open.amount" class="annual-filter-body">
-						<div class="annual-filter-amounts">
-							<label>
-								<span>{{ $texts.annual.atLeast() }}</span>
-								<input ref="amountMin" v-model="amountMinText" type="text" inputmode="decimal" @input="scheduleAmount">
-							</label>
-							<label>
-								<span>{{ $texts.annual.atMost() }}</span>
-								<input ref="amountMax" v-model="amountMaxText" type="text" inputmode="decimal" @input="scheduleAmount">
-							</label>
-						</div>
-					</div>
-				</section>
-				<section v-if="sections.labels && labelOptions.length" class="annual-filter-section">
-					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'labels' }" :aria-expanded="open.labels" @mousedown.prevent @mouseleave="clearQuiet('labels')" @click="toggleSection('labels', $event)">
+				<section v-if="sections.labels && labelOptions.length" class="annual-filter-section" v-show="!activeSubmenu || activeSubmenu === 'labels'">
+					<NcButton v-show="!activeSubmenu" ref="labelsTrigger" variant="tertiary" wide alignment="start" class="annual-filter-toggle cobudget-filter-disclosure" :aria-description="activeSections.labels ? $texts.filters.active() : undefined" :aria-expanded="activeSubmenu === 'labels'" @click="toggleSection('labels')">
+						<TagOutlineIcon :size="20" aria-hidden="true" />
 						<span class="annual-filter-heading">{{ $texts.analytics.labels() }}</span>
-						<ChevronUpIcon v-if="open.labels" :size="18" /><ChevronDownIcon v-else :size="18" />
-					</button>
-					<div v-show="open.labels" class="annual-filter-body">
-						<div class="annual-filter-options">
-							<label v-for="option in labelOptions" :key="option.key" class="annual-filter-option">
-								<input type="checkbox" :checked="normalized.labels.includes(option.key)" @change="toggle('labels', option.key)">
-								<span>{{ option.label }}</span>
-							</label>
-						</div>
-					</div>
+						<span v-if="activeSections.labels" class="cobudget-filter-dot" aria-hidden="true" />
+						<ChevronRightIcon :size="18" />
+					</NcButton>
+					<PaymentFilterSelect v-show="activeSubmenu === 'labels'" :open="activeSubmenu === 'labels'" :show-back="false" multiple native-switches
+						:model-value="normalized.labels" :options="labelChoices" :label="$texts.analytics.labels()"
+						@update:model-value="setSelection('labels', $event)" />
 				</section>
-				<section v-if="sections.hashtags && hashtagOptions.length" class="annual-filter-section">
-					<button type="button" class="annual-filter-toggle" :class="{ 'is-quiet': quiet === 'hashtags' }" :aria-expanded="open.hashtags" @mousedown.prevent @mouseleave="clearQuiet('hashtags')" @click="toggleSection('hashtags', $event)">
+				<section v-if="sections.hashtags && hashtagOptions.length" class="annual-filter-section" v-show="!activeSubmenu || activeSubmenu === 'hashtags'">
+					<NcButton v-show="!activeSubmenu" ref="hashtagsTrigger" variant="tertiary" wide alignment="start" class="annual-filter-toggle cobudget-filter-disclosure" :aria-description="activeSections.hashtags ? $texts.filters.active() : undefined" :aria-expanded="activeSubmenu === 'hashtags'" @click="toggleSection('hashtags')">
+						<PoundIcon :size="20" aria-hidden="true" />
 						<span class="annual-filter-heading">{{ $texts.annual.tags() }}</span>
-						<ChevronUpIcon v-if="open.hashtags" :size="18" /><ChevronDownIcon v-else :size="18" />
-					</button>
-					<div v-show="open.hashtags" class="annual-filter-body">
-						<input v-if="hashtagOptions.length > 8" v-model="hashtagQuery" type="search" class="annual-filter-search" :aria-label="$texts.filters.search()" :placeholder="$texts.filters.search()">
+						<span v-if="activeSections.hashtags" class="cobudget-filter-dot" aria-hidden="true" />
+						<ChevronRightIcon :size="18" />
+					</NcButton>
+					<div v-show="activeSubmenu === 'hashtags'" class="annual-filter-body">
+						<NcInputField v-if="hashtagOptions.length > 8" v-model="hashtagQuery" type="search" class="annual-filter-search cobudget-native-field" :label="$texts.filters.search()" />
 						<div class="annual-filter-options">
-							<label v-for="option in visibleHashtags" :key="option.id" class="annual-filter-option">
-								<input type="checkbox" :checked="normalized.hashtags.includes(option.id)" @change="toggle('hashtags', option.id)">
+							<NcFormBoxSwitch v-for="option in visibleHashtags" :key="option.id" class="annual-filter-option" :model-value="normalized.hashtags.includes(option.id)" @update:model-value="toggle('hashtags', option.id)">
 								<span>{{ option.label }}</span>
-							</label>
+							</NcFormBoxSwitch>
 						</div>
 					</div>
 				</section>
+				<section v-if="!activeSubmenu" class="annual-filter-section">
+					<NcButton variant="tertiary" wide alignment="start" class="annual-filter-toggle cobudget-filter-disclosure"
+						:aria-description="activeSections.amount ? $texts.filters.active() : undefined" :aria-expanded="amountOpen" @click="toggleAmount">
+						<CashIcon :size="20" aria-hidden="true" />
+						<span class="annual-filter-heading">{{ $texts.entry.tableAmount($currency) }}</span>
+						<span v-if="activeSections.amount" class="cobudget-filter-dot" aria-hidden="true" />
+						<ChevronDownIcon :size="18" :class="{ 'annual-filter-chevron--expanded': amountOpen }" />
+					</NcButton>
+					<form v-if="amountOpen" ref="amountForm" class="annual-filter-amount-form" @submit.prevent="applyAmount">
+						<div class="annual-filter-amounts cobudget-filter-bounds">
+							<div>
+								<label class="cobudget-filter-field-label" :for="`${amountFieldId}-from`">{{ $texts.filters.amountFrom() }}</label>
+								<NcInputField :id="`${amountFieldId}-from`" ref="amountMin" v-model="amountMinText" inputmode="decimal" label-outside class="cobudget-native-field" :error="amountError" />
+							</div>
+							<div>
+								<label class="cobudget-filter-field-label" :for="`${amountFieldId}-to`">{{ $texts.filters.amountTo() }}</label>
+								<NcInputField :id="`${amountFieldId}-to`" ref="amountMax" v-model="amountMaxText" inputmode="decimal" label-outside class="cobudget-native-field" :error="amountError" />
+							</div>
+						</div>
+						<p v-if="amountError" class="annual-filter-amount-error" role="alert">{{ $texts.filters.invalidAmountRange() }}</p>
+						<NcButton type="submit" variant="primary">{{ $texts.filters.applyAmount() }}</NcButton>
+					</form>
+				</section>
+				<div v-if="!activeSubmenu && hasResettableFilters" class="annual-filter-actions">
+					<NcButton variant="tertiary" @click="resetFilters">{{ $texts.filters.clearFilters() }}</NcButton>
+				</div>
 			</div>
-		</NcPopover>
+		</AnchoredPopover>
 	</div>
 </template>
 
 <script>
-import NcButton from '@nextcloud/vue/components/NcButton'
-import NcPopover from '@nextcloud/vue/components/NcPopover'
+import { useId } from 'vue'
+import ReportPeriodPicker from './ReportPeriodPicker.vue'
+import CalendarOutlineIcon from 'vue-material-design-icons/CalendarOutline.vue'
+import ShapeOutlineIcon from 'vue-material-design-icons/ShapeOutline.vue'
+import AccountOutlineIcon from 'vue-material-design-icons/AccountOutline.vue'
+import TagOutlineIcon from 'vue-material-design-icons/TagOutline.vue'
+import PoundIcon from 'vue-material-design-icons/Pound.vue'
+import CashIcon from 'vue-material-design-icons/Cash.vue'
 import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
-import ChevronUpIcon from 'vue-material-design-icons/ChevronUp.vue'
-import CloseIcon from 'vue-material-design-icons/Close.vue'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import AnchoredPopover from './AnchoredPopover.vue'
+import AreaIcon from './AreaIcon.vue'
+import FolderIcon from 'vue-material-design-icons/Folder.vue'
+import ReportSelect from './ReportSelect.vue'
+import PaymentFilterSelect from './PaymentFilterSelect.vue'
+import ChevronRightIcon from 'vue-material-design-icons/ChevronRight.vue'
+import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
+import { filterChipIcon } from '../services/filterChipIcons'
+import NcChip from '@nextcloud/vue/components/NcChip'
+import NcInputField from '@nextcloud/vue/components/NcInputField'
+import NcFormBoxSwitch from '@nextcloud/vue/components/NcFormBoxSwitch'
 import FilterVariantIcon from 'vue-material-design-icons/FilterVariant.vue'
 import { annualFilterChips, annualFilterPanelMaxHeight, annualFilterSections, annualSelection, formatAnnualAmountParam, parseAnnualAmountInput } from '../services/annualOverview'
-import { categoryChoiceLabel, categoryParentId, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
+import { categoryChoiceLabel, categoryPathLabel, categoryParentId, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 
 export default {
 	name: 'AnnualOverviewFilters',
-	components: { NcButton, NcPopover, ChevronDownIcon, ChevronUpIcon, CloseIcon, FilterVariantIcon },
+	setup() { return { amountFieldId: useId() } },
+	components: { ReportPeriodPicker, CalendarOutlineIcon, ShapeOutlineIcon, AccountOutlineIcon, TagOutlineIcon, PoundIcon, CashIcon, ChevronDownIcon, NcButton, AnchoredPopover, AreaIcon, FolderIcon, ReportSelect, PaymentFilterSelect, ChevronRightIcon, ArrowLeftIcon, NcChip, NcInputField, NcFormBoxSwitch, FilterVariantIcon },
 	props: {
+		section: { type: String, default: '' },
+		chipsOnly: { type: Boolean, default: false },
+		hideChips: { type: Boolean, default: false },
+		areaOptions: { type: Array, default: () => [] },
+		areaIds: { type: Array, default: () => [] },
+		showAmountScope: { type: Boolean, default: false },
 		selection: { type: Object, required: true },
+		years: { type: Array, default: () => [] },
+		periodLabel: { type: String, default: '' },
 		categories: { type: Array, default: () => [] },
 		partners: { type: Array, default: () => [] },
 		hashtags: { type: Array, default: () => [] },
@@ -129,42 +177,84 @@ export default {
 		partnerIds: { type: Array, default: () => [] },
 		labelKeys: { type: Array, default: () => [] },
 	},
-	emits: ['change', 'clear'],
+	emits: ['change', 'clear', 'reset', 'period-change', 'areas-change', 'scope-change'],
 	data() {
 		return {
-			categoryQuery: '',
-			partnerQuery: '',
+			searchText: this.selection.search || '',
+			searchTimer: null,
 			hashtagQuery: '',
 			amountMinText: '',
 			amountMaxText: '',
-			amountTimer: null,
+			amountOpen: false,
+			amountError: false,
 			disposed: false,
-			quiet: '',
 			popoverShown: false,
 			panelMaxHeight: '',
 			viewportBound: false,
 			fitFrame: 0,
 			fitPasses: 0,
-			open: { categories: false, partners: false, amount: false, labels: false, hashtags: false },
+			activeSubmenu: null,
+			consumedEscape: false,
 		}
 	},
 	computed: {
+		sectionAvailable() {
+			if (!this.section) return true
+			if (this.section === 'areas') return this.areaOptions.length > 0
+			return Boolean(this.sections[this.section] && { categories: this.categoryOptions, partners: this.partnerOptions, labels: this.labelOptions }[this.section]?.length)
+		},
+		triggerActive() { return this.section ? this.activeSections[this.section] : this.chips.length > 0 || this.periodActive || this.activeSections.areas },
+		triggerLabel() { return this.section ? this.sectionTitle(this.section) : this.$texts.annual.filterPayments() },
+		sectionIcon() { return { areas: 'FolderIcon', categories: 'ShapeOutlineIcon', partners: 'AccountOutlineIcon', labels: 'TagOutlineIcon' }[this.section] },
+		hasResettableFilters() {
+			return this.chips.some(chip => !['areas', 'period'].includes(chip.key)) || Boolean(this.normalized.reportFilters || this.normalized.withoutArea)
+				|| Boolean(this.searchText.trim() || this.amountMinText || this.amountMaxText)
+		},
+		periodActive() {
+			const current = annualSelection({ timeRange: 'current-year' })
+			const { timeRange, year, dateFrom, dateTo } = this.normalized
+			if (timeRange === 'calendar-selection') return this.normalized.periodYears.length !== 1 || this.normalized.periodYears[0] !== current.year || this.normalized.periodMonths.length > 0
+			return timeRange ? dateFrom !== current.dateFrom || dateTo !== current.dateTo : year !== current.year
+		},
+		activeSections() {
+			return {
+				areas: this.areaIds.length > 0,
+				categories: this.normalized.categories.length > 0,
+				partners: this.normalized.partners.length > 0,
+				amount: this.normalized.amountMin !== null || this.normalized.amountMax !== null,
+				labels: this.normalized.labels.length > 0,
+				hashtags: this.normalized.hashtags.length > 0,
+			}
+		},
 		normalized() { return annualSelection(this.selection) },
 		sections() { return annualFilterSections(this.normalized.grouping) },
 		categoryNames() { return new Map(this.categoryOptions.map(option => [option.id, option.label])) },
 		partnerNames() { return new Map(this.partnerOptions.map(option => [option.id, option.label])) },
 		categoryTypes() { return this.kindTypes(this.categoryOptions) },
+		categoryGroupLabels() { return { income: this.$texts.filters.allIncomeCategories(), expense: this.$texts.filters.allExpenseCategories() } },
+		categoryChoices() {
+			return [{ value: 0, label: this.$texts.annual.noCategory() }, ...this.categoryOptions.filter(option => option.id > 0 && (this.$enableIncomes !== false || option.type !== 'income')).map(option => ({
+				...option, value: option.id, label: option.name, categoryIcon: option.icon,
+				accessibleLabel: option.type ? `${option.pathLabel} · ${this.kindLabel(option.type)}` : option.pathLabel,
+			}))]
+		},
+		partnerGroupLabels() { return { income: this.$texts.filters.allIncomePartners(), expense: this.$texts.filters.allExpensePartners() } },
+		partnerChoices() { return [{ value: 0, label: this.$texts.annual.noPartner() }, ...this.partnerOptions.filter(option => option.id > 0).map(option => ({ ...option, value: option.id }))] },
+		labelChoices() { return [{ value: null, label: this.$texts.filters.allLabels() }, ...this.labelOptions.map(option => ({ value: option.key, label: option.label }))] },
 		partnerTypes() { return this.kindTypes(this.partnerOptions) },
 		hashtagNames() { return new Map(this.hashtagOptions.map(option => [option.id, option.name])) },
 		labelNames() { return Object.fromEntries(this.labelOptions.map(option => [option.key, option.label])) },
 		chips() {
-			return annualFilterChips(this.normalized, {
+			const chips = annualFilterChips(this.normalized, {
 				categoryNames: this.categoryNames,
+				categoryGroupLabels: this.categoryGroupLabels,
 				partnerNames: this.partnerNames,
+				partnerGroupLabels: this.partnerGroupLabels,
 				categoryTypes: this.categoryTypes,
 				partnerTypes: this.partnerTypes,
 				hashtagNames: this.hashtagNames,
 				labelNames: this.labelNames,
+				withoutArea: this.$texts.annual.withoutArea(),
 				noCategory: this.$texts.annual.noCategory(),
 				noPartner: this.$texts.annual.noPartner(),
 				or: this.$texts.annual.or(),
@@ -172,6 +262,16 @@ export default {
 				atMost: this.$texts.annual.atMost(),
 				formatMoney: cents => this.$formatMoneyFromCents(cents),
 			})
+			if (this.areaIds.length && !this.normalized.withoutArea) {
+				const names = this.areaIds.map(id => this.areaOptions.find(option => option.value === id)?.label || String(id))
+				const scope = this.showAmountScope ? ` · ${this.selection.entryScope === 'shared' ? this.$texts.annual.wholeArea() : this.$texts.annual.personalShare()}` : ''
+				chips.unshift({ key: 'areas', label: names.join(` ${this.$texts.annual.or()} `) + scope })
+			}
+			if (this.periodActive && this.periodLabel) chips.unshift({ key: 'period', label: this.periodLabel })
+			return chips
+		},
+		submenuTitle() {
+			return this.sectionTitle(this.activeSubmenu)
 		},
 		categoryOptions() {
 			const used = this.usedIds(this.categoryIds, this.normalized.categories)
@@ -181,8 +281,12 @@ export default {
 				return sorted.map(category => {
 					const child = visibleIds.has(categoryParentId(category))
 					const name = String(category.name || '').trim()
+					const parent = this.categories.find(item => Number(item.id) === categoryParentId(category))
+					const parentName = parent?.name || category.parent_name || ''
+					const pathLabel = categoryPathLabel({ ...category, parent_name: parentName })
 					return {
-						id: Number(category.id),
+						id: Number(category.id), name, icon: category.icon || 'Shape',
+						parentId: categoryParentId(category), pathLabel, context: !child ? parentName : '',
 						label: child ? categoryChoiceLabel(category) : name,
 						child,
 						type: group.type,
@@ -221,36 +325,71 @@ export default {
 				['taxRelevant', this.$enableTaxRelevant, this.$texts.labels.taxRelevant()],
 				['insurance', this.$enableInsurance, this.$texts.labels.insurance()],
 			]
-			const used = new Set([...(this.labelKeys || []), ...this.normalized.labels])
-			return options.filter(([key, enabled]) => enabled !== false && used.has(key)).map(([key, , label]) => ({ key, label }))
+			return options.filter(([, enabled]) => enabled !== false).map(([key, , label]) => ({ key, label }))
 		},
-		visibleCategories() { return this.visibleOptions(this.categoryOptions, this.categoryQuery) },
-		visiblePartners() { return this.visibleOptions(this.partnerOptions, this.partnerQuery) },
 		visibleHashtags() { return this.visibleOptions(this.hashtagOptions, this.hashtagQuery) },
 		panelStyle() { return this.panelMaxHeight ? { '--annual-filter-max-height': this.panelMaxHeight } : null },
 	},
 	watch: {
+		'normalized.search'(value) {
+			if (!value) { clearTimeout(this.searchTimer); this.searchTimer = null }
+			if (!this.searchTimer) this.searchText = value || ''
+		},
 		'normalized.amountMin': { handler() { this.syncAmount('min') }, immediate: true },
 		'normalized.amountMax': { handler() { this.syncAmount('max') }, immediate: true },
-		categoryQuery() { this.scheduleFit() },
-		partnerQuery() { this.scheduleFit() },
 		hashtagQuery() { this.scheduleFit() },
-	},
-	created() {
-		const value = this.normalized
-		this.open.categories = value.categories.length > 0
-		this.open.partners = value.partners.length > 0
-		this.open.amount = value.amountMin !== null || value.amountMax !== null
-		this.open.labels = value.labels.length > 0
-		this.open.hashtags = value.hashtags.length > 0
 	},
 	beforeUnmount() {
 		this.disposed = true
-		clearTimeout(this.amountTimer)
+		clearTimeout(this.searchTimer)
 		this.unbindViewport()
 		if (this.fitFrame && typeof window !== 'undefined') cancelAnimationFrame(this.fitFrame)
 	},
 	methods: {
+		filterChipIcon,
+		sectionTitle(key) {
+			return { areas: this.$texts.analytics.areas(), period: this.$texts.analytics.period(), categories: this.$texts.analytics.category(), partners: this.$texts.analytics.paymentPartner(),
+				amount: this.$texts.entry.amount(), labels: this.$texts.analytics.labels(), hashtags: this.$texts.annual.tags() }[key] || ''
+		},
+		toggleArea(value) {
+			if (!this.areaOptions.some(option => option.value === value)) return
+			this.$emit('areas-change', value === null ? [] : this.areaIds.includes(value) ? this.areaIds.filter(id => id !== value) : [...this.areaIds, value])
+		},
+		returnTrigger() { return this.$refs.trigger?.querySelector('button') || false },
+		focusPanel() {
+			this.scheduleFit()
+			this.$nextTick(() => {
+				const controls = [...(this.$refs.panel?.querySelectorAll('input:not(:disabled), button:not(:disabled)') || [])]
+					.filter(control => control.getClientRects().length > 0)
+				;(controls.find(control => control.checked) || controls[0])?.focus({ preventScroll: true })
+			})
+		},
+		resetFilters() {
+			clearTimeout(this.searchTimer)
+			this.searchTimer = null
+			this.amountOpen = false
+			this.amountError = false
+			this.searchText = ''
+			this.amountMinText = ''
+			this.amountMaxText = ''
+			this.hashtagQuery = ''
+			this.$emit('reset')
+			this.scheduleFit()
+			this.$nextTick(() => {
+				const root = this.$refs.search?.$el
+				const input = root?.querySelector?.('input') || root
+				input?.focus({ preventScroll: true })
+			})
+		},
+		scheduleSearch() {
+			clearTimeout(this.searchTimer)
+			this.searchTimer = setTimeout(() => this.applySearch(), 300)
+		},
+		applySearch() {
+			clearTimeout(this.searchTimer)
+			this.searchTimer = null
+			if (!this.disposed && this.searchText.trim() !== (this.normalized.search || '')) this.$emit('change', { ...this.normalized, search: this.searchText.trim() })
+		},
 		kindGroups(items, used) {
 			const groups = { expense: [], income: [], other: [] }
 			for (const item of Array.isArray(items) ? items : []) {
@@ -268,9 +407,6 @@ export default {
 			if (this.$enableIncomes === false) return new Map()
 			return new Map(options.filter(option => option.type).map(option => [option.id, option.type]))
 		},
-		showKind(option) {
-			return this.$enableIncomes !== false && (option?.type === 'income' || option?.type === 'expense')
-		},
 		kindLabel(type) {
 			return type === 'income' ? this.$texts.annual.income() : this.$texts.annual.expenses()
 		},
@@ -284,41 +420,48 @@ export default {
 			if (!needle) return options
 			return options.filter(option => option.label.toLocaleLowerCase().includes(needle))
 		},
-		toggleSection(key, event) {
-			const opening = !this.open[key]
-			this.open[key] = opening
-			if (opening) {
-				if (this.quiet === key) this.quiet = ''
-			} else {
-				// Nextcloud fills a focused native button, and the popover trap can put that focus back.
-				this.quiet = key
-				const button = event?.currentTarget
-				this.$nextTick(() => {
-					if (this.disposed) return
-					if (button && document.activeElement === button) button.blur()
-					this.focusPanel()
-				})
-			}
-			this.scheduleFit()
+		toggleSection(key) {
+			this.activeSubmenu = key
+			this.$nextTick(() => {
+				if (this.$refs.panel) this.$refs.panel.scrollTop = 0
+				this.$refs.back?.$el?.focus({ preventScroll: true })
+				this.scheduleFit()
+			})
 		},
-		clearQuiet(key) {
-			if (this.quiet === key) this.quiet = ''
+		backToFilters() {
+			const key = this.activeSubmenu
+			this.activeSubmenu = null
+			this.$nextTick(() => {
+				this.$refs[`${key}Trigger`]?.$el?.focus({ preventScroll: true })
+				this.scheduleFit()
+			})
 		},
-		focusPanel() {
-			const panel = this.$refs.panel
-			if (!panel || typeof panel.focus !== 'function') return
-			if (!panel.hasAttribute('tabindex')) panel.setAttribute('tabindex', '-1')
-			panel.focus({ preventScroll: true })
+		onEscape(event) {
+			if (!this.activeSubmenu || this.section) return
+			this.consumedEscape = true
+			event.preventDefault()
+			event.stopPropagation()
+			this.backToFilters()
+		},
+		onEscapeKeyup(event) {
+			// NcPopover closes on keyup; going back must consume that event too.
+			if (!this.consumedEscape) return
+			this.consumedEscape = false
+			event.preventDefault()
+			event.stopPropagation()
 		},
 		onPopoverShown(shown) {
 			this.popoverShown = shown === true
 			this.fitPasses = 0
 			if (this.popoverShown) {
+				this.activeSubmenu = this.section || null
+				this.amountOpen = this.activeSections.amount
+				this.panelMaxHeight = ''
 				this.bindViewport()
 				this.scheduleFit()
 			} else {
-				this.quiet = ''
-				this.panelMaxHeight = ''
+				// Preserve the current submenu and panel size during native fade-out.
+				this.consumedEscape = false
 				this.unbindViewport()
 			}
 		},
@@ -378,6 +521,10 @@ export default {
 			if (this.fitPasses < 4) this.scheduleFit()
 			else this.fitPasses = 0
 		},
+		setSelection(key, values) {
+			this.$emit('change', { ...this.normalized, [key]: values })
+			this.scheduleFit()
+		},
 		toggle(key, id) {
 			const current = [...this.normalized[key]]
 			const index = current.indexOf(id)
@@ -388,19 +535,28 @@ export default {
 		syncAmount(which) {
 			const field = which === 'min' ? 'amountMin' : 'amountMax'
 			const input = this.$refs?.[field]
-			if (typeof document !== 'undefined' && input && document.activeElement === input) return
+			const element = input?.$el || input
+			if (typeof document !== 'undefined' && element?.contains(document.activeElement)) return
 			this[`${field}Text`] = formatAnnualAmountParam(this.normalized[field])
 		},
-		scheduleAmount() {
-			clearTimeout(this.amountTimer)
-			this.amountTimer = setTimeout(() => {
-				if (this.disposed) return
-				const amountMin = parseAnnualAmountInput(this.amountMinText)
-				const amountMax = parseAnnualAmountInput(this.amountMaxText)
-				if (this.amountMinText.trim() && amountMin === null) return
-				if (this.amountMaxText.trim() && amountMax === null) return
-				this.$emit('change', { ...this.normalized, amountMin, amountMax })
-			}, 300)
+		applyPeriod(selection) {
+			this.$emit('period-change', selection)
+			this.scheduleFit()
+		},
+		toggleAmount() {
+			this.amountOpen = !this.amountOpen
+			this.$nextTick(() => {
+				this.scheduleFit()
+				if (this.amountOpen) this.$refs.amountForm?.querySelector('[type="submit"]')?.scrollIntoView({ block: 'nearest' })
+			})
+		},
+		applyAmount() {
+			const drafts = [this.amountMinText.trim(), this.amountMaxText.trim()]
+			const [amountMin, amountMax] = drafts.map(value => /^[\d.,\s]+$/.test(value) ? parseAnnualAmountInput(value) : null)
+			this.amountError = Boolean((drafts[0] && amountMin === null) || (drafts[1] && amountMax === null)
+				|| (amountMin !== null && amountMax !== null && amountMin > amountMax))
+			if (this.amountError) return
+			this.$emit('change', { ...this.normalized, amountMin, amountMax })
 		},
 	},
 }
@@ -408,48 +564,42 @@ export default {
 
 <style scoped>
 .annual-filter-cluster { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; max-width: 100%; }
+.annual-filter-cluster--chips { display: flex; margin-block: calc(var(--default-grid-baseline, 4px) * 7); }
+.annual-filter-shortcut-caption { display: inline-flex; align-items: center; gap: var(--default-grid-baseline, 4px); }
 .annual-filter-popover { display: inline-flex; }
 .annual-filter-trigger { display: inline-flex; }
-.annual-filter-chips { display: contents; }
-.annual-filter-chip { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; min-height: 36px; margin: 0; padding-inline: 8px; border-radius: var(--border-radius-element, 8px); color: var(--cobudget-text-muted); font-weight: 400; }
-.annual-filter-chip:hover, .annual-filter-chip:focus-within { background: var(--cobudget-surface-muted); }
-.annual-filter-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.annual-filter-remove { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 18px; height: 18px; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
-.annual-filter-panel { width: min(360px, calc(100vw - 48px)); max-height: var(--annual-filter-max-height, none); padding: var(--cobudget-menu-padding); overflow-y: auto; overscroll-behavior: contain; }
-.annual-filter-panel:focus { outline: none; }
-.annual-filter-section + .annual-filter-section { margin-top: 2px; }
-.annual-filter-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 36px; margin: 0; padding: 6px 8px; border: 0; border-radius: var(--border-radius-element, 8px); background-color: transparent; color: var(--cobudget-text, var(--color-main-text)); font: inherit; font-weight: 400; text-align: start; cursor: pointer; }
-.annual-filter-panel .annual-filter-toggle:focus,
-.annual-filter-panel .annual-filter-toggle:active,
-.annual-filter-panel .annual-filter-toggle.is-quiet,
-.annual-filter-panel .annual-filter-toggle.is-quiet:hover,
-.annual-filter-panel .annual-filter-toggle.is-quiet:focus,
-.annual-filter-panel .annual-filter-toggle.is-quiet:active { background-color: transparent; }
-.annual-filter-panel .annual-filter-toggle:hover:not(.is-quiet) { background-color: var(--cobudget-surface-muted, var(--color-background-hover)); }
-.annual-filter-heading { min-width: 0; }
-.annual-filter-body { padding: 2px 4px 8px; }
-.annual-filter-search, .annual-filter-amounts input { width: 100%; margin: 0 0 6px; box-sizing: border-box; }
-.annual-filter-options { display: flex; flex-direction: column; }
-.annual-filter-option { display: flex; align-items: center; gap: 8px; min-height: 28px; margin: 0; padding: 2px 8px; border-radius: var(--border-radius-element, 8px); cursor: pointer; }
-.annual-filter-option:hover, .annual-filter-option:focus-within { background: var(--cobudget-surface-muted, var(--color-background-hover)); }
-.annual-filter-option input[type="checkbox"] { appearance: auto; width: 16px; height: 16px; min-width: 16px; min-height: 16px; flex: 0 0 16px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.annual-filter-option input[type="checkbox"]:hover,
-.annual-filter-option input[type="checkbox"]:focus,
-.annual-filter-option input[type="checkbox"]:active { border: 0; background: transparent; box-shadow: none; }
-.annual-filter-option input[type="checkbox"]:focus-visible { outline: var(--cobudget-focus-outline); outline-offset: 2px; }
-.annual-filter-option.child { padding-inline-start: 26px; }
-.annual-filter-kind { position: relative; display: inline-flex; flex: 0 0 16px; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; line-height: 0; }
-.annual-filter-kind-icon { display: block; flex: 0 0 12px; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.annual-filter-kind.is-income { color: var(--cobudget-success); background: var(--cobudget-success-light); }
-.annual-filter-kind.is-expense { color: var(--cobudget-error, #e9322d); background: var(--cobudget-error-soft); }
-.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.annual-filter-amounts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-inline: 8px; }
-.annual-filter-amounts label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.annual-filter-amounts span { color: var(--cobudget-text-muted, var(--color-text-maxcontrast)); }
-.annual-filter-toggle:focus-visible,
-.annual-filter-remove:focus-visible { outline: var(--cobudget-focus-outline); outline-offset: -2px; }
+.annual-filter-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; max-width: 100%; }
+.annual-filter-panel { --color-background-hover: color-mix(in srgb, var(--color-primary-element) 8%, transparent); box-sizing: border-box; width: min(320px, calc(100vw - 48px)); display: flex; flex-direction: column; gap: 4px; max-height: var(--annual-filter-max-height, none); padding: var(--cobudget-filter-menu-padding); overflow-y: auto; overscroll-behavior: contain; }
+.annual-filter-panel--submenu { gap: 0; }
+.annual-filter-actions { display: flex; justify-content: flex-end; margin-block-start: calc(var(--default-grid-baseline, 4px) * 2); }
+.annual-filter-toggle.button-vue { --font-weight-element: 400; width: 100%; }
+.annual-filter-toggle :deep(.button-vue__text) { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: start; }
+.annual-filter-heading { flex: 1; min-width: 0; }
+.annual-filter-search { width: 100%; margin-bottom: 6px; }
+.annual-filter-options { display: flex; flex-direction: column; gap: var(--default-grid-baseline, 4px); }
+.annual-filter-chevron--expanded { transform: rotate(180deg); }
+.annual-filter-amount-form { display: grid; gap: 4px; margin-block: 4px; }
+.annual-filter-amount-form > .button-vue { justify-self: end; }
+.annual-filter-amount-error { margin: 0; color: var(--color-error-text); }
+.annual-filter-back { margin-bottom: 8px; }
+
+@keyframes cobudget-annual-submenu-in {
+	from { opacity: 0; transform: translateY(-2px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+.annual-filter-back,
+.annual-filter-body {
+	animation: cobudget-annual-submenu-in var(--animation-quick, 100ms) ease;
+}
+@media (prefers-reduced-motion: reduce) {
+	.annual-filter-back,
+	.annual-filter-body {
+		animation: none !important;
+	}
+}
+.annual-filter-category { display: flex; align-items: center; gap: 8px; min-width: 0; width: 100%; }
+.annual-filter-amounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr)); gap: 8px; }
 @media (max-width: 768px) {
-	.annual-filter-toggle, .annual-filter-option, .annual-filter-chip, .annual-filter-remove { min-height: var(--cobudget-mobile-touch-size); }
-	.annual-filter-remove { min-width: var(--cobudget-mobile-touch-size); }
+	.annual-filter-panel, .annual-filter-button { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
 }
 </style>

@@ -12,6 +12,7 @@ export const PERSONAL_ENTRY_FILTER_DEFAULTS = Object.freeze({
 	includeFuturePayments: false,
 	includeSubcategories: false,
 	annualReturn: '',
+	reportFilters: '',
 	timeRange: 'all',
 	tags: 'all',
 	hashtagId: null,
@@ -19,6 +20,7 @@ export const PERSONAL_ENTRY_FILTER_DEFAULTS = Object.freeze({
 	hasAttachment: 'all',
 	narrowCategories: '',
 	narrowPartners: '',
+	narrowProjects: '',
 	narrowLabels: '',
 	narrowHashtags: '',
 	amountMin: '',
@@ -36,6 +38,7 @@ export const PROJECT_ENTRY_FILTER_DEFAULTS = Object.freeze({
 	includeFuturePayments: false,
 	includeSubcategories: false,
 	annualReturn: '',
+	reportFilters: '',
 	timeRange: 'all',
 	recurring: 'all',
 	tags: 'all',
@@ -44,6 +47,7 @@ export const PROJECT_ENTRY_FILTER_DEFAULTS = Object.freeze({
 	hasAttachment: 'all',
 	narrowCategories: '',
 	narrowPartners: '',
+	narrowProjects: '',
 	narrowLabels: '',
 	narrowHashtags: '',
 	amountMin: '',
@@ -62,11 +66,12 @@ const FILTER_SHORTCUTS = Object.freeze({
 	reminder: { hasReminder: 'true' },
 	currentYear: { timeRange: 'currentYear' },
 	income: { type: 'income' },
+	expense: { type: 'expense' },
 })
 
 const TYPE_VALUES = new Set(['all', 'income', 'expense'])
 const STATUS_VALUES = new Set(['all', 'active', 'settled'])
-const TIME_RANGE_VALUES = new Set(['all', 'currentMonth', 'lastMonth', 'last30Days', 'currentYear', 'lastYear', 'custom'])
+const TIME_RANGE_VALUES = new Set(['all', 'currentMonth', 'lastMonth', 'last30Days', 'currentYear', 'lastYear', 'custom', 'calendarSelection'])
 const TAG_VALUES = new Set(['all', 'important', 'review', 'fixedCost', 'childRelated', 'subscription', 'taxRelevant', 'insurance', 'future'])
 const NARROW_LABEL_VALUES = ['important', 'review', 'fixedCost', 'childRelated', 'subscription', 'taxRelevant', 'insurance']
 const REMINDER_VALUES = new Set(['all', 'true'])
@@ -86,15 +91,19 @@ export const PERSONAL_ENTRY_ROUTE_QUERY_KEYS = Object.freeze([
 	'timeRange',
 	'dateFrom',
 	'dateTo',
+	'periodYears',
+	'periodMonths',
 	'includeFuturePayments',
 	'includeSubcategories',
 	'annualReturn',
+	'reportFilters',
 	'tags',
 	'hashtagId',
 	'hasReminder',
 	'hasAttachment',
 	'categories',
 	'partners',
+	'projects',
 	'labels',
 	'hashtags',
 	'amountMin',
@@ -115,9 +124,12 @@ export const PROJECT_ENTRY_ROUTE_QUERY_KEYS = Object.freeze([
 	'timeRange',
 	'dateFrom',
 	'dateTo',
+	'periodYears',
+	'periodMonths',
 	'includeFuturePayments',
 	'includeSubcategories',
 	'annualReturn',
+	'reportFilters',
 	'recurring',
 	'tags',
 	'hashtagId',
@@ -125,6 +137,7 @@ export const PROJECT_ENTRY_ROUTE_QUERY_KEYS = Object.freeze([
 	'hasAttachment',
 	'categories',
 	'partners',
+	'projects',
 	'labels',
 	'hashtags',
 	'amountMin',
@@ -207,9 +220,20 @@ const amountCents = text => {
 	return Number(whole) * 100 + Number(fraction.padEnd(2, '0'))
 }
 
+const queryLookupList = value => {
+	const kinds = [...new Set(queryListText(value).split(',').filter(kind => ['income', 'expense'].includes(kind)))]
+	return [queryIdList(value, true), ...kinds].filter(Boolean).join(',')
+}
+
 const assignNarrowingFilters = (filters, query) => {
-	filters.narrowCategories = queryIdList(query.categories, true)
-	filters.narrowPartners = queryIdList(query.partners, true)
+	filters.reportFilters = queryString(query.reportFilters)
+	filters.narrowCategories = queryLookupList(query.categories)
+	filters.narrowPartners = queryLookupList(query.partners)
+	filters.narrowProjects = query.withoutArea === true || query.withoutArea === 'true' ? '0' : [
+		queryIdList(query.projects, true), queryListText(query.projects).split(',').includes('assigned') ? 'assigned' : '',
+		...[...new Set(queryListText(query.projects).split(',').filter(value => /^except-\d+$/.test(value)
+			&& Number.isSafeInteger(Number(value.slice(7)))))].slice(0, 500),
+	].filter(Boolean).join(',')
 	filters.narrowLabels = queryLabelList(query.labels)
 	filters.narrowHashtags = queryIdList(query.hashtags, false)
 	filters.amountMin = queryAmount(query.amountMin)
@@ -221,9 +245,19 @@ const assignNarrowingFilters = (filters, query) => {
 	}
 }
 
+const calendarChoices = (value, min, max, limit) => [...new Set(queryString(value).split(',')
+	.filter(item => /^\d+$/.test(item)).map(Number).filter(item => item >= min && item <= max))]
+	.sort((a, b) => a - b).slice(0, limit).join(',')
+
 export const entryNarrowingQueryParams = (filters = {}) => ({
+	...(filters.timeRange === 'calendarSelection' && filters.periodYears ? {
+		periodYears: filters.periodYears,
+		...(filters.periodMonths ? { periodMonths: filters.periodMonths } : {}),
+	} : {}),
+	...(filters.reportFilters ? { reportFilters: filters.reportFilters } : {}),
 	...(filters.narrowCategories ? { categories: filters.narrowCategories } : {}),
 	...(filters.narrowPartners ? { partners: filters.narrowPartners } : {}),
+	...(filters.narrowProjects ? { projects: filters.narrowProjects } : {}),
 	...(filters.narrowLabels ? { labels: filters.narrowLabels } : {}),
 	...(filters.narrowHashtags ? { hashtags: filters.narrowHashtags } : {}),
 	...(filters.amountMin ? { amountMin: filters.amountMin } : {}),
@@ -254,8 +288,8 @@ const shortcutForFilters = filters => {
 	if (filters.timeRange === 'currentYear') {
 		return 'currentYear'
 	}
-	if (filters.type === 'income') {
-		return 'income'
+	if (['income', 'expense'].includes(filters.type)) {
+		return filters.type
 	}
 	return ''
 }
@@ -263,6 +297,14 @@ const shortcutForFilters = filters => {
 export const createPersonalEntryFilters = () => ({ ...PERSONAL_ENTRY_FILTER_DEFAULTS })
 
 export const createProjectEntryFilters = () => ({ ...PROJECT_ENTRY_FILTER_DEFAULTS })
+
+const assignCalendarSelection = (filters, query) => {
+	if (filters.timeRange === 'calendarSelection') {
+		filters.periodYears = calendarChoices(query.periodYears, 1970, 9999, 50)
+		filters.periodMonths = calendarChoices(query.periodMonths, 1, 12, 12)
+		if (!filters.periodYears) filters.timeRange = 'all'
+	}
+}
 
 export const parsePersonalEntryListRouteQuery = (query = {}, defaultPageSize = 25) => {
 	const filters = createPersonalEntryFilters()
@@ -278,6 +320,7 @@ export const parsePersonalEntryListRouteQuery = (query = {}, defaultPageSize = 2
 	filters.projectId = queryPositiveInteger(query.projectId)
 	filters.paymentPartnerId = queryNonnegativeInteger(query.paymentPartnerId)
 	filters.timeRange = queryChoice(query.timeRange, TIME_RANGE_VALUES, filters.timeRange)
+	assignCalendarSelection(filters, query)
 	filters.dateFrom = filters.timeRange === 'custom' ? queryTimestamp(query.dateFrom) : null
 	filters.dateTo = filters.timeRange === 'custom' ? queryTimestamp(query.dateTo) : null
 	filters.includeFuturePayments = queryString(query.includeFuturePayments) === 'true'
@@ -311,6 +354,7 @@ export const parseProjectEntryListRouteQuery = (query = {}, defaultPageSize = 25
 	filters.categoryId = queryNonnegativeInteger(query.categoryId)
 	filters.paymentPartnerId = queryNonnegativeInteger(query.paymentPartnerId)
 	filters.timeRange = queryChoice(query.timeRange, TIME_RANGE_VALUES, filters.timeRange)
+	assignCalendarSelection(filters, query)
 	filters.dateFrom = filters.timeRange === 'custom' ? queryTimestamp(query.dateFrom) : null
 	filters.dateTo = filters.timeRange === 'custom' ? queryTimestamp(query.dateTo) : null
 	filters.includeFuturePayments = queryString(query.includeFuturePayments) === 'true'
@@ -436,3 +480,21 @@ export const hasProjectEntryListRouteState = (query = {}) => PROJECT_ENTRY_ROUTE
 export const entryPageFromOffset = (offset, limit) => Math.floor(Math.max(0, Number(offset) || 0) / normalizeEntryPageSize(limit)) + 1
 
 export const entryOffsetFromPage = (page, limit) => (Math.max(1, queryPositiveInteger(page, 1)) - 1) * normalizeEntryPageSize(limit)
+
+// Keep view identity independent of the label shortcut chosen by URL serialization.
+export function personalPaymentView(query = {}) {
+	const { filters } = parsePersonalEntryListRouteQuery(query)
+	return filters.tags === 'future' ? 'future' : filters.type === 'all' ? '' : filters.type
+}
+
+export function selectedPaymentLabels(filters = {}) {
+	return [...new Set([filters.tags, ...(filters.narrowLabels || '').split(',')])]
+		.filter(key => NARROW_LABEL_VALUES.includes(key))
+}
+
+export function withPaymentLabels(filters, values) {
+	const labels = [...new Set(values)].filter(key => NARROW_LABEL_VALUES.includes(key))
+	const future = filters.tags === 'future'
+	return { ...filters, tags: future ? 'future' : labels.length === 1 ? labels[0] : 'all',
+		narrowLabels: future || labels.length > 1 ? labels.join(',') : '' }
+}

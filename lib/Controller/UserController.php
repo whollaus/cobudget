@@ -136,6 +136,8 @@ class UserController extends Controller {
 				return $error;
 			}
 
+			$startPage = $this->config->getUserValue($this->userId, 'cobudget', 'default_start_page', 'personal');
+
 			return new DataResponse([
 				'currency' => $this->effectiveCurrency(),
 				'enable_subscriptions' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_subscriptions', 'yes') === 'yes',
@@ -146,21 +148,24 @@ class UserController extends Controller {
 				'enable_tax_relevant' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_tax_relevant', 'yes') === 'yes',
 				'enable_insurance' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_insurance', 'yes') === 'yes',
 				'enable_future_payments' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_future_payments', 'yes') === 'yes',
+				'enable_reminders' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_reminders', 'yes') === 'yes',
 				'enable_budget_goals' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_budget_goals', 'yes') === 'yes',
 				'enable_advanced_master_data' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_advanced_master_data', 'no') === 'yes',
 				'enable_incomes' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_incomes', 'yes') === 'yes',
 				'enable_projects' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_projects', 'yes') === 'yes',
 				'enable_shared_projects' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_shared_projects', 'yes') === 'yes',
+				'notify_planned_payments' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_planned_payments', 'no') === 'yes',
+				'notify_reminders' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_reminders', 'yes') === 'yes',
 				'notify_project_entries' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_project_entries', 'yes') === 'yes',
 				'notify_project_settlements' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_project_settlements', 'yes') === 'yes',
 				'enable_workspaces' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_workspaces', 'no') === 'yes',
 				'show_workspace_switcher' => $this->config->getUserValue($this->userId, 'cobudget', 'show_workspace_switcher', 'yes') === 'yes',
 				'enable_receipts' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_receipts', 'yes') === 'yes',
-				'default_start_page' => $this->config->getUserValue($this->userId, 'cobudget', 'default_start_page', 'personal'),
+				'default_start_page' => $startPage === 'currentYear' ? 'personal' : $startPage,
 				'entries_per_page' => (int)$this->config->getUserValue($this->userId, 'cobudget', 'entries_per_page', '25'),
 				'theme_mode' => $this->config->getUserValue($this->userId, 'cobudget', 'theme_mode', 'auto'),
 				'show_nextcloud_header_desktop' => $this->config->getUserValue($this->userId, 'cobudget', 'show_nextcloud_header_desktop', 'yes') === 'yes',
-				'show_nextcloud_header_mobile' => $this->config->getUserValue($this->userId, 'cobudget', 'show_nextcloud_header_mobile', 'no') === 'yes',
+				'show_nextcloud_header_mobile' => $this->config->getUserValue($this->userId, 'cobudget', 'show_nextcloud_header_mobile', 'yes') === 'yes',
 				'receipt_storage_folder' => $this->config->getUserValue($this->userId, 'cobudget', 'receipt_storage_folder', 'CoBudget/Belege'),
 				'receipt_folder_grouping' => $this->config->getUserValue($this->userId, 'cobudget', 'receipt_folder_grouping', 'year'),
 				'delete_receipts_with_entry' => $this->config->getUserValue($this->userId, 'cobudget', 'delete_receipts_with_entry', 'no') === 'yes',
@@ -174,7 +179,7 @@ class UserController extends Controller {
 	}
 
 	#[NoAdminRequired]
-	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null, ?bool $enable_insurance = null): DataResponse {
+	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null, ?bool $enable_insurance = null, ?bool $notify_reminders = null, ?bool $notify_planned_payments = null, ?bool $enable_reminders = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
@@ -236,6 +241,9 @@ class UserController extends Controller {
 			if ($enable_future_payments !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_future_payments', $enable_future_payments ? 'yes' : 'no');
 			}
+			if ($enable_reminders !== null) {
+				$this->config->setUserValue($this->userId, 'cobudget', 'enable_reminders', $enable_reminders ? 'yes' : 'no');
+			}
 			if ($enable_budget_goals !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_budget_goals', $enable_budget_goals ? 'yes' : 'no');
 			}
@@ -250,6 +258,12 @@ class UserController extends Controller {
 			}
 			if ($enable_shared_projects !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_shared_projects', $enable_shared_projects ? 'yes' : 'no');
+			}
+			if ($notify_planned_payments !== null) {
+				$this->config->setUserValue($this->userId, 'cobudget', 'notify_planned_payments', $notify_planned_payments ? 'yes' : 'no');
+			}
+			if ($notify_reminders !== null) {
+				$this->config->setUserValue($this->userId, 'cobudget', 'notify_reminders', $notify_reminders ? 'yes' : 'no');
 			}
 			if ($notify_project_entries !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'notify_project_entries', $notify_project_entries ? 'yes' : 'no');
@@ -267,7 +281,7 @@ class UserController extends Controller {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_receipts', $enable_receipts ? 'yes' : 'no');
 			}
 			if ($default_start_page !== null) {
-				$this->config->setUserValue($this->userId, 'cobudget', 'default_start_page', $default_start_page);
+				$this->config->setUserValue($this->userId, 'cobudget', 'default_start_page', $default_start_page === 'currentYear' ? 'personal' : $default_start_page);
 			}
 			if ($entries_per_page !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'entries_per_page', (string)$entries_per_page);

@@ -286,7 +286,8 @@ class BudgetController extends Controller {
 		$tag = (string)($rule['tag'] ?? '');
 
 		return [
-			'projectId' => is_numeric($projectId) && (int)$projectId > 0 ? (int)$projectId : null,
+			// Zero selects unassigned payments; null keeps the area wildcard.
+			'projectId' => $projectId === 0 || $projectId === '0' ? 0 : (is_numeric($projectId) && (int)$projectId > 0 ? (int)$projectId : null),
 			'categoryId' => is_numeric($categoryId) && (int)$categoryId > 0 ? (int)$categoryId : null,
 			'tag' => array_key_exists($tag, self::TAG_COLUMNS) ? $tag : '',
 		];
@@ -347,7 +348,7 @@ class BudgetController extends Controller {
 
 	private function validateCriteria(array $criteria, int $workspaceId): ?DataResponse {
 		foreach ($criteria['rules'] as $rule) {
-			if ($rule['projectId'] !== null && !$this->projectMemberInActiveWorkspace($rule['projectId'])) {
+			if ($rule['projectId'] !== null && $rule['projectId'] !== 0 && !$this->projectMemberInActiveWorkspace($rule['projectId'])) {
 				return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_BAD_REQUEST);
 			}
 
