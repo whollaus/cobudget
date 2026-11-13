@@ -106,7 +106,8 @@ matching database/data directory and test administrator. It is not rollback-only
 1. Install released `v0.8.5`, seed personal/shared payments, odd-cent splits,
    settlement balances/transfers, a deleted participant, recurrence, an already
    delivered reminder and retained goal history. Write a full archive through real
-   Nextcloud Files. Save the isolated database, Files and configuration.
+   Nextcloud Files. Save the isolated database, Files and configuration, preserving
+   PostgreSQL table/sequence ownership and grants for Nextcloud’s database role.
 2. Copy current app code into the temporary directory and add a test-only barrier
    immediately after migration 13's data update. Kill `occ upgrade` with SIGKILL
    at that barrier. Restore the saved database/Files/config and old code; verify

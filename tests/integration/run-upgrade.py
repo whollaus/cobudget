@@ -86,7 +86,9 @@ def main():
                 if args.database == 'mysql':
                     run(['docker', 'exec', args.db_container, 'mariadb-dump', '-uroot', '-pci-only', '--single-transaction', dbname], output_file=out)
                 else:
-                    run(['docker', 'exec', args.db_container, 'pg_dump', '-U', 'postgres', '--no-owner', '--no-acl', dbname], output_file=out)
+                    # Nextcloud creates its own PostgreSQL login during installation.
+                    # Preserve table/sequence owners and grants for that existing role.
+                    run(['docker', 'exec', args.db_container, 'pg_dump', '-U', 'postgres', dbname], output_file=out)
 
     def recover():
         # Only generated paths/database names are ever replaced.
