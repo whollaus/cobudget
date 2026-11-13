@@ -218,11 +218,23 @@ for (const filename of fs.readdirSync(new URL('l10n/', root)).filter(file => fil
 	}
 }
 
-for (const filename of fs.readdirSync(new URL('lib/Controller/', root))) {
-	if (!filename.endsWith('.php')) continue
-	const source = read(`lib/Controller/${filename}`)
-	for (const match of source.matchAll(/(?:->(?:t|errorResponse)\(|->loggedErrorResponse\(\$e,\s*)'([^']*)'/g)) {
-		assert.ok(Object.hasOwn(catalog, match[1]), `Missing German API translation in ${filename}: ${match[1]}`)
+// Services and notifications contain translated mail, Talk and calendar text too.
+function* sourceFiles(directory, extensions) {
+	for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+		const filename = path.join(directory, entry.name)
+		if (entry.isDirectory()) yield* sourceFiles(filename, extensions)
+		else if (extensions.some(extension => filename.endsWith(extension))) yield filename
+	}
+}
+for (const [directory, extensions, pattern] of [
+	['lib/', ['.php'], /(?:->(?:t|errorResponse)\(\s*|->loggedErrorResponse\(\$e,\s*)(['"])((?:\\.|(?!\1)[^\\])*)\1/g],
+	['src/', ['.js', '.vue'], /\btx\(\s*(['"])((?:\\.|(?!\1)[^\\])*)\1/g],
+]) {
+	for (const filename of sourceFiles(fileURLToPath(new URL(directory, root)), extensions)) {
+		for (const match of fs.readFileSync(filename, 'utf8').matchAll(pattern)) {
+			const key = match[2].replace(/\\(['"\\])/g, '$1')
+			assert.ok(Object.hasOwn(catalog, key), `Missing catalog key in ${filename}: ${key}`)
+		}
 	}
 }
 

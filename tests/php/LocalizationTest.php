@@ -14,12 +14,14 @@ namespace CoBudget\Tests {
 	use CoBudget\Tests\Support\TestRunner;
 	use OCA\CoBudget\Controller\AnalyticsController;
 	use OCA\CoBudget\Controller\BackupController;
+	use OCA\CoBudget\Controller\EntryController;
 	use OCA\CoBudget\Controller\WorkspaceController;
 	use OCA\CoBudget\Service\BackupService;
 	use OCP\IL10N;
 
 	require_once dirname(__DIR__, 2) . '/lib/Controller/AnalyticsController.php';
 	require_once dirname(__DIR__, 2) . '/lib/Controller/BackupController.php';
+	require_once dirname(__DIR__, 2) . '/lib/Controller/EntryController.php';
 	require_once dirname(__DIR__, 2) . '/lib/Controller/WorkspaceController.php';
 	require_once dirname(__DIR__, 2) . '/lib/Service/BackupService.php';
 
@@ -53,6 +55,26 @@ namespace CoBudget\Tests {
 	}
 
 	return [
+		'Payment CSV translates booleans while preserving exact cents and safe text' => static function(TestRunner $t): void {
+			foreach (localizationCatalogs($t) as $catalog) {
+				$controller = localizedTestObject(EntryController::class, $catalog);
+				$csv = localizationMethod($controller, 'buildEntriesCsv', [[
+					'id' => 1, 'type' => 'expense', 'entry_kind' => 'personal',
+					'amount_cents' => 1234, 'description' => '=SUM(1;2)',
+					'is_important' => true, 'needs_review' => false,
+				]], []);
+				$stream = fopen('php://temp', 'w+b');
+				fwrite($stream, substr($csv, 3)); // UTF-8 BOM is not part of the first header.
+				rewind($stream);
+				$headers = fgetcsv($stream, 0, ';');
+				$row = array_combine($headers, fgetcsv($stream, 0, ';'));
+				fclose($stream);
+				$t->assertSame($catalog['Yes'] ?? 'Yes', $row[$catalog['Important'] ?? 'Important'], 'True flags use the export language');
+				$t->assertSame($catalog['No'] ?? 'No', $row[$catalog['Review'] ?? 'Review'], 'False flags use the export language');
+				$t->assertSame('-1234', $row[$catalog['Amount cents'] ?? 'Amount cents'], 'Expense cents stay exact and signed');
+				$t->assertSame("'=SUM(1;2)", $row[$catalog['Purpose or description'] ?? 'Purpose or description'], 'Localized exports still neutralize formulas');
+			}
+		},
 		'Restore report table labels use the requested language' => static function(TestRunner $t): void {
 			foreach (localizationCatalogs($t) as $catalog) {
 				$service = localizedTestObject(BackupService::class, $catalog);

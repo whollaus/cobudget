@@ -17,7 +17,9 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		$context->registerMiddleware(\OCA\CoBudget\Middleware\AppDataLockMiddleware::class);
 		$context->registerEventListener(BeforeUserDeletedEvent::class, BeforeUserDeletedListener::class);
+		$context->registerEventListener(\OCP\User\Events\UserDeletedEvent::class, BeforeUserDeletedListener::class);
 		if (method_exists($context, 'registerNotifierService')) {
 			$context->registerNotifierService(Notifier::class);
 		}

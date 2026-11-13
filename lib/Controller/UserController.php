@@ -155,6 +155,11 @@ class UserController extends Controller {
 				'enable_projects' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_projects', 'yes') === 'yes',
 				'enable_shared_projects' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_shared_projects', 'yes') === 'yes',
 				'notify_planned_payments' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_planned_payments', 'no') === 'yes',
+				'email_address_available' => (bool)filter_var($this->userManager->get($this->userId)?->getEMailAddress(), FILTER_VALIDATE_EMAIL),
+				'notify_reminders_email' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_reminders_email', 'no') === 'yes',
+				'notify_planned_payments_email' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_planned_payments_email', 'no') === 'yes',
+				'notify_project_entries_email' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_project_entries_email', 'no') === 'yes',
+				'notify_project_settlements_email' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_project_settlements_email', 'no') === 'yes',
 				'notify_reminders' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_reminders', 'yes') === 'yes',
 				'notify_project_entries' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_project_entries', 'yes') === 'yes',
 				'notify_project_settlements' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_project_settlements', 'yes') === 'yes',
@@ -179,7 +184,7 @@ class UserController extends Controller {
 	}
 
 	#[NoAdminRequired]
-	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null, ?bool $enable_insurance = null, ?bool $notify_reminders = null, ?bool $notify_planned_payments = null, ?bool $enable_reminders = null): DataResponse {
+	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null, ?bool $enable_insurance = null, ?bool $notify_reminders = null, ?bool $notify_planned_payments = null, ?bool $enable_reminders = null, ?bool $notify_reminders_email = null, ?bool $notify_planned_payments_email = null, ?bool $notify_project_entries_email = null, ?bool $notify_project_settlements_email = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
@@ -262,6 +267,10 @@ class UserController extends Controller {
 			if ($notify_planned_payments !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'notify_planned_payments', $notify_planned_payments ? 'yes' : 'no');
 			}
+			if ($notify_reminders_email !== null) $this->config->setUserValue($this->userId, 'cobudget', 'notify_reminders_email', $notify_reminders_email ? 'yes' : 'no');
+			if ($notify_planned_payments_email !== null) $this->config->setUserValue($this->userId, 'cobudget', 'notify_planned_payments_email', $notify_planned_payments_email ? 'yes' : 'no');
+			if ($notify_project_entries_email !== null) $this->config->setUserValue($this->userId, 'cobudget', 'notify_project_entries_email', $notify_project_entries_email ? 'yes' : 'no');
+			if ($notify_project_settlements_email !== null) $this->config->setUserValue($this->userId, 'cobudget', 'notify_project_settlements_email', $notify_project_settlements_email ? 'yes' : 'no');
 			if ($notify_reminders !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'notify_reminders', $notify_reminders ? 'yes' : 'no');
 			}

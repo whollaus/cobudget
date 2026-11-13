@@ -1,10 +1,17 @@
 {
 	"translations": {
+    "This receipt is controlled by an open shared payment." : "Este justificante se gestiona desde un pago compartido pendiente de liquidación.",
+    "Receipts of settled shared payments cannot be changed." : "Los justificantes de pagos compartidos liquidados no se pueden modificar.",
+    "CoBudget is temporarily busy with a backup, restore or another operation. Please try again shortly.": "CoBudget está ocupado temporalmente con una copia de seguridad, una restauración u otra operación. Vuelve a intentarlo en unos instantes.",
+    "Due date" : "Fecha de vencimiento",
+    "Email is sent to the address in your Nextcloud account. Your administrator must configure outgoing mail." : "Los correos se envían a la dirección de tu cuenta de Nextcloud. Tu administrador debe configurar el correo saliente.",
+    "Email notifications require a valid address in your Nextcloud account." : "Las notificaciones por correo requieren una dirección válida en tu cuenta de Nextcloud.",
+
     "Reminds you of payments, cancellations and other important dates.": "Te recuerda pagos, cancelaciones y otras fechas importantes.",
     "Calendar changes conflict": "Conflicto de cambios del calendario",
     "Choose which value to keep for each field. Other changes will be merged automatically.": "Elige qué valor conservar en cada campo. Los demás cambios se combinarán automáticamente.",
     "Time": "Hora",
-    "Title, description and time are synchronized in both directions for private calendars. Deleting an event archives your reminder. Shared calendars remain export-only. Linked payment titles and times also change for other area members; descriptions remain personal.": "El título, la descripción y la fecha se sincronizan en ambas direcciones en calendarios privados. Eliminar un evento archiva tu recordatorio. Los calendarios compartidos solo reciben cambios de CoBudget. El título y la fecha de recordatorios vinculados a pagos también cambian para otros miembros; las descripciones siguen siendo personales.",
+    "Private calendars sync both ways. Deleting an event archives its reminder." : "Los calendarios privados se sincronizan en ambos sentidos. Eliminar un evento archiva su recordatorio.",
     "Calendar delivery follows your notification settings. Personal calendar changes are synchronized with CoBudget; deleting an event archives its reminder.": "La sincronización sigue tu configuración de notificaciones. Los cambios del calendario privado se sincronizan con CoBudget; eliminar un evento archiva su recordatorio.",
 
     "Calendar synchronization pending. Click to retry.": "Sincronización del calendario pendiente. Haz clic para reintentar.",

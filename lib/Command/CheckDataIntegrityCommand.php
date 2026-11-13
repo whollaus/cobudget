@@ -27,30 +27,36 @@ class CheckDataIntegrityCommand extends Command {
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
+		$access->enter();
 		try {
-			$mergeResults = [];
-			foreach ($this->parseMergeOptions($input->getOption('merge-category')) as $merge) {
-				$mergeResults[] = $this->dataIntegrityService->mergeDuplicate('category', $merge['keepId'], $merge['mergeIds']);
+			try {
+				$mergeResults = [];
+				foreach ($this->parseMergeOptions($input->getOption('merge-category')) as $merge) {
+					$mergeResults[] = $this->dataIntegrityService->mergeDuplicate('category', $merge['keepId'], $merge['mergeIds']);
+				}
+				foreach ($this->parseMergeOptions($input->getOption('merge-payment-partner')) as $merge) {
+					$mergeResults[] = $this->dataIntegrityService->mergeDuplicate('payment_partner', $merge['keepId'], $merge['mergeIds']);
+				}
+
+				$report = $this->dataIntegrityService->inspect();
+				if ($input->getOption('repair')) {
+					$report = $this->dataIntegrityService->repair($report);
+				}
+				$report['mergeResults'] = $mergeResults;
+
+				$this->writeReport($output, $report);
+
+				$hasBlockingIssues = ((int)($report['orphanReferenceCount'] ?? 0)) > 0
+					|| ((int)($report['projectionIssueCount'] ?? 0)) > 0;
+
+				return $hasBlockingIssues ? self::FAILURE : self::SUCCESS;
+			} catch (\Throwable $e) {
+				$output->writeln('<error>' . $e->getMessage() . '</error>');
+				return self::FAILURE;
 			}
-			foreach ($this->parseMergeOptions($input->getOption('merge-payment-partner')) as $merge) {
-				$mergeResults[] = $this->dataIntegrityService->mergeDuplicate('payment_partner', $merge['keepId'], $merge['mergeIds']);
-			}
-
-			$report = $this->dataIntegrityService->inspect();
-			if ($input->getOption('repair')) {
-				$report = $this->dataIntegrityService->repair($report);
-			}
-			$report['mergeResults'] = $mergeResults;
-
-			$this->writeReport($output, $report);
-
-			$hasBlockingIssues = ((int)($report['orphanReferenceCount'] ?? 0)) > 0
-				|| ((int)($report['projectionIssueCount'] ?? 0)) > 0;
-
-			return $hasBlockingIssues ? self::FAILURE : self::SUCCESS;
-		} catch (\Throwable $e) {
-			$output->writeln('<error>' . $e->getMessage() . '</error>');
-			return self::FAILURE;
+		} finally {
+			$access->leave();
 		}
 	}
 

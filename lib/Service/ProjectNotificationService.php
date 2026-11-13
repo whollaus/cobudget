@@ -29,7 +29,8 @@ class ProjectNotificationService {
 		EntryShareService $entryShareService,
 		ParticipantService $participantService,
 		LoggerInterface $logger,
-		private TalkNotificationService $talkNotifications
+		private TalkNotificationService $talkNotifications,
+		private EmailNotificationService $email
 	) {
 		$this->db = $db;
 		$this->notificationManager = $notificationManager;
@@ -80,6 +81,10 @@ class ProjectNotificationService {
 					continue;
 				}
 
+				$this->email->send($recipientUserId, 'entry', [
+					'actorName' => $actorName, 'projectId' => $projectId, 'projectName' => (string)$project['name'],
+					'type' => $type, 'amount' => $this->formatAmount($amountCents), 'currency' => $currency ?: 'EUR',
+				]);
 				// Talk has its own opt-in and failures must not suppress either channel.
 				$this->talkNotifications->notifyEntryCreated($recipientUserId, [
 					'actorName' => $actorName,
@@ -148,7 +153,8 @@ class ProjectNotificationService {
 				if (
 					$recipientUserId === $actorUserId
 					|| !$this->participantService->isActive($recipientUserId)
-					|| !$this->userWants($recipientUserId, self::SETTING_NOTIFY_SETTLEMENTS)
+					|| !$this->projectNotificationsEnabled($recipientUserId)
+					|| (!$this->userWants($recipientUserId, self::SETTING_NOTIFY_SETTLEMENTS) && $this->config->getUserValue($recipientUserId, self::APP_ID, 'notify_project_settlements_email', 'no') !== 'yes')
 				) {
 					continue;
 				}
@@ -178,6 +184,9 @@ class ProjectNotificationService {
 
 	public function sendPreparedNotifications(array $payloads): void {
 		foreach ($payloads as $payload) {
+			if (!$this->participantService->isActive((string)$payload['userId'])) continue;
+			$this->email->send((string)$payload['userId'], 'settlement', $payload['params']);
+			if (!$this->userWants((string)$payload['userId'], self::SETTING_NOTIFY_SETTLEMENTS)) continue;
 			try {
 				$notification = $this->notificationManager->createNotification();
 				$notification->setApp(self::APP_ID)

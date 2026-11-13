@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -73,6 +74,100 @@ jobs:
           php occ app:disable cobudget
           php occ app:enable cobudget
           php occ cobudget:background-jobs:check
+
+      - name: Check concurrent backup and restore admission
+        run: php tests/integration/backup-concurrency.php --nextcloud="$RUNNER_TEMP/nextcloud" --user=cobudget-ci
+
+      - name: Check backup ZIP roundtrips and restore rollback
+        run: php tests/integration/backup-roundtrip.php --nextcloud="$RUNNER_TEMP/nextcloud" --user=cobudget-ci
+
+  database-recovery:
+    name: Recovery / Nextcloud ${{ matrix.nextcloud }} / ${{ matrix.database }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        nextcloud: ['34', '35']
+        database: [sqlite, mysql, pgsql]
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: ci-only
+          MARIADB_ROOT_HOST: '%'
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7
+        ports:
+          - 6379/tcp
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    steps:
+      - name: Checkout including released upgrade baseline
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, pdo_mysql, pdo_pgsql, redis, simplexml, zip
+          ini-values: memory_limit=512M
+          coverage: none
+
+      - name: Download isolated Nextcloud template
+        env:
+          NEXTCLOUD_MAJOR: ${{ matrix.nextcloud }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/nextcloud-template"
+          curl --fail --location --retry 3 --max-time 180 \
+            "https://download.nextcloud.com/server/releases/latest-${NEXTCLOUD_MAJOR}.tar.bz2" \
+            --output "$RUNNER_TEMP/nextcloud.tar.bz2"
+          tar -xjf "$RUNNER_TEMP/nextcloud.tar.bz2" -C "$RUNNER_TEMP/nextcloud-template" --strip-components=1
+
+      - name: Test released upgrade, shared restore and process-kill recovery
+        env:
+          TEST_DATABASE: ${{ matrix.database }}
+          MYSQL_CONTAINER: ${{ job.services.mariadb.id }}
+          MYSQL_PORT: ${{ job.services.mariadb.ports[3306] }}
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+          PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          REDIS_PORT: ${{ job.services.redis.ports[6379] }}
+        run: |
+          db_args=()
+          case "$TEST_DATABASE" in
+            mysql) db_args=(--db-container "$MYSQL_CONTAINER" --db-port "$MYSQL_PORT") ;;
+            pgsql) db_args=(--db-container "$PG_CONTAINER" --db-port "$PG_PORT") ;;
+          esac
+          python3 tests/integration/run-upgrade.py \
+            --source "$RUNNER_TEMP/nextcloud-template" --database "$TEST_DATABASE" \
+            --redis-port "$REDIS_PORT" --evidence "$RUNNER_TEMP/recovery-evidence" "${db_args[@]}"
+
+      - name: Retain recovery evidence (no databases or configuration)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: recovery-nc${{ matrix.nextcloud }}-${{ matrix.database }}
+          path: ${{ runner.temp }}/recovery-evidence/
+          if-no-files-found: warn
+          retention-days: 14
 
   test-build:
     name: Test and build

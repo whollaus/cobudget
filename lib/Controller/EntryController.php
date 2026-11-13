@@ -2295,7 +2295,7 @@ class EntryController extends Controller {
 	}
 
 	private function exportBool($value): string {
-		return $this->dbBool($value) ? 'Ja' : 'Nein';
+		return $this->dbBool($value) ? $this->l10n->t('Yes') : $this->l10n->t('No');
 	}
 
 	private function exportDate($timestamp): string {

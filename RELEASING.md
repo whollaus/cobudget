@@ -68,9 +68,9 @@ the maintainer's release workflow.
 ## Release channels and beta status
 
 The App Store derives its distribution channel from the version: a numeric
-version such as `0.8.5` uses the stable channel, while `0.8.5-beta.1` is a
+version such as `0.8.8` uses the stable channel, while `0.8.8-beta.1` is a
 prerelease. GitHub's prerelease flag does not select the App Store channel.
 
-This is separate from product maturity: **CoBudget 0.8.5 remains beta**, and
+This is separate from product maturity: **CoBudget 0.8.8 remains beta**, and
 1.0.0 is intended to be the first stable product release. Keep release notes and
 app descriptions consistent with that status.
