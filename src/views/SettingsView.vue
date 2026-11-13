@@ -52,11 +52,12 @@
 						<h3 class="cobudget-section-heading">{{ $texts.settings.notifications() }}</h3>
 						<div class="settings-native-options">
 							<table class="settings-notification-table" :aria-label="$texts.settings.notifications()">
-								<thead><tr><th scope="col">{{ $texts.settings.notificationEvent() }}</th><th class="notification-channel-nextcloud" scope="col">{{ $texts.settings.nextcloudChannel() }}</th><th v-if="talk.available" class="notification-channel-talk" scope="col">{{ $texts.settings.talkChannel() }}</th><th v-if="calendar.available" class="notification-channel-calendar" scope="col">{{ $texts.settings.calendarChannel() }}</th></tr></thead>
+								<thead><tr><th scope="col">{{ $texts.settings.notificationEvent() }}</th><th class="notification-channel-nextcloud" scope="col">{{ $texts.settings.nextcloudChannel() }}</th><th class="notification-channel-email" scope="col">{{ $texts.settings.emailChannel() }}</th><th v-if="talk.available" class="notification-channel-talk" scope="col">{{ $texts.settings.talkChannel() }}</th><th v-if="calendar.available" class="notification-channel-calendar" scope="col">{{ $texts.settings.calendarChannel() }}</th></tr></thead>
 								<tbody>
 									<tr v-for="row in notificationRows" :key="row.field">
 										<th scope="row">{{ row.label }}</th>
 										<td class="notification-channel-nextcloud"><NcCheckboxRadioSwitch :model-value="row.value" :aria-label="`${row.label} – Nextcloud`" :disabled="loading || backupSettingsSaving" @update:model-value="saveNotificationPreference(row.field, $event)" /></td>
+										<td class="notification-channel-email"><NcCheckboxRadioSwitch :model-value="this[row.field + 'Email']" :aria-label="`${row.label} – ${$texts.settings.emailChannel()}`" :disabled="loading || backupSettingsSaving || (!emailAddressAvailable && !this[row.field + 'Email'])" @update:model-value="saveEmailPreference(row.field + 'Email', $event)" /></td>
 										<td v-if="talk.available" class="notification-channel-talk">
 											<NcCheckboxRadioSwitch v-if="row.channel" :model-value="!!talk[row.talkField]" :aria-label="`${row.label} – Talk`" :disabled="talkBusy || !!talkError || !talkLoaded || (!talk.available && !talk[row.talkField])" @update:model-value="saveTalkSettings($event, row.channel)" />
 											<span v-else :aria-label="$texts.settings.notificationChannelUnavailable()" :title="$texts.settings.notificationChannelUnavailable()">—</span>
@@ -75,7 +76,7 @@
 							</div>
 							<NcNoteCard v-if="calendarError" type="error"><p>{{ calendarError }}</p><NcButton :disabled="calendarBusy" @click="fetchCalendarSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
 							<NcNoteCard v-else-if="calendar.sync_pending" type="warning"><p>{{ $texts.settings.calendarSyncPending() }}</p><NcButton :disabled="calendarBusy" @click="saveCalendarSettings(calendar.enabled, calendar.calendar_id)">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
-							<p class="setting-desc">{{ talk.available ? $texts.settings.notificationChannelsDescription() : $texts.settings.nextcloudNotificationsDescription() }}</p>
+							<NcNoteCard v-if="!loading && !emailAddressAvailable" type="warning">{{ $texts.settings.emailAddressMissing() }}</NcNoteCard>
 							<NcNoteCard v-if="talkError" type="error"><p>{{ talkError }}</p><NcButton :disabled="talkBusy" @click="fetchTalkSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
 							<div v-if="!talkError && (!talkLoaded || (talk.available && (talk.enabled || talk.reminders_enabled || talk.planned_enabled) && !talk.ready))" class="settings-talk-status">
 								<p v-if="!talkLoaded" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.common.loading() }}</p>
@@ -354,6 +355,11 @@ export default {
 			backupActionError: '',
 			savedGeneralSettings: null,
 			backupsError: '',
+			emailAddressAvailable: false,
+			notifyRemindersEmail: false,
+			notifyPlannedPaymentsEmail: false,
+			notifyProjectEntriesEmail: false,
+			notifyProjectSettlementsEmail: false,
 			talkError: '',
 			folderPickerOpen: false,
 			currency: '',
@@ -553,6 +559,11 @@ export default {
 			} catch (error) {
 				this.calendarError = this.extractError(error, this.$texts.settings.calendarSettingsError());
 			} finally { this.calendarBusy = false; }
+		},
+		async saveEmailPreference(field, enabled) {
+			if (this.loading || this.backupSettingsSaving || (enabled && !this.emailAddressAvailable) || !this.notificationRows.some(row => row.field + 'Email' === field)) return;
+			this[field] = enabled;
+			await this.saveGeneralSettings();
 		},
 		async saveNotificationPreference(field, enabled) {
 			if (this.loading || this.backupSettingsSaving || !this.notificationRows.some(row => row.field === field)) return;
@@ -1116,6 +1127,11 @@ export default {
 				this.enableProjects = settingsRes.data.enable_projects ?? true;
 				this.enableSharedProjects = settingsRes.data.enable_shared_projects ?? true;
 				this.notifyProjectEntries = settingsRes.data.notify_project_entries ?? true;
+				this.emailAddressAvailable = settingsRes.data.email_address_available ?? false;
+				this.notifyRemindersEmail = settingsRes.data.notify_reminders_email ?? false;
+				this.notifyPlannedPaymentsEmail = settingsRes.data.notify_planned_payments_email ?? false;
+				this.notifyProjectEntriesEmail = settingsRes.data.notify_project_entries_email ?? false;
+				this.notifyProjectSettlementsEmail = settingsRes.data.notify_project_settlements_email ?? false;
 				this.notifyReminders = settingsRes.data.notify_reminders ?? true;
 				this.notifyPlannedPayments = settingsRes.data.notify_planned_payments ?? false;
 				this.notifyProjectSettlements = settingsRes.data.notify_project_settlements ?? true;
@@ -1834,7 +1850,9 @@ body.theme--dark:not(.cobudget-theme-light) .settings-modal-backdrop {
 
 @media (max-width: 480px) {
 	.settings-notification-table th.notification-channel-nextcloud,
-	.settings-notification-table td.notification-channel-nextcloud { width: 70px; }
+	.settings-notification-table td.notification-channel-nextcloud { width: 80px; }
+	.settings-notification-table th.notification-channel-email,
+	.settings-notification-table td.notification-channel-email,
 	.settings-notification-table th.notification-channel-talk,
 	.settings-notification-table td.notification-channel-talk { width: 44px; }
 	.settings-notification-table th.notification-channel-calendar,

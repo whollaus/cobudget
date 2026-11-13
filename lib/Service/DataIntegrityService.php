@@ -201,14 +201,8 @@ class DataIntegrityService {
 			'targetLabel' => 'Workspace',
 			'repairAction' => 'deleteBudgetGoal',
 		],
-		[
-			'sourceTable' => 'cobudget_budget_snapshots',
-			'sourceLabel' => 'Budget history',
-			'column' => 'budget_goal_id',
-			'targetTable' => 'cobudget_budget_goals',
-			'targetLabel' => 'Budget goal',
-			'repairAction' => 'delete',
-		],
+		// Budget history deliberately survives goal deletion. A missing goal (or
+		// the zero reference used after restore) is not an orphan to delete.
 		[
 			'sourceTable' => 'cobudget_budget_snapshots',
 			'sourceLabel' => 'Budget history',

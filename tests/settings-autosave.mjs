@@ -230,3 +230,25 @@ vm.$route = { name: 'settings', query: { section: 'payment-partners' } }
 vm.consumeRequestedSection('payment-partners')
 assert.deepEqual(scrolledSections, ['categories', 'payment-partners'])
 console.log('Master-data section deep links passed: one-shot query cleanup and post-load scrolling.')
+
+// Email preferences share serialized saving and rollback without enabling other channels.
+api.post = post
+vm.emailAddressAvailable = false
+let emailRequests = requests.length
+await vm.saveEmailPreference('notifyRemindersEmail', true)
+assert.equal(requests.length, emailRequests, 'No enable action without a profile address')
+vm.emailAddressAvailable = true
+await vm.saveEmailPreference('notifyRemindersEmail', true)
+assert.equal(requests.at(-1)[1].notify_reminders_email, true)
+assert.equal(vm.notifyPlannedPaymentsEmail, false)
+assert.equal(vm.notifyProjectEntriesEmail, false)
+assert.equal(vm.notifyProjectSettlementsEmail, false)
+vm.emailAddressAvailable = false
+await vm.saveEmailPreference('notifyRemindersEmail', false)
+assert.equal(requests.at(-1)[1].notify_reminders_email, false, 'Opt-out remains possible after removing the address')
+vm.emailAddressAvailable = true
+api.post = async () => { throw new Error('Email save failed') }
+await vm.saveEmailPreference('notifyRemindersEmail', true)
+assert.equal(vm.notifyRemindersEmail, false, 'Failed save restores persisted opt-out')
+assert.equal(errors.at(-1), 'Email save failed')
+console.log('Email settings passed: default-off, address guard and independent saving.')

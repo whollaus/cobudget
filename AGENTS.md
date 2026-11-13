@@ -36,7 +36,8 @@ CSS differences as approved variants.
   - `screenshots/` documentation assets, when screenshots are changed
 - Update `CHANGELOG.md` for notable feature, behavior, security, data model, backup/restore, migration, release-packaging, or public documentation changes.
 - Update `README.md` and `FEATURES.md` when functionality, terminology, requirements, warnings, screenshots, or user-facing workflows change.
-- Keep GitHub documentation in English.
+- Keep the primary README and technical documentation in English. Maintain German, French and Spanish introductions in `docs/readme.de.md`, `docs/readme.fr.md` and `docs/readme.es.md`, with language links at the top of every README. Keep their features, requirements and warnings aligned; update localized App Store descriptions in `appinfo/info.xml` too.
+- For the first stable 1.0 release, drop Nextcloud 33: set the minimum to 34 and update the CI matrix, requirements and support policy together. The 0.x beta series retains its existing 33–35 range.
 - Keep installable release archives free of repository-only files such as `screenshots/`, `.github/`, tests, and development metadata.
 
 ## Default release handoff

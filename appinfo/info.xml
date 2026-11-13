@@ -3,58 +3,83 @@
       xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
     <id>cobudget</id>
     <name>CoBudget</name>
-	<summary>Personal budgeting and shared expenses for Nextcloud</summary>
+	<summary>Household budgeting and fair sharing of everyday expenses</summary>
+	<summary lang="de">Haushaltsbuch und faire Aufteilung gemeinsamer Ausgaben</summary>
+	<summary lang="fr">Budget du foyer et partage équitable des dépenses quotidiennes</summary>
+	<summary lang="es">Presupuesto doméstico y reparto justo de los gastos diarios</summary>
 	<description lang="en"><![CDATA[[Beta version]
 
-**CoBudget brings personal budgeting and shared expense management into Nextcloud.** Keep track of everyday finances on your own or organize costs together with partners, families, travel groups and project teams.
+**Know what you spend. Share costs fairly. Keep the overview in Nextcloud.**
 
-### Personal finances
+CoBudget is a household budget app for individuals, couples, families and housemates. Record everyday finances, plan upcoming payments and see your own share of shared costs — in your Nextcloud.
 
-- Record income and expenses with categories, payment partners, labels and free-form tags
-- Maintain optional internal address, contact and bank details for payment partners
-- Add receipts, recurring payments and reminders
-- Set budget goals and explore trends, forecasts and detailed financial reports
-- Separate financial contexts with workspaces and move your data using personal exports
+- Track income and expenses with categories, payment partners, labels and tags
+- Plan recurring payments and budget goals; explore reports, comparisons and forecasts
+- Share a household, trip or small-group area: record who paid, choose the split and settle outstanding balances
+- See your personal share in your own overview and the total in the shared area
+- Keep receipts in Nextcloud Files and manage independent or payment-linked reminders
+- Choose Nextcloud notifications, a private Talk chat or optional email for supported events; synchronize reminders with a calendar
+- Print reports, export CSV and create personal exports or administrator backups
+- Use separate workspaces, mobile and desktop layouts, and light or dark appearance
 
-### Shared expenses
+Available in English, German, French and Spanish. CoBudget remains beta: keep regular backups. Backup archives store receipt paths, not receipt files; back up the associated Nextcloud Files separately.
 
-- Create areas for a household, trip, event, project or any other shared purpose
-- Record who paid and split payments equally, by custom shares or entirely to one member
-- Keep personal shares and outstanding balances visible, then settle an area with a clear history
-- Use area-specific categories and payment partners when needed
-
-### Built for Nextcloud
-
-- Use CoBudget in English, German, French or Spanish
-- Keep your financial data in your own Nextcloud
-- Receive notifications about activity in shared areas
-- Create full administrator backups for disaster recovery]]></description>
+The current beta supports Nextcloud 33–35. CoBudget 1.0 will require Nextcloud 34 or newer.]]></description>
 	<description lang="de"><![CDATA[[Beta-Version]
 
-**CoBudget bringt persönliches Haushaltsbuch und gemeinsame Kostenverwaltung direkt in Nextcloud zusammen.** Behalte deine alltäglichen Finanzen alleine im Blick oder organisiere Kosten gemeinsam mit Partnern, Familie, Reisegruppen und Projektteams.
+**Ausgaben verstehen. Kosten fair teilen. Den Überblick in Nextcloud behalten.**
 
-### Persönliche Finanzen
+CoBudget ist ein Haushaltsbuch für Einzelpersonen, Paare, Familien und WGs. Erfasse deine alltäglichen Finanzen, plane kommende Zahlungen und sieh deinen Anteil an gemeinsamen Kosten — in deiner Nextcloud.
 
-- Erfasse Einnahmen und Ausgaben mit Kategorien, Zahlungspartnern, Labels und freien Tags
-- Hinterlege bei Zahlungspartnern optional interne Adress-, Kontakt- und Kontodaten
-- Füge Belege, wiederkehrende Zahlungen und Erinnerungen hinzu
-- Lege Budgetziele fest und analysiere Entwicklungen, Prognosen und ausführliche Auswertungen
-- Trenne finanzielle Kontexte mit Workspaces und nimm deine Daten per persönlichem Export mit
+- Einnahmen und Ausgaben mit Kategorien, Zahlungspartnern, Labels und Tags erfassen
+- Wiederkehrende Zahlungen und Budgetziele planen; Auswertungen, Vergleiche und Prognosen nutzen
+- Bereiche für Haushalt, Reise oder kleine Gruppen teilen: festhalten, wer bezahlt hat, Anteile wählen und offene Salden abrechnen
+- Deinen Anteil in der persönlichen Übersicht und den Gesamtbetrag im gemeinsamen Bereich sehen
+- Belege in Nextcloud Files ablegen und eigene oder zahlungsbezogene Erinnerungen verwalten
+- Nextcloud, privaten Talk-Chat oder optionale E-Mails je unterstütztem Ereignis wählen; Erinnerungen mit einem Kalender synchronisieren
+- Berichte drucken, CSV exportieren und persönliche Exporte oder Admin-Backups erstellen
+- Getrennte Workspaces, mobile und Desktop-Ansicht sowie helles oder dunkles Design nutzen
 
-### Gemeinsame Kosten
+Verfügbar auf Deutsch, Englisch, Französisch und Spanisch. CoBudget ist weiterhin Beta: Erstelle regelmäßig Backups. Die Archive enthalten Belegpfade, keine Belegdateien; sichere die zugehörigen Nextcloud-Dateien zusätzlich.
 
-- Erstelle Bereiche für Haushalt, Reise, Veranstaltung, Projekt oder jeden anderen gemeinsamen Zweck
-- Halte fest, wer bezahlt hat, und teile Zahlungen gleichmäßig, nach individuellen Anteilen oder vollständig einer Person zu
-- Behalte persönliche Anteile und offene Salden im Blick und rechne Bereiche mit nachvollziehbarer Historie ab
-- Nutze bei Bedarf eigene Kategorien und Zahlungspartner je Bereich
+Die aktuelle Beta unterstützt Nextcloud 33–35. CoBudget 1.0 setzt mindestens Nextcloud 34 voraus.]]></description>
+	<description lang="fr"><![CDATA[[Version bêta]
 
-### Für Nextcloud gemacht
+**Comprendre ses dépenses. Partager les frais équitablement. Garder une vue d’ensemble dans Nextcloud.**
 
-- Nutze CoBudget auf Deutsch, Englisch, Französisch oder Spanisch
-- Deine Finanzdaten bleiben in deiner eigenen Nextcloud
-- Erhalte Benachrichtigungen über Aktivitäten in gemeinsamen Bereichen
-- Erstelle vollständige Admin-Backups für den Wiederherstellungsfall]]></description>
-	<version>0.8.5</version>
+CoBudget aide les particuliers, les couples, les familles et les colocataires à suivre leur budget. Enregistrez vos finances au quotidien, anticipez les paiements à venir et retrouvez votre part des frais communs dans votre Nextcloud.
+
+- Suivez revenus et dépenses avec catégories, partenaires de paiement, libellés et tags
+- Planifiez paiements récurrents et objectifs budgétaires ; consultez rapports, comparaisons et prévisions
+- Partagez un espace pour le foyer, un voyage ou un petit groupe : indiquez qui a payé, répartissez les frais et soldez les comptes
+- Retrouvez votre part dans votre vue personnelle et le total dans l’espace partagé
+- Conservez les justificatifs dans Nextcloud Files et gérez des rappels autonomes ou liés à un paiement
+- Choisissez Nextcloud, une conversation Talk privée ou l’e-mail facultatif selon l’événement ; synchronisez les rappels avec un calendrier
+- Imprimez des rapports, exportez en CSV et créez des exports personnels ou des sauvegardes administrateur
+- Utilisez des espaces de travail séparés, un affichage mobile ou bureau et un thème clair ou sombre
+
+Disponible en anglais, allemand, français et espagnol. CoBudget reste en bêta : faites des sauvegardes régulières. Les archives conservent les chemins des justificatifs, pas les fichiers ; sauvegardez aussi les fichiers Nextcloud correspondants.
+
+La bêta actuelle prend en charge Nextcloud 33 à 35. CoBudget 1.0 nécessitera Nextcloud 34 au minimum.]]></description>
+	<description lang="es"><![CDATA[[Versión beta]
+
+**Entiende tus gastos. Reparte los costes de forma justa. Mantén el control en Nextcloud.**
+
+CoBudget es una aplicación de presupuesto doméstico para personas, parejas, familias y compañeros de piso. Registra tus finanzas diarias, planifica próximos pagos y consulta tu parte de los gastos compartidos en tu Nextcloud.
+
+- Registra ingresos y gastos con categorías, destinatarios de pagos, etiquetas y tags
+- Planifica pagos recurrentes y objetivos de presupuesto; consulta informes, comparaciones y previsiones
+- Comparte áreas para el hogar, viajes o grupos pequeños: indica quién pagó, elige el reparto y liquida saldos pendientes
+- Consulta tu parte en la vista personal y el importe total en el área compartida
+- Guarda justificantes en Nextcloud Files y gestiona recordatorios independientes o vinculados a pagos
+- Elige Nextcloud, un chat privado de Talk o correo opcional según el evento; sincroniza recordatorios con un calendario
+- Imprime informes, exporta CSV y crea exportaciones personales o copias de seguridad de administrador
+- Usa espacios de trabajo separados, vistas para móvil y escritorio y temas claro u oscuro
+
+Disponible en inglés, alemán, francés y español. CoBudget sigue en beta: haz copias de seguridad periódicas. Las copias guardan las rutas de los justificantes, no los archivos; respalda también los archivos de Nextcloud correspondientes.
+
+La beta actual admite Nextcloud 33–35. CoBudget 1.0 requerirá Nextcloud 34 o posterior.]]></description>
+	<version>0.8.8</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>

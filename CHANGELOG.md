@@ -2,6 +2,35 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [0.8.8] - 2026-11-13
+
+- Fence personal/full backup and restore against concurrent CoBudget requests, jobs, user deletion and data-management commands using Nextcloud's shared/exclusive locks. Existing operations prevent maintenance startup; new requests receive HTTP 503 during maintenance, and jobs defer their work.
+- Keep the exclusive lock through validation, safety backup, replacement and cleanup; release it on normal failure. Recheck workspace ownership after request admission and preserve native lock-cache correctness across repeated cron operations.
+- Add multi-process concurrency regression tests using the real Nextcloud locking provider, alongside backup roundtrip/rollback tests.
+- Handle Nextcloud Files adapters that close streamed input; avoid falsely failing an otherwise stored backup. Preserve deleted-goal snapshots in integrity checks instead of offering their deletion as a repair.
+- Extend released-0.8.5 upgrade fixtures with shared splits, settlements, deleted participants, recurrence, user mapping and actual Nextcloud Files archives. Add a disposable recovery runner with deterministic SIGKILL during migration and restore, snapshot recovery, lock expiry and generated-ID checks.
+- Configure six Nextcloud 34/35 recovery CI combinations with SQLite, MariaDB 10.11 and PostgreSQL 16, plus native database and Redis locks. Retain test logs without database/configuration artifacts.
+- Clear Nextcloud's user-preference cache after transactional replacement and rollback, preventing stale settings during account mapping or repeated restores. Keep PostgreSQL sequences monotonic across failed restores; sequence errors now fail the restore instead of being ignored.
+- Confirm the backup boundary: CoBudget archives preserve receipt paths; receipt files are protected and restored with the administrator's existing Nextcloud Files backup solution.
+
+## [0.8.7] - 2026-11-13
+
+- Fix full restore rejecting retained history of deleted budget goals. Preserve detached budget history in personal exports/imports too, without reconnecting it to future goal IDs.
+- Check ZIP writes/finalization and stored backup size; stream archives into Files and clean up partial files before retention pruning. Reject missing manifest-listed tables, missing settings and invalid table inventories.
+- Add a real ZIP/database backup roundtrip suite with rollback, legacy deleted-goal history and corrupt-archive/storage-failure cases; include it in compatibility CI.
+- Fix payment CSV yes/no values always appearing in German; export them in the selected language, with cents and formula protection covered by regression tests.
+- Extend translation coverage checks across frontend literals and all PHP services/controllers, including multiline calls. Add missing due-date and receipt-permission translations in German, French and Spanish.
+- Refresh household-focused GitHub and App Store descriptions in English, German, French and Spanish, with README language links, backup limits and an explanation of CoBudget’s payment/share-based structure and lack of bank-account synchronization.
+- Record the 1.0 readiness review and open validation gates. Plan Nextcloud 34 as the minimum for 1.0; this beta retains Nextcloud 33–35 compatibility.
+
+## [0.8.6] - 2026-11-12
+
+- Shorten notification settings copy to essential calendar behavior and a contextual missing-email hint; move channel and mail setup details to the operating guide.
+
+- Add independent, opt-in email notifications for personal reminders, due planned/recurring payments, new shared-area payments and settlements. Use the current Nextcloud account email address and the administrator-configured mail transport.
+- Retry failed reminder emails independently of Push/Talk and track planned-payment email delivery per recipient. Preserve delivery state and preferences in backups/reset; migrate existing delivered reminders without replaying them.
+- Show email channel controls in Settings, including a hint when the account has no valid email address. Email contains personal reminder text or a brief event summary and a link, without payment descriptions or receipts.
+
 ## [0.8.5] - 2026-11-11
 
 This release includes the changes developed in 0.8.0–0.8.4 since the 0.7.0 release.

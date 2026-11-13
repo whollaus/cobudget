@@ -68,60 +68,66 @@ class ResetAllCommand extends Command {
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-		if ((string)$input->getOption('confirm') !== self::CONFIRMATION_TEXT) {
-			$output->writeln('<error>Dieser Befehl loescht ALLE CoBudget-Daten fuer ALLE Benutzer.</error>');
-			$output->writeln('<comment>Auch offene Bereiche, Zahlungen, Workspaces, Budgets und Abrechnungen werden geloescht.</comment>');
-			$output->writeln('<comment>Beleg- und Backup-Dateien in Nextcloud Files bleiben unveraendert.</comment>');
-			$output->writeln('');
-			$output->writeln('<info>Zum Ausfuehren:</info>');
-			$output->writeln('  occ cobudget:reset-all --confirm=' . self::CONFIRMATION_TEXT);
-
-			return Command::FAILURE;
-		}
-
-		$tableCounts = [];
-		$preferencesCount = 0;
-		$appValuesReset = 0;
-
-		$this->db->beginTransaction();
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
+		$access->enter();
 		try {
-			foreach (array_reverse(self::TABLES) as $table) {
-				$tableCounts[$table] = $this->countRows($table);
-				$this->deleteRows($table);
+			if ((string)$input->getOption('confirm') !== self::CONFIRMATION_TEXT) {
+				$output->writeln('<error>Dieser Befehl loescht ALLE CoBudget-Daten fuer ALLE Benutzer.</error>');
+				$output->writeln('<comment>Auch offene Bereiche, Zahlungen, Workspaces, Budgets und Abrechnungen werden geloescht.</comment>');
+				$output->writeln('<comment>Beleg- und Backup-Dateien in Nextcloud Files bleiben unveraendert.</comment>');
+				$output->writeln('');
+				$output->writeln('<info>Zum Ausfuehren:</info>');
+				$output->writeln('  occ cobudget:reset-all --confirm=' . self::CONFIRMATION_TEXT);
+
+				return Command::FAILURE;
 			}
 
-			$preferencesCount = $this->countCoBudgetPreferences();
-			$this->deleteCoBudgetPreferences();
+			$tableCounts = [];
+			$preferencesCount = 0;
+			$appValuesReset = 0;
 
-			foreach (self::APP_VALUE_KEYS_TO_RESET as $key) {
-				if ($this->config->getAppValue(self::APP_ID, $key, '') !== '') {
-					$appValuesReset++;
+			$this->db->beginTransaction();
+			try {
+				foreach (array_reverse(self::TABLES) as $table) {
+					$tableCounts[$table] = $this->countRows($table);
+					$this->deleteRows($table);
 				}
-				$this->config->deleteAppValue(self::APP_ID, $key);
+
+				$preferencesCount = $this->countCoBudgetPreferences();
+				$this->deleteCoBudgetPreferences();
+
+				foreach (self::APP_VALUE_KEYS_TO_RESET as $key) {
+					if ($this->config->getAppValue(self::APP_ID, $key, '') !== '') {
+						$appValuesReset++;
+					}
+					$this->config->deleteAppValue(self::APP_ID, $key);
+				}
+
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				$output->writeln('<error>CoBudget-Reset fehlgeschlagen. Alle Aenderungen wurden zurueckgerollt.</error>');
+				$output->writeln('<error>' . $e->getMessage() . '</error>');
+
+				return Command::FAILURE;
 			}
 
-			$this->db->commit();
-		} catch (\Throwable $e) {
-			$this->db->rollBack();
-			$output->writeln('<error>CoBudget-Reset fehlgeschlagen. Alle Aenderungen wurden zurueckgerollt.</error>');
-			$output->writeln('<error>' . $e->getMessage() . '</error>');
+			// Retain failed external cleanup links until the reminder job can remove them.
+			$this->calendarReminders->resetConnections();
+			$totalRows = array_sum($tableCounts);
+			$output->writeln('<info>CoBudget wurde zurueckgesetzt.</info>');
+			$output->writeln(sprintf('Geloeschte Tabellenzeilen: %d', $totalRows));
+			foreach (array_reverse($tableCounts, true) as $table => $count) {
+				$output->writeln(sprintf(' - %s: %d', $table, $count));
+			}
+			$output->writeln(sprintf('Geloeschte CoBudget-Benutzereinstellungen: %d', $preferencesCount));
+			$output->writeln(sprintf('Zurueckgesetzte globale CoBudget-App-Einstellungen: %d', $appValuesReset));
+			$output->writeln('<comment>Globale Standard-Kategorien und Zahlungspartner werden beim naechsten Aufruf der jeweiligen Einstellungen neu angelegt.</comment>');
 
-			return Command::FAILURE;
+			return Command::SUCCESS;
+		} finally {
+			$access->leave();
 		}
-
-		// Retain failed external cleanup links until the reminder job can remove them.
-		$this->calendarReminders->resetConnections();
-		$totalRows = array_sum($tableCounts);
-		$output->writeln('<info>CoBudget wurde zurueckgesetzt.</info>');
-		$output->writeln(sprintf('Geloeschte Tabellenzeilen: %d', $totalRows));
-		foreach (array_reverse($tableCounts, true) as $table => $count) {
-			$output->writeln(sprintf(' - %s: %d', $table, $count));
-		}
-		$output->writeln(sprintf('Geloeschte CoBudget-Benutzereinstellungen: %d', $preferencesCount));
-		$output->writeln(sprintf('Zurueckgesetzte globale CoBudget-App-Einstellungen: %d', $appValuesReset));
-		$output->writeln('<comment>Globale Standard-Kategorien und Zahlungspartner werden beim naechsten Aufruf der jeweiligen Einstellungen neu angelegt.</comment>');
-
-		return Command::SUCCESS;
 	}
 
 	private function countRows(string $table): int {

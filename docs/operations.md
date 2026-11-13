@@ -110,3 +110,95 @@ includes `operation` (`settings-read`, `settings-save` or `synchronize`),
 `exceptionType` and source locations for the exception chain. Exception messages,
 SQL parameter values and reminder contents are deliberately omitted. The retry
 button synchronizes immediately; a persistent error is not normal cron delay.
+
+### Notification channels and email
+
+Select each channel independently in Settings → Notifications. Mobile push also
+depends on Nextcloud and device notification settings. Talk uses the private
+CoBudget chat described above.
+
+Email uses the current address in the recipient's Nextcloud account. An administrator
+must configure outgoing mail in Nextcloud. Without a valid account address, the
+Email controls cannot be enabled; add the address in the personal Nextcloud settings.
+Email is optional for reminders, planned/recurring payment activations, new payments
+in shared areas and settlements. All email preferences start disabled.
+
+## Backup and recovery
+
+CoBudget provides three different ways to take data out of the app:
+
+| Output | Purpose | Restore behavior |
+| --- | --- | --- |
+| CSV, clipboard and printed reports | Analysis, sharing or a readable record of the selected data. | Not a CoBudget backup format. Filters, section scope and amount perspective matter. |
+| Personal export ZIP | Move or preserve one user's personal financial perspective. Shared amounts become independent personal payments. | Import into an empty CoBudget user state only; local IDs and the source user are remapped. |
+| Administrator full backup ZIP | Preserve CoBudget financial tables and portable settings across users. | Replaces the app's current tables/settings; existing target accounts or explicit account mappings are required. |
+
+Neither ZIP includes receipt binaries, Talk history or calendar events/connections.
+The attachment paths need matching Nextcloud Files after restoration. Use your
+existing backup solution for Nextcloud Files to protect and recover those files;
+receipt-file backup is intentionally outside CoBudget. Keep a separate complete
+Nextcloud backup (database, configuration and data) and a copy
+outside the instance. A ZIP stored only in the same Nextcloud cannot recover a
+lost server by itself.
+
+### Controlled full restore
+
+1. Rehearse on a separate target first. Record the CoBudget/Nextcloud versions,
+   account IDs, receipt locations, row counts and a few expected balances/splits.
+2. CoBudget takes an exclusive app-data lock for backups and restores. Ordinary
+   requests and background jobs hold shared admission for their complete work, so
+   an already running operation prevents maintenance from starting. Retry once it
+   finishes. While maintenance owns the lock, new app requests receive HTTP 503
+   with a short retry hint; jobs defer until their next scheduled run. This applies
+   to the web interface and CoBudget's OCC commands. Other Nextcloud apps remain
+   available. Direct database modifications must still be stopped separately.
+3. Preserve an independent full Nextcloud backup before replacing any data. Check
+   free storage for both the restore archive and CoBudget's automatic safety backup.
+4. Run the CoBudget OCC backup/restore commands as the normal Nextcloud web user,
+   with the PHP version/extensions used by the instance. The storage account must
+   be an administrator. Use `occ help cobudget:backup:restore-full` and the
+   [documented commands](architecture.md#backups); verify any `--map-user` pairs.
+   The app guard does not require Nextcloud-wide maintenance mode. App OCC
+   commands may be unavailable while Nextcloud itself is in maintenance mode.
+5. Run `occ cobudget:integrity:check` without repair options. Verify counts, exact
+   balances, settlements, personal/shared perspectives and actual receipt access.
+   Reconnect calendar/Talk destinations where needed. On a separate test server,
+   keep outgoing notifications disabled to avoid replaying due events to real users.
+6. Reload open CoBudget browser tabs after restoration before editing the restored
+   data. The app lock is released automatically on success or normal failure. If
+   restore fails, inspect the failure and current state before retrying; a database rollback does
+   not roll back external Files operations. Keep the independent recovery copy.
+
+Deleted budget goals can leave historical snapshots. Export and restore retain
+these values with a detached goal reference; they are not resurrected as live goals
+or added to a new goal's history.
+
+### Server locking requirements
+
+Nextcloud file locking must be enabled (`filelocking.enabled`). Backup/restore
+refuses to run without it. The database locking provider and the configured native
+locking cache are used through Nextcloud's public API; multi-node installations
+must share a coherent locking provider. Configure `filelocking.ttl` longer than the
+longest request, background job or restore. Native locks can expire after that
+interval, so a too-short TTL defeats mutual exclusion. Normal failures release the
+lock; hard process failures follow Nextcloud's native lock recovery, plus the
+existing restore-specific stale-lock timeout. After a hard process kill, database
+locks require Nextcloud's expired-lock cleanup; Redis locks expire in Redis.
+CoBudget's additional restore marker can delay another restore for up to six hours.
+Normal exceptions release both guards immediately. The test harness shortens the
+native TTL and simulates the marker's age only inside disposable installations.
+Never manually clear a lock while its owner is still running.
+
+The guard protects CoBudget entry points, not external SQL writers or changes to
+Files made independently of the app. Coordinate a complete server recovery with
+your Nextcloud backup solution. A successful app-data restore alone does not prove
+that the separately protected receipt files have been recovered.
+
+### Before relying on scheduled backups
+
+Check the archive's existence and size, download a copy and rehearse restoration.
+The writer checks ZIP operations and stored size, but this is not a checksum-based
+verification of every storage backend. Test quota/full-disk failures on a disposable
+target. Confirm that old backups are only pruned after the new archive has been
+stored, and monitor failed background jobs. Raising restore resource limits can
+increase PHP memory requirements: test with representative data before changing them.

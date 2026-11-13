@@ -23,10 +23,20 @@ class BudgetSnapshotJob extends TimedJob {
 	}
 
 	protected function run($argument): void {
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
 		try {
-			$this->budgetSnapshotService->createDueSnapshots();
-		} catch (\Throwable $e) {
-			$this->logger->error('Failed to create CoBudget budget snapshots: ' . $e->getMessage(), ['app' => self::APP_ID]);
+			$access->enter();
+		} catch (\OCA\CoBudget\Exception\AppBusyException) {
+			return; // The next scheduled run retries without processing stale data.
+		}
+		try {
+			try {
+				$this->budgetSnapshotService->createDueSnapshots();
+			} catch (\Throwable $e) {
+				$this->logger->error('Failed to create CoBudget budget snapshots: ' . $e->getMessage(), ['app' => self::APP_ID]);
+			}
+		} finally {
+			$access->leave();
 		}
 	}
 }

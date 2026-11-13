@@ -10,6 +10,13 @@ trait WorkspaceAwareTrait {
 	protected ?int $workspaceId = null;
 	protected ?DataResponse $workspaceHeaderErrorResponse = null;
 
+	/** Recheck ownership after admission; a restore may have replaced workspace IDs. */
+	public function refreshWorkspaceContext(): void {
+		$this->workspaceId = null;
+		$this->workspaceHeaderErrorResponse = null;
+		$this->initWorkspace();
+	}
+
 	protected function initWorkspace(): void {
 		$workspaceIdStr = trim((string)$this->request->getHeader('X-Workspace-Id'));
 		if ($workspaceIdStr === '') {

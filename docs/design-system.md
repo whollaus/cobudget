@@ -919,3 +919,14 @@ styles. It links to the account-wide reminder overview and shows the open count
 and up to two earliest titles/dates, independent of payment filters. Hide it when
 empty or when the reminder feature is disabled; truncate long titles while keeping
 dates visible.
+
+### Email notification controls
+
+Settings adds an Email column to the existing event/channel matrix, using native
+checkboxes, translated event/channel labels and the same serialized autosave and
+error recovery. All four choices default off. Without a valid account address,
+disable unchecked email controls and show a short native missing-address note; keep opt-out possible.
+Avoid general channel explanations below the matrix. Keep only the brief calendar
+sync/deletion consequence at the target picker; document setup and delivery details
+in the operating guide.
+Preserve visible header spacing and 44 px targets at narrow widths and in both themes.

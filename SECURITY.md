@@ -12,6 +12,9 @@ Older versions do not receive separate maintenance. `main` is development code,
 not a stable release. Report the affected version even if you cannot safely update
 or reproduce the issue on a newer version.
 
+The 0.x beta supports Nextcloud 33–35. Starting with the first stable 1.0 release,
+Nextcloud 34 is the minimum; Nextcloud 33 will not receive CoBudget 1.x support.
+
 ## Reporting a vulnerability
 
 Use [GitHub Issues](https://github.com/whollaus/cobudget/issues) to contact the
@@ -55,3 +58,17 @@ notes are included in opted-in private Talk delivery. Completion and notes are
 scoped to the authenticated account, including shared-payment reminders. Calendar targets and synchronization
 mappings are server-local and excluded from financial backups. Failed cleanup is
 retried while access remains available; revoked calendar access is never bypassed.
+
+Opt-in email notifications use the current primary email address of the enabled
+Nextcloud account and the server-configured mail transport. CoBudget accepts no
+custom recipient. Personal reminder titles/notes and brief event summaries may
+leave Nextcloud through this channel; payment descriptions and receipts are not
+included. Delivered copies remain in the recipient mailbox after CoBudget data is
+changed or deleted. Transport errors are logged without message content or addresses.
+
+Backup and restore use exclusive native Nextcloud app-data locks; regular app
+requests, jobs, data-management commands and user deletion participate in shared
+admission. New requests receive HTTP 503 during maintenance. File locking must be
+enabled, coherently configured across nodes and have a TTL longer than the operation.
+External SQL changes are outside this guard. Receipt files remain protected by the
+installation's Nextcloud Files backup solution, not by CoBudget archive contents.

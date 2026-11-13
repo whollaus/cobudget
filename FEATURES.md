@@ -1,8 +1,20 @@
 # CoBudget Features
 
-CoBudget provides personal and shared household budgeting inside Nextcloud.
-This describes the current 0.8.5 beta development state; see the
+CoBudget helps individuals, couples, families and housemates track everyday
+finances and share costs inside Nextcloud.
+This describes the current 0.8.8 beta development state; see the
 [changelog](CHANGELOG.md) for changes and the [README](README.md) for installation.
+
+## Focus and data model
+
+CoBudget organizes finances around payments, personal shares and shared areas.
+Personal views count your own costs; shared areas retain the total, the payer and
+balances between members. Workspaces separate independent sets of data.
+CoBudget does not connect to bank accounts, synchronize bank transactions or import
+bank statements. Reports summarize recorded payments; they do not represent
+reconciled bank account balances. Recurring rules create app records, and settlements
+record how shared costs are balanced; neither initiates a bank transfer.
+See [the CoBudget approach](docs/concept.md) for an example.
 
 ## Navigation and filters
 
@@ -120,8 +132,8 @@ This describes the current 0.8.5 beta development state; see the
 - Calendar integration includes explicit reminder notes and any previously saved deadline.
   Completing or archiving removes the alarm but retains an existing event;
   deletion removes the managed event. Reactivation requires a future time.
-  CoBudget is authoritative; external calendar edits and Nextcloud Tasks are not
-  synchronized. The overview spans the user's workspaces.
+  Private calendar edits synchronize as described above; shared calendars remain
+  export-only. Nextcloud Tasks are not synchronized. The overview spans the user's workspaces.
 
 ## Planned payments and reminder delivery
 
@@ -129,11 +141,11 @@ This describes the current 0.8.5 beta development state; see the
   with an alert at the reminder time. Changes and removals in CoBudget follow into
   that calendar. Each member chooses their own target; calendar access controls
   who can see the reminder text. The Calendar column is hidden without a writable
-  event calendar. Calendar delivery is separate from Nextcloud and Talk.
+  event calendar. Calendar delivery is separate from Nextcloud, Talk and email.
 
 - Optionally notify when the first future payment becomes due and for each
-  generated repetition. Nextcloud and private Talk channels are independent,
-  both off by default, in a compact notification settings table. These messages
+  generated repetition. Nextcloud, private Talk and email channels are independent,
+  all off by default, in a compact notification settings table. These messages
   do not execute bank transfers.
 
 - Schedule future payments and repeating series with an interval, multiplier and
@@ -146,8 +158,8 @@ This describes the current 0.8.5 beta development state; see the
   payment. Missed runs catch up through later job executions.
 - Stopping an already booked payment's repetition keeps its recorded history.
   Deleting a future first payment removes that payment and its planned series.
-- Choose reminder delivery via Nextcloud (default on) and Talk (default off)
-  independently, including without areas. Talk uses the private CoBudget chat
+- Choose reminder delivery via Nextcloud (default on), Talk and email (both
+  default off) independently, including without areas. Talk uses the private CoBudget chat
   and includes reminder text, amount and due date. Shared reminders respect
   each active member's preferences. Mobile push depends on Nextcloud/Talk and
   device settings.
@@ -274,13 +286,18 @@ not embed the files themselves.
 - Administrators can create full backups, restore with confirmation and map user
   IDs for server transfers. Full backups must belong to an administrator; restore
   creates a safety backup and validates shared-payment relationships transactionally.
+  App requests and jobs cannot overlap a backup or restore; an already active
+  operation prevents maintenance startup. Retry when it finishes and reload open
+  tabs after restoration. See the
+  [recovery procedure](docs/operations.md#backup-and-recovery).
 - Backup archives store receipt paths, not receipt files. Keep Nextcloud Files
-  backups as well. See [backup commands](docs/architecture.md#backups).
+  backups through your existing Nextcloud Files backup solution. Receipt-file
+  backup remains outside CoBudget. See [backup commands](docs/architecture.md#backups).
 - Administrator settings manage global categories/partners, integrity checks,
   supported repairs and data-quality warnings. Destructive actions have explicit
   confirmations; integrity checks do not repair data unless requested.
-- Bell notifications and optional personal Talk notifications have independent
-  preferences. Talk messages omit descriptions/receipts, remain in chat history
+- Bell notifications, optional personal Talk and email notifications have independent
+  preferences for supported events. Talk messages omit descriptions/receipts, remain in chat history
   after a payment changes and are not retried after delivery failures.
 
 ## Appearance and accessibility
@@ -307,3 +324,18 @@ typography, theme, keyboard and responsive conventions.
 
 The Settings page lists shortcuts before Reset all. Shortcuts respect the active
 app context, nested dialogs and pending operations; browsers may reserve some keys.
+
+### Optional email notifications
+
+In Settings → Notifications, enable Email independently for reminders, due planned
+or recurring payments, new shared-area payments and settlements. All email choices
+start disabled. Delivery uses the account's current Nextcloud email address and
+the administrator-configured outgoing mail service; no separate mail account or
+recipient address is entered in CoBudget. A missing valid profile address disables
+activation and shows a setup hint.
+
+Reminder emails contain the personal reminder title/notes and a link. Other events
+use a brief summary without payment descriptions or receipts. Scheduled delivery
+runs with Nextcloud background jobs; failed reminder/planned-payment emails retry
+without repeating successful channels. Shared-area event emails are attempted
+after commit; failures are logged without rolling back the payment or settlement.

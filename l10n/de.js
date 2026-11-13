@@ -1,11 +1,20 @@
 OC.L10N.register(
     "cobudget",
 {
+    "This receipt is controlled by an open shared payment." : "Dieser Beleg wird über eine noch nicht abgerechnete gemeinsame Zahlung verwaltet.",
+    "Receipts of settled shared payments cannot be changed." : "Belege abgerechneter gemeinsamer Zahlungen können nicht geändert werden.",
+    "CoBudget is temporarily busy with a backup, restore or another operation. Please try again shortly.": "CoBudget ist wegen einer Sicherung, Wiederherstellung oder eines anderen Vorgangs kurzzeitig nicht verfügbar. Bitte versuche es gleich noch einmal.",
+    "Due date" : "Fälligkeitsdatum",
+    "Email" : "E-Mail",
+    "Email is sent to the address in your Nextcloud account. Your administrator must configure outgoing mail." : "E-Mails werden an die Adresse in deinem Nextcloud-Konto gesendet. Dein Administrator muss den E-Mail-Versand einrichten.",
+    "Email notifications require a valid address in your Nextcloud account." : "Für E-Mail-Benachrichtigungen fehlt eine gültige Adresse in deinem Nextcloud-Konto.",
+    "%s settled area %s." : "%s hat den Bereich %s abgerechnet.",
+
     "Reminds you of payments, cancellations and other important dates.": "Erinnert dich an Zahlungen, Kündigungen und andere wichtige Termine.",
     "Calendar changes conflict": "Kalenderänderungen widersprechen sich",
     "Choose which value to keep for each field. Other changes will be merged automatically.": "Wähle für jedes Feld den Wert, der übernommen werden soll. Andere Änderungen werden automatisch zusammengeführt.",
     "Time": "Uhrzeit",
-    "Title, description and time are synchronized in both directions for private calendars. Deleting an event archives your reminder. Shared calendars remain export-only. Linked payment titles and times also change for other area members; descriptions remain personal.": "Titel, Beschreibung und Zeitpunkt werden bei privaten Kalendern in beide Richtungen synchronisiert. Das Löschen eines Termins archiviert deine Erinnerung. Geteilte Kalender werden nur von CoBudget aktualisiert. Bei verknüpften Zahlungen ändern sich Titel und Zeitpunkt auch für andere Bereichsmitglieder; Beschreibungen bleiben persönlich.",
+    "Private calendars sync both ways. Deleting an event archives its reminder." : "Private Kalender werden in beide Richtungen synchronisiert. Gelöschte Termine archivieren die Erinnerung.",
     "Calendar delivery follows your notification settings. Personal calendar changes are synchronized with CoBudget; deleting an event archives its reminder.": "Die Kalender-Anbindung folgt deinen Benachrichtigungseinstellungen. Änderungen im privaten Kalender werden mit CoBudget synchronisiert; das Löschen eines Termins archiviert seine Erinnerung.",
 
     "Calendar synchronization pending. Click to retry.": "Kalendersynchronisierung ausstehend. Klicken, um es erneut zu versuchen.",

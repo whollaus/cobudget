@@ -1,91 +1,111 @@
 # CoBudget
 
-Personal and shared household budgeting inside Nextcloud. Track income and
-expenses, split shared costs, attach receipts and understand your spending while
-keeping the data on your own server.
+**English** · [Deutsch](docs/readme.de.md) · [Français](docs/readme.fr.md) · [Español](docs/readme.es.md)
+
+**Know what you spend. Share costs fairly. Keep the overview in Nextcloud.**
+
+CoBudget is a household budget app for individuals, couples, families and
+housemates. Record everyday income and expenses, plan upcoming payments and see
+your own share of shared costs. Use shared areas for your household, a trip or a
+small group, with receipts and reminders close to the payments they belong to.
 
 > [!WARNING]
-> CoBudget is beta. Keep regular backups, especially before updates, and do not
-> use it as the only record of critical financial data. Development is AI-assisted;
-> the app has automated tests but has not had an independent security audit.
-> See the [security policy](SECURITY.md).
+> **Beta — current development version: 0.8.8.** Keep regular backups and do not
+> use CoBudget as the only record of critical financial data. Development is
+> AI-assisted; automated tests do not replace an independent security audit,
+> which has not yet been performed. See [SECURITY.md](SECURITY.md).
 
-## Status
+## Everyday finances, alone or together
 
-The current development milestone is **0.8.5 (beta)**, consolidating the rebuild
-since 0.7.0. See the [changelog](CHANGELOG.md) for the prepared release notes and
-[GitHub Releases](https://github.com/whollaus/cobudget/releases) for published versions.
-
-**1.0.0 is intended to be the first stable release**, with no committed date.
-The focus before then is reliable upgrades, backup/restore, shared settlements,
-recurring payments and regression checks across supported Nextcloud versions,
-mobile layouts, keyboard navigation and themes. Features and data structures may
-still change during beta.
-
-## What you can do
-
-- Record income and expenses with categories, payment partners, labels and tags.
-- Plan recurring payments; manage independent and payment-linked reminders with notes, completion and an archive. Keep receipts in Nextcloud Files.
-- Hide the Reminders interface under Settings → Features while keeping existing notifications and calendar synchronization active.
-- Choose Nextcloud and/or private Talk notifications; optionally synchronize reminders with a private calendar in both directions. Deleting a calendar event archives its reminder.
-- Organize personal or shared areas, split costs and settle balances.
-- Set budget goals and track progress using your personal share.
-- Explore reports, comparisons and forecasts; print or export the selected data.
-- Separate independent data pools with workspaces.
-- Create personal exports and administrator-owned full backups.
-- Use desktop/mobile layouts, keyboard shortcuts and light, dark or system appearance.
+- **Keep track:** income, expenses, categories, payment partners, labels and tags.
+- **Plan ahead:** recurring payments, budget goals, reports, comparisons and forecasts.
+- **Share fairly:** record who paid, choose the split and settle outstanding
+  balances. Your personal overview counts your share; shared areas show the total.
+- **Keep the context:** store receipts in Nextcloud Files and manage independent
+  or payment-linked reminders, including completion and an archive.
+- **Choose your notifications:** Nextcloud, a private CoBudget Talk chat and optional
+  email, with separate choices for supported events. Reminders can also sync with
+  a calendar; private calendar edits sync back to CoBudget.
+- **Use your data:** print reports, export CSV, copy tables to a spreadsheet and
+  create personal exports or administrator backups.
+- **Make it yours:** separate data pools with workspaces, use desktop or mobile
+  layouts and choose a light, dark or system appearance.
 
 The interface is available in English, German, French and Spanish.
-See the [feature overview](FEATURES.md) for workflows and limits, and
-[report calculations](docs/reports.md) for financial scope, forecasts and exports.
+[Features](FEATURES.md) explains the workflows and limits;
+[report calculations](docs/reports.md) explains amounts, forecasts and exports.
 
-## Requirements
+## How CoBudget is organized
 
-- Nextcloud 33, 34 or 35.
-- PHP supported by your Nextcloud release: at least 8.2 for 33/34, or 8.3 for 35.
-- An account with access to CoBudget and a modern JavaScript-enabled browser.
-- Working Nextcloud background jobs for recurrence, reminders and scheduled backups.
+CoBudget is built around payments, personal shares and shared areas. Your personal
+household book shows your own costs; a shared area keeps the total, who paid and
+what members owe each other. CoBudget does not connect to bank accounts or
+synchronize bank transactions. Its reports reflect the payments you record and
+their allocation, rather than a reconciled bank account balance.
+Read more about [the CoBudget approach](docs/concept.md).
 
-See [compatibility checks](tests/README.md#compatibility-ci) for the automated
-server matrix and its validation limits.
+## Requirements and the road to 1.0
 
-## Installation
+The current beta supports **Nextcloud 33–35**. **CoBudget 1.0 will require
+Nextcloud 34 or newer; Nextcloud 33 support ends with the 0.x series.** The planned
+1.0 test matrix is Nextcloud 34 and 35. There is no committed release date.
 
-Install or update CoBudget from Nextcloud's Apps administration via the
-[official App Store listing](https://apps.nextcloud.com/apps/cobudget).
-Administrators can also use `occ app:install cobudget`.
+Use the PHP version supported by your Nextcloud release (8.2 or newer for 33/34,
+8.3 or newer for 35), a modern browser and working Nextcloud background jobs.
+Talk, calendar synchronization and email are optional; email uses the address in
+your Nextcloud account and requires configured outgoing mail on the server.
 
+The [1.0 readiness review](docs/release-readiness-1.0.md) records findings and open
+release gates. [Tests](tests/README.md) describes what the automated checks cover.
+
+## Install or update
+
+Install CoBudget through Nextcloud's Apps administration from the
+[App Store](https://apps.nextcloud.com/apps/cobudget), or use `occ app:install cobudget`.
 For manual installation:
 
-1. Download the signed `cobudget.tar.gz` asset from [GitHub Releases](https://github.com/whollaus/cobudget/releases).
-2. Extract it into Nextcloud's `apps/` or `custom_apps/` directory, keeping the folder name `cobudget`.
-3. Enable CoBudget in Nextcloud and complete any pending app update.
+1. Download the signed `cobudget.tar.gz` from [GitHub Releases](https://github.com/whollaus/cobudget/releases).
+2. Extract it into Nextcloud's `apps/` or `custom_apps/` directory as `cobudget`.
+3. Enable the app and complete any pending update.
 
-GitHub's automatic source archives are repository snapshots, not installable app
-packages. Back up existing data before updating.
+GitHub's automatic source archives are not installable app packages. Back up your
+data before updating. Configure system cron to run Nextcloud's `cron.php` every
+five minutes as the web server user. See [Operating CoBudget](docs/operations.md)
+for jobs, notifications and recovery.
 
-Configure system cron to run Nextcloud's `cron.php` every five minutes as the web
-server user. [Operating CoBudget](docs/operations.md) explains job diagnostics,
-optional personal Talk notifications and restore resource limits.
+## What a backup contains
+
+A **personal export** preserves your financial perspective and can be imported
+only into an empty CoBudget user state. Shared amounts become independent personal
+payments. An **administrator full backup** preserves all CoBudget financial data
+and portable user settings; restoring it replaces the app's current data.
+
+**Neither archive contains receipt files.** It stores their paths. Back up the
+associated Nextcloud Files with your existing Nextcloud Files backup solution.
+Receipt-file backup is deliberately handled there. These archives do not replace a
+complete Nextcloud backup. CoBudget temporarily blocks app access during backup and
+restore. If an operation is already running, retry once it has finished. Reload open
+CoBudget tabs after a restore. See the
+[recovery procedure](docs/operations.md#backup-and-recovery).
 
 ## Feedback and support
 
-**Bug reports are especially welcome.** Feedback and testing are currently more
-helpful than additional code contributions. CoBudget is primarily developed by
-one maintainer; pull requests require prior agreement. See
-[CONTRIBUTING.md](CONTRIBUTING.md) and [GitHub Issues](https://github.com/whollaus/cobudget/issues).
-For suspected vulnerabilities, follow [SECURITY.md](SECURITY.md).
+Bug reports and test results are especially helpful during beta. CoBudget is
+primarily maintained by one person; please discuss code contributions first.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [GitHub Issues](https://github.com/whollaus/cobudget/issues)
+and the [changelog](CHANGELOG.md). Report suspected vulnerabilities using
+[SECURITY.md](SECURITY.md).
 
-You can support development through [GitHub Sponsors](https://github.com/sponsors/whollaus)
+Support development through [GitHub Sponsors](https://github.com/sponsors/whollaus)
 or [Stripe](https://donate.stripe.com/aFaeVdfARbPNe897bu5J600).
 
 ## Development
 
-- [Development guide](docs/development.md): build, tests and guarded fresh-install reset.
-- [Architecture](docs/architecture.md): data, permissions, recurrence, backups and migrations.
-- [Design system](docs/design-system.md): shared UI conventions and verification.
-- [AGENTS.md](AGENTS.md): central coding-assistant instructions.
-- [Release process](RELEASING.md): maintainer packaging and signing.
+- [Development guide](docs/development.md): builds and local tests.
+- [Architecture](docs/architecture.md): data, permissions, backups and migrations.
+- [Design system](docs/design-system.md): UI conventions and verification.
+- [AGENTS.md](AGENTS.md): coding-assistant instructions.
+- [Release process](RELEASING.md): packaging and signing.
 
 ## Screenshots
 

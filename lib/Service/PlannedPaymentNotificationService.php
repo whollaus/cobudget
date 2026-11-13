@@ -19,6 +19,7 @@ class PlannedPaymentNotificationService {
 		private TalkNotificationService $talk,
 		private ILockingProvider $locks,
 		private LoggerInterface $logger,
+		private EmailNotificationService $email,
 	) {}
 
 	public function processDue(int $now): void {
@@ -64,6 +65,7 @@ class PlannedPaymentNotificationService {
 				$state[hash('sha256', $uid)] = [
 					'nextcloud' => $this->enabled($uid, 'notify_planned_payments'),
 					'talk' => $this->enabled($uid, TalkNotificationService::PLANNED_SETTING),
+					'email' => $this->enabled($uid, 'notify_planned_payments_email'),
 				];
 			}
 			// Snapshot eligibility before any transport: later opt-in does not replay this event.
@@ -80,7 +82,7 @@ class PlannedPaymentNotificationService {
 		$pending = false;
 		foreach ($recipients as $uid) {
 			$key = hash('sha256', $uid);
-			foreach (['nextcloud' => 'notify_planned_payments', 'talk' => TalkNotificationService::PLANNED_SETTING] as $channel => $setting) {
+			foreach (['nextcloud' => 'notify_planned_payments', 'talk' => TalkNotificationService::PLANNED_SETTING, 'email' => 'notify_planned_payments_email'] as $channel => $setting) {
 				if (empty($state[$key][$channel])) continue;
 				try {
 					if ($this->enabled($uid, $setting)) {
@@ -89,7 +91,7 @@ class PlannedPaymentNotificationService {
 							$notification->setApp('cobudget')->setUser($uid)->setDateTime(new \DateTime())
 								->setObject('entry', (string)$id)->setSubject('planned_payment_due', $params);
 							$this->notifications->notify($notification);
-						} elseif (!$this->talk->notifyPlannedPayment($uid, $params)) {
+						} elseif ($channel === 'email' ? !$this->email->send($uid, 'planned', $params) : !$this->talk->notifyPlannedPayment($uid, $params)) {
 							$pending = true;
 							continue;
 						}

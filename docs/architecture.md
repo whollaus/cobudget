@@ -13,7 +13,7 @@ release rules, and the [design system](design-system.md) for UI conventions.
 - Nextcloud app id: `cobudget`
 - PHP namespace: `OCA\CoBudget`
 - This is a technical reset. New installs use only `cobudget` identifiers and `cobudget_*` database tables.
-- Nextcloud target versions: min `33`, max `35`
+- Current 0.x beta: Nextcloud min `33`, max `35`. First stable 1.0: raise the minimum to `34`, with a 34/35 test matrix.
 - Current app version: see `appinfo/info.xml`
 
 ## Stack
@@ -109,6 +109,14 @@ not certification of the current working tree.
 - `occ cobudget:backup:restore-full --user <storageAdminUserId> --file <fileName> --force` restores a system-scoped full backup and replaces all CoBudget app tables/settings. The Files owner must still be a Nextcloud administrator.
 - Full restore supports repeated `--map-user oldUser:newUser` options for server transfers where user IDs changed.
 - Full backups export the financial CoBudget tables and the portable CoBudget user settings for all referenced users. Calendar runtime mappings and calendar connection settings are excluded. Attachment files are not embedded; only their stored paths are exported.
+- Budget snapshots are self-contained historical values and survive normal goal deletion. Export/restore detaches a missing goal reference using `budget_goal_id = 0` (the immutable schema is non-nullable). This preserves the snapshot without accidentally attaching it to a newly generated goal ID after restore. Live goal references are still remapped for personal imports; detached history remains outside the live-goal history view. Integrity checks must not offer to delete snapshots merely because their goal no longer exists.
+- Transactional preference replacement clears the public `IUserConfig` cache after direct SQL deletion and after rollback, so subsequent restores and callers cannot reuse stale imported settings. PostgreSQL sequences are advanced monotonically: `setval` is not transactional, so never lower a sequence to the archive maximum. Sequence failures must abort restoration.
+- Archives must contain `settings.json` and every table listed in their manifest, including zero-row tables. Additive tables absent from an older manifest remain optional. ZIP writes/finalization and the stored byte count must succeed before retention pruning; failed storage writes remove the partial file.
+- `AppDataLock` admits normal HTTP requests (including GET normalization), recurrence/reminder/snapshot jobs, user deletion and data-management OCC commands under a shared native Nextcloud lock. Personal/full backups and restores, including scheduled backups, take the exclusive lock before collecting or replacing data. A competing admitted operation causes fail-fast rejection before financial work; no unsafe shared-to-exclusive upgrade is permitted inside an admitted operation. Nested safety backups reuse the exclusive owner.
+- `AppDataLockMiddleware` returns a localized HTTP 503 with `code: cobudget_busy` and `Retry-After: 5`. Jobs skip a blocked run and retry on their normal schedule. Workspace ownership is revalidated after admission, because constructors may have read it before a restore replaced the data. Controller constructors must not mutate app data.
+- The admission key is a complete 64-character SHA-256 digest, shared across users and server nodes through `ILockingProvider`. Exclusive admission acquires a shared lock and atomically changes its type; this clears the database provider's cached shared state before subsequent operations in a long-running process. Request/job/command boundaries release in `finally` or middleware cleanup. User deletion retains admission from `BeforeUserDeletedEvent` through `UserDeletedEvent`, including Nextcloud account removal; an aborted core deletion retains the native lock until request-end cleanup. Never release all native locks from app code.
+- Nextcloud file locking must be enabled for backup/restore; otherwise these operations fail closed. Native lock TTL/recovery and a coherently configured distributed provider remain server requirements. Keep the lock TTL longer than the longest request/job/restore; never clear a lock while its owner is running. The older restore-specific lock remains an additional restore guard. Direct SQL edits or uncoordinated external writers are outside the admission protocol.
+- Receipt binaries remain in Nextcloud Files and are intentionally excluded from app archives. Use the installation's existing Nextcloud Files backup solution for their backup and recovery; preserve the matching stored paths.
 - Keep personal exports and full backups as separate filename families: `cobudget-personal-export-...zip` and `cobudget-full-backup-...zip`. Legacy `cobudget-backup-...zip` files may remain listable/downloadable for compatibility.
 - `occ cobudget:integrity:check` is read-only unless `--repair`, `--merge-category`, or `--merge-payment-partner` is supplied. Projection errors remain manual repairs and make the command fail.
 - `occ cobudget:reset-all --confirm=RESET-COBUDGET` deletes every CoBudget table row, all CoBudget user preferences, and only the explicitly owned global CoBudget settings. It must never delete all app config values because Nextcloud stores activation/version metadata under the same app ID.
@@ -282,3 +290,26 @@ Nextcloud's database locking provider stores keys verbatim in `file_locks.key`
 64-character SHA-256 key; never prepend a namespace to a full SHA-256 digest.
 SQLite does not enforce the declared length, so notification integration fixtures
 add a temporary, transaction-scoped length guard to exercise the production limit.
+
+### Optional email delivery
+
+`EmailNotificationService` resolves the current enabled account's primary email
+address at send time and uses public `IMailer` with the configured server sender.
+All four `notify_*_email` choices default off and are account-wide, independently
+of Push/Talk. Former/deleted/disabled accounts and invalid addresses are skipped;
+shared events retain membership, actor exclusion and feature checks. No arbitrary
+recipient can be supplied. Messages use recipient language and plain text, include
+only personal reminder text or event summaries, and omit payment descriptions and
+receipts. Logs exclude addresses, content and transport exception messages.
+
+Reminders persist `email_notified` separately. Delivery holds the organizer account
+lock, rereads authorized active rows and marks only successful or skipped deliveries;
+mail failures retry without resetting Push/Talk. Date changes rearm the flag;
+past calendar imports and old delivered reminders/backups do not replay emails.
+Planned payment delivery adds an email channel to the existing hashed-recipient
+snapshot. Shared-area creation/settlement mail is best effort after commit. A process
+crash between SMTP acceptance and persistence can still duplicate a retry. Backup
+and reset include the four preferences and reminder delivery flag; restoring an old
+archive derives the flag from its original `notified` value. Mail server configuration
+and account addresses remain owned by Nextcloud and are never copied into CoBudget
+backups. Previously delivered email copies cannot be retracted.

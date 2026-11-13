@@ -62,7 +62,7 @@ class BackupService {
 	];
 
 	private const BACKUP_TABLE_COLUMNS = [
-		'cobudget_reminders' => ['id', 'user_id', 'entry_id', 'title', 'description', 'remind_at', 'due_date', 'labels', 'keep_open', 'completed_at', 'archived_at', 'dismissed', 'notified', 'entry_signature', 'revision'],
+		'cobudget_reminders' => ['id', 'user_id', 'entry_id', 'title', 'description', 'remind_at', 'due_date', 'labels', 'keep_open', 'completed_at', 'archived_at', 'dismissed', 'notified', 'email_notified', 'entry_signature', 'revision'],
 		'cobudget_deleted_users' => [
 			'id',
 			'tombstone_id',
@@ -378,6 +378,10 @@ class BackupService {
 		'enable_shared_projects',
 		'notify_planned_payments',
 		'notify_planned_payments_talk',
+		'notify_reminders_email',
+		'notify_planned_payments_email',
+		'notify_project_entries_email',
+		'notify_project_settlements_email',
 		'notify_reminders',
 		'notify_reminders_talk',
 		'notify_project_entries',
@@ -420,6 +424,10 @@ class BackupService {
 		'enable_shared_projects' => 'yes',
 		'notify_planned_payments' => 'no',
 		'notify_planned_payments_talk' => 'no',
+		'notify_reminders_email' => 'no',
+		'notify_planned_payments_email' => 'no',
+		'notify_project_entries_email' => 'no',
+		'notify_project_settlements_email' => 'no',
 		'notify_reminders' => 'yes',
 		'notify_reminders_talk' => 'no',
 		'notify_project_entries' => 'yes',
@@ -634,54 +642,66 @@ class BackupService {
 	}
 
 	public function createBackup(string $userId, ?string $folderOverride = null, ?int $retentionOverride = null): array {
-		if (!class_exists(\ZipArchive::class)) {
-			throw new \RuntimeException('ZIP-Unterstützung ist auf diesem Server nicht verfügbar');
-		}
-
-		$folderPath = $folderOverride !== null ? $this->normalizeFolder($folderOverride) : $this->getBackupFolder($userId);
-		$retentionCount = $retentionOverride !== null ? $this->normalizeRetentionCount($retentionOverride) : $this->getRetentionCount($userId);
-		$createdAt = time();
-		$fileName = 'cobudget-personal-export-' . date('Ymd-His', $createdAt) . '.zip';
-		$tempFile = tempnam(sys_get_temp_dir(), 'cobudget-personal-export-');
-
-		if ($tempFile === false) {
-			throw new \RuntimeException('Temporäre Backup-Datei konnte nicht erstellt werden');
-		}
-
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
+		$access->enter(true);
 		try {
-			$this->writeBackupZip($tempFile, $userId, $createdAt);
-			return $this->storeBackupFile($userId, $folderPath, $retentionCount, $fileName, $tempFile, self::USER_EXPORT_FILE_PATTERN);
-		} finally {
-			if (is_file($tempFile)) {
-				@unlink($tempFile);
+			if (!class_exists(\ZipArchive::class)) {
+				throw new \RuntimeException('ZIP-Unterstützung ist auf diesem Server nicht verfügbar');
 			}
+
+			$folderPath = $folderOverride !== null ? $this->normalizeFolder($folderOverride) : $this->getBackupFolder($userId);
+			$retentionCount = $retentionOverride !== null ? $this->normalizeRetentionCount($retentionOverride) : $this->getRetentionCount($userId);
+			$createdAt = time();
+			$fileName = 'cobudget-personal-export-' . date('Ymd-His', $createdAt) . '.zip';
+			$tempFile = tempnam(sys_get_temp_dir(), 'cobudget-personal-export-');
+
+			if ($tempFile === false) {
+				throw new \RuntimeException('Temporäre Backup-Datei konnte nicht erstellt werden');
+			}
+
+			try {
+				$this->writeBackupZip($tempFile, $userId, $createdAt);
+				return $this->storeBackupFile($userId, $folderPath, $retentionCount, $fileName, $tempFile, self::USER_EXPORT_FILE_PATTERN);
+			} finally {
+				if (is_file($tempFile)) {
+					@unlink($tempFile);
+				}
+			}
+		} finally {
+			$access->leave();
 		}
 	}
 
 	public function createFullBackup(string $storageUserId, ?string $folderOverride = null, ?int $retentionOverride = null): array {
-		if (!class_exists(\ZipArchive::class)) {
-			throw new \RuntimeException('ZIP-Unterstützung ist auf diesem Server nicht verfügbar');
-		}
-		$this->assertFullBackupStorageAdmin($storageUserId);
-
-		$settings = $this->getFullBackupSettings();
-		$folderPath = $folderOverride !== null ? $this->normalizeFolder($folderOverride) : $settings['storage_folder'];
-		$retentionCount = $retentionOverride !== null ? $this->normalizeRetentionCount($retentionOverride) : (int)$settings['retention_count'];
-		$createdAt = time();
-		$fileName = 'cobudget-full-backup-' . date('Ymd-His', $createdAt) . '.zip';
-		$tempFile = tempnam(sys_get_temp_dir(), 'cobudget-full-backup-');
-
-		if ($tempFile === false) {
-			throw new \RuntimeException('Temporäre Backup-Datei konnte nicht erstellt werden');
-		}
-
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
+		$access->enter(true);
 		try {
-			$this->writeFullBackupZip($tempFile, $storageUserId, $createdAt);
-			return $this->storeBackupFile($storageUserId, $folderPath, $retentionCount, $fileName, $tempFile, self::FULL_BACKUP_FILE_PATTERN);
-		} finally {
-			if (is_file($tempFile)) {
-				@unlink($tempFile);
+			if (!class_exists(\ZipArchive::class)) {
+				throw new \RuntimeException('ZIP-Unterstützung ist auf diesem Server nicht verfügbar');
 			}
+			$this->assertFullBackupStorageAdmin($storageUserId);
+
+			$settings = $this->getFullBackupSettings();
+			$folderPath = $folderOverride !== null ? $this->normalizeFolder($folderOverride) : $settings['storage_folder'];
+			$retentionCount = $retentionOverride !== null ? $this->normalizeRetentionCount($retentionOverride) : (int)$settings['retention_count'];
+			$createdAt = time();
+			$fileName = 'cobudget-full-backup-' . date('Ymd-His', $createdAt) . '.zip';
+			$tempFile = tempnam(sys_get_temp_dir(), 'cobudget-full-backup-');
+
+			if ($tempFile === false) {
+				throw new \RuntimeException('Temporäre Backup-Datei konnte nicht erstellt werden');
+			}
+
+			try {
+				$this->writeFullBackupZip($tempFile, $storageUserId, $createdAt);
+				return $this->storeBackupFile($storageUserId, $folderPath, $retentionCount, $fileName, $tempFile, self::FULL_BACKUP_FILE_PATTERN);
+			} finally {
+				if (is_file($tempFile)) {
+					@unlink($tempFile);
+				}
+			}
+		} finally {
+			$access->leave();
 		}
 	}
 
@@ -768,122 +788,137 @@ class BackupService {
 	}
 
 	public function restoreBackup(string $userId, string $fileName, ?string $folderOverride = null, array $userMap = []): array {
-		if ($userMap !== []) {
-			throw new \InvalidArgumentException('User-Mapping wird beim persönlichen Import nicht unterstützt.');
-		}
-		if (!$this->userManager->userExists($userId)) {
-			throw new \InvalidArgumentException('Benutzer wurde nicht gefunden.');
-		}
-
-		$restoreLock = $this->acquireRestoreLock();
-		if ($restoreLock === null) {
-			throw new \RuntimeException('Es läuft bereits eine CoBudget-Wiederherstellung. Bitte später erneut versuchen.');
-		}
-
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
+		$access->enter(true);
 		try {
-			$archive = $this->readBackupArchive($this->getBackupFileFromFolder($userId, $fileName, $folderOverride, self::USER_EXPORT_FILE_PATTERN));
-			$this->assertBackupArchive($archive, 'user');
-
-			$sourceUserId = trim((string)($archive['manifest']['user_id'] ?? ($archive['manifest']['users'][0] ?? '')));
-			if ($sourceUserId === '') {
-				throw new \InvalidArgumentException('Persönlicher Export enthält keinen Quellbenutzer.');
+			if ($userMap !== []) {
+				throw new \InvalidArgumentException('User-Mapping wird beim persönlichen Import nicht unterstützt.');
+			}
+			if (!$this->userManager->userExists($userId)) {
+				throw new \InvalidArgumentException('Benutzer wurde nicht gefunden.');
 			}
 
-			$userMap = $sourceUserId !== $userId ? [$sourceUserId => $userId] : [];
-			$tables = $this->preparePersonalImportTables($archive['tables'], $userId, $sourceUserId);
-			$settings = [$userId => $this->normalizeUserSettings(
-				$this->applyUserMapToSettings([$sourceUserId => is_array($archive['settings']) ? $archive['settings'] : []], $userMap)[$userId] ?? [],
-				$tables,
-				$userId
-			)];
+			$restoreLock = $this->acquireRestoreLock();
+			if ($restoreLock === null) {
+				throw new \RuntimeException('Es läuft bereits eine CoBudget-Wiederherstellung. Bitte später erneut versuchen.');
+			}
 
-			$this->assertPersonalImportContainsOnlyUser($tables, $userId);
-			$this->assertReferencedUsersExist($tables, [$userId]);
-			$this->assertBackupInternalReferences($tables);
-			$this->assertCategoryHierarchyConsistency($tables);
-			$this->assertProjectCategoryVisibilityConsistency($tables);
-			$this->assertProjectMemberConsistency($tables);
-			$this->assertPersonalImportTargetIsEmpty($userId);
-
-			$safetyBackup = $this->createBackup($userId, null, $this->getSafetyBackupRetentionCount($userId));
-
-			$this->db->beginTransaction();
 			try {
-				$this->deletePersonalImportTarget($userId);
-				$idMaps = $this->insertTablesWithGeneratedIds($tables);
-				$settings[$userId] = $this->remapPersonalImportSettings($settings[$userId], $idMaps);
-				$this->restoreUserSettings($userId, $settings[$userId]);
-				$this->db->commit();
-			} catch (\Throwable $e) {
-				$this->db->rollBack();
-				throw $e;
-			}
+				$archive = $this->readBackupArchive($this->getBackupFileFromFolder($userId, $fileName, $folderOverride, self::USER_EXPORT_FILE_PATTERN));
+				$this->assertBackupArchive($archive, 'user');
 
-			$this->calendarReminders->resetConnections($userId);
-			return [
-				'scope' => 'user',
-				'user_id' => $userId,
-				'file_name' => $fileName,
-				'safety_backup' => $safetyBackup,
-				'users' => [$userId],
-				'tables' => array_map('count', $tables),
-				'report' => $this->buildRestoreReport('user', $fileName, $tables, $settings, $userMap, []),
-			];
+				$sourceUserId = trim((string)($archive['manifest']['user_id'] ?? ($archive['manifest']['users'][0] ?? '')));
+				if ($sourceUserId === '') {
+					throw new \InvalidArgumentException('Persönlicher Export enthält keinen Quellbenutzer.');
+				}
+
+				$userMap = $sourceUserId !== $userId ? [$sourceUserId => $userId] : [];
+				$tables = $this->preparePersonalImportTables($archive['tables'], $userId, $sourceUserId);
+				$settings = [$userId => $this->normalizeUserSettings(
+					$this->applyUserMapToSettings([$sourceUserId => is_array($archive['settings']) ? $archive['settings'] : []], $userMap)[$userId] ?? [],
+					$tables,
+					$userId
+				)];
+
+				$this->assertPersonalImportContainsOnlyUser($tables, $userId);
+				$this->assertReferencedUsersExist($tables, [$userId]);
+				$this->assertBackupInternalReferences($tables);
+				$this->assertCategoryHierarchyConsistency($tables);
+				$this->assertProjectCategoryVisibilityConsistency($tables);
+				$this->assertProjectMemberConsistency($tables);
+				$this->assertPersonalImportTargetIsEmpty($userId);
+
+				$safetyBackup = $this->createBackup($userId, null, $this->getSafetyBackupRetentionCount($userId));
+
+				$this->db->beginTransaction();
+				try {
+					$this->deletePersonalImportTarget($userId);
+					$idMaps = $this->insertTablesWithGeneratedIds($tables);
+					$settings[$userId] = $this->remapPersonalImportSettings($settings[$userId], $idMaps);
+					$this->restoreUserSettings($userId, $settings[$userId]);
+					$this->db->commit();
+				} catch (\Throwable $e) {
+					$this->db->rollBack();
+					$this->clearRestoredSettingsCache();
+					throw $e;
+				}
+
+				$this->calendarReminders->resetConnections($userId);
+				return [
+					'scope' => 'user',
+					'user_id' => $userId,
+					'file_name' => $fileName,
+					'safety_backup' => $safetyBackup,
+					'users' => [$userId],
+					'tables' => array_map('count', $tables),
+					'report' => $this->buildRestoreReport('user', $fileName, $tables, $settings, $userMap, []),
+				];
+			} finally {
+				$this->releaseRestoreLock($restoreLock);
+			}
 		} finally {
-			$this->releaseRestoreLock($restoreLock);
+			$access->leave();
 		}
 	}
 
 	public function restoreFullBackup(string $storageUserId, string $fileName, ?string $folderOverride = null, array $userMap = []): array {
-		$this->assertFullBackupStorageAdmin($storageUserId);
-
-		$restoreLock = $this->acquireRestoreLock();
-		if ($restoreLock === null) {
-			throw new \RuntimeException('Es läuft bereits eine CoBudget-Wiederherstellung. Bitte später erneut versuchen.');
-		}
-
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
+		$access->enter(true);
 		try {
-			$archive = $this->readBackupArchive($this->getBackupFileFromFolder($storageUserId, $fileName, $folderOverride, self::FULL_BACKUP_FILE_PATTERN));
-			$this->assertBackupArchive($archive, 'system');
+			$this->assertFullBackupStorageAdmin($storageUserId);
 
-			$userMap = $this->normalizeUserMap($userMap);
-			$tables = $this->applyUserMapToTables($archive['tables'], $userMap);
-			$settings = $this->applyUserMapToSettings($this->normalizeFullSettings($archive['settings'], $tables), $userMap);
-			$settings = $this->completeRestoreSettingsForTableUsers($settings, $tables);
-			$this->assertReferencedUsersExist($tables, array_keys($settings));
-			$this->assertBackupInternalReferences($tables);
-			$this->assertCategoryHierarchyConsistency($tables);
-			$this->assertProjectCategoryVisibilityConsistency($tables);
-			$this->assertProjectMemberConsistency($tables);
-
-			$safetyBackup = $this->createFullBackup($storageUserId, $folderOverride, $this->getSafetyBackupRetentionCount($storageUserId));
-
-			$this->db->beginTransaction();
-			try {
-				$this->deleteAllBackupTables();
-				$this->deleteAllCoBudgetSettings();
-				$this->insertTables($tables);
-				$this->restoreAllSettings($settings);
-				$this->synchronizeAutoincrementSequences($tables);
-				$this->dataIntegrityService->assertProjectionIntegrity();
-				$this->db->commit();
-			} catch (\Throwable $e) {
-				$this->db->rollBack();
-				throw $e;
+			$restoreLock = $this->acquireRestoreLock();
+			if ($restoreLock === null) {
+				throw new \RuntimeException('Es läuft bereits eine CoBudget-Wiederherstellung. Bitte später erneut versuchen.');
 			}
 
-			$this->calendarReminders->resetConnections();
-			return [
-				'scope' => 'system',
-				'storage_user_id' => $storageUserId,
-				'file_name' => $fileName,
-				'safety_backup' => $safetyBackup,
-				'users' => array_values(array_unique(array_merge($this->collectUserIdsFromTables($tables), array_keys($settings)))),
-				'tables' => array_map('count', $tables),
-				'report' => $this->buildRestoreReport('system', $fileName, $tables, $settings, $userMap, []),
-			];
+			try {
+				$archive = $this->readBackupArchive($this->getBackupFileFromFolder($storageUserId, $fileName, $folderOverride, self::FULL_BACKUP_FILE_PATTERN));
+				$this->assertBackupArchive($archive, 'system');
+
+				$userMap = $this->normalizeUserMap($userMap);
+				$tables = $this->applyUserMapToTables($archive['tables'], $userMap);
+				$tables = $this->detachDeletedBudgetGoals($tables);
+				$settings = $this->applyUserMapToSettings($this->normalizeFullSettings($archive['settings'], $tables), $userMap);
+				$settings = $this->completeRestoreSettingsForTableUsers($settings, $tables);
+				$this->assertReferencedUsersExist($tables, array_keys($settings));
+				$this->assertBackupInternalReferences($tables);
+				$this->assertCategoryHierarchyConsistency($tables);
+				$this->assertProjectCategoryVisibilityConsistency($tables);
+				$this->assertProjectMemberConsistency($tables);
+
+				$safetyBackup = $this->createFullBackup($storageUserId, $folderOverride, $this->getSafetyBackupRetentionCount($storageUserId));
+
+				$this->db->beginTransaction();
+				try {
+					$this->deleteAllBackupTables();
+					$this->deleteAllCoBudgetSettings();
+					$this->insertTables($tables);
+					$this->restoreAllSettings($settings);
+					$this->synchronizeAutoincrementSequences($tables);
+					$this->dataIntegrityService->assertProjectionIntegrity();
+					$this->db->commit();
+				} catch (\Throwable $e) {
+					$this->db->rollBack();
+					$this->clearRestoredSettingsCache();
+					throw $e;
+				}
+
+				$this->calendarReminders->resetConnections();
+				return [
+					'scope' => 'system',
+					'storage_user_id' => $storageUserId,
+					'file_name' => $fileName,
+					'safety_backup' => $safetyBackup,
+					'users' => array_values(array_unique(array_merge($this->collectUserIdsFromTables($tables), array_keys($settings)))),
+					'tables' => array_map('count', $tables),
+					'report' => $this->buildRestoreReport('system', $fileName, $tables, $settings, $userMap, []),
+				];
+			} finally {
+				$this->releaseRestoreLock($restoreLock);
+			}
 		} finally {
-			$this->releaseRestoreLock($restoreLock);
+			$access->leave();
 		}
 	}
 
@@ -981,8 +1016,12 @@ class BackupService {
 			foreach ($data['tables'] as $table => $rows) {
 				$this->addJson($zip, 'data/' . $table . '.json', $rows);
 			}
-		} finally {
+		} catch (\Throwable $e) {
 			$zip->close();
+			throw $e;
+		}
+		if (!$zip->close()) {
+			throw new \RuntimeException('Backup-ZIP konnte nicht abgeschlossen werden');
 		}
 	}
 
@@ -1012,8 +1051,12 @@ class BackupService {
 			foreach ($data['tables'] as $table => $rows) {
 				$this->addJson($zip, 'data/' . $table . '.json', $rows);
 			}
-		} finally {
+		} catch (\Throwable $e) {
 			$zip->close();
+			throw $e;
+		}
+		if (!$zip->close()) {
+			throw new \RuntimeException('Backup-ZIP konnte nicht abgeschlossen werden');
 		}
 	}
 
@@ -1040,10 +1083,11 @@ class BackupService {
 				$this->assertBackupZipEntries($zip, $limits);
 				$remainingUncompressedBytes = $limits['max_uncompressed_bytes'];
 				$manifest = $this->readJson($zip, 'manifest.json', true, $limits['max_json_bytes'], $remainingUncompressedBytes);
-				$settings = $this->readJson($zip, 'settings.json', false, $limits['max_json_bytes'], $remainingUncompressedBytes);
+				$this->assertBackupManifest($manifest, (string)($manifest['scope'] ?? ''));
+				$settings = $this->readJson($zip, 'settings.json', true, $limits['max_json_bytes'], $remainingUncompressedBytes);
 				$tables = [];
 				foreach (self::BACKUP_TABLES as $table) {
-					$tables[$table] = $this->normalizeTableRows($table, $this->readJson($zip, 'data/' . $table . '.json', false, $limits['max_json_bytes'], $remainingUncompressedBytes));
+					$tables[$table] = $this->normalizeTableRows($table, $this->readJson($zip, 'data/' . $table . '.json', array_key_exists($table, $manifest['tables']), $limits['max_json_bytes'], $remainingUncompressedBytes));
 				}
 
 				return [
@@ -1215,11 +1259,17 @@ class BackupService {
 		if (($manifest['schema'] ?? '') !== 'cobudget-backup/v1' || ($manifest['app'] ?? '') !== 'cobudget') {
 			throw new \InvalidArgumentException('Backup gehört nicht zu CoBudget oder nutzt ein unbekanntes Format');
 		}
-		if (($manifest['scope'] ?? '') !== $expectedScope) {
+		if (!in_array($expectedScope, ['user', 'system'], true) || ($manifest['scope'] ?? '') !== $expectedScope) {
 			throw new \InvalidArgumentException($expectedScope === 'system'
 				? 'Dieses Backup ist kein vollständiges CoBudget-Backup'
 				: 'Dieses Backup ist kein Benutzer-Backup');
 		}
+		if (!is_array($manifest['tables'] ?? null)
+			|| !array_key_exists('cobudget_entries', $manifest['tables'])
+			|| !array_key_exists('cobudget_workspaces', $manifest['tables'])) {
+			throw new \InvalidArgumentException('Backup enthält keine vollständige Tabellenübersicht');
+		}
+
 	}
 
 	private function assertManifestTableCounts(array $manifest, array $tables): void {
@@ -1576,6 +1626,8 @@ class BackupService {
 			));
 		}
 
+		$prepared = $this->detachDeletedBudgetGoals($prepared);
+
 		$memberSharesByProject = $this->projectMemberSharesByProject($prepared['cobudget_members'], $sourceUserId);
 		$storedEntryShares = $this->entrySharesByEntry($prepared['cobudget_entry_shares']);
 		$sharedProjectIds = $this->sharedProjectIdsForPersonalImport($prepared['cobudget_projects'], $memberSharesByProject, $sourceUserId);
@@ -1925,9 +1977,12 @@ class BackupService {
 
 		$budgetSnapshots = [];
 		foreach ($prepared['cobudget_budget_snapshots'] as $row) {
+			if ((string)($row['user_id'] ?? '') !== $sourceUserId) {
+				continue;
+			}
 			$budgetGoalId = $this->nullableId($row['budget_goal_id'] ?? null);
 			$workspaceId = $this->nullableId($row['workspace_id'] ?? null);
-			if ($budgetGoalId === null || !isset($budgetGoalIds[$budgetGoalId])) {
+			if ($budgetGoalId !== null && !isset($budgetGoalIds[$budgetGoalId])) {
 				continue;
 			}
 			if ($workspaceId === null || !isset($workspaceIds[$workspaceId])) {
@@ -1938,7 +1993,7 @@ class BackupService {
 			}
 			$row['user_id'] = $userId;
 			$row['workspace_id'] = $workspaceId;
-			$row['budget_goal_id'] = $budgetGoalId;
+			$row['budget_goal_id'] = $budgetGoalId ?? 0;
 			$row['criteria_json'] = $this->sanitizePersonalBudgetCriteriaJson(
 				$row['criteria_json'] ?? '{}',
 				$projectIds,
@@ -2600,6 +2655,7 @@ class BackupService {
 
 	private function remapGeneratedRowReferences(string $table, array $row, array $idMaps): array {
 		$row = $this->filterBackupRowColumns($table, $row);
+		if ($table === 'cobudget_reminders' && !array_key_exists('email_notified', $row)) $row['email_notified'] = (bool)($row['notified'] ?? true);
 		if ($table === 'cobudget_entries' && !array_key_exists('planned_notified', $row)) {
 			// Old archives have no delivery state: arm future originals, never past payments.
 			$row['planned_notified'] = (int)($row['date'] ?? 0) <= time() || !empty($row['source_entry_id']) || !empty($row['settlement_id']) || !empty($row['is_settled']);
@@ -2662,6 +2718,7 @@ class BackupService {
 			})(),
 			'cobudget_budget_snapshots' => (function () use (&$row, $mapColumn, $idMaps): void {
 				$mapColumn('budget_goal_id', 'cobudget_budget_goals');
+				$row['budget_goal_id'] ??= 0;
 				$mapColumn('workspace_id', 'cobudget_workspaces');
 				$row['criteria_json'] = $this->remapBudgetCriteriaJson($row['criteria_json'] ?? '{}', $idMaps['cobudget_projects'], $idMaps['cobudget_categories']);
 			})(),
@@ -2704,6 +2761,7 @@ class BackupService {
 
 	private function insertRowGenerated(string $table, array $row): int {
 		$row = $this->filterBackupRowColumns($table, $row);
+		if ($table === 'cobudget_reminders' && !array_key_exists('email_notified', $row)) $row['email_notified'] = (bool)($row['notified'] ?? true);
 		if ($table === 'cobudget_entries' && !array_key_exists('planned_notified', $row)) {
 			// Old archives have no delivery state: arm future originals, never past payments.
 			$row['planned_notified'] = (int)($row['date'] ?? 0) <= time() || !empty($row['source_entry_id']) || !empty($row['settlement_id']) || !empty($row['is_settled']);
@@ -2949,6 +3007,20 @@ class BackupService {
 			'cobudget_budget_snapshots' => $this->l10n->t('Budget history'),
 			default => $table,
 		};
+	}
+
+	/** Keep self-contained history after goal deletion without reusing a live goal ID. */
+	private function detachDeletedBudgetGoals(array $tables): array {
+		$goals = array_column($tables['cobudget_budget_goals'] ?? [], null, 'id');
+		foreach ($tables['cobudget_budget_snapshots'] ?? [] as $index => $snapshot) {
+			$goalId = (int)($snapshot['budget_goal_id'] ?? 0);
+			if (!isset($goals[$goalId])) {
+				// The historical schema requires a non-null integer. Zero cannot be
+				// generated for a new goal, including after sequence reset on restore.
+				$tables['cobudget_budget_snapshots'][$index]['budget_goal_id'] = 0;
+			}
+		}
+		return $tables;
 	}
 
 	private function assertBackupInternalReferences(array $tables): void {
@@ -3226,6 +3298,7 @@ class BackupService {
 				$qb->executeStatement();
 			}
 		}
+		$this->clearRestoredSettingsCache();
 	}
 
 	private function deleteAllCoBudgetSettings(): void {
@@ -3236,6 +3309,13 @@ class BackupService {
 				->andWhere($qb->expr()->eq('configkey', $qb->createNamedParameter($key)));
 			$qb->executeStatement();
 		}
+		$this->clearRestoredSettingsCache();
+	}
+
+	private function clearRestoredSettingsCache(): void {
+		// Direct transactional preference replacement bypasses Nextcloud's cache.
+		// Also clear after rollback: cached imported values must not outlive it.
+		\OCP\Server::get(\OCP\Config\IUserConfig::class)->clearCacheAll();
 	}
 
 	private function insertTables(array $tables): void {
@@ -3248,6 +3328,7 @@ class BackupService {
 
 	private function insertRow(string $table, array $row): void {
 		$row = $this->filterBackupRowColumns($table, $row);
+		if ($table === 'cobudget_reminders' && !array_key_exists('email_notified', $row)) $row['email_notified'] = (bool)($row['notified'] ?? true);
 		if ($table === 'cobudget_entries' && !array_key_exists('planned_notified', $row)) {
 			// Old archives have no delivery state: arm future originals, never past payments.
 			$row['planned_notified'] = (int)($row['date'] ?? 0) <= time() || !empty($row['source_entry_id']) || !empty($row['settlement_id']) || !empty($row['is_settled']);
@@ -3310,13 +3391,12 @@ class BackupService {
 				continue;
 			}
 			$fullTableName = $prefix . $table;
-			try {
-				$this->db->executeStatement(
-					"SELECT setval(pg_get_serial_sequence('" . $fullTableName . "', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM " . $fullTableName . "), 1))"
-				);
-			} catch (\Throwable $e) {
-				// Restore itself succeeded. Sequence synchronization is a PostgreSQL compatibility best-effort.
-			}
+			// PostgreSQL sequence changes survive transaction rollback/SIGKILL.
+			// Never rewind: a failed restore must not reuse IDs of restored live rows.
+			// Advancing once may leave a harmless gap. Errors must abort the restore.
+			$this->db->executeStatement(
+				"SELECT setval(pg_get_serial_sequence('" . $fullTableName . "', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM " . $fullTableName . "), nextval(pg_get_serial_sequence('" . $fullTableName . "', 'id')), 1))"
+			);
 		}
 	}
 
@@ -3390,6 +3470,7 @@ class BackupService {
             $e = $entries[$r['entry_id']] ?? null;
             return $e && !empty($e['reminder_date']) && empty($e['source_entry_id']) && (($e['entry_kind'] === 'personal' && $e['user_id'] === $r['user_id']) || ($e['entry_kind'] === 'shared' && isset($members[$e['project_id']][$r['user_id']])));
         }));
+		$tables = $this->detachDeletedBudgetGoals($tables);
 		$storedSettings = $this->fetchStoredSettings();
 		$userIds = $this->collectUserIdsFromTables($tables);
 		$userIds = array_values(array_unique(array_merge($userIds, array_keys($storedSettings))));
@@ -3653,7 +3734,9 @@ class BackupService {
 		if ($json === false) {
 			throw new \RuntimeException('Backup-Daten konnten nicht serialisiert werden');
 		}
-		$zip->addFromString($path, $json . "\n");
+		if (!$zip->addFromString($path, $json . "\n")) {
+			throw new \RuntimeException('Backup-Datei konnte nicht zum ZIP hinzugefügt werden');
+		}
 	}
 
 	private function getBackupFileFromFolder(string $userId, string $fileName, ?string $folderOverride, string $pattern = self::BACKUP_FILE_PATTERN): File {
@@ -3727,7 +3810,25 @@ class BackupService {
 		$targetFolder = $this->ensureFolderPath($userFolder, $folderPath);
 		$fileName = $this->resolveUniqueNameInFolder($targetFolder, $fileName);
 		$file = $targetFolder->newFile($fileName);
-		$file->putContent((string)file_get_contents($tempFile));
+		$stream = fopen($tempFile, 'rb');
+		if (!is_resource($stream)) {
+			$file->delete();
+			throw new \RuntimeException('Backup-Datei konnte nicht gelesen werden');
+		}
+		try {
+			$file->putContent($stream);
+			if ($file->getSize() !== filesize($tempFile)) {
+				throw new \RuntimeException('Backup-Datei wurde nicht vollständig gespeichert');
+			}
+		} catch (\Throwable $e) {
+			$file->delete();
+			throw $e;
+		} finally {
+			// Nextcloud storage adapters may consume and close the input stream.
+			if (is_resource($stream)) {
+				fclose($stream);
+			}
+		}
 		$this->pruneBackups($targetFolder, $retentionCount, $prunePattern);
 
 		return $this->formatBackupFile($file, $folderPath);

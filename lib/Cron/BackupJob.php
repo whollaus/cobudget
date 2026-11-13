@@ -33,33 +33,43 @@ class BackupJob extends TimedJob {
 	}
 
 	protected function run($argument): void {
-		$now = time();
-		$this->runFullBackup($now);
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
+		try {
+			$access->enter(true);
+		} catch (\OCA\CoBudget\Exception\AppBusyException) {
+			return; // The next scheduled run retries without processing stale data.
+		}
+		try {
+			$now = time();
+			$this->runFullBackup($now);
 
-		foreach ($this->scheduledUserIds() as $userId) {
-			$schedule = $this->backupService->getBackupSchedule($userId);
-			if ($schedule === 'none') {
-				continue;
-			}
+			foreach ($this->scheduledUserIds() as $userId) {
+				$schedule = $this->backupService->getBackupSchedule($userId);
+				if ($schedule === 'none') {
+					continue;
+				}
 
-			$lastRun = (int)$this->config->getUserValue($userId, self::APP_ID, self::LAST_AUTO_BACKUP_KEY, '0');
-			if (!$this->isDue($schedule, $lastRun, $now)) {
-				continue;
-			}
+				$lastRun = (int)$this->config->getUserValue($userId, self::APP_ID, self::LAST_AUTO_BACKUP_KEY, '0');
+				if (!$this->isDue($schedule, $lastRun, $now)) {
+					continue;
+				}
 
-			$backupLock = $this->acquireUserBackupLock($userId, time());
-			if ($backupLock === null) {
-				continue;
-			}
+				$backupLock = $this->acquireUserBackupLock($userId, time());
+				if ($backupLock === null) {
+					continue;
+				}
 
-			try {
-				$this->backupService->createBackup($userId);
-				$this->config->setUserValue($userId, self::APP_ID, self::LAST_AUTO_BACKUP_KEY, (string)time());
-			} catch (\Throwable $e) {
-				$this->logger->error('Failed to create automatic CoBudget backup for user ' . $userId . ': ' . $e->getMessage(), ['app' => self::APP_ID]);
-			} finally {
-				$this->releaseUserBackupLock($userId, $backupLock);
+				try {
+					$this->backupService->createBackup($userId);
+					$this->config->setUserValue($userId, self::APP_ID, self::LAST_AUTO_BACKUP_KEY, (string)time());
+				} catch (\Throwable $e) {
+					$this->logger->error('Failed to create automatic CoBudget backup for user ' . $userId . ': ' . $e->getMessage(), ['app' => self::APP_ID]);
+				} finally {
+					$this->releaseUserBackupLock($userId, $backupLock);
+				}
 			}
+		} finally {
+			$access->leave();
 		}
 	}
 

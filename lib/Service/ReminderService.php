@@ -95,6 +95,7 @@ class ReminderService {
 			'completed_at' => $completed ? ($current['completed_at'] ?? time()) : null,
 			'archived_at' => $archived ? ($wasArchived ?? time()) : null,
 			'dismissed' => $changedTime ? false : (bool)($current['dismissed'] ?? false),
+			'email_notified' => $changedTime ? false : (bool)($current['email_notified'] ?? $entry['reminder_notified']),
 			'notified' => $changedTime ? false : (bool)($current['notified'] ?? $entry['reminder_notified']),
 			'revision' => (int)($current['revision'] ?? 0)+1,
 		]);
@@ -157,11 +158,11 @@ class ReminderService {
 				$signature = $this->signature($e);
 				$old = $byEntry[$eid] ?? null;
 				if (!$old) {
-					$this->write($uid, null, ['entry_id' => $eid, 'title' => trim((string)($e['reminder_text'] ?? '')), 'remind_at' => (int)$e['reminder_date'], 'notified' => (bool)$e['reminder_notified'], 'entry_signature' => $signature]);
+					$this->write($uid, null, ['entry_id' => $eid, 'title' => trim((string)($e['reminder_text'] ?? '')), 'remind_at' => (int)$e['reminder_date'], 'notified' => (bool)$e['reminder_notified'], 'email_notified' => (bool)$e['reminder_notified'], 'entry_signature' => $signature]);
 				}
 				elseif ($old['entry_signature'] !== $signature) {
 					$values = ['title' => trim((string)($e['reminder_text'] ?? '')), 'remind_at' => (int)$e['reminder_date'], 'entry_signature' => $signature, 'notified' => (bool)$e['reminder_notified'], 'revision' => (int)$old['revision']+1];
-					if ((int)$old['remind_at'] !== (int)$e['reminder_date'])$values += ['completed_at' => null, 'archived_at' => null, 'dismissed' => false];
+					if ((int)$old['remind_at'] !== (int)$e['reminder_date'])$values += ['email_notified' => (bool)$e['reminder_notified'], 'completed_at' => null, 'archived_at' => null, 'dismissed' => false];
 					$this->write($uid, (int)$old['id'], $values);
 				}
 			}
@@ -238,7 +239,7 @@ class ReminderService {
 			$values = ['entry_id' => $entryId, 'title' => $title, 'description' => $description, 'remind_at' => $date, 'due_date' => $due?:null, 'labels' => json_encode(array_values(array_unique($labels))), 'keep_open' => (bool)($data['keep_open'] ?? false), 'completed_at' => !empty($data['completed'])?($current['completed_at'] ?? time()): null, 'archived_at' => ($current && (int)$current['remind_at'] === $date) ? $current['archived_at'] : null, 'dismissed' => false, 'revision' => ($current?(int)$current['revision']:0)+1];
 			// Sidebar status switches are saved atomically with notes and the date.
 			if (array_key_exists('archived', $data)) $values['archived_at'] = $data['archived'] ? ($current['archived_at'] ?? $existing['effective_archived_at'] ?? time()) : null;
-			if (!$current || (int)$current['remind_at'] !== $date)$values['notified'] = false;
+			if (!$current || (int)$current['remind_at'] !== $date)$values['email_notified'] = $values['notified'] = false;
 			$this->db->beginTransaction();
 			try {
 				if ($entryId !== null) {
@@ -283,7 +284,10 @@ class ReminderService {
 		$saved=$this->save($uid,(int)$current['id'],array_replace($current,$fields,[
 			'completed'=>!empty($current['completed_at']), 'archived'=>!empty($current['effective_archived_at']),
 		]));
-		if ($changedTime && (int)$fields['remind_at'] <= time()) $this->markNotified($uid,(int)$saved['id'],(int)$fields['remind_at']);
+		if ($changedTime && (int)$fields['remind_at'] <= time()) {
+			$this->markNotified($uid,(int)$saved['id'],(int)$fields['remind_at']);
+			$this->write($uid, (int)$saved['id'], ['email_notified' => true]);
+		}
 		if ($current['entry_id'] !== null && ($changedTime || $fields['title'] !== $current['title'])) {
 			// Materialize an already effective archive before changing the timestamp it was derived from.
 			$q=$this->db->getQueryBuilder();
@@ -304,7 +308,7 @@ class ReminderService {
 				->where($q->expr()->eq('entry_id',$q->createNamedParameter((int)$current['entry_id'])))
 				->andWhere($q->expr()->neq('user_id',$q->createNamedParameter($uid)))
 				->andWhere($q->expr()->eq('entry_signature',$q->createNamedParameter($oldSignature)));
-			if ($changedTime) $q->set('notified',$q->createNamedParameter((int)$fields['remind_at']<=time(),\PDO::PARAM_BOOL));
+			if ($changedTime) $q->set('notified',$q->createNamedParameter((int)$fields['remind_at']<=time(),\PDO::PARAM_BOOL))->set('email_notified',$q->createNamedParameter((int)$fields['remind_at']<=time(),\PDO::PARAM_BOOL));
 			$q->executeStatement();
 		}
 		return $saved;
@@ -385,6 +389,16 @@ class ReminderService {
 	public function markNotified(string $uid, int $id, int $date): void {
 		$q = $this->db->getQueryBuilder();
 		$q->update('cobudget_reminders')->set('notified', $q->createNamedParameter(true))->where($q->expr()->eq('user_id', $q->createNamedParameter($uid)))->andWhere($q->expr()->eq('id', $q->createNamedParameter($id)))->andWhere($q->expr()->eq('remind_at', $q->createNamedParameter($date)))->executeStatement();
+	}
+
+	public function deliverDueEmails(string $uid, int $now, EmailNotificationService $email): void {
+		$this->locked($uid, function () use ($uid, $now, $email): void {
+			if (!$this->participants->isActive($uid)) return;
+			foreach ($this->rows($uid) as $row) {
+				if (!empty($row['email_notified']) || $row['status'] !== 'active' || $row['remind_at'] > $now) continue;
+				if ($email->send($uid, 'reminder', $row)) $this->write($uid, $row['id'], ['email_notified' => true]);
+			}
+		});
 	}
 
 	public function users(): array {

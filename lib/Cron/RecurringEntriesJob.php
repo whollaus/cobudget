@@ -29,109 +29,119 @@ class RecurringEntriesJob extends TimedJob {
 		$this->hashtagService = $hashtagService;
 		$this->entryProjectionService = $entryProjectionService;
 		$this->dataChangeService = $dataChangeService;
-		
+
 		// Match common web-cron setups and allow due recurrences to run shortly after 06:00.
 		$this->setInterval(self::JOB_INTERVAL_SECONDS);
 	}
 
 	protected function run($argument) {
-		$now = $this->time->getTime();
-		$dueCutoff = $this->recurrenceDueCutoff($now);
-		
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('*')
-			->from('cobudget_entries')
-			->where($qb->expr()->isNotNull('recurrence_interval'))
-			->andWhere($qb->expr()->isNotNull('recurrence_next_date'))
-			->andWhere($qb->expr()->lte('recurrence_next_date', $qb->createNamedParameter($dueCutoff, \PDO::PARAM_INT)));
-			
-		$result = $qb->executeQuery();
-		$entries = $result->fetchAll();
-		$result->closeCursor();
+		$access = \OCP\Server::get(\OCA\CoBudget\Service\AppDataLock::class);
+		try {
+			$access->enter();
+		} catch (\OCA\CoBudget\Exception\AppBusyException) {
+			return; // The next scheduled run retries without processing stale data.
+		}
+		try {
+			$now = $this->time->getTime();
+			$dueCutoff = $this->recurrenceDueCutoff($now);
 
-		foreach ($entries as $entry) {
-			try {
-				$entryKind = $this->entryKindFromRow($entry);
-				if ($entryKind === 'shared' && $this->projectHasFormerMember((int)($entry['project_id'] ?? 0))) {
-					continue;
-				}
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('*')
+				->from('cobudget_entries')
+				->where($qb->expr()->isNotNull('recurrence_interval'))
+				->andWhere($qb->expr()->isNotNull('recurrence_next_date'))
+				->andWhere($qb->expr()->lte('recurrence_next_date', $qb->createNamedParameter($dueCutoff, \PDO::PARAM_INT)));
 
-				$this->db->beginTransaction();
-				$amountCents = $this->amountCentsFromRow($entry);
-				$runDate = $this->normalizeToRecurrenceTime((int)$entry['recurrence_next_date']);
-				$seriesId = $this->recurrenceSeriesIdFromRow($entry);
+			$result = $qb->executeQuery();
+			$entries = $result->fetchAll();
+			$result->closeCursor();
 
-				$claimed = $this->deactivateCurrentSeriesHead($entry);
-				if (!$claimed) {
-					$this->db->rollBack();
-					continue;
-				}
-
-				$endDate = empty($entry['recurrence_end_date']) ? null : (int)$entry['recurrence_end_date'];
-				if ($endDate !== null) {
-					$end = (new \DateTimeImmutable())->setTimestamp($endDate);
-					// Keep explicit instants from other client timezones; only expand legacy date-only values.
-					if ($end->format('H:i:s') === '00:00:00') $endDate = $end->setTime(23, 59, 59)->getTimestamp();
-				}
-				if ($endDate !== null && $runDate > $endDate) {
-					$this->db->commit();
-					$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
-					continue;
-				}
-
-				$nextDate = $this->calculateNextDate($runDate, $entry['recurrence_interval'], (int)$entry['recurrence_multiplier']);
-				$hasNextRun = $endDate === null || $nextDate <= $endDate;
-
-				$insertQb = $this->db->getQueryBuilder();
-				$insertQb->insert('cobudget_entries')
-					->values([
-						'user_id' => $insertQb->createNamedParameter($entry['user_id']),
-						'created_by' => $insertQb->createNamedParameter((string)($entry['created_by'] ?? $entry['user_id'])),
-						'project_id' => $insertQb->createNamedParameter($entry['project_id'], $entry['project_id'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
-						'entry_kind' => $insertQb->createNamedParameter($entryKind),
-						'source_entry_id' => $insertQb->createNamedParameter(null, \PDO::PARAM_NULL),
-						'is_locked' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
-						'allocation_basis_points' => $insertQb->createNamedParameter(null, \PDO::PARAM_NULL),
-						'type' => $insertQb->createNamedParameter($entry['type']),
-						'amount' => $insertQb->createNamedParameter($this->centsToAmountString($amountCents)),
-						'amount_cents' => $insertQb->createNamedParameter($amountCents, \PDO::PARAM_INT),
-						'currency' => $insertQb->createNamedParameter($entry['currency']),
-						'date' => $insertQb->createNamedParameter($runDate, \PDO::PARAM_INT),
-						'planned_notified' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
-						'category_id' => $insertQb->createNamedParameter($entry['category_id'], $entry['category_id'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
-						'description' => $insertQb->createNamedParameter($entry['description']),
-						'payment_partner_id' => $insertQb->createNamedParameter($entry['payment_partner_id'] ?? null, ($entry['payment_partner_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
-						'split_mode' => $insertQb->createNamedParameter($entry['split_mode'] ?? 'project_shares'),
-						'split_user_id' => $insertQb->createNamedParameter($entry['split_user_id'] ?? null, ($entry['split_user_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
-						'is_settled' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
-						'is_subscription' => $insertQb->createNamedParameter($this->dbBool($entry['is_subscription'] ?? false), \PDO::PARAM_BOOL),
-						'is_fixed_cost' => $insertQb->createNamedParameter($this->dbBool($entry['is_fixed_cost'] ?? false), \PDO::PARAM_BOOL),
-						'is_child_related' => $insertQb->createNamedParameter($this->dbBool($entry['is_child_related'] ?? false), \PDO::PARAM_BOOL),
-						'is_important' => $insertQb->createNamedParameter($this->dbBool($entry['is_important'] ?? false), \PDO::PARAM_BOOL),
-						'needs_review' => $insertQb->createNamedParameter($this->dbBool($entry['needs_review'] ?? false), \PDO::PARAM_BOOL),
-						'is_tax_relevant' => $insertQb->createNamedParameter($this->dbBool($entry['is_tax_relevant'] ?? false), \PDO::PARAM_BOOL),
-						'is_insurance' => $insertQb->createNamedParameter($this->dbBool($entry['is_insurance'] ?? false), \PDO::PARAM_BOOL),
-						'recurrence_interval' => $insertQb->createNamedParameter($hasNextRun ? $entry['recurrence_interval'] : null, $hasNextRun ? \PDO::PARAM_STR : \PDO::PARAM_NULL),
-						'recurrence_multiplier' => $insertQb->createNamedParameter($hasNextRun ? (int)$entry['recurrence_multiplier'] : null, $hasNextRun ? \PDO::PARAM_INT : \PDO::PARAM_NULL),
-						'recurrence_next_date' => $insertQb->createNamedParameter($hasNextRun ? $nextDate : null, $hasNextRun ? \PDO::PARAM_INT : \PDO::PARAM_NULL),
-						'recurrence_end_date' => $insertQb->createNamedParameter($hasNextRun ? ($entry['recurrence_end_date'] ?? null) : null, ($hasNextRun && ($entry['recurrence_end_date'] ?? null) !== null) ? \PDO::PARAM_INT : \PDO::PARAM_NULL),
-						'recurrence_parent_id' => $insertQb->createNamedParameter($entry['id'], \PDO::PARAM_INT),
-						'recurrence_series_id' => $insertQb->createNamedParameter($seriesId, \PDO::PARAM_INT),
-						'workspace_id' => $insertQb->createNamedParameter($entry['workspace_id'] ?? null, ($entry['workspace_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
-					]);
-					$insertQb->executeStatement();
-					$newEntryId = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
-					$this->hashtagService->syncEntryHashtags($newEntryId, (int)($entry['workspace_id'] ?? 0), (string)($entry['description'] ?? ''));
-					if ($entryKind === 'shared') {
-						$this->entryProjectionService->syncSharedEntry($newEntryId);
+			foreach ($entries as $entry) {
+				try {
+					$entryKind = $this->entryKindFromRow($entry);
+					if ($entryKind === 'shared' && $this->projectHasFormerMember((int)($entry['project_id'] ?? 0))) {
+						continue;
 					}
 
-				$this->db->commit();
-				$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
-			} catch (\Exception $e) {
-				$this->db->rollBack();
-				$this->logger->error('Failed to process recurring entry ' . $entry['id'] . ': ' . $e->getMessage(), ['app' => 'cobudget']);
+					$this->db->beginTransaction();
+					$amountCents = $this->amountCentsFromRow($entry);
+					$runDate = $this->normalizeToRecurrenceTime((int)$entry['recurrence_next_date']);
+					$seriesId = $this->recurrenceSeriesIdFromRow($entry);
+
+					$claimed = $this->deactivateCurrentSeriesHead($entry);
+					if (!$claimed) {
+						$this->db->rollBack();
+						continue;
+					}
+
+					$endDate = empty($entry['recurrence_end_date']) ? null : (int)$entry['recurrence_end_date'];
+					if ($endDate !== null) {
+						$end = (new \DateTimeImmutable())->setTimestamp($endDate);
+						// Keep explicit instants from other client timezones; only expand legacy date-only values.
+						if ($end->format('H:i:s') === '00:00:00') $endDate = $end->setTime(23, 59, 59)->getTimestamp();
+					}
+					if ($endDate !== null && $runDate > $endDate) {
+						$this->db->commit();
+						$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
+						continue;
+					}
+
+					$nextDate = $this->calculateNextDate($runDate, $entry['recurrence_interval'], (int)$entry['recurrence_multiplier']);
+					$hasNextRun = $endDate === null || $nextDate <= $endDate;
+
+					$insertQb = $this->db->getQueryBuilder();
+					$insertQb->insert('cobudget_entries')
+						->values([
+							'user_id' => $insertQb->createNamedParameter($entry['user_id']),
+							'created_by' => $insertQb->createNamedParameter((string)($entry['created_by'] ?? $entry['user_id'])),
+							'project_id' => $insertQb->createNamedParameter($entry['project_id'], $entry['project_id'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+							'entry_kind' => $insertQb->createNamedParameter($entryKind),
+							'source_entry_id' => $insertQb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'is_locked' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
+							'allocation_basis_points' => $insertQb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'type' => $insertQb->createNamedParameter($entry['type']),
+							'amount' => $insertQb->createNamedParameter($this->centsToAmountString($amountCents)),
+							'amount_cents' => $insertQb->createNamedParameter($amountCents, \PDO::PARAM_INT),
+							'currency' => $insertQb->createNamedParameter($entry['currency']),
+							'date' => $insertQb->createNamedParameter($runDate, \PDO::PARAM_INT),
+							'planned_notified' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
+							'category_id' => $insertQb->createNamedParameter($entry['category_id'], $entry['category_id'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+							'description' => $insertQb->createNamedParameter($entry['description']),
+							'payment_partner_id' => $insertQb->createNamedParameter($entry['payment_partner_id'] ?? null, ($entry['payment_partner_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+							'split_mode' => $insertQb->createNamedParameter($entry['split_mode'] ?? 'project_shares'),
+							'split_user_id' => $insertQb->createNamedParameter($entry['split_user_id'] ?? null, ($entry['split_user_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
+							'is_settled' => $insertQb->createNamedParameter(false, \PDO::PARAM_BOOL),
+							'is_subscription' => $insertQb->createNamedParameter($this->dbBool($entry['is_subscription'] ?? false), \PDO::PARAM_BOOL),
+							'is_fixed_cost' => $insertQb->createNamedParameter($this->dbBool($entry['is_fixed_cost'] ?? false), \PDO::PARAM_BOOL),
+							'is_child_related' => $insertQb->createNamedParameter($this->dbBool($entry['is_child_related'] ?? false), \PDO::PARAM_BOOL),
+							'is_important' => $insertQb->createNamedParameter($this->dbBool($entry['is_important'] ?? false), \PDO::PARAM_BOOL),
+							'needs_review' => $insertQb->createNamedParameter($this->dbBool($entry['needs_review'] ?? false), \PDO::PARAM_BOOL),
+							'is_tax_relevant' => $insertQb->createNamedParameter($this->dbBool($entry['is_tax_relevant'] ?? false), \PDO::PARAM_BOOL),
+							'is_insurance' => $insertQb->createNamedParameter($this->dbBool($entry['is_insurance'] ?? false), \PDO::PARAM_BOOL),
+							'recurrence_interval' => $insertQb->createNamedParameter($hasNextRun ? $entry['recurrence_interval'] : null, $hasNextRun ? \PDO::PARAM_STR : \PDO::PARAM_NULL),
+							'recurrence_multiplier' => $insertQb->createNamedParameter($hasNextRun ? (int)$entry['recurrence_multiplier'] : null, $hasNextRun ? \PDO::PARAM_INT : \PDO::PARAM_NULL),
+							'recurrence_next_date' => $insertQb->createNamedParameter($hasNextRun ? $nextDate : null, $hasNextRun ? \PDO::PARAM_INT : \PDO::PARAM_NULL),
+							'recurrence_end_date' => $insertQb->createNamedParameter($hasNextRun ? ($entry['recurrence_end_date'] ?? null) : null, ($hasNextRun && ($entry['recurrence_end_date'] ?? null) !== null) ? \PDO::PARAM_INT : \PDO::PARAM_NULL),
+							'recurrence_parent_id' => $insertQb->createNamedParameter($entry['id'], \PDO::PARAM_INT),
+							'recurrence_series_id' => $insertQb->createNamedParameter($seriesId, \PDO::PARAM_INT),
+							'workspace_id' => $insertQb->createNamedParameter($entry['workspace_id'] ?? null, ($entry['workspace_id'] ?? null) === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+						]);
+						$insertQb->executeStatement();
+						$newEntryId = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
+						$this->hashtagService->syncEntryHashtags($newEntryId, (int)($entry['workspace_id'] ?? 0), (string)($entry['description'] ?? ''));
+						if ($entryKind === 'shared') {
+							$this->entryProjectionService->syncSharedEntry($newEntryId);
+						}
+
+					$this->db->commit();
+					$this->dataChangeService->publishForEntry($entry, ['entries', 'projects', 'analytics', 'budgets']);
+				} catch (\Exception $e) {
+					$this->db->rollBack();
+					$this->logger->error('Failed to process recurring entry ' . $entry['id'] . ': ' . $e->getMessage(), ['app' => 'cobudget']);
+				}
 			}
+		} finally {
+			$access->leave();
 		}
 	}
 
@@ -202,7 +212,7 @@ class RecurringEntriesJob extends TimedJob {
 		$date = new \DateTime();
 		$date->setTimestamp($currentTimestamp);
 		$date->setTime(self::RECURRENCE_HOUR, self::RECURRENCE_MINUTE, 0);
-		
+
 		$multiplier = max(1, $multiplier);
 
 		switch ($interval) {
