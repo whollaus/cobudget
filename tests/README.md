@@ -131,7 +131,9 @@ lock is manually removed. Production TTL must exceed the longest operation, and
 abandoned database locks need Nextcloud's normal cleanup. The suite tests one
 migration and one transactional restore crash boundary; it does not simulate a
 whole database-server crash, full disk or every possible interrupted Files write.
-Local SQLite results do not establish MariaDB/PostgreSQL/Redis success.
+[GitHub CI run 43466781724](https://github.com/whollaus/cobudget/actions/runs/43466781724)
+passed all six database combinations with both database and Redis locks. See the
+[readiness review](../docs/release-readiness-1.0.md) for exact versions and limits.
 
 ### Backups and restore
 

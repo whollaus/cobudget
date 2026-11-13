@@ -9,7 +9,7 @@ All notable changes to CoBudget are documented in this file.
 - Add multi-process concurrency regression tests using the real Nextcloud locking provider, alongside backup roundtrip/rollback tests.
 - Handle Nextcloud Files adapters that close streamed input; avoid falsely failing an otherwise stored backup. Preserve deleted-goal snapshots in integrity checks instead of offering their deletion as a repair.
 - Extend released-0.8.5 upgrade fixtures with shared splits, settlements, deleted participants, recurrence, user mapping and actual Nextcloud Files archives. Add a disposable recovery runner with deterministic SIGKILL during migration and restore, snapshot recovery, lock expiry and generated-ID checks.
-- Configure six Nextcloud 34/35 recovery CI combinations with SQLite, MariaDB 10.11 and PostgreSQL 16, plus native database and Redis locks. Retain test logs without database/configuration artifacts.
+- Configure and verify six Nextcloud 34/35 recovery CI combinations with SQLite, MariaDB 10.11 and PostgreSQL 16, plus native database and Redis locks. Retain test logs without database/configuration artifacts.
 - Clear Nextcloud's user-preference cache after transactional replacement and rollback, preventing stale settings during account mapping or repeated restores. Keep PostgreSQL sequences monotonic across failed restores; sequence errors now fail the restore instead of being ignored.
 - Confirm the backup boundary: CoBudget archives preserve receipt paths; receipt files are protected and restored with the administrator's existing Nextcloud Files backup solution.
 

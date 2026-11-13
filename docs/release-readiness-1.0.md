@@ -1,14 +1,15 @@
 # CoBudget 1.0 readiness review
 
-**2026-11-13 — engineering assessment: 70/100, keep beta; no stable-release recommendation yet.**
-The score is a prioritization aid, not a measured reliability percentage. The main
-remaining risks are unexecuted MariaDB/PostgreSQL/Redis CI combinations, real
-storage failure behavior and large-data scenarios. Concurrent app access is now fenced.
+**2026-11-13 — database/recovery matrix passed; keep beta pending the remaining release gates.**
+The main remaining risks are real storage failure behavior, large-data scenarios
+and final manual acceptance. Concurrent app access is fenced and the selected
+upgrade/restore interruption scenarios have passed on all three database engines.
 
-Scope: the local working tree preparing **0.8.8**, including the pending 0.8.6
-email changes, compared with the last local release commit `05cefe5` (0.8.5).
-No publication, independent security audit or external source-code scanning was
-performed. Nextcloud 34.0.4 and 35.0.0 were tested locally with PHP 8.3 and SQLite.
+Scope: **0.8.8 beta** in [pull request #3](https://github.com/whollaus/cobudget/pull/3),
+compared with release commit `05cefe5` (0.8.5). No release publication, independent
+security audit or external source-code scanning was performed. Local checks used
+Nextcloud 34.0.4/35.0.0 and SQLite; GitHub CI used Nextcloud 34.0.6/35.0.3 and the
+expanded database/locking matrix below.
 
 ## Findings corrected in this review
 
@@ -48,42 +49,56 @@ snapshots whose goal had been deleted. That goal reference is now treated as
 optional historical context, including the detached zero reference after restore;
 workspace integrity checks remain active.
 
+## Database and upgrade gates — verified in GitHub CI
+
+[CI run 43466781724](https://github.com/whollaus/cobudget/actions/runs/43466781724)
+passed all **10 jobs** for commit `a0a557f`: the normal test/build/package job,
+Nextcloud 33–35 fresh-install compatibility, and these six recovery combinations:
+
+| Nextcloud | SQLite | MariaDB 10.11.19 | PostgreSQL 16.16 |
+| --- | --- | --- | --- |
+| 34.0.6 | Passed | Passed | Passed |
+| 35.0.3 | Passed | Passed | Passed |
+
+Every recovery job uses PHP 8.3 and exercises both native database locks and
+Redis 7 locks. The artifacts verify 118 assertions per combination: upgrade and
+old-archive restoration, exact shares and settlements, former participants,
+recurrence, account mapping, ID generation, ZIP/storage-error handling, concurrent
+admission, SIGKILL before restore commit, retry after lock expiry and recovery of
+the released version after an interrupted migration and after the complete run.
+The native provider class is checked, so an accidental Redis fallback cannot pass
+as Redis coverage.
+
+The first CI attempt exposed a **test-harness** issue: PostgreSQL dumps omitted
+owners/grants, leaving Nextcloud's dedicated database role unable to read restored
+tables. Snapshots now preserve ownership and privileges. No application code was
+changed for that CI failure. Both PostgreSQL jobs passed after this correction.
+
+These results cover the released 0.8.5 → 0.8.8 path and selected crash boundaries,
+not every historical version, storage backend or whole-database-server crash.
+Restoring PHP files alone remains an invalid schema rollback strategy.
+
 ## Release gates still open
 
-1. **P1 — execute the expanded database matrix and test real storage failures.**
-   CI now configures six recovery combinations (Nextcloud 34/35 × SQLite,
-   MariaDB 10.11 and PostgreSQL 16), each with database and Redis locks. Fixtures
-   include exact shares, settlements, deleted participants, account mapping,
-   generated IDs and deterministic process-kill recovery. Local execution passed
-   only with SQLite/native database locks; no remote MariaDB/PostgreSQL/Redis
-   result is claimed. Docker/database services are absent locally. Real storage
-   quota exhaustion, unavailable storage and interrupted Files writes remain
-   separate checks; injected write exceptions and short writes are covered.
-2. **P1 — obtain cross-database upgrade/recovery evidence.** The released
-   0.8.5 → 0.8.8 path passes locally on isolated Nextcloud 34/35 with the expanded
-   shared financial graph and actual pre-upgrade Files archives. SIGKILL after
-   migration 13's update is recovered using saved database/Files/configuration
-   and matching released code. SIGKILL before restore commit preserves previous
-   rows/settings; a retry works after native lock expiry and simulated expiry of
-   the additional restore marker. Remaining evidence is the configured server
-   database/Redis matrix, not another implementation of the SQLite fixture.
-   These tests cover selected crash boundaries, not every interrupted migration.
-   Replacing PHP files alone remains an invalid schema rollback strategy.
-3. **P2 — test representative large exports/backups.** CSV has a 50,000-payment
+1. **P1 — test real storage failures.** Exercise quota exhaustion, unavailable
+   storage and interrupted Files writes on disposable targets. Injected write
+   exceptions and short writes already pass on all three engines, but do not
+   establish real backend/quota behavior.
+2. **P2 — test representative large exports/backups.** CSV has a 50,000-payment
    limit and clipboard export a 1,000-payment limit. Restore applies size/ratio
    limits, but archive collection and JSON still use memory. Measure peak memory,
    runtime and maintenance duration with large fixtures; verify lock TTL and
    failure/retention behavior on production-shaped storage.
-4. **P2 — finish language and presentation acceptance.** All three translated
+3. **P2 — finish language and presentation acceptance.** All three translated
    catalogs now have 1,734 matching keys. Automated checks do not prove the quality
    of every sentence. Review key screens, CSV, email and calendar text in all four
    languages, including fluent French/Spanish review. Replace the 0.2.10 screenshots
    before stable publication; current README screenshots are labeled historical.
-5. **P2 — complete the manual release matrix.** Check two-user permissions,
+4. **P2 — complete the manual release matrix.** Check two-user permissions,
    receipts, settlement, real mail/Talk/calendar delivery, narrow screens, keyboard
    interaction and themes on the final release candidate. Reload existing browser
    tabs after restore before editing. External notification transports remain mocked
-   in regression fixtures and remote CI was not run here. An independent security
+   in regression fixtures. An independent security
    review remains desirable; do not market internal checks as one.
 
 ## Backup and export conclusions
@@ -115,8 +130,8 @@ established by this review.
 - The new backup roundtrip suite passes **23 assertions per server** with real ZIP
   files and the actual SQLite database, virtual Files storage and an outer rollback.
   It also injects a failure after replacement inserts and verifies that the prior
-  tables/settings survive the rollback. Compatibility CI now includes this and the 27-assertion multi-process concurrency suite;
-  no remote CI result is claimed.
+  tables/settings survive the rollback. Both this suite and the 27-assertion
+  multi-process concurrency suite also passed in the six GitHub recovery jobs.
 - The disposable recovery runner passed on Nextcloud 34.0.4 and 35.0.0 with
   SQLite/PHP 8.3: **19 upgrade/restore/mapping assertions**, **7 hard-kill restore
   recovery assertions**, and **4 old-version recovery assertions twice** (after
@@ -134,7 +149,7 @@ established by this review.
   rollback. Sequence synchronization now keeps at least the existing sequence
   position and propagates errors. The crash fixture creates a newer committed row
   than the backup and verifies generated IDs remain above it after rollback.
-  PostgreSQL execution is still pending CI; see the
+  Both PostgreSQL recovery jobs passed the generated-ID checks; see the
   [PostgreSQL sequence contract](https://www.postgresql.org/docs/16/functions-sequence.html).
 - Additional rollback-only integration suites passed on **both Nextcloud 34/35**:
   reports (468), shared-payment lifecycle (152), recurrence (109), master data (39),
@@ -165,6 +180,6 @@ The current 0.8.8 beta deliberately retains the 33–35 metadata/CI range.
 Its metadata version was advanced to register the new middleware/event bootstrap;
 this is not a declaration of stable maturity.
 
-**Next action:** run the same concurrency, populated restore and upgrade checks on
-MariaDB and PostgreSQL in disposable CI/test installations, then expand the upgrade
-fixture to shared settlements and account remapping.
+**Next action:** exercise actual storage/quota failures and representative large
+exports/backups, then complete language, UI and real-notification acceptance on
+the final release candidate.
