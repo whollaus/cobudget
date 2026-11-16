@@ -1,5 +1,6 @@
 {
 	"translations": {
+    "To review: {count}": "Por revisar: {count}",
     "This receipt is controlled by an open shared payment." : "Este justificante se gestiona desde un pago compartido pendiente de liquidación.",
     "Receipts of settled shared payments cannot be changed." : "Los justificantes de pagos compartidos liquidados no se pueden modificar.",
     "CoBudget is temporarily busy with a backup, restore or another operation. Please try again shortly.": "CoBudget está ocupado temporalmente con una copia de seguridad, una restauración u otra operación. Vuelve a intentarlo en unos instantes.",

@@ -11,7 +11,6 @@ import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/
 import { formatInputAmount, formatMoney, formatMoneyFromCents, formatSignedMoney, parseAmount } from './utils/formatMoney'
 import { installTexts } from './l10n/texts'
 import { legacyAnalyticsLocation } from './services/reportNavigation'
-import '@nextcloud/dialogs/style.css'
 import './styles/tokens.css'
 import './styles/surfaces.css'
 import './styles/status.css'

@@ -2,39 +2,37 @@
 
 [English](../README.md) · [Deutsch](readme.de.md) · **Français** · [Español](readme.es.md)
 
-**Comprendre ses dépenses. Partager les frais équitablement. Garder une vue d’ensemble dans Nextcloud.**
+CoBudget réunit un budget personnel et des espaces partagés dans Nextcloud.
+Vous enregistrez vos revenus et dépenses et, pour les paiements partagés, indiquez
+qui a payé et comment répartir le montant. Votre vue personnelle tient compte de
+votre part ; l’espace partagé affiche le paiement complet et les sommes dues
+entre membres.
 
-CoBudget aide les particuliers, les couples, les familles et les colocataires à
-suivre leur budget au quotidien. Enregistrez vos revenus et dépenses, anticipez les
-paiements à venir et retrouvez votre part des frais communs. Les espaces partagés
-conviennent au foyer, aux voyages ou aux petits groupes. Justificatifs et rappels
-restent associés aux paiements concernés.
+L’application web est également adaptée aux smartphones et aux tablettes. Vous pouvez ainsi enregistrer vos paiements lors de vos déplacements.
 
-> [!WARNING]
-> **Bêta — version de développement actuelle : 0.8.8.** Faites des sauvegardes
-> régulières et ne conservez pas vos données financières importantes uniquement
-> dans CoBudget. Le développement est assisté par l’IA. Les tests automatisés ne
-> remplacent pas un audit de sécurité indépendant, qui n’a pas encore été réalisé.
-> Voir la [politique de sécurité](../SECURITY.md).
+CoBudget ne se connecte pas aux comptes bancaires. Les rapports reposent sur les
+paiements que vous enregistrez.
 
-## Au quotidien, seul ou à plusieurs
+[Fonctionnement des paiements et des parts](concept.md).
 
-- **Suivre ses finances :** revenus et dépenses, catégories, partenaires de paiement,
+## Fonctionnalités
+
+- **Paiements :** revenus et dépenses, catégories, partenaires de paiement,
   libellés et tags.
-- **Anticiper :** paiements récurrents, objectifs budgétaires, rapports, comparaisons
+- **Planification :** paiements récurrents, objectifs budgétaires, rapports, comparaisons
   et prévisions.
-- **Partager équitablement :** indiquez qui a payé, choisissez la répartition et
+- **Espaces partagés :** indiquez qui a payé, choisissez la répartition et
   soldez les comptes. Votre vue personnelle compte votre part ; l’espace partagé
   affiche le montant total.
-- **Garder le contexte :** justificatifs dans Nextcloud Files et rappels autonomes
+- **Justificatifs et rappels :** justificatifs dans Nextcloud Files et rappels autonomes
   ou liés à un paiement, avec suivi de leur réalisation et archivage.
-- **Choisir ses notifications :** Nextcloud, conversation privée CoBudget dans Talk
+- **Notifications :** Nextcloud, conversation privée CoBudget dans Talk
   et e-mail facultatif, activables séparément selon l’événement. Les rappels peuvent
   aussi être synchronisés avec un calendrier ; les modifications d’un calendrier
   privé sont répercutées dans CoBudget.
-- **Réutiliser ses données :** impression de rapports, export CSV, copie vers un
+- **Exports et sauvegardes :** impression de rapports, export CSV, copie vers un
   tableur, exports personnels et sauvegardes administrateur.
-- **Adapter l’interface :** jeux de données séparés grâce aux espaces de travail,
+- **Espaces de travail et affichage :** jeux de données séparés grâce aux espaces de travail,
   affichage mobile ou bureau et thème clair, sombre ou système.
 
 L’interface est disponible en anglais, allemand, français et espagnol.
@@ -42,28 +40,42 @@ La documentation technique complémentaire est en anglais :
 [fonctionnalités](../FEATURES.md), [calcul des rapports](reports.md) et
 [concept de CoBudget](concept.md).
 
-## Comment CoBudget est organisé
+## Captures d’écran
 
-CoBudget s’organise autour des paiements, des parts personnelles et des espaces
-partagés. Votre budget personnel présente vos propres frais ; l’espace partagé
-conserve le total, la personne qui a payé et les sommes dues entre membres.
-CoBudget ne se connecte pas aux comptes bancaires et ne synchronise pas les
-opérations bancaires. Les rapports reposent sur les paiements enregistrés et leur
-répartition. Leur solde est celui de votre budget, pas un solde bancaire rapproché.
+CoBudget 1.0 avec des données fictives. Cliquez sur une image pour l’agrandir.
 
-## Prérequis et version 1.0
+<table>
+<tr>
+<td width="50%" align="center" valign="top">
+<strong>Paiements et parts personnelles</strong><br>
+<a href="../screenshots/screenshot-v1.0.0-payments.jpg"><img src="../screenshots/screenshot-v1.0.0-payments.jpg" alt="Paiements et parts personnelles" width="600"></a>
+</td>
+<td width="50%" align="center" valign="top">
+<strong>Dépenses partagées et remboursements</strong><br>
+<a href="../screenshots/screenshot-v1.0.0-shared.jpg"><img src="../screenshots/screenshot-v1.0.0-shared.jpg" alt="Dépenses partagées et remboursements" width="600"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center" valign="top">
+<strong>Rapports</strong><br>
+<a href="../screenshots/screenshot-v1.0.0-reports.jpg"><img src="../screenshots/screenshot-v1.0.0-reports.jpg" alt="Rapports" width="600"></a>
+</td>
+<td width="50%" align="center" valign="top">
+<strong>Saisie d’un paiement sur mobile</strong><br>
+<a href="../screenshots/screenshot-v1.0.0-mobile-payments.jpg"><img src="../screenshots/screenshot-v1.0.0-mobile-payments.jpg" alt="Paiements sur mobile" width="180"></a>
+<a href="../screenshots/screenshot-v1.0.0-mobile-entry.jpg"><img src="../screenshots/screenshot-v1.0.0-mobile-entry.jpg" alt="Saisie d’un paiement sur mobile" width="180"></a>
+</td>
+</tr>
+</table>
 
-La bêta actuelle prend en charge **Nextcloud 33 à 35**. **CoBudget 1.0 nécessitera
-Nextcloud 34 au minimum. La prise en charge de Nextcloud 33 s’arrête avec la série
-0.x.** Les tests prévus pour la 1.0 couvrent Nextcloud 34 et 35 ; aucune date de
-sortie n’est fixée.
+## Prérequis
+
+CoBudget nécessite **Nextcloud 34 ou une version ultérieure**.
 
 Utilisez une version de PHP compatible avec votre Nextcloud (8.2 minimum pour
-33/34, 8.3 pour 35), un navigateur récent et des tâches de fond fonctionnelles.
+34, 8.3 pour 35), un navigateur récent et des tâches de fond fonctionnelles.
 Talk, le calendrier et l’e-mail sont facultatifs. Les e-mails utilisent l’adresse
 du compte Nextcloud ; l’envoi de courrier doit être configuré sur le serveur.
-Voir le [bilan de préparation à la 1.0](release-readiness-1.0.md) et les
-[tests](../tests/README.md).
 
 ## Installation et mises à jour
 
@@ -100,8 +112,7 @@ les onglets CoBudget ouverts après une restauration. Voir la
 
 ## Retours et soutien
 
-Les signalements de bugs et les résultats de tests sont particulièrement utiles
-pendant la bêta. CoBudget est principalement maintenu par une personne ; discutez
+Les signalements de bugs et les résultats de tests contribuent à améliorer CoBudget. CoBudget est principalement maintenu par une personne ; discutez
 au préalable des contributions de code.
 [GitHub Issues](https://github.com/whollaus/cobudget/issues) · [Contribuer](../CONTRIBUTING.md) ·
 [Historique](../CHANGELOG.md) · [Signaler une vulnérabilité](../SECURITY.md).

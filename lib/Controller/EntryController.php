@@ -1255,7 +1255,7 @@ class EntryController extends Controller {
 			->andWhere($qb->expr()->lte('e.date', $qb->createNamedParameter($to, IQueryBuilder::PARAM_INT)))
 			->groupBy('c.id', 'p.id');
 		foreach ($labels as $label) {
-			$qb->selectAlias($qb->createFunction('MAX(e.' . $label['column'] . ')'), $label['column']);
+			$qb->selectAlias($qb->createFunction('MAX(CASE WHEN e.' . $label['column'] . ' = ' . $qb->createNamedParameter(true, \PDO::PARAM_BOOL) . ' THEN 1 ELSE 0 END)'), $label['column']);
 		}
 		if ($projectId !== null) {
 			$qb->andWhere($qb->expr()->eq('e.project_id', $qb->createNamedParameter($projectId, IQueryBuilder::PARAM_INT)));
@@ -1625,13 +1625,13 @@ class EntryController extends Controller {
 		$this->paymentProjectIds = $this->parseAnnualIdList($projects, true);
 		$this->includeAssignedPaymentAreas = in_array('assigned', explode(',', $projects), true);
 		$this->excludedPaymentProjectIds = $this->parseExcludedPaymentProjectIds($projects);
-		$this->paymentNarrowing = $this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters);
 		$isFuture = ($isFuturePayments === true || $isFuturePayments === 'true');
 		$isSummaryOnly = ($summaryOnly === true || $summaryOnly === 'true' || $summaryOnly === 1 || $summaryOnly === '1');
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
 			}
+			$this->paymentNarrowing = $this->parseAnnualPaymentNarrowing($categories, $partners, $labels, $hashtags, $amountMin, $amountMax, $reportFilters);
 			[$limit, $offset] = $this->normalizePagination($limit, $offset);
 
 			$this->paymentCalendarRanges = $this->paymentCalendarRanges($periodYears, $periodMonths);
@@ -1642,8 +1642,8 @@ class EntryController extends Controller {
 			}
 			if ($isSummaryOnly) {
 				$projectShareBasisPoints = $this->fetchCurrentUserProjectShareBasisPoints();
-				$summaryData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints, $isInsurance);
-				$futureSummaryData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, 'date', 'asc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true, $projectShareBasisPoints, $isInsurance);
+				$summaryData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, 'date', 'desc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $projectShareBasisPoints, $isInsurance, countsOnly: true);
+				$futureSummaryData = $this->fetchEntryAggregateData($workspaceId, $search, $paymentPartnerId, $categoryId, null, null, $type, 'date', 'asc', $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, true, $projectShareBasisPoints, $isInsurance, countsOnly: true);
 
 				return new DataResponse([
 					'tagCounts' => $this->dashboardTagCountsFromAggregates($summaryData, $futureSummaryData),
@@ -1677,6 +1677,8 @@ class EntryController extends Controller {
 					'hashtags' => $this->hashtagService->fetchVisibleHashtagsForUser($workspaceId, (string)$this->userId),
 				],
 			]);
+		} catch (\InvalidArgumentException $error) {
+			return $this->errorResponse($error->getMessage(), Http::STATUS_BAD_REQUEST);
 		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
@@ -1784,9 +1786,14 @@ class EntryController extends Controller {
 		?int $hashtagId,
 		bool $isFuture,
 		array $projectShareBasisPoints,
-		?bool $isInsurance = null
+		?bool $isInsurance = null,
+		bool $countsOnly = false
 	): array {
 		$qb = $this->buildVisibleEntriesQuery($workspaceId, $isFuture);
+		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $isInsurance);
+		if ($countsOnly) {
+			return $this->fetchDashboardCounts($qb);
+		}
 		$qb->leftJoin('e', 'cobudget_entry_shares', 'personal_share', $qb->expr()->andX(
 			$qb->expr()->eq('personal_share.entry_id', 'e.id'),
 			$qb->expr()->eq('personal_share.user_id', $qb->createNamedParameter((string)$this->userId))
@@ -1812,32 +1819,34 @@ class EntryController extends Controller {
 			'e.recurrence_next_date',
 			'personal_share.amount_cents AS snapshot_share_cents'
 		);
-		$this->applyFilters($qb, $search, $paymentPartnerId, $categoryId, $dateFrom, $dateTo, $type, $projectId, $isSettled, $isRecurring, $isSubscription, $isFixedCost, $isChildRelated, $isImportant, $needsReview, $isTaxRelevant, $hasReminder, $hasAttachment, $hashtagId, $isFuture, $isInsurance);
-		$qb->groupBy('e.id');
-		foreach ([
-			'e.user_id',
-			'e.entry_kind',
-			'e.type',
-			'e.amount',
-			'e.amount_cents',
-			'e.project_id',
-			'e.split_mode',
-			'e.split_user_id',
-			'e.is_subscription',
-			'e.is_fixed_cost',
-			'e.is_child_related',
-			'e.is_important',
-			'e.needs_review',
-			'e.is_tax_relevant',
-			'e.is_insurance',
-			'e.date',
-			'e.recurrence_next_date',
-			'personal_share.amount_cents',
-			'c.name',
-			'p.name',
-			'e.description',
-		] as $groupColumn) {
-			$qb->addGroupBy($groupColumn);
+		// Only attachment/tag joins can multiply rows; ordinary reads retain index ordering.
+		if ($hasAttachment !== null || $hashtagId !== null) {
+			$qb->groupBy('e.id');
+			foreach ([
+				'e.user_id',
+				'e.entry_kind',
+				'e.type',
+				'e.amount',
+				'e.amount_cents',
+				'e.project_id',
+				'e.split_mode',
+				'e.split_user_id',
+				'e.is_subscription',
+				'e.is_fixed_cost',
+				'e.is_child_related',
+				'e.is_important',
+				'e.needs_review',
+				'e.is_tax_relevant',
+				'e.is_insurance',
+				'e.date',
+				'e.recurrence_next_date',
+				'personal_share.amount_cents',
+				'c.name',
+				'p.name',
+				'e.description',
+			] as $groupColumn) {
+				$qb->addGroupBy($groupColumn);
+			}
 		}
 		$this->applyEntryOrdering($qb, $sortBy, $sortDir, $isFuture);
 
@@ -1853,7 +1862,6 @@ class EntryController extends Controller {
 		$future30DaysLimit = time() + 30 * 86400;
 		$result = $qb->executeQuery();
 		while ($entry = $result->fetch()) {
-			$entry = $this->normalizeAmountRow($entry);
 			if (($entry['snapshot_share_cents'] ?? null) === null) {
 				unset($entry['snapshot_share_cents']);
 			}
@@ -1870,14 +1878,15 @@ class EntryController extends Controller {
 			$this->accumulateDashboardTagCounts($aggregate['tagCounts'], $entry);
 
 			if ($effectiveDate > 0) {
-				$monthKey = $this->calendarDate($effectiveDate)->format('Y-m');
+				$calendarDate = $this->calendarDate($effectiveDate);
+				$monthKey = $calendarDate->format('Y-m');
 				$aggregate['monthlyMetrics'][$monthKey] ??= $this->zeroDashboardMetrics();
 				$this->accumulateDashboardMetrics($aggregate['monthlyMetrics'][$monthKey], $entry, $amount);
 				if ($isFuture && $effectiveDate <= $future30DaysLimit) {
 					$this->accumulateDashboardMetrics($aggregate['metrics30Days'], $entry, $amount);
 				}
 
-				foreach ($this->dateGroupKeys($effectiveDate) as $key) {
+				foreach (['year-' . $calendarDate->format('Y'), 'month-' . $monthKey] as $key) {
 					$aggregate['dateGroupSummaries'][$key] ??= [
 						'income' => 0,
 						'expense' => 0,
@@ -1899,6 +1908,33 @@ class EntryController extends Controller {
 		$result->closeCursor();
 
 		return $aggregate;
+	}
+
+	/** Count navigation badges in SQL without transferring every matching payment. */
+	private function fetchDashboardCounts($qb): array {
+		$qb->selectAlias($qb->createFunction('COUNT(DISTINCT e.id)'), 'payment_count');
+		$conditions = ['income' => "e.type = 'income'"];
+		foreach ([
+			'important' => 'is_important', 'review' => 'needs_review',
+			'fixedCosts' => 'is_fixed_cost', 'childRelated' => 'is_child_related',
+			'subscriptions' => 'is_subscription', 'taxRelevant' => 'is_tax_relevant',
+			'insurance' => 'is_insurance',
+		] as $key => $column) {
+			$conditions[$key] = $qb->expr()->eq('e.' . $column, $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL));
+		}
+		foreach ($conditions as $key => $condition) {
+			// DISTINCT preserves one count per payment even when filters join tags.
+			$qb->selectAlias($qb->createFunction('COUNT(DISTINCT CASE WHEN ' . $condition . ' THEN e.id END)'), strtolower($key));
+		}
+		$result = $qb->executeQuery();
+		try {
+			$row = $result->fetch() ?: [];
+			$counts = $this->zeroDashboardTagCounts();
+			foreach ($conditions as $key => $_condition) $counts[$key] = (int)($row[strtolower($key)] ?? 0);
+			return ['count' => (int)($row['payment_count'] ?? 0), 'tagCounts' => $counts];
+		} finally {
+			$result->closeCursor();
+		}
 	}
 
 	private function buildDateGroupsFromAggregate(array $aggregate, int $offset, int $pageCount, string $sortBy): array {
@@ -2051,14 +2087,6 @@ class EntryController extends Controller {
 		}
 
 		return (int)($entry['date'] ?? 0);
-	}
-
-	private function dateGroupKeys(int $timestamp): array {
-		$date = $this->calendarDate($timestamp);
-		return [
-			'year-' . $date->format('Y'),
-			'month-' . $date->format('Y-m'),
-		];
 	}
 
 	/** @return list<array{0: \DateTimeImmutable, 1: \DateTimeImmutable}> */
@@ -2220,7 +2248,7 @@ class EntryController extends Controller {
 			'Receipt names',
 			'Receipt paths',
 		];
-		fputcsv($handle, array_map(fn(string $header): string => $this->l10n->t($header), $headers), ';');
+		fputcsv($handle, array_map(fn(string $header): string => $this->l10n->t($header), $headers), ';', '"', '\\');
 
 		foreach ($entries as $entry) {
 			$type = (string)($entry['type'] ?? '');
@@ -2268,7 +2296,7 @@ class EntryController extends Controller {
 				(string)(int)($entry['attachments_count'] ?? 0),
 				$this->exportText(implode(', ', $entry['attachment_names'] ?? [])),
 				$this->exportText(implode(', ', $entry['attachment_paths'] ?? [])),
-			], ';');
+			], ';', '"', '\\');
 		}
 
 		rewind($handle);

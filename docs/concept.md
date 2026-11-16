@@ -1,15 +1,13 @@
-# The CoBudget approach
+# Payments and shares in CoBudget
 
-## Focus: your household, alone and together
+CoBudget combines a personal household budget with shared areas in Nextcloud.
+A shared payment records its full amount, who paid and how it is divided. Each
+person’s share appears in their personal overview; the shared area also shows
+what members owe each other.
 
-CoBudget helps you understand everyday income and expenses, plan upcoming costs
-and share expenses fairly. It brings your personal household book and shared
-areas together: a shared purchase appears as your own share in your personal
-finances, while the area keeps the total, who paid and the settlement history.
-
-This works for individuals, couples, families, housemates and small groups. You
-can keep track of your household, organize a trip or separate another part of
-your everyday finances without setting up a bank-account structure first.
+You can use CoBudget on your own or with others, for example for a household,
+a trip or a small group. Payments are entered in CoBudget; bank accounts are
+not connected or synchronized.
 
 ## Organized around payments and people
 

@@ -20,6 +20,7 @@ function instance(component) {
 }
 api.get=async()=>({data:[]})
 let vm=instance(sidebar)
+for (const field of ['title', 'description', 'localDate', 'localTime']) assert.equal(typeof vm.draft[field], 'string', `Native input ${field} has a valid model before the asynchronous sidebar opens`)
 await vm.open()
 assert.equal(vm.isOpen,true)
 assert.equal(vm.dirty,false)

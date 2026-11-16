@@ -4,8 +4,8 @@ This document describes CoBudget's architecture, data invariants and operational
 behavior for contributors and coding assistants. Paths and commands refer to the
 app repository root unless stated otherwise.
 
-Read [AGENTS.md](../AGENTS.md) for the development workflow, verification and
-release rules, and the [design system](design-system.md) for UI conventions.
+Read the [development guide](development.md) for builds and tests, and the
+[design system](design-system.md) for UI conventions.
 
 ## App
 
@@ -13,7 +13,7 @@ release rules, and the [design system](design-system.md) for UI conventions.
 - Nextcloud app id: `cobudget`
 - PHP namespace: `OCA\CoBudget`
 - This is a technical reset. New installs use only `cobudget` identifiers and `cobudget_*` database tables.
-- Current 0.x beta: Nextcloud min `33`, max `35`. First stable 1.0: raise the minimum to `34`, with a 34/35 test matrix.
+- CoBudget 1.0: Nextcloud min `34`, max `35`, with a 34/35 test matrix.
 - Current app version: see `appinfo/info.xml`
 
 ## Stack
@@ -21,6 +21,11 @@ release rules, and the [design system](design-system.md) for UI conventions.
 - Frontend: Vue 3, Vue Router 4, `@nextcloud/vue`, Webpack
 - Import Nextcloud Vue components from direct component paths, for example `@nextcloud/vue/components/NcButton`, instead of the root barrel import.
 - Keep heavyweight UI/runtime dependencies out of the initial `main` entry where this does not weaken the native Nextcloud layout. Route views, the payment modal, and icon picker should stay lazy-loaded where possible.
+- Count navigation badges in SQL over the same authorized payment query as the
+  overview. Keep de-duplication for attachment/tag joins; ordinary summary reads
+  can retain index ordering because membership/share joins are unique per user.
+- Wait for the payment editor chunk to load before polling for its mounted Vue
+  instance. A slow network must not discard the action that opened the editor.
 - Keep the app shell on native Nextcloud layout components (`NcContent`, `NcAppNavigation`, `NcAppContent`) unless there is a confirmed reason to replace them. The native shell preserves sidebar toggling and Nextcloud content sizing.
 - Backend: PHP 8, Nextcloud AppFramework controllers, `IDBConnection`
 - Database changes live in `lib/Migration`
@@ -37,16 +42,12 @@ describes the automated server matrix.
   private request-token aliases; `fetchJson.js` uses `getRequestToken()` from
   `@nextcloud/auth`, while the main HTTP client uses `@nextcloud/axios`.
 - Keep Symfony command return types (`execute(): int`, `configure(): void`)
-  compatible with Console 7 and preserve registration on Nextcloud 33/34.
+  compatible with Console 7 and preserve registration on Nextcloud 34/35.
 - Use `OCP\DB\ISchemaWrapper` in migrations; do not depend on concrete Doctrine
   table/column types. Preserve published migrations as described below.
 - Recheck database-specific query behavior and newly used Nextcloud APIs for
   each supported version; a SQLite smoke test does not establish compatibility
   with every database engine or a populated server upgrade.
-
-Dated compatibility and feature-review results are retained in
-[Verification history](verification-history.md). They are historical evidence,
-not certification of the current working tree.
 
 ## Workspace Rules
 
@@ -128,7 +129,7 @@ not certification of the current working tree.
 - Backup creation must use the per-user `backup_running_since` lock so a second cron run cannot start another backup for the same user while the previous backup is still running.
 - The jobs are listed in `appinfo/info.xml`, but Nextcloud only inserts those jobs into `oc_jobs` during app install/update.
 - Because users often deploy this app by replacing the ZIP without a version bump, `Application::boot()` also ensures the jobs exist through `IJobList` in an idempotent way.
-- On Nextcloud 33, notification providers must be registered with `IRegistrationContext::registerNotifierService(Notifier::class)`. Do not use the older `registerNotifier()` call.
+- Notification providers must be registered with `IRegistrationContext::registerNotifierService(Notifier::class)`. Do not use the older `registerNotifier()` call.
 - WebCron executes only one background job per HTTP call. Freshly registered CoBudget jobs that have never run are therefore prioritized once by resetting `last_checked` while `last_run = 0`.
 - Keep recurring entries and reminders on the 5-minute interval unless the external cron cadence changes.
 - If background job registration changes, bump `appinfo/info.xml` so Nextcloud runs the app update path and refreshes `oc_jobs`.

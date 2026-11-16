@@ -3,11 +3,6 @@
 Releases are handled by the maintainer. This document records the portable release
 requirements and the signing helper included in this repository.
 
-In the maintainer's multi-app workspace, **`scripts/README.md` at the workspace
-root** is the authoritative guide for the shared release tool, credentials,
-GitHub/App Store publication and recovery. Those private tools are not distributed
-with this repository. Keep their operational instructions there.
-
 ## Release checklist
 
 - Update [CHANGELOG.md](CHANGELOG.md) and relevant public documentation.
@@ -65,12 +60,10 @@ repository's parent directory, replacing files with those names. Keep the three
 artifacts together. This helper prepares files locally; publication belongs to
 the maintainer's release workflow.
 
-## Release channels and beta status
+## Release channels
 
 The App Store derives its distribution channel from the version: a numeric
-version such as `0.8.8` uses the stable channel, while `0.8.8-beta.1` is a
-prerelease. GitHub's prerelease flag does not select the App Store channel.
+version such as `1.0.0` uses the stable channel, while `1.0.0-rc.1` is a
+prerelease. GitHub’s prerelease flag does not select the App Store channel.
 
-This is separate from product maturity: **CoBudget 0.8.8 remains beta**, and
-1.0.0 is intended to be the first stable product release. Keep release notes and
-app descriptions consistent with that status.
+CoBudget 1.0.0 is published as a stable release on GitHub and in the App Store.

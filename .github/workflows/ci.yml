@@ -20,8 +20,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - nextcloud: '33'
-            php: '8.2'
           - nextcloud: '34'
             php: '8.2'
           - nextcloud: '35'
@@ -185,6 +183,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Check production dependencies for known vulnerabilities
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Show PHP version
         run: php -v

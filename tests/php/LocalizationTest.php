@@ -66,8 +66,8 @@ namespace CoBudget\Tests {
 				$stream = fopen('php://temp', 'w+b');
 				fwrite($stream, substr($csv, 3)); // UTF-8 BOM is not part of the first header.
 				rewind($stream);
-				$headers = fgetcsv($stream, 0, ';');
-				$row = array_combine($headers, fgetcsv($stream, 0, ';'));
+				$headers = fgetcsv($stream, 0, ';', '"', '\\');
+				$row = array_combine($headers, fgetcsv($stream, 0, ';', '"', '\\'));
 				fclose($stream);
 				$t->assertSame($catalog['Yes'] ?? 'Yes', $row[$catalog['Important'] ?? 'Important'], 'True flags use the export language');
 				$t->assertSame($catalog['No'] ?? 'No', $row[$catalog['Review'] ?? 'Review'], 'False flags use the export language');

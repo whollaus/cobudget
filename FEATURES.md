@@ -1,9 +1,9 @@
 # CoBudget Features
 
-CoBudget helps individuals, couples, families and housemates track everyday
-finances and share costs inside Nextcloud.
-This describes the current 0.8.8 beta development state; see the
-[changelog](CHANGELOG.md) for changes and the [README](README.md) for installation.
+CoBudget combines personal income and expenses with shared areas in Nextcloud.
+A shared payment records who paid and how the amount is divided; each person’s
+share appears in their personal overview.
+See the [changelog](CHANGELOG.md) for changes and the [README](README.md) for installation.
 
 ## Focus and data model
 
@@ -14,7 +14,7 @@ CoBudget does not connect to bank accounts, synchronize bank transactions or imp
 bank statements. Reports summarize recorded payments; they do not represent
 reconciled bank account balances. Recurring rules create app records, and settlements
 record how shared costs are balanced; neither initiates a bank transfer.
-See [the CoBudget approach](docs/concept.md) for an example.
+See [payments and shares in CoBudget](docs/concept.md) for an example.
 
 ## Navigation and filters
 

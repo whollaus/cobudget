@@ -1,7 +1,7 @@
 # Contributing To CoBudget
 
-CoBudget is primarily developed and maintained by one person and is still in
-beta. To keep development and long-term maintenance manageable, the maintainer
+CoBudget is primarily developed and maintained by one person. To keep development
+and long-term maintenance manageable, the maintainer
 keeps responsibility for architecture, design, priorities and implementation.
 
 Feedback, bug reports and testing are very welcome. I am especially grateful for
@@ -37,7 +37,7 @@ For security issues, follow [SECURITY.md](SECURITY.md).
 ## Help With Testing
 
 Trying a new version and checking whether a reported problem is fixed helps
-prepare CoBudget for a stable 1.0 release. Test with sample data in a separate
+improve CoBudget. Test with sample data in a separate
 instance where possible, and keep backups before updating an existing installation.
 
 Share the version and setup you tested, the steps you followed, and the result
@@ -87,5 +87,4 @@ for test requirements and integration checks.
 
 - [Architecture](docs/architecture.md): stack, data model, permissions, recurring payments, backups and migrations.
 - [Design system](docs/design-system.md): native components, visual conventions, accessibility and UI verification.
-- [AGENTS.md](AGENTS.md): coding-assistant workflow, required checks and documentation rules.
 - [Release process](RELEASING.md): packaging and signing; releases are handled by the maintainer.

@@ -1,7 +1,7 @@
 <template>
 	<NcAppSidebar
 		class="entry-sidebar"
-		:class="{ 'entry-sidebar--mobile-save-visible': showMobileHeaderSave, 'entry-sidebar--closing': !isOpen, 'entry-sidebar--type-field-header': $enableIncomes && isWideViewport }"
+		:class="{ 'entry-sidebar--initializing': isInitializingEntry, 'entry-sidebar--mobile-save-visible': showMobileHeaderSave, 'entry-sidebar--closing': !isOpen, 'entry-sidebar--type-field-header': $enableIncomes && isWideViewport }"
 		:name="sidebarTitle"
 		aria-labelledby="entry-sidebar-title"
 		:open="isOpen"
@@ -45,6 +45,7 @@
 					@update:model-value="selectEntryType" />
 			</div>
 		</template>
+		<div v-if="isInitializingEntry" class="entry-loading" role="status"><NcLoadingIcon :size="32" /><span>{{ $texts.common.loading() }}</span></div>
 		<form
 			ref="modalContent"
 			class="modal-form"
@@ -463,7 +464,7 @@ const normalizedPositiveId = value => {
 export default {
 	name: 'EntrySidebar',
 	components: { NcTextArea, ArrowRightIcon, EntryHistoryModal, HistoryIcon, BellOutlineIcon, EntrySidebarHeading, EntryTypeField, DialogTransition, DisabledActionHint, NcDialog, NcNoteCard, NcLoadingIcon, EntryLookupSelect, NcInputField, ChevronRightIcon, NcSelect, MemberIdentity, AccountMultipleIcon, CategoryIcon, NavigationIcon, ModalActions, CloseIcon, ContentSaveIcon, DeleteOutlineIcon, ChevronDownIcon, PaperclipIcon, AreaIcon, NcAppSidebar, NcButton },
-	emits: ['closed', 'mode-changed', 'saved'],
+	emits: ['opened', 'closed', 'mode-changed', 'saved'],
 	props: {
 		projectId: {
 			type: Number,
@@ -1364,6 +1365,7 @@ export default {
 			await this.requestCloseSidebar();
 		},
 		handleSidebarOpened() {
+			this.$emit('opened')
 			if (!this.isOpen) return;
 			this.sidebarHasEntered = true;
 			this.focusSidebarWhenReady();
@@ -2744,6 +2746,8 @@ export default {
 
 /* Keep the native slide-right timing/easing and width calculation. */
 .entry-sidebar--closing { pointer-events: none; }
+.entry-sidebar--initializing .modal-form { visibility: hidden; }
+.entry-loading { position: absolute; top: 80px; inset-inline-start: 16px; display: flex; align-items: center; gap: 12px; }
 @media (prefers-reduced-motion: reduce) {
 	.entry-sidebar.slide-right-enter-active,
 	.entry-sidebar.slide-right-leave-active { transition: none !important; }

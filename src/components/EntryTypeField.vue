@@ -65,9 +65,12 @@ export default {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.entry-type-select.v-select.select :deep(.vs__selected) {
-	padding-inline: 0;
+/* Keep NcSelect's native field padding, aligned with the other form inputs. */
+.entry-type-select.v-select.select.vs--single :deep(.vs__selected) {
 	color: var(--entry-type-color);
+}
+.entry-type-select.v-select.select.vs--single:not(.vs--disabled) :deep(.vs__selected) {
+	opacity: 1;
 }
 .entry-type-value,
 .entry-type-option { display: flex; align-items: center; gap: var(--cobudget-space-2, 8px); }
@@ -85,8 +88,9 @@ export default {
 	--vs-selected-color: var(--entry-type-color);
 	--vs-controls-color: var(--entry-type-color);
 }
-.entry-type-select :deep(.vs__dropdown-toggle) {
-	background: var(--entry-type-surface);
+/* NcSelect's native input paints the field surface, above its toggle. */
+.entry-type-select.v-select.select :deep(.input-field__input) {
+	background-color: var(--entry-type-surface);
 }
 /* NcSelect teleports its native listbox to body; scope these colors to this field. */
 :global(#vs-cobudget-payment-type__listbox .vs__dropdown-option:has(.entry-type-option--expense)) {
@@ -101,8 +105,10 @@ export default {
 	color: var(--entry-type-color);
 	background: var(--entry-type-surface);
 }
-:global(#vs-cobudget-payment-type__listbox .vs__dropdown-option--highlight),
-:global(#vs-cobudget-payment-type__listbox .vs__dropdown-option--kb-focus) {
+:global(#vs-cobudget-payment-type__listbox .vs__dropdown-option--highlight) {
 	background: color-mix(in srgb, var(--entry-type-color) 12%, var(--entry-type-surface));
+}
+:global(#vs-cobudget-payment-type__listbox .vs__dropdown-option--kb-focus) {
+	box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--entry-type-color) 40%, transparent);
 }
 </style>

@@ -68,7 +68,7 @@ namespace CoBudget\Tests {
 		$values = [
 			'workspaceId' => 1, 'search' => '', 'type' => 'all',
 			'sortBy' => 'date', 'sortDir' => 'desc', 'isFuture' => $future,
-			'projectShareBasisPoints' => [],
+			'projectShareBasisPoints' => [], 'countsOnly' => false,
 		];
 		$arguments = array_map(static fn(\ReflectionParameter $parameter): mixed => $values[$parameter->getName()] ?? null, $method->getParameters());
 		return $method->invokeArgs($controller, $arguments);
@@ -139,8 +139,8 @@ namespace CoBudget\Tests {
 				date_default_timezone_set('Europe/Vienna');
 				$timestamp = strtotime('2026-09-30 22:30:00 UTC');
 				foreach (['', 'invalid/timezone', "UTC\0bad", '+99:00'] as $header) {
-					$controller = dashboardTimezoneController([], $header);
-					$keys = (new \ReflectionMethod($controller, 'dateGroupKeys'))->invoke($controller, $timestamp);
+					$controller = dashboardTimezoneController([['id' => 1, 'type' => 'expense', 'amount_cents' => 100, 'date' => $timestamp]], $header);
+					$keys = array_keys(dashboardTimezoneAggregate($controller)['dateGroupSummaries']);
 					$t->assertSame(['year-2026', 'month-2026-10'], $keys, 'Missing or invalid timezone must use the server timezone');
 				}
 				date_default_timezone_set('UTC');

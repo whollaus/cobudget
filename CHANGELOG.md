@@ -2,6 +2,27 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [1.0.0] - 2026-11-16
+
+This is the first stable CoBudget release. It includes the changes developed in
+0.8.6–0.8.8 since the published 0.8.5 release.
+
+- Require Nextcloud 34 or newer; support and test Nextcloud 34 and 35. Nextcloud 33 is no longer supported.
+- Add optional email notifications and improve backup validation, restoration, concurrent access protection and upgrade recovery.
+- Update the user and contributor documentation for the stable release.
+- Explain personal payments, shared allocations, mobile payment entry and the absence of bank-account integration at the start of all four README and App Store descriptions. Replace promotional slogans and feature labels with plain descriptions and remove the repeated concept section.
+- Remove beta warnings from current app descriptions and align contributor, security and release guidance.
+- Refresh GitHub and App Store screenshots with fictional household and shared-trip data, including mobile payment entry. Remove superseded image files, numbered aliases and their documentation references. Translate the budget warning counter and area balance label in the English interface.
+- Update vulnerable JavaScript dependencies and check production dependencies for known security advisories in CI.
+- Speed up payment summaries and navigation counters for large histories, and load the Files export picker only when needed.
+- Unify dropdown spacing, native menu styling and option cursors across payment lookups, payment types and settings; keep inline creation choices visually consistent.
+- Align the payment-type selector and dropdown: native field padding aligned with adjacent inputs, consistent icon-to-text spacing, income/expense colors and tinted backgrounds, including the open state. Hover strengthens the background tint; the focus outline is reserved for keyboard navigation.
+- Release focus before disabling closing dialog snapshots, preventing accessibility warnings while preserving native focus return and nested dialogs.
+- Stabilize the initial layout, apply header preferences before the app starts, and reduce startup JavaScript with separate stylesheets and on-demand notifications.
+- Initialize reminder date fields before mounting their native inputs, preventing an error on the first opening.
+- Fix PostgreSQL annual-report filters and support disposable local MariaDB/PostgreSQL recovery tests without Docker.
+- Keep payment creation working when its first download takes longer on a slow connection, and return a clear client error for malformed dashboard filters.
+
 ## [0.8.8] - 2026-11-13
 
 - Fence personal/full backup and restore against concurrent CoBudget requests, jobs, user deletion and data-management commands using Nextcloud's shared/exclusive locks. Existing operations prevent maintenance startup; new requests receive HTTP 503 during maintenance, and jobs defer their work.

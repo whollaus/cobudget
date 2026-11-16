@@ -141,7 +141,12 @@ Existing custom fields opt in with `form-control` and `data-cobudget-field`
 radius, height and invalid-state rules. Native field/select wrappers use
 `cobudget-native-field`/`cobudget-native-select`: one inset outline, strengthened
 on hover/focus, without doubling the native border. Invalid states take priority;
-disabled fields retain native behavior. Custom controls use the shared focus
+disabled fields retain native behavior. Dropdowns retain NcSelect's native option
+padding, menu inset, typography and rounded hover rows. Custom positioning hooks
+must add `nc-select__dropdown`, as the native hook does. Slot contents inherit the
+row cursor; searchable inputs retain their text cursor. Inline New/Add choices
+are ordinary icon-and-text options, without a nested button or extra padding.
+Custom controls use the shared focus
 helper, including an inset variant when an outer ring would be clipped.
 
 `NcButton` appearance uses `variant`, while `type="submit"` is the HTML type.
@@ -388,8 +393,13 @@ is disabled, retain a plain contextual title instead of a redundant selector.
 
 ### Primary fields and optional features
 
-- The labeled type field owns Plus/Minus and income/expense colors; the amount
-  stays neutral, with currency inside its calculator field and no inner segment.
+- The labeled type field uses the same Plus/Minus spacing, text colors and tinted
+  backgrounds in its selected value and dropdown choices, including while open.
+  The selected icon starts at the native field inset, aligned with the other form
+  inputs; the open list retains native option padding. Hover strengthens the semantic background
+  tint without adding a border; keyboard focus retains an inset outline. Native
+  disabled feedback remains.
+  The amount stays neutral, with currency inside its calculator field and no inner segment.
   Date/amount share a row when their own container fits them and stack otherwise.
   Native date fields retain required/minimum constraints and local-date parsing.
 - Initially focus/select the amount only after opening and loading. Use
@@ -712,8 +722,10 @@ dialog behavior, without a second backdrop, focus trap or arbitrary z-index.
 
 `DialogTransition` owns the teleported host; condition the host rather than
 prematurely removing its child. Native/custom modal entry/exit timing is shared,
-including Vue-version class compatibility. Closing snapshots are inert and hidden
-from assistive technology while leaving; do not delay model updates to fake a
+including Vue-version class compatibility. Release any focus still inside the
+closing snapshot before making it inert. Inert alone removes the snapshot from
+interaction and assistive technology during the leave phase; do not add a racing
+`aria-hidden` attribute while the native focus trap is returning focus; do not delay model updates to fake a
 transition. Reduced motion removes delays. Popovers/subpanel entry use their
 short shared fade/scale; custom hover transitions affect colors/borders, never
 layout, focus or every property. Sidebars keep their native motion separately.
@@ -897,13 +909,12 @@ For a shared design change or new module:
 - Check empty, loading, failed and populated states. Preserve sticky columns,
   sidebar motion, mobile navigation/action clearance, reduced motion and print
   layout where affected. Use a real touch device for touch-specific changes.
-- Run relevant checks from the [test guide](../tests/README.md) and
-  [AGENTS.md](../AGENTS.md), build/update local instances for code changes, and
+- Run relevant checks from the [test guide](../tests/README.md),
+  build/update local instances for code changes, and
   inspect the affected rendered surfaces. A successful build or source review
   alone does not establish visual correctness or supported-version compatibility.
-- Report fixture and verification limits explicitly. Historical results belong
-  in [verification history](verification-history.md), not as current guarantees
-  in this design contract.
+- Report fixture and verification limits explicitly. Keep dated test results
+  separate from the maintained rules in this design contract.
 - Update this guide in its existing topic section when a shared rule changes;
   avoid appending a second competing rule. Record a new exception's role, user
   benefit, scope/source, retained shared rules, responsive/theme/keyboard behavior
@@ -930,3 +941,19 @@ Avoid general channel explanations below the matrix. Keep only the brief calenda
 sync/deletion consequence at the target picker; document setup and delivery details
 in the operating guide.
 Preserve visible header spacing and 44 px targets at narrow widths and in both themes.
+
+### Initial layout
+
+The first finance dashboard keeps an accessible loading indicator in place until
+its payment totals, reminders and budget cards have settled. Later refreshes keep
+the current content visible. The desktop personal and area dashboards reserve the automatic entry
+sidebar width immediately; only that initial opening skips the native slide.
+User-triggered opening and closing retain Nextcloud's lifecycle and animations.
+Entry forms reveal their fields together after their lookup data is ready.
+
+The shell stylesheet is linked from the server response. Initial header visibility
+is represented by server-rendered metadata until the small initialization script
+applies the user's appearance settings. Subsequent setting changes remain reactive.
+CSS is extracted beside the JS assets, including lazy view styles. Component CSS
+uses Vue scopes or distinct component classes; ordering between independent lazy
+components must not define shared overrides.

@@ -1,7 +1,6 @@
 import { createApp, h } from 'vue'
 import AdminSettings from './components/AdminSettings.vue'
 import { installTexts } from './l10n/texts'
-import '@nextcloud/dialogs/style.css'
 import './styles/tokens.css'
 import './styles/surfaces.css'
 import './styles/status.css'

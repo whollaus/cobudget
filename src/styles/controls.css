@@ -143,6 +143,13 @@ textarea.form-control[data-cobudget-field] {
 .cobudget-native-select.v-select.vs--disabled .vs__dropdown-toggle { opacity: 0.4; }
 .cobudget-native-select.v-select.vs--disabled .vs__search { border-color: transparent; background: transparent; }
 
+/* Nextcloud core resets span cursors. Custom option slots must inherit their
+ * native row cursor, including non-selectable headings and disabled choices. */
+:is(#content.app-cobudget, .cobudget-native-dialog, .cobudget-dialog) .nc-select__dropdown .vs__dropdown-option *,
+body:has(#content.app-cobudget, .cobudget-native-dialog, .cobudget-dialog) > .nc-select__dropdown .vs__dropdown-option * {
+	cursor: inherit;
+}
+
 /* Report header actions keep native tertiary styling and accessible names.
  * Only their layout changes to icon-only touch targets on narrow screens. */
 @media (max-width: 768px) {

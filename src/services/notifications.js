@@ -1,31 +1,13 @@
-import { showError, showInfo, showSuccess } from '@nextcloud/dialogs'
 import { translate as t } from '@nextcloud/l10n'
 
-const defaultTimeout = 3000
-const errorTimeout = 5000
 const APP_ID = 'cobudget'
-
-let toastId = 0
-
-// Give native notifications their app palette before they render. Use the public
-// selector/onRemove API instead of modifying the returned Toastify instance.
-const showThemedToast = (notify, message, timeout) => {
-	const doc = typeof document !== 'undefined' ? document : null
-	const container = doc?.body ? doc.createElement('div') : null
-	if (container) {
-		container.id = `cobudget-toast-${++toastId}`
-		container.className = 'cobudget-toast-container'
-		doc.body.appendChild(container)
-	}
-	try {
-		notify(message, {
-			timeout,
-			...(container ? { selector: container.id, onRemove: () => container.remove() } : {}),
-		})
-	} catch (error) {
-		container?.remove()
+let toastModule
+const loadToastModule = () => {
+	toastModule ??= import(/* webpackChunkName: "cobudget-toast" */ './toast').catch(error => {
+		toastModule = null
 		throw error
-	}
+	})
+	return toastModule
 }
 
 export const extractError = (error, fallback = t(APP_ID, 'Action could not be completed.')) => {
@@ -70,31 +52,15 @@ export const extractError = (error, fallback = t(APP_ID, 'Action could not be co
 	return fallback
 }
 
-export const showToast = (message, type = 'success', options = {}) => {
-	const timeout = options.timeout ?? (type === 'error' ? errorTimeout : defaultTimeout)
-
-	if (type === 'error' && typeof showError === 'function') {
-		showThemedToast(showError, message, timeout)
-		return
-	}
-
-	if (type === 'success' && typeof showSuccess === 'function') {
-		showThemedToast(showSuccess, message, timeout)
-		return
-	}
-
-	if (typeof showInfo === 'function') {
-		showThemedToast(showInfo, message, timeout)
-		return
-	}
-
-	if (window.OC?.Notification?.showTemporary) {
-		window.OC.Notification.showTemporary(message)
-		return
-	}
-
-	if (window.OC?.Notification?.show) {
-		window.OC.Notification.show(message, { type })
+// Load translations, native toast code and its CSS only when a message is shown.
+// A failed chunk must not turn a handled API error into an unhandled rejection.
+export const showToast = async (message, type = 'success', options = {}) => {
+	try {
+		const toast = await loadToastModule()
+		toast.showToast(message, type, options)
+	} catch (error) {
+		console.error('Could not load notification', error)
+		window.OC?.Notification?.showTemporary?.(message)
 	}
 }
 

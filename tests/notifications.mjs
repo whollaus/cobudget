@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 
-const source = fs.readFileSync(new URL('../src/services/notifications.js', import.meta.url), 'utf8').replace(/^import .*$/gm, '').replaceAll('export ', '')
+const source = fs.readFileSync(new URL('../src/services/toast.js', import.meta.url), 'utf8').replace(/^import .*$/gm, '').replaceAll('export ', '')
 const hosts = new Map(), calls = []
 const document = {
  createElement: () => ({ remove() { hosts.delete(this.id) } }),

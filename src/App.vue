@@ -2,7 +2,8 @@
 	<NcContent
 		app-name="cobudget"
 		:class="{
-			'entry-sidebar-is-open': entrySidebarOpen || reminderSidebarOpen,
+			'entry-sidebar-is-open': entrySidebarOpen || reminderSidebarOpen || startupSidebarPending,
+			'startup-sidebar': startupSidebarPending,
 		}">
 		<NcAppNavigation>
 			<template #list>
@@ -145,9 +146,11 @@
 			</router-link>
 		</nav>
 
+		<div v-if="startupSidebarPending && !entrySidebarOpen" class="startup-sidebar-space" aria-hidden="true" />
 		<EntrySidebar
 			v-if="entrySidebarReady"
 			ref="globalEntrySidebar"
+			@opened="startupSidebarPending = false"
 			@mode-changed="onEntrySidebarModeChanged"
 			@saved="onEntrySaved"
 			@closed="onEntrySidebarClosed" />
@@ -194,7 +197,8 @@ import ChartLineIcon from 'vue-material-design-icons/ChartLine.vue'
 
 import BellOutlineIcon from 'vue-material-design-icons/BellOutline.vue'
 const ReminderSidebar = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-reminder-sidebar" */ './components/ReminderSidebar.vue'))
-const EntrySidebar = defineAsyncComponent(() => import(/* webpackChunkName: "cobudget-entry-sidebar" */ './components/AddEntryModal.vue'))
+const loadEntrySidebar = () => import(/* webpackChunkName: "cobudget-entry-sidebar" */ './components/AddEntryModal.vue')
+const EntrySidebar = defineAsyncComponent(loadEntrySidebar)
 
 export default {
 	name: 'App',
@@ -243,6 +247,10 @@ export default {
 			activeWorkspaceId: readWorkspaceId(),
 			showWorkspaceMenu: false,
 			entrySidebarReady: false,
+			startupSidebarPending: window.matchMedia('(min-width: 1025px)').matches && (
+				(this.$route.name === 'personal' && !hasPersonalEntryListRouteState(this.$route.query))
+				|| (this.$route.name === 'project-detail' && !hasProjectEntryListRouteState(this.$route.query))
+			),
 			entrySidebarWideMedia: null,
 			entrySidebarOpen: false,
 			entrySidebarCreatingNew: false,
@@ -358,6 +366,7 @@ export default {
 			this.entrySidebarWideMedia.addEventListener?.('change', this.onEntrySidebarViewportChange)
 		}
 		await this.syncEntrySidebarForRoute()
+		if (!this.entrySidebarOpen) this.startupSidebarPending = false
 	},
 	beforeUnmount() {
 		window.removeEventListener('cobudget-open-reminder', this.openReminderSidebar);
@@ -540,6 +549,13 @@ export default {
 			this.$refs.workspaceMenu?.querySelector('[aria-current="true"]')?.focus({ preventScroll: true });
 		},
 		async waitForEntrySidebarRef() {
+			try {
+				// Download time is not component mount time, especially on mobile networks.
+				await loadEntrySidebar();
+			} catch (error) {
+				showRequestError(error, this.$texts.dashboard.paymentsLoadError(), 'Failed to load payment editor');
+				return null;
+			}
 			for (let i = 0; i < 30; i++) {
 				await this.$nextTick();
 				if (this.$refs.globalEntrySidebar && typeof this.$refs.globalEntrySidebar.openSidebar === 'function') {
@@ -1056,6 +1072,17 @@ export default {
 </style>
 
 <style>
+/* Reserve the desktop editor's final width from the first app frame. Only the
+   automatic startup opening skips motion; user-triggered native slides remain. */
+@media (min-width: 1025px) {
+	.startup-sidebar-space { width: clamp(225px, 20.25vw, 375px); flex-shrink: 0; }
+	.startup-sidebar .entry-sidebar {
+		transition: none !important;
+		margin-inline-end: 0 !important;
+		transform: none !important;
+	}
+}
+
 /* Globale Styles für den einheitlichen Header */
 .v-popper__arrow-container {
 	display: none !important;

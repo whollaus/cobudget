@@ -13,10 +13,9 @@
 			@open="$emit('open')" @close="close">
 			<template #option="option">
 				<span v-if="option.lookupKind === 'heading'" class="entry-lookup-heading">{{ option.name }}</span>
-				<NcButton v-else-if="option.lookupKind === 'new'" type="button" variant="tertiary" tabindex="-1">
-					<template #icon><PlusIcon :size="20" /></template>
-					{{ option.name }}
-				</NcButton>
+				<span v-else-if="option.lookupKind === 'new'" class="entry-lookup-option">
+					<PlusIcon :size="20" aria-hidden="true" /><span class="entry-lookup-text">{{ option.name }}</span>
+				</span>
 				<span v-else-if="option.lookupKind === 'create'" class="entry-lookup-option">
 					<PlusIcon :size="20" /><span class="entry-lookup-text">{{ option.name }}</span>
 				</span>
@@ -44,7 +43,6 @@
 
 <script>
 import NcSelect from '@nextcloud/vue/components/NcSelect'
-import NcButton from '@nextcloud/vue/components/NcButton'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import CategoryIcon from './CategoryIcon.vue'
 import { positionEntryLookup } from '../utils/entryLookupPosition'
@@ -52,7 +50,7 @@ import { categoryParentId } from '../utils/categoryHierarchy'
 
 export default {
 	name: 'EntryLookupSelect',
-	components: { NcSelect, NcButton, PlusIcon, CategoryIcon },
+	components: { NcSelect, PlusIcon, CategoryIcon },
 	props: {
 		inputId: { type: String, required: true },
 		label: { type: String, required: true },

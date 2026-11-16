@@ -54,13 +54,20 @@ if ! tar -xzf "$ARCHIVE" -C "$EXTRACT_DIR"; then
 	exit 65
 fi
 
+for asset in cobudget-main.js cobudget-settings.js cobudget-bootstrap.js cobudget-main.css cobudget-settings.css; do
+	if [ ! -s "$EXTRACT_DIR/cobudget/js/$asset" ]; then
+		echo "Release archive is missing required frontend asset: $asset" >&2
+		exit 65
+	fi
+done
+
 if [ -d "$EXTRACT_DIR/cobudget/js" ]; then
 	if grep -R -Fq '/apps/cobudget/js/' "$EXTRACT_DIR/cobudget/js"; then
 		echo "Release archive contains a hard-coded CoBudget asset path that breaks custom_apps or webroot installations." >&2
 		exit 65
 	fi
 
-	find "$EXTRACT_DIR/cobudget/js" -type f -name '*.js' -exec grep -ohE 'cobudget-[A-Za-z0-9_./-]+\.js' {} + \
+	find "$EXTRACT_DIR/cobudget/js" -type f -name '*.js' -exec grep -ohE 'cobudget-[A-Za-z0-9_./-]+\.(js|css)' {} + \
 		| sort -u > "$REFERENCES_FILE" || true
 
 	while IFS= read -r referencedChunk; do

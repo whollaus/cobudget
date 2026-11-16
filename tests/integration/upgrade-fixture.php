@@ -142,7 +142,12 @@ if (in_array($options['phase'], ['check-crash', 'recover-crash'], true)) {
 $integrity = Server::get(OCA\CoBudget\Service\DataIntegrityService::class);
 $check($integrity->inspect()['orphanReferenceCount'] === 0, 'Deleted-goal history is not offered for destructive integrity repair');
 $fixture = json_decode(file_get_contents($base . '/fixture.json'), true, flags: JSON_THROW_ON_ERROR);
-$check(version_compare($config->getAppValue('cobudget', 'installed_version'), '0.8.8', '>='), 'Upgrade installed the target app version');
+$targetInfo = simplexml_load_string(file_get_contents(dirname(__DIR__, 2) . '/appinfo/info.xml'));
+if ($targetInfo === false || (string)$targetInfo->version === '') {
+	throw new RuntimeException('Could not read the target app version');
+}
+$targetVersion = (string)$targetInfo->version;
+$check($config->getAppValue('cobudget', 'installed_version') === $targetVersion, 'Upgrade installed the exact target app version ' . $targetVersion);
 $check($graph() === $fixture['graph'], 'Upgrade preserved shared financial graph exactly');
 $check((bool)$rows('reminders')[0]['email_notified'], 'Upgrade prevents replaying an already delivered reminder by email');
 foreach (['notify_reminders_email', 'notify_planned_payments_email', 'notify_project_entries_email', 'notify_project_settlements_email'] as $key) {

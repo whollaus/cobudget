@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-const { captureDialogFocus, trackDialogTriggers } = await import(`data:text/javascript;base64,${Buffer.from(fs.readFileSync(new URL('../src/services/dialogFocus.js', import.meta.url))).toString('base64')}`)
+const { captureDialogFocus, deactivateDialog, trackDialogTriggers } = await import(`data:text/javascript;base64,${Buffer.from(fs.readFileSync(new URL('../src/services/dialogFocus.js', import.meta.url))).toString('base64')}`)
 const listeners = new Map()
 const doc = {
  location: { href: '/settings' }, activeElement: null, layers: [],
@@ -94,3 +94,23 @@ assert.equal(observer.connected, false, 'Further user interaction cancels deferr
 stop1(); assert.equal(listeners.size, 2)
 stop2(); assert.equal(listeners.size, 0, 'Unmount cleans up shared listeners')
 console.log('Dialog focus passed: pointer/keyboard origins, scroll, nested dialogs, deleted/disabled triggers, navigation and listener cleanup.')
+
+// Closing must release a still-focused native action before hiding the snapshot.
+// A failed return target must not leave focus inside inaccessible content.
+const closeOrder = []
+const closingAction = { blur() { closeOrder.push('blur'); closingDoc.activeElement = closingDoc.body } }
+const closingDoc = { activeElement: closingAction, body: {} }
+const layer = {
+ ownerDocument: closingDoc,
+ contains: candidate => candidate === closingAction,
+ set inert(value) { closeOrder.push('inert'); assert.equal(value, true); assert.notEqual(closingDoc.activeElement, closingAction) },
+}
+deactivateDialog(layer)
+assert.deepEqual(closeOrder, ['blur', 'inert'])
+const outsideFocus = { blur() { assert.fail('Closing a dialog must not blur another dialog or page control') } }
+closingDoc.activeElement = outsideFocus
+closeOrder.length = 0
+deactivateDialog(layer)
+assert.deepEqual(closeOrder, ['inert'])
+assert.equal(closingDoc.activeElement, outsideFocus)
+console.log('Dialog closing passed: release contained focus before inert; retain focus outside the closing layer.')

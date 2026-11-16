@@ -244,9 +244,12 @@ try {
 	$backupService = $read('lib/Service/BackupService.php');
 	$packageJson = $read('package.json');
 	$packageLock = $read('package-lock.json');
-	$assertContains($packageJson, '"dompurify": "3.4.11"', 'DOMPurify security override');
+	$assertContains($packageJson, '"dompurify": "3.4.18"', 'DOMPurify security override');
 	$assertContains($packageLock, '"node_modules/dompurify": {', 'DOMPurify lock entry');
-	$assertContains($packageLock, '"version": "3.4.11"', 'Patched DOMPurify lock version');
+	$lockedPackages = json_decode($packageLock, true, 512, JSON_THROW_ON_ERROR)['packages'] ?? [];
+	if (version_compare($lockedPackages['node_modules/dompurify']['version'] ?? '0', '3.4.18', '<')) {
+		$failures[] = 'DOMPurify lock version must include the current security fixes';
+	}
 	$assertNotContains($packageLock, 'dompurify-3.4.10.tgz', 'Vulnerable DOMPurify archive');
 	$assertContains($backupService, "'scope' => 'user'", 'User backup manifest includes scope');
 	$assertContains($backupService, "'scope' => 'system'", 'Full backup manifest includes scope');
@@ -617,10 +620,10 @@ try {
 	}
 	if (
 		preg_match('/<nextcloud[^>]*min-version="([^"]+)"[^>]*max-version="([^"]+)"/', $infoXml, $nextcloudMatch) !== 1
-		|| $nextcloudMatch[1] !== '33'
+		|| $nextcloudMatch[1] !== '34'
 		|| $nextcloudMatch[2] !== '35'
 	) {
-		$failures[] = 'App metadata should support Nextcloud 33, 34 and 35';
+		$failures[] = 'App metadata should support Nextcloud 34 and 35';
 	}
 
 	$app = $read('src/App.vue');

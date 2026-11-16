@@ -9,7 +9,7 @@
 </template>
 
 <script>
-import { captureDialogFocus, trackDialogTriggers } from '../services/dialogFocus'
+import { captureDialogFocus, deactivateDialog, trackDialogTriggers } from '../services/dialogFocus'
 /**
  * Keep the rendered dialog during Vue's leave phase, even when its owning
  * state is cleared. Children use NcModal/NcDialog with container=null so their
@@ -37,15 +37,13 @@ export default {
 	methods: {
 		rememberTrigger(element) {
 			element.inert = false
-			element.removeAttribute('aria-hidden')
 			this.restoreDialogFocus = captureDialogFocus(element.ownerDocument, this.returnTarget)
 		},
 		returnFocus() { return this.restoreDialogFocus?.() ?? false },
 		restoreTrigger(element) { element.restoreDialogFocus?.() },
 		makeInactive(element) {
 			element.restoreDialogFocus = this.restoreDialogFocus
-			element.inert = true
-			element.setAttribute('aria-hidden', 'true')
+			deactivateDialog(element)
 		},
 	},
 }

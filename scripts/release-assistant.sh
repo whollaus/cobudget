@@ -271,7 +271,7 @@ print_summary() {
 	fi
 	printf '  [ ] GitHub Actions (CI und Release) vollständig grün prüfen.\n'
 	printf '  [ ] Draft-Text und drei signierte Assets kontrollieren.\n'
-	printf '  [ ] Draft erst danach als Beta-Prerelease veröffentlichen.\n'
+	printf '  [ ] Draft erst nach der Signaturprüfung veröffentlichen; 1.0.0 ist eine stabile Version.\n'
 	printf '  [ ] Für den App Store Asset-URL und Inhalt von cobudget.tar.gz.signature verwenden.\n'
 }
 

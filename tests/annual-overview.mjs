@@ -308,7 +308,8 @@ const bindings = { filterChipIcon, CalendarOutlineIcon: slotComponent('span'), S
 	formatCalendarLabel: (date, options) => new Intl.DateTimeFormat('de-AT', options).format(date),
 	getAppLanguage: () => 'de-AT',
 }
-Object.assign(bindings, new Function(...Object.keys(bindings), source('src/services/reportExportActions.js').replace(/^import .*$/gm, '').replaceAll('export async function', 'async function') + '\nreturn { deliverReportExport, saveReportExport, copyReportText }')(...Object.values(bindings)))
+bindings.loadExportDialogs = async () => ({ getFilePickerBuilder: bindings.getFilePickerBuilder })
+Object.assign(bindings, new Function(...Object.keys(bindings), source('src/services/reportExportActions.js').replace("await import('@nextcloud/dialogs')", 'await loadExportDialogs()').replace(/^import .*$/gm, '').replaceAll('export async function', 'async function') + '\nreturn { deliverReportExport, saveReportExport, copyReportText }')(...Object.values(bindings)))
 
 function component(file) {
 	const { descriptor } = parse(source(file))

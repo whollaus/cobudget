@@ -1,6 +1,5 @@
 import axios from './http'
 import { getCurrentUser } from '@nextcloud/auth'
-import { getFilePickerBuilder } from '@nextcloud/dialogs'
 import { pickFolder } from './folderPicker'
 import { generateRemoteUrl } from '@nextcloud/router'
 import { downloadTextFile, encodeNextcloudPath, nextcloudCopyName, nextcloudFilePath } from './annualOverview'
@@ -39,6 +38,7 @@ export async function copyReportText(contents) {
 export async function saveReportExport(filename, contents, texts) {
 	let folder
 	try {
+		const { getFilePickerBuilder } = await import('@nextcloud/dialogs')
 		folder = await pickFolder(getFilePickerBuilder(texts.annual.saveInNextcloud()).setMultiSelect(false).allowDirectories(true)
 			.setMimeTypeFilter(['httpd/unix-directory']).addButton({ label: texts.annual.saveHere(), variant: 'primary', callback() {} }))
 	} catch (error) { if (error?.name === 'FilePickerClosed') return; throw error }

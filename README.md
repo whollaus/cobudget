@@ -2,61 +2,74 @@
 
 **English** · [Deutsch](docs/readme.de.md) · [Français](docs/readme.fr.md) · [Español](docs/readme.es.md)
 
-**Know what you spend. Share costs fairly. Keep the overview in Nextcloud.**
+CoBudget combines a personal household budget with shared areas in Nextcloud.
+You record income and expenses and, for shared payments, specify who paid and
+how the amount is divided. Your personal overview includes your share; the shared
+area shows the full payment and what members owe each other.
 
-CoBudget is a household budget app for individuals, couples, families and
-housemates. Record everyday income and expenses, plan upcoming payments and see
-your own share of shared costs. Use shared areas for your household, a trip or a
-small group, with receipts and reminders close to the payments they belong to.
+The web app is designed for smartphones and tablets too. You can record payments directly from your mobile device while on the go.
 
-> [!WARNING]
-> **Beta — current development version: 0.8.8.** Keep regular backups and do not
-> use CoBudget as the only record of critical financial data. Development is
-> AI-assisted; automated tests do not replace an independent security audit,
-> which has not yet been performed. See [SECURITY.md](SECURITY.md).
+CoBudget does not connect to bank accounts. Its reports are based on the payments
+you record.
 
-## Everyday finances, alone or together
+[How payments and shares work](docs/concept.md).
 
-- **Keep track:** income, expenses, categories, payment partners, labels and tags.
-- **Plan ahead:** recurring payments, budget goals, reports, comparisons and forecasts.
-- **Share fairly:** record who paid, choose the split and settle outstanding
+## Features
+
+- **Payments:** income, expenses, categories, payment partners, labels and tags.
+- **Planning:** recurring payments, budget goals, reports, comparisons and forecasts.
+- **Shared areas:** record who paid, choose the split and settle outstanding
   balances. Your personal overview counts your share; shared areas show the total.
-- **Keep the context:** store receipts in Nextcloud Files and manage independent
+- **Receipts and reminders:** store receipts in Nextcloud Files and manage independent
   or payment-linked reminders, including completion and an archive.
-- **Choose your notifications:** Nextcloud, a private CoBudget Talk chat and optional
+- **Notifications:** Nextcloud, a private CoBudget Talk chat and optional
   email, with separate choices for supported events. Reminders can also sync with
   a calendar; private calendar edits sync back to CoBudget.
-- **Use your data:** print reports, export CSV, copy tables to a spreadsheet and
+- **Exports and backups:** print reports, export CSV, copy tables to a spreadsheet and
   create personal exports or administrator backups.
-- **Make it yours:** separate data pools with workspaces, use desktop or mobile
+- **Workspaces and appearance:** separate data pools with workspaces, use desktop or mobile
   layouts and choose a light, dark or system appearance.
 
 The interface is available in English, German, French and Spanish.
 [Features](FEATURES.md) explains the workflows and limits;
 [report calculations](docs/reports.md) explains amounts, forecasts and exports.
 
-## How CoBudget is organized
+## Screenshots
 
-CoBudget is built around payments, personal shares and shared areas. Your personal
-household book shows your own costs; a shared area keeps the total, who paid and
-what members owe each other. CoBudget does not connect to bank accounts or
-synchronize bank transactions. Its reports reflect the payments you record and
-their allocation, rather than a reconciled bank account balance.
-Read more about [the CoBudget approach](docs/concept.md).
+CoBudget 1.0 with fictional sample data. Select an image to enlarge.
 
-## Requirements and the road to 1.0
+<table>
+<tr>
+<td width="50%" align="center" valign="top">
+<strong>Payments and personal shares</strong><br>
+<a href="screenshots/screenshot-v1.0.0-payments.jpg"><img src="screenshots/screenshot-v1.0.0-payments.jpg" alt="Payments and personal shares" width="600"></a>
+</td>
+<td width="50%" align="center" valign="top">
+<strong>Shared expenses and repayments</strong><br>
+<a href="screenshots/screenshot-v1.0.0-shared.jpg"><img src="screenshots/screenshot-v1.0.0-shared.jpg" alt="Shared expenses and repayments" width="600"></a>
+</td>
+</tr>
+<tr>
+<td width="50%" align="center" valign="top">
+<strong>Reports</strong><br>
+<a href="screenshots/screenshot-v1.0.0-reports.jpg"><img src="screenshots/screenshot-v1.0.0-reports.jpg" alt="Reports" width="600"></a>
+</td>
+<td width="50%" align="center" valign="top">
+<strong>Mobile payment entry</strong><br>
+<a href="screenshots/screenshot-v1.0.0-mobile-payments.jpg"><img src="screenshots/screenshot-v1.0.0-mobile-payments.jpg" alt="Payments on mobile" width="180"></a>
+<a href="screenshots/screenshot-v1.0.0-mobile-entry.jpg"><img src="screenshots/screenshot-v1.0.0-mobile-entry.jpg" alt="Mobile payment entry" width="180"></a>
+</td>
+</tr>
+</table>
 
-The current beta supports **Nextcloud 33–35**. **CoBudget 1.0 will require
-Nextcloud 34 or newer; Nextcloud 33 support ends with the 0.x series.** The planned
-1.0 test matrix is Nextcloud 34 and 35. There is no committed release date.
+## Requirements
 
-Use the PHP version supported by your Nextcloud release (8.2 or newer for 33/34,
+CoBudget requires **Nextcloud 34 or newer**.
+
+Use the PHP version supported by your Nextcloud release (8.2 or newer for 34,
 8.3 or newer for 35), a modern browser and working Nextcloud background jobs.
 Talk, calendar synchronization and email are optional; email uses the address in
 your Nextcloud account and requires configured outgoing mail on the server.
-
-The [1.0 readiness review](docs/release-readiness-1.0.md) records findings and open
-release gates. [Tests](tests/README.md) describes what the automated checks cover.
 
 ## Install or update
 
@@ -90,7 +103,7 @@ CoBudget tabs after a restore. See the
 
 ## Feedback and support
 
-Bug reports and test results are especially helpful during beta. CoBudget is
+Bug reports and test results help improve CoBudget. CoBudget is
 primarily maintained by one person; please discuss code contributions first.
 See [CONTRIBUTING.md](CONTRIBUTING.md), [GitHub Issues](https://github.com/whollaus/cobudget/issues)
 and the [changelog](CHANGELOG.md). Report suspected vulnerabilities using
@@ -104,22 +117,7 @@ or [Stripe](https://donate.stripe.com/aFaeVdfARbPNe897bu5J600).
 - [Development guide](docs/development.md): builds and local tests.
 - [Architecture](docs/architecture.md): data, permissions, backups and migrations.
 - [Design system](docs/design-system.md): UI conventions and verification.
-- [AGENTS.md](AGENTS.md): coding-assistant instructions.
 - [Release process](RELEASING.md): packaging and signing.
-
-## Screenshots
-
-<details>
-<summary>Show screenshots from an earlier beta</summary>
-
-These illustrate the app's purpose; the current interface has changed substantially.
-
-![Payment overview](screenshots/screenshot-v0.2.10-1.jpg)
-![Shared areas](screenshots/screenshot-v0.2.10-2.jpg)
-![Reports](screenshots/screenshot-v0.2.10-3.jpg)
-![Settings](screenshots/screenshot-v0.2.10-4.jpg)
-
-</details>
 
 ## License
 

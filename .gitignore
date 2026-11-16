@@ -2,6 +2,15 @@
 Thumbs.db
 
 AGENT.local.md
+/AGENTS.md
+/.internal/
+/AGENTS.local.md
+/CLAUDE.md
+/.claude/
+/test-results/
+/playwright-report/
+*.log
+__pycache__/
 .codex/
 .agents/
 

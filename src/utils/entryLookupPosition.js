@@ -6,7 +6,8 @@ export function positionEntryLookup(menu, select, { width }) {
 	const anchor = select.$refs.toggle
 	const container = select.$el.closest('.modal-body')
 	const viewport = window.visualViewport
-	menu.classList.add('vs__dropdown-menu--floating')
+	// A custom positioning hook replaces NcSelect's hook, including its theme class.
+	menu.classList.add('vs__dropdown-menu--floating', 'nc-select__dropdown')
 	menu.style.width = width
 	let frame = null
 	let disposed = false

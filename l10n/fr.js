@@ -1,6 +1,7 @@
 OC.L10N.register(
     "cobudget",
 {
+    "To review: {count}": "À surveiller : {count}",
     "This receipt is controlled by an open shared payment." : "Ce justificatif est géré par un paiement partagé non encore soldé.",
     "Receipts of settled shared payments cannot be changed." : "Les justificatifs de paiements partagés soldés ne peuvent pas être modifiés.",
     "CoBudget is temporarily busy with a backup, restore or another operation. Please try again shortly.": "CoBudget est temporairement occupé par une sauvegarde, une restauration ou une autre opération. Veuillez réessayer dans un instant.",

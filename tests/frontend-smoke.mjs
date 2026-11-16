@@ -82,9 +82,9 @@ const appIcon = read('img/app.svg')
 const adminIcon = read('img/admin.svg')
 assertContains(main, 'const TransactionsView = () => import(', 'main route lazy loading')
 assertContains(main, 'installTexts(app)', 'main installs shared text helpers')
-assertContains(main, "import '@nextcloud/dialogs/style.css'", 'main bundles Nextcloud dialog styles')
+assertContains(read('src/services/toast.js'), "import '@nextcloud/dialogs/style.css'", 'Lazy notifications include their native styles')
 assertContains(settingsEntry, 'installTexts(app)', 'settings entry installs shared text helpers')
-assertContains(settingsEntry, "import '@nextcloud/dialogs/style.css'", 'settings entry bundles Nextcloud dialog styles')
+assertNotContains(settingsEntry, "import '@nextcloud/dialogs/style.css'", 'Settings defer native notification styles')
 assertContains(webpackConfig, "webpackConfig.output.publicPath = 'auto'", 'Webpack resolves lazy chunks from the loaded Nextcloud app bundle')
 assertNotContains(pageTemplate, 'script(', 'Page template avoids a duplicate non-existent main.js request')
 assertContains(pageController, "\\OCP\\Util::addScript('cobudget', 'cobudget-main')", 'Page controller loads the built main bundle once')
@@ -597,7 +597,8 @@ assertContains(app, 'transform: none !important;', 'App toast avoids center tran
 assertContains(app, 'padding: 5px var(--cobudget-content-inset-end) 10px var(--cobudget-content-inset-start);', 'App content wrapper uses compact padding')
 
 const notifications = read('src/services/notifications.js')
-assertContains(notifications, "import { showError, showInfo, showSuccess } from '@nextcloud/dialogs'", 'Notifications use Nextcloud dialogs')
+assertContains(notifications, 'webpackChunkName: "cobudget-toast"', 'Native notifications load only when a message is shown')
+assertContains(read('src/services/toast.js'), "import { showError, showInfo, showSuccess } from '@nextcloud/dialogs/toast'", 'Notifications use the Nextcloud toast entry point')
 assertContains(notifications, 'export const extractError', 'Notifications expose API error extraction')
 assertContains(notifications, 'const data = error?.response?.data', 'Notifications inspect API response payloads')
 assertContains(notifications, 'data.error', 'Notifications prefer server error messages')
@@ -1953,7 +1954,7 @@ assertContains(projectSettings, "return this.updateProject('color');", 'Area col
 assertNotContains(projectSettings, 'project-save-button', 'Area identity has no separate save button')
 
 const packageJson = JSON.parse(read('package.json'))
-if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/tooltip-visibility.mjs && node tests/dialog-focus.mjs && node tests/sidebar-transition.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs && node tests/annual-chart.mjs && node tests/annual-overview.mjs && node tests/mobile-reports.mjs && node tests/localization.mjs && node tests/master-data.mjs && node tests/workspace-settings.mjs && node tests/settings-confirmation.mjs && node tests/admin-settings.mjs && node tests/settings-folders.mjs && node tests/settings-autosave.mjs && node tests/area-settings.mjs && node tests/entry-member-selection.mjs && node tests/recurring-payments.mjs && node tests/keyboard-shortcuts.mjs && node tests/entry-lookups.mjs && node tests/area-create.mjs && node tests/area-settlement.mjs && node tests/area-confirmations.mjs && node tests/budget-form.mjs && node tests/budget-overview.mjs && node tests/area-overview.mjs && node tests/area-detail.mjs && node tests/mobile-payment-rows.mjs && node tests/settlement-overview.mjs && node tests/entry-history.mjs && node tests/payment-deletion.mjs && node tests/payment-summary.mjs && node tests/payment-filters.mjs && node tests/title-navigation.mjs && node tests/icons.mjs && node tests/reminder-organizer.mjs') {
+if (packageJson.scripts?.['test:frontend-smoke'] !== 'node tests/frontend-smoke.mjs && node tests/startup-loading.mjs && node tests/notifications.mjs && node tests/tooltip-visibility.mjs && node tests/dialog-focus.mjs && node tests/sidebar-transition.mjs && node tests/fetch-json.mjs && node tests/http-timezone.mjs && node tests/annual-chart.mjs && node tests/annual-overview.mjs && node tests/mobile-reports.mjs && node tests/localization.mjs && node tests/master-data.mjs && node tests/workspace-settings.mjs && node tests/settings-confirmation.mjs && node tests/admin-settings.mjs && node tests/settings-folders.mjs && node tests/settings-autosave.mjs && node tests/area-settings.mjs && node tests/entry-member-selection.mjs && node tests/recurring-payments.mjs && node tests/keyboard-shortcuts.mjs && node tests/entry-lookups.mjs && node tests/area-create.mjs && node tests/area-settlement.mjs && node tests/area-confirmations.mjs && node tests/budget-form.mjs && node tests/budget-overview.mjs && node tests/area-overview.mjs && node tests/area-detail.mjs && node tests/mobile-payment-rows.mjs && node tests/settlement-overview.mjs && node tests/entry-history.mjs && node tests/payment-deletion.mjs && node tests/payment-summary.mjs && node tests/payment-filters.mjs && node tests/title-navigation.mjs && node tests/icons.mjs && node tests/reminder-organizer.mjs') {
 	failures.push('package.json is missing test:frontend-smoke script')
 }
 if (!/^\^7\./.test(packageJson.dependencies?.['@nextcloud/dialogs'] || '')) {

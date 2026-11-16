@@ -1493,6 +1493,7 @@ export const texts = {
 		trendCompared: value => tx('{value} compared with the comparison period', { value }),
 	},
 	budgetGoals: {
+		attentionCount: count => tx('To review: {count}', { count }),
 		nameRequired: () => tx('Please enter a budget goal label.'),
 		positiveAmountRequired: () => tx('Please enter a valid budget greater than zero.'),
 		title: () => tx('Budget goals'),

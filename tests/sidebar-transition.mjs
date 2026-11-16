@@ -234,3 +234,21 @@ for(const wide of [false,true]) for(const enabled of [false,true]) for(const mod
  if(!wide) assert.match(header,new RegExp({new:'newPayment',edit:'editPayment',copy:'copyPayment',plan:'planPayment'}[mode]),'The narrow title identifies the current mode')
 }
 console.log('Responsive payment header passed: single type field, header/body placement, all four modes, income feature gate and persistent mobile Save; native shells mocked.')
+
+// A slow first chunk download must not exhaust the sidebar mount polling budget.
+const appSource = fs.readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
+const waitBody = appSource.slice(appSource.indexOf('async waitForEntrySidebarRef() {'), appSource.indexOf('\n\t\tasync openEntrySidebar(')).trim().replace(/,$/, '')
+let resolveChunk, ticksBeforeDownload = 0, editorLoadErrors = 0
+const chunk = new Promise(resolve => { resolveChunk = resolve })
+const loadWait = new Function('loadEntrySidebar', 'showRequestError', `return ({${waitBody}}).waitForEntrySidebarRef`)(() => chunk, () => { editorLoadErrors++ })
+const readySidebar = { openSidebar() {} }
+const loadingVm = { $refs: {}, $texts: { dashboard: { paymentsLoadError: () => 'Load failed' } }, $nextTick: async () => { ticksBeforeDownload++; loadingVm.$refs.globalEntrySidebar = readySidebar } }
+const pendingSidebar = loadWait.call(loadingVm)
+await new Promise(resolve => setTimeout(resolve, 700))
+assert.equal(ticksBeforeDownload, 0, 'Mount polling starts after the chunk arrives, even beyond 600ms')
+resolveChunk({ default: {} })
+assert.equal(await pendingSidebar, readySidebar, 'The original click opens the editor after a slow download')
+const failedWait = new Function('loadEntrySidebar', 'showRequestError', `return ({${waitBody}}).waitForEntrySidebarRef`)(async () => { throw Error('Offline') }, () => { editorLoadErrors++ })
+assert.equal(await failedWait.call(loadingVm), null)
+assert.equal(editorLoadErrors, 1, 'Failed downloads produce user feedback rather than an unhandled rejection')
+console.log('Lazy payment editor passed: slow chunk loading and failure feedback.')

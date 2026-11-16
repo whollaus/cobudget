@@ -569,7 +569,7 @@ export default {
 			const definitions = [
 				{ key: 'income', label: this.$texts.common.income(), icon: TrendingUpIcon, iconColor: 'var(--cobudget-success)', mode: 'positive', cardClass: 'income-card', enabled: this.$enableIncomes },
 				{ key: 'expense', label: this.$texts.common.expense(), icon: TrendingDownIcon, iconColor: 'var(--cobudget-error)', mode: 'negative', cardClass: 'expense-card', enabled: true },
-				{ key: 'balance', label: 'Saldo', icon: WalletIcon, iconColor: '#0082c9', mode: 'signed', cardClass: 'total-card', enabled: this.$enableIncomes },
+				{ key: 'balance', label: this.$texts.memberBalances.balance(), icon: WalletIcon, iconColor: '#0082c9', mode: 'signed', cardClass: 'total-card', enabled: this.$enableIncomes },
 				{ key: 'important', label: this.$texts.labels.important(), icon: StarIcon, iconColor: '#ffc92b', mode: 'signed', cardClass: 'important-card', enabled: this.$enableImportantPayments },
 				{ key: 'review', label: this.$texts.labels.review(), icon: ClipboardCheckIcon, iconColor: 'var(--cobudget-error)', mode: 'signed', cardClass: 'review-card', enabled: this.$enableReviewPayments },
 				{ key: 'fixedCosts', label: this.$texts.labels.fixedCosts(), icon: LockIcon, iconColor: '#e67e22', mode: 'negative', cardClass: 'fixed-costs-card', enabled: this.$enableFixedCosts },

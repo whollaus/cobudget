@@ -145,30 +145,38 @@
 }
 
 @media (min-width: 769px) {
+	html:not(.cobudget-appearance-ready):has(meta[name="cobudget-header-desktop-hidden"]) #header,
 	html.cobudget-nextcloud-header-desktop-hidden #header {
 		display: none !important;
 	}
 
+	html:not(.cobudget-appearance-ready):has(meta[name="cobudget-header-desktop-hidden"]) #content,
 	html.cobudget-nextcloud-header-desktop-hidden #content {
 		margin-top: var(--body-container-margin) !important;
 	}
 
+	html:not(.cobudget-appearance-ready):has(meta[name="cobudget-header-desktop-hidden"]) #content,
 	html.cobudget-nextcloud-header-desktop-hidden #content,
+	html:not(.cobudget-appearance-ready):has(meta[name="cobudget-header-desktop-hidden"]) #content.app-cobudget .content,
 	html.cobudget-nextcloud-header-desktop-hidden #content.app-cobudget .content {
 		height: calc(var(--body-height) + var(--header-height) - var(--body-container-margin)) !important;
 	}
 }
 
 @media (max-width: 768px) {
+	html:not(.cobudget-appearance-ready):has(meta[name="cobudget-header-mobile-hidden"]) #header,
 	html.cobudget-nextcloud-header-mobile-hidden #header {
 		display: none !important;
 	}
 
+	html:not(.cobudget-appearance-ready):has(meta[name="cobudget-header-mobile-hidden"]) #content,
 	html.cobudget-nextcloud-header-mobile-hidden #content {
 		margin-top: 0 !important;
 	}
 
+	html:not(.cobudget-appearance-ready):has(meta[name="cobudget-header-mobile-hidden"]) #content,
 	html.cobudget-nextcloud-header-mobile-hidden #content,
+	html:not(.cobudget-appearance-ready):has(meta[name="cobudget-header-mobile-hidden"]) #content.app-cobudget .content,
 	html.cobudget-nextcloud-header-mobile-hidden #content.app-cobudget .content {
 		height: calc(var(--body-height) + var(--header-height) - var(--body-container-margin)) !important;
 	}

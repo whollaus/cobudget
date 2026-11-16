@@ -97,7 +97,7 @@ const localDate = timestamp => { const d = new Date(timestamp * 1000); return ne
 export default {
  components: { EntrySidebarHeading, ArrowRightIcon, ModalActions, NcAppSidebar, NcInputField, NcTextArea, NavigationIcon, NcButton, NcNoteCard, NcFormBoxSwitch, ArchiveClockOutline, ArchiveOutline, CheckCircleOutline, TrashCanOutline, DialogTransition, NcDialog, NcLoadingIcon },
  emits: ['open-changed'],
- data: () => ({ isWideViewport: false, viewportQuery: null, isOpen: false, busy: false, draft: { title: '', labels: [] }, original: '', error: '', confirmation: '', confirmResolve: null, focusContext: null, removeGuard: null, stopTracking: null }),
+ data: () => ({ isWideViewport: false, viewportQuery: null, isOpen: false, busy: false, draft: { title: '', description: '', localDate: '', localTime: '', labels: [] }, original: '', error: '', confirmation: '', confirmResolve: null, focusContext: null, removeGuard: null, stopTracking: null }),
  computed: {
   r() { return this.$texts.reminders },
   hasCustomReminderTime() { return this.draft.originalReminderTime && new Date(this.draft.originalReminderTime * 1000).toTimeString().slice(0, 5) !== '09:00' },

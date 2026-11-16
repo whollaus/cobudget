@@ -6,7 +6,7 @@ data invariants, see [Architecture](architecture.md#backups).
 
 ## Background jobs
 
-CoBudget uses Nextcloud background jobs for recurring payments, reminders, automatic backups and budget snapshots. Configure system cron to call Nextcloud's `cron.php` every five minutes as the web server user; see the [Nextcloud background-job documentation](https://docs.nextcloud.com/server/33/admin_manual/configuration_server/background_jobs_configuration.html#cron).
+CoBudget uses Nextcloud background jobs for recurring payments, reminders, automatic backups and budget snapshots. Configure system cron to call Nextcloud's `cron.php` every five minutes as the web server user; see the [Nextcloud background-job documentation](https://docs.nextcloud.com/server/stable/admin_manual/configuration_server/background_jobs_configuration.html#cron).
 
 If the log reports `failed to create instance of background job`, check the CoBudget jobs from the Nextcloud directory, using the same PHP installation and user as your cron setup:
 
@@ -32,7 +32,7 @@ A due reminder is processed on the next background-job run. Personal payments re
 
 Shared-area notifications remain separate: **Personal Talk notifications** covers new payments by other area members and appears only with shared areas enabled. Its opt-in is independent of both reminder channels and the existing bell preferences for new payments and settlements.
 
-Nextcloud Talk must be installed and enabled for your account, including permission to create conversations. Enabling either Talk option creates or reuses the same private, unlisted, read-only **CoBudget** conversation and native bot. Only its recipient belongs to the conversation and cannot add participants. No app password, external webhook or manual room token is needed. The adapter targets Talk 23–25 on Nextcloud 33–35.
+Nextcloud Talk must be installed and enabled for your account, including permission to create conversations. Enabling either Talk option creates or reuses the same private, unlisted, read-only **CoBudget** conversation and native bot. Only its recipient belongs to the conversation and cannot add participants. No app password, external webhook or manual room token is needed. The adapter targets Talk 24–25 on Nextcloud 34–35.
 
 Payment-created messages contain creator, area, amount, currency and area link. Reminder messages contain the explicitly entered reminder text (or a generic title), amount, due date and CoBudget/area link. Payment descriptions and receipts are not copied to Talk. Reminder text and names are escaped to prevent mentions/Markdown injection. Chat history remains after payments are changed or deleted. Settlements, edits and automatic recurrence creation do not themselves generate Talk messages; a due reminder on a payment is handled independently.
 

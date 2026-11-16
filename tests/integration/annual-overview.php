@@ -821,6 +821,26 @@ try {
 		$futureForecast = $data($fresh($lookupWorkspace)->reportForecast($futureYear . '-01-01', $futureYear . '-12-31', $dimension, detailType: 'expense', detailId: $subject));
 		$check($futureForecast['planned']['expenseCents'] === 404, 'Forecast matches the same grouped area subject');
 	}
+
+	$attachmentEntry = $entry(101, ['is_important' => 1]);
+	foreach (['one.pdf', 'two.pdf'] as $file) {
+		$insert('entry_attachments', ['entry_id' => $attachmentEntry, 'workspace_id' => $workspace, 'owner_user_id' => $uid, 'file_path' => '/Audit/' . $file, 'file_name' => $file]);
+	}
+	$attachmentCounts = $data($fresh($workspace)->dashboard(summaryOnly: true, hasAttachment: true));
+	$check($attachmentCounts['tagCounts']['important'] === 1, 'Two receipts count as one important payment');
+	$check($data($fresh($workspace)->index(hasAttachment: true))['total'] === 1, 'Receipt joins do not duplicate aggregate payment counts');
+	$tagFull = $data($fresh($labelWorkspace)->dashboard(hashtagId: $hashtag));
+	$tagCounts = $data($fresh($labelWorkspace)->dashboard(summaryOnly: true, hashtagId: $hashtag));
+	$check($tagCounts['tagCounts'] === $tagFull['tagCounts'], 'Tag joins retain the full overview counters');
+
+	// The navigation-only SQL path must agree with the full financial overview.
+	foreach ([[], ['type' => 'income'], ['isImportant' => true], ['hasAttachment' => true], ['hasAttachment' => false], ['projectId' => $project, 'entryScope' => 'shared'], ['search' => 'No matching audit payment']] as $filters) {
+		$full = $data($fresh($workspace)->dashboard(...$filters));
+		$counts = $data($fresh($workspace)->dashboard(...array_merge($filters, ['summaryOnly' => true])));
+		$check($counts['tagCounts'] === $full['tagCounts'], 'SQL navigation counters match scoped full totals: ' . json_encode($filters));
+	}
+	$check($fresh($workspace)->dashboard(reportFilters: '{invalid}')->getStatus() === 400, 'Malformed dashboard filters return a client error');
+
 	echo "Annual overview integration passed: {$assertions} assertions; fixtures rolled back.\n";
 } finally {
 	$db->rollBack();

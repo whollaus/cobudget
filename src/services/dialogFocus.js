@@ -46,6 +46,15 @@ function describeTrigger(interaction, doc, preferredTarget = null) {
 	return { trigger, section, root, identity, nextRow: row?.nextElementSibling, previousRow: row?.previousElementSibling, ancestors }
 }
 
+// Release focus before the leaving snapshot becomes inaccessible. `inert`
+// already hides it from assistive technology and prevents interaction; adding
+// aria-hidden while the native focus trap is unmounting races its return callback.
+export function deactivateDialog(element) {
+	const active = element.ownerDocument.activeElement
+	if (element.contains(active)) active.blur()
+	element.inert = true
+}
+
 export function captureDialogFocus(doc, preferredTarget = null) {
 	const tracker = trackers.get(doc)
 	// Capture at the originating event, before no-close can remove the parent's

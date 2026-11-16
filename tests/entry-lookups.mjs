@@ -148,10 +148,12 @@ const fakeWindow = {
 const Observer = class { observe() {} disconnect() { disconnected = true } }
 const position = new Function('getLookupMenuLayout', 'window', 'ResizeObserver', positionSource.replace(/^import .*$/gm, '').replace('export function', 'function') + '\nreturn positionEntryLookup')(getLookupMenuLayout, fakeWindow, Observer)
 const classes = { add() {}, remove() {}, toggle() {} }
-const menu = { isConnected: true, scrollHeight: 700, classList: classes, style: {} }
+const menuClasses = new Set()
+const menu = { isConnected: true, scrollHeight: 700, classList: { ...classes, add: (...names) => names.forEach(name => menuClasses.add(name)) }, style: {} }
 const anchor = { isConnected: true, getBoundingClientRect: () => ({ top: 300, bottom: 334, left: 12, width: 366 }) }
 const select = { $refs: { toggle: anchor }, $el: { classList: classes, closest: () => ({ getBoundingClientRect: () => ({ top: 48, bottom: 450 }) }) } }
 const cleanup = position(menu, select, { width: '366px' })
+assert.ok(menuClasses.has('nc-select__dropdown'), 'Custom positioning must retain the native Nextcloud menu styles')
 queued()
 assert.ok(parseFloat(menu.style.top) >= 48)
 assert.ok(parseFloat(menu.style.top) + parseFloat(menu.style.maxHeight) <= 450)

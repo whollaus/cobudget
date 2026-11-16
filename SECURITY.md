@@ -1,19 +1,17 @@
 # Security Policy
 
-CoBudget handles private financial data and remains in beta. App Store publication
-and automated tests do not imply an independent security audit. Keep Nextcloud and
-CoBudget updated, maintain backups and avoid relying on CoBudget as the only record
-of critical financial data.
+CoBudget stores private financial data. Keep Nextcloud and CoBudget updated and
+maintain backups. An independent security audit has not yet been performed.
 
 ## Supported versions
 
-During beta, fixes target the latest published release and current `main` branch.
+Fixes target the latest published release and current `main` branch.
 Older versions do not receive separate maintenance. `main` is development code,
 not a stable release. Report the affected version even if you cannot safely update
 or reproduce the issue on a newer version.
 
-The 0.x beta supports Nextcloud 33–35. Starting with the first stable 1.0 release,
-Nextcloud 34 is the minimum; Nextcloud 33 will not receive CoBudget 1.x support.
+CoBudget 1.0 requires Nextcloud 34 or newer and supports Nextcloud 34 and 35.
+Nextcloud 33 is no longer supported.
 
 ## Reporting a vulnerability
 

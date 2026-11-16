@@ -1,7 +1,9 @@
 <template>
 	<div
 		class="personal-dashboard"
-		:class="{ 'personal-dashboard--table-only': isPaymentsView }">
+		:class="{ 'personal-dashboard--table-only': isPaymentsView, 'personal-dashboard--loading': !initialDataReady }"
+		:aria-busy="!initialDataReady">
+		<div v-if="!initialDataReady" class="dashboard-loading" role="status"><NcLoadingIcon :size="32" /><span>{{ $texts.common.loading() }}</span></div>
 		<AppPageHeader class="payments-page-header cobudget-filter-toolbar">
 			<template v-if="!isPaymentsView" #creation>
 				<NcButton
@@ -658,6 +660,7 @@ export default {
 	data() {
 		const currentPeriodDate = new Date()
 		return {
+			initialDataReady: false,
 			isExporting: false,
 			isPrinting: false,
 			printRequestId: 0,
@@ -1156,7 +1159,7 @@ export default {
 			if (this.budgetWarningCount === 0) {
 				return 'OK';
 			}
-			return `${this.budgetWarningCount} im Blick`;
+			return this.$texts.budgetGoals.attentionCount(this.budgetWarningCount);
 		},
 		budgetStatusClass() {
 			return this.budgetWarningCount === 0 ? 'positive' : 'negative';
@@ -1196,7 +1199,6 @@ export default {
 		}
 	},
 	mounted() {
-		this.fetchReminderSummary()
 		this.reminderSummaryTimer = window.setInterval(() => { this.reminderSummaryNow = Date.now() }, 60000)
 		window.addEventListener('cobudget-reminders-changed', this.fetchReminderSummary)
 		this.handleRouteQueryChange()
@@ -1214,6 +1216,7 @@ export default {
 		this.scheduleCurrentPeriodRefresh()
 	},
 	beforeUnmount() {
+		this.fetchRequestId++
 		this.reminderSummaryRequest++
 		this.printRequestId++
 		this.isPrinting = false
@@ -1241,7 +1244,7 @@ export default {
 			this.reminderSummaryNow = Date.now()
 			if (!this.$enableReminders) { this.summaryReminders = []; return }
 			try {
-				const response = await axios.get(generateUrl('/apps/cobudget/api/reminders'), { skipWorkspaceHeader: true })
+				const response = await axios.get(generateUrl('/apps/cobudget/api/reminders'), { skipWorkspaceHeader: true, timeout: 15000 })
 				if (request === this.reminderSummaryRequest) this.summaryReminders = response.data.reminders || []
 			} catch (error) {
 				if (request !== this.reminderSummaryRequest) return
@@ -1510,7 +1513,11 @@ export default {
 					this.filterAvailabilityKey = availabilityKey
 				}
 
-				const dashboardRes = await axios.get(generateUrl('/apps/cobudget/api/dashboard'), { params });
+				const [dashboardRes] = await Promise.all([
+					axios.get(generateUrl('/apps/cobudget/api/dashboard'), { params, timeout: 30000 }),
+					!this.isPaymentsView ? this.fetchBudgetGoals(requestId) : null,
+					!this.initialDataReady ? this.fetchReminderSummary() : null,
+				]);
 				if (requestId !== this.fetchRequestId) {
 					return
 				}
@@ -1541,12 +1548,16 @@ export default {
 				if (Array.isArray(lookups.hashtags)) {
 					this.hashtags = lookups.hashtags.sort((a, b) => String(a.displayName || a.name || '').localeCompare(String(b.displayName || b.name || ''), undefined, { sensitivity: 'base' }));
 				}
-				if (!this.isPaymentsView) {
-					await this.fetchBudgetGoals()
-				}
 			} catch (e) {
 				if (requestId === this.fetchRequestId) {
 					showRequestError(e, this.$texts.dashboard.paymentsLoadError(), 'Failed to fetch dashboard data')
+				}
+			} finally {
+				if (requestId === this.fetchRequestId && !this.initialDataReady) {
+					await this.$nextTick()
+					this.$refs.entryTable?.updateColumnWidths()
+					await this.$nextTick()
+					if (requestId === this.fetchRequestId) this.initialDataReady = true
 				}
 			}
 		},
@@ -1692,15 +1703,16 @@ export default {
 				}
 			}
 		},
-		async fetchBudgetGoals() {
+		async fetchBudgetGoals(requestId = this.fetchRequestId) {
 			if (!this.$enableBudgetGoals) {
 				this.budgetGoals = []
 				return
 			}
 			try {
-				const response = await axios.get(generateUrl('/apps/cobudget/api/budgets'))
-				this.budgetGoals = Array.isArray(response.data) ? response.data : []
+				const response = await axios.get(generateUrl('/apps/cobudget/api/budgets'), { timeout: 15000 })
+				if (requestId === this.fetchRequestId) this.budgetGoals = Array.isArray(response.data) ? response.data : []
 			} catch (e) {
+				if (requestId !== this.fetchRequestId) return
 				this.budgetGoals = []
 				showRequestError(e, this.$texts.dashboard.budgetGoalsLoadError(), 'Failed to fetch budget goals')
 			}
@@ -1962,6 +1974,17 @@ export default {
 </script>
 
 <style scoped>
+.personal-dashboard--loading { position: relative; }
+.personal-dashboard--loading > :not(.dashboard-loading) { visibility: hidden; }
+.dashboard-loading {
+	position: absolute;
+	inset-inline-start: 0;
+	top: 24px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
 .payment-delete-message { margin: 0; white-space: pre-line; }
 .personal-dashboard {
 	min-width: 0;
