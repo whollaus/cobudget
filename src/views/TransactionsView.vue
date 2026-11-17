@@ -94,7 +94,6 @@
 						<div class="stat-icon"><BellOutlineIcon :size="20" class="period-card-icon" /></div>
 						<span class="stat-label">{{ reminderSummaryCard.label }}</span>
 					</div>
-					<span class="stat-value">{{ reminderSummaryCard.value }}</span>
 				</div>
 				<div class="stat-sub-info">
 					<div v-for="detail in reminderSummaryCard.details" :key="detail.key" class="stat-sub-line">
@@ -886,8 +885,8 @@ export default {
 			if (!rows.length) return null
 			return {
 				key: 'reminders', route: { name: 'reminders' }, icon: BellOutlineIcon,
-				iconColor: 'var(--cobudget-primary, var(--color-primary-element))',
-				label: this.$texts.reminders.sidebar(), value: rows.length, valueClass: 'muted',
+				iconColor: 'var(--color-error-text)', tone: 'error',
+				label: this.$texts.reminders.sidebar(),
 				details: rows.slice(0, 2).map(row => ({ key: row.id, label: row.title || this.$texts.reminders.sidebar(), value: this.formatDate(row.remind_at) })),
 			}
 		},
@@ -2299,7 +2298,10 @@ export default {
 	color: var(--cobudget-text, var(--color-main-text));
 }
 
-.reminder-summary-card .stat-value { color: var(--color-text-maxcontrast, #888); }
+.reminder-summary-card[data-cobudget-card] { background: var(--color-error); }
+.reminder-summary-card[data-cobudget-card]:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--color-error) 90%, var(--color-error-text)); }
+.reminder-summary-card .stat-label,
+.reminder-summary-card .period-card-icon { color: var(--color-error-text); }
 
 .reminder-summary-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

@@ -9,7 +9,7 @@
 			@touchend.stop
 			@touchcancel.stop
 			@keydown="onKeydown">
-			<RouterLink v-for="period in periods" :key="period.key" :to="period.route" class="mobile-summary-card mobile-summary-card--link">
+			<RouterLink v-for="period in periods" :key="period.key" :to="period.route" class="mobile-summary-card mobile-summary-card--link" :class="{ 'mobile-summary-card--error': period.tone === 'error' }">
 				<div class="mobile-summary-card__header">
 					<div class="mobile-summary-card__title">
 						<span class="mobile-summary-card__icon" :style="{ color: period.iconColor }" aria-hidden="true">
@@ -17,7 +17,7 @@
 						</span>
 						<h3>{{ period.label }}</h3>
 					</div>
-					<div class="mobile-summary-card__value-group">
+					<div v-if="period.value !== undefined" class="mobile-summary-card__value-group">
 						<strong class="mobile-summary-card__value" :class="period.valueClass">
 							{{ period.value }}
 						</strong>
@@ -222,6 +222,10 @@ export default {
 	.mobile-summary-card__value.muted {
 		color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
 	}
+
+	.mobile-summary-card--error { background: var(--color-error); }
+	.mobile-summary-card--error:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--color-error) 90%, var(--color-error-text)); }
+	.mobile-summary-card--error .mobile-summary-card__title h3 { color: var(--color-error-text); }
 
 	.mobile-summary-card__value-group {
 		display: flex;

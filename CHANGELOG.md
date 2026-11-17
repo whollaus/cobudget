@@ -2,6 +2,10 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [1.1.0] - 2026-11-17
+
+- Highlight the reminder summary on desktop and mobile with error-button colors and remove its count, preserving reminder titles and dates.
+
 ## [1.0.0] - 2026-11-16
 
 This is the first stable CoBudget release. It includes the changes developed in

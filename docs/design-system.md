@@ -926,10 +926,14 @@ No frontend build, local app update or version bump is needed.
 ### Reminder summary in Payments
 
 The first summary card uses the existing desktop stat card and mobile period-card
-styles. It links to the account-wide reminder overview and shows the open count
-and up to two earliest titles/dates, independent of payment filters. Hide it when
-empty or when the reminder feature is disabled; truncate long titles while keeping
-dates visible.
+layout. It links to the account-wide reminder overview and shows up to two earliest
+titles/dates, independent of payment filters, without a count. Its persistent
+background and heading/icon use the native error-button color tokens in both
+themes; hover/focus mixes 10% error text into that background so app-only dark
+mode retains contrast. Reminder titles/dates retain their normal text styles.
+Keep the cards unframed and preserve keyboard focus. Hide it when no upcoming open
+reminders qualify or when the reminder feature is disabled; truncate long titles
+while keeping dates visible.
 
 ### Email notification controls
 

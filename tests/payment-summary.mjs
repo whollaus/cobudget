@@ -165,7 +165,7 @@ if (originalZone === undefined) delete process.env.TZ; else process.env.TZ=origi
 const cardGetter = new Function('upcomingOpenReminders','BellOutlineIcon','return function() {' + paymentView.match(/reminderSummaryCard\(\) \{([\s\S]*?)\n\t\t\}/)[1] + '}')(upcomingOpenReminders,{})
 const cardState={$enableReminders:true,summaryReminders:[{id:1,title:'Oldest',status:'active',keep_open:true,remind_at:now.getTime()/1000-86400},{id:2,title:'Today',status:'active',keep_open:true,remind_at:now.getTime()/1000},{id:3,title:'Next',status:'active',keep_open:true,remind_at:now.getTime()/1000+86400}],reminderSummaryNow:now.getTime(),$texts:{reminders:{sidebar:()=> 'Reminders'}},formatDate:timestamp=>String(timestamp)}
 const card=cardGetter.call(cardState)
-assert.equal(card.value,3)
+assert.equal(card.value,undefined,'Reminder summary omits the count')
 assert.deepEqual(card.details.map(d=>d.label),['Oldest','Today'])
 assert.deepEqual(card.route,{name:'reminders'},'Card opens overview without selecting an entry')
 assert.equal(cardGetter.call({...cardState,$enableReminders:false}),null)

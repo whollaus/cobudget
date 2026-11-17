@@ -75,7 +75,7 @@ CoBudget no se conecta a cuentas bancarias. Los informes se basan en los pagos q
 Disponible en inglés, alemán, francés y español. Las copias guardan las rutas de los justificantes, no los archivos; respalda también los archivos de Nextcloud correspondientes.
 
 CoBudget requiere Nextcloud 34 o posterior.]]></description>
-	<version>1.0.0</version>
+	<version>1.1.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
