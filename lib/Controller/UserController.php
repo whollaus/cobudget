@@ -4,6 +4,7 @@ namespace OCA\CoBudget\Controller;
 use OCA\CoBudget\Service\BackupService;
 use OCA\CoBudget\Service\ResetBlockedException;
 use OCA\CoBudget\Service\UserResetService;
+use OCA\CoBudget\Service\AutoImportRules;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -21,37 +22,6 @@ class UserController extends Controller {
 
 	private const USER_SEARCH_MIN_LENGTH = 3;
 	private const USER_SEARCH_LIMIT = 10;
-
-	private const CURRENCY_BY_COUNTRY = [
-		'AT' => 'EUR',
-		'BE' => 'EUR',
-		'CH' => 'CHF',
-		'DE' => 'EUR',
-		'DK' => 'DKK',
-		'ES' => 'EUR',
-		'FI' => 'EUR',
-		'FR' => 'EUR',
-		'GB' => 'GBP',
-		'IE' => 'EUR',
-		'IT' => 'EUR',
-		'LI' => 'CHF',
-		'LU' => 'EUR',
-		'NL' => 'EUR',
-		'NO' => 'NOK',
-		'PL' => 'PLN',
-		'PT' => 'EUR',
-		'SE' => 'SEK',
-		'US' => 'USD',
-	];
-
-	private const CURRENCY_BY_LANGUAGE = [
-		'de' => 'EUR',
-		'es' => 'EUR',
-		'fr' => 'EUR',
-		'it' => 'EUR',
-		'nl' => 'EUR',
-		'pt' => 'EUR',
-	];
 
 	private IDBConnection $db;
 	private IUserManager $userManager;
@@ -136,6 +106,7 @@ class UserController extends Controller {
 				return $error;
 			}
 
+			$paymentImports = $this->config->getUserValue($this->userId, 'cobudget', 'enable_payment_imports', 'no') === 'yes';
 			$startPage = $this->config->getUserValue($this->userId, 'cobudget', 'default_start_page', 'personal');
 
 			return new DataResponse([
@@ -154,6 +125,10 @@ class UserController extends Controller {
 				'enable_incomes' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_incomes', 'yes') === 'yes',
 				'enable_projects' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_projects', 'yes') === 'yes',
 				'enable_shared_projects' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_shared_projects', 'yes') === 'yes',
+				'enable_payment_imports' => $paymentImports,
+				'has_active_automatic_imports' => $paymentImports && AutoImportRules::hasActiveImports($this->db, $this->userId),
+				'notify_automatic_imports' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_automatic_imports', 'yes') === 'yes',
+				'notify_automatic_imports_email' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_automatic_imports_email', 'no') === 'yes',
 				'notify_planned_payments' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_planned_payments', 'no') === 'yes',
 				'email_address_available' => (bool)filter_var($this->userManager->get($this->userId)?->getEMailAddress(), FILTER_VALIDATE_EMAIL),
 				'notify_reminders_email' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_reminders_email', 'no') === 'yes',
@@ -184,7 +159,7 @@ class UserController extends Controller {
 	}
 
 	#[NoAdminRequired]
-	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null, ?bool $enable_insurance = null, ?bool $notify_reminders = null, ?bool $notify_planned_payments = null, ?bool $enable_reminders = null, ?bool $notify_reminders_email = null, ?bool $notify_planned_payments_email = null, ?bool $notify_project_entries_email = null, ?bool $notify_project_settlements_email = null): DataResponse {
+	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null, ?bool $enable_insurance = null, ?bool $notify_reminders = null, ?bool $notify_planned_payments = null, ?bool $enable_reminders = null, ?bool $notify_reminders_email = null, ?bool $notify_planned_payments_email = null, ?bool $notify_project_entries_email = null, ?bool $notify_project_settlements_email = null, ?bool $notify_automatic_imports = null, ?bool $notify_automatic_imports_email = null, ?bool $enable_payment_imports = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
@@ -255,6 +230,9 @@ class UserController extends Controller {
 			if ($enable_advanced_master_data !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_advanced_master_data', $enable_advanced_master_data ? 'yes' : 'no');
 			}
+			if ($enable_payment_imports !== null) {
+				$this->config->setUserValue($this->userId, 'cobudget', 'enable_payment_imports', $enable_payment_imports ? 'yes' : 'no');
+			}
 			if ($enable_incomes !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_incomes', $enable_incomes ? 'yes' : 'no');
 			}
@@ -264,6 +242,8 @@ class UserController extends Controller {
 			if ($enable_shared_projects !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_shared_projects', $enable_shared_projects ? 'yes' : 'no');
 			}
+			if ($notify_automatic_imports !== null) $this->config->setUserValue($this->userId, 'cobudget', 'notify_automatic_imports', $notify_automatic_imports ? 'yes' : 'no');
+			if ($notify_automatic_imports_email !== null) $this->config->setUserValue($this->userId, 'cobudget', 'notify_automatic_imports_email', $notify_automatic_imports_email ? 'yes' : 'no');
 			if ($notify_planned_payments !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'notify_planned_payments', $notify_planned_payments ? 'yes' : 'no');
 			}
@@ -444,34 +424,4 @@ class UserController extends Controller {
 
 		return null;
 	}
-
-	private function effectiveCurrency(): string {
-		$storedCurrency = trim($this->config->getUserValue((string)$this->userId, 'cobudget', 'currency', ''));
-		if ($storedCurrency !== '') {
-			return $storedCurrency;
-		}
-
-		return $this->detectCurrencyFromLocale();
-	}
-
-	private function detectCurrencyFromLocale(): string {
-		$locale = trim($this->config->getUserValue((string)$this->userId, 'core', 'locale', ''));
-		if ($locale === '') {
-			$locale = trim($this->config->getUserValue((string)$this->userId, 'core', 'lang', ''));
-		}
-
-		$localeParts = array_values(array_filter(explode('_', str_replace('-', '_', $locale)), static fn(string $part): bool => $part !== ''));
-		$language = strtolower((string)($localeParts[0] ?? ''));
-		$country = strtoupper((string)($localeParts[1] ?? ''));
-
-		if ($country !== '' && isset(self::CURRENCY_BY_COUNTRY[$country])) {
-			return self::CURRENCY_BY_COUNTRY[$country];
-		}
-		if ($language !== '' && isset(self::CURRENCY_BY_LANGUAGE[$language])) {
-			return self::CURRENCY_BY_LANGUAGE[$language];
-		}
-
-		return 'EUR';
-	}
-
 }

@@ -2,13 +2,17 @@
 	<span
 		ref="trigger"
 		class="table-tooltip-trigger"
-		:aria-label="text || null"
-		:aria-describedby="isVisible ? tooltipId : null"
+		:role="hasMessages ? 'button' : undefined"
+		:aria-expanded="hasMessages ? isVisible : undefined"
+		:aria-label="description || null"
+		:aria-describedby="isVisible && !hasMessages ? tooltipId : null"
+		:aria-controls="isVisible && hasMessages ? tooltipId : null"
 		:tabindex="passive ? undefined : 0"
 		@mouseenter="visibility.enter()"
 		@mouseleave="visibility.leave()"
 		@focusin="visibility.focus()"
-		@focusout="visibility.blur()"
+		@focusout="onFocusOut"
+		@pointerdown="pointerWasVisible = isVisible"
 		@mousedown.stop
 		@touchstart.stop
 		@click="toggleTooltip"
@@ -17,22 +21,38 @@
 		@keydown.esc.stop.prevent="visibility.hide()">
 		<slot />
 	</span>
-	<Teleport to="body">
+	<Teleport to="body" :disabled="hasMessages">
 		<div
-			v-if="isVisible && text"
+			v-if="isVisible && description"
 			:id="tooltipId"
 			ref="tooltip"
 			class="table-tooltip cobudget-tooltip-surface"
-			role="tooltip"
+			:role="hasMessages ? 'region' : 'tooltip'"
+			:aria-label="hasMessages ? messageLines[0]?.message : undefined"
+			:popover="hasMessages ? 'manual' : undefined"
+			@focusin="hasMessages && visibility.focus()"
+			@focusout="onFocusOut"
+			@keydown.esc.stop.prevent="dismissPanel"
+			:class="{ 'table-tooltip-messages': hasMessages }"
+			@mouseenter="hasMessages && visibility.enter()"
+			@mouseleave="hasMessages && visibility.leave()"
 			:style="tooltipStyle">
-			<div
-				v-for="(line, index) in tooltipLines"
-				:key="index"
-				class="table-tooltip-line"
-				:class="{ 'has-value': line.value }">
-				<span class="table-tooltip-label">{{ line.label }}</span>
-				<span v-if="line.value" class="table-tooltip-value">{{ line.value }}</span>
+			<div v-if="hasMessages" class="table-tooltip-plain">
+				<div v-for="(line, index) in messageLines" :key="index">
+					<template v-if="line.href">{{ line.before }}<a :href="line.href" target="_blank" rel="noopener noreferrer">{{ line.label }}</a>{{ line.after }}</template>
+					<template v-else>{{ line.message }}</template>
+				</div>
 			</div>
+			<template v-else>
+				<div
+					v-for="(line, index) in tooltipLines"
+					:key="index"
+					class="table-tooltip-line"
+					:class="{ 'has-value': line.value }">
+					<span class="table-tooltip-label">{{ line.label }}</span>
+					<span v-if="line.value" class="table-tooltip-value">{{ line.value }}</span>
+				</div>
+			</template>
 		</div>
 	</Teleport>
 </template>
@@ -44,6 +64,7 @@ let nextTooltipId = 0
 export default {
 	name: 'TableTooltip',
 	props: {
+		messageLines: { type: Array, default: () => [] },
 		passive: { type: Boolean, default: false },
 		text: {
 			type: String,
@@ -53,6 +74,7 @@ export default {
 	data() {
 		return {
 			isVisible: false,
+			pointerWasVisible: false,
 			visibility: null,
 			tooltipId: `table-tooltip-${++nextTooltipId}`,
 			tooltipStyle: {
@@ -62,6 +84,10 @@ export default {
 		}
 	},
 	computed: {
+		hasMessages() { return this.messageLines.length > 0 },
+		description() {
+			return this.hasMessages ? this.messageLines.map(line => line.message).join('\n') : this.text
+		},
 		tooltipLines() {
 			return String(this.text || '')
 				.split('\n')
@@ -91,12 +117,14 @@ export default {
 	},
 	methods: {
 		showTooltip() {
-			if (!this.text) {
+			if (!this.description) {
 				return
 			}
 			this.isVisible = true
 			this.$nextTick(() => {
 				if (!this.isVisible || !this.$refs.tooltip) return
+				// Keep links next to the timestamp in tab order and above scrolling containers.
+				if (this.hasMessages) this.$refs.tooltip.showPopover?.()
 				this.updatePosition()
 				this.attachListeners()
 			})
@@ -109,13 +137,32 @@ export default {
 			if (this.passive) return
 			event?.stopPropagation()
 			event?.preventDefault()
-			this.visibility.toggle()
+			// Focus can open the tooltip between the first tap and its click.
+			if (event?.type === 'click' && event.detail > 0) {
+				if (this.pointerWasVisible) this.visibility.hide()
+				else this.visibility.show()
+			} else {
+				this.visibility.toggle()
+			}
+		},
+		onFocusOut(event) {
+			if (this.hasMessages && (this.$refs.tooltip?.contains(event.relatedTarget) || this.$refs.trigger?.contains(event.relatedTarget))) return
+			this.visibility.blur()
+		},
+		dismissPanel() {
+			this.$refs.trigger?.focus({ preventScroll: true })
+			this.visibility.hide()
+		},
+		onOutsidePointer(event) {
+			if (!this.$refs.tooltip?.contains(event.target) && !this.$refs.trigger?.contains(event.target)) this.visibility.hide()
 		},
 		attachListeners() {
+			if (this.hasMessages) document.addEventListener('pointerdown', this.onOutsidePointer)
 			window.addEventListener('resize', this.updatePosition)
 			window.addEventListener('scroll', this.updatePosition, true)
 		},
 		detachListeners() {
+			if (this.hasMessages) document.removeEventListener('pointerdown', this.onOutsidePointer)
 			window.removeEventListener('resize', this.updatePosition)
 			window.removeEventListener('scroll', this.updatePosition, true)
 		},
@@ -138,7 +185,18 @@ export default {
 				top = triggerRect.bottom + gap
 			}
 
+			let maxHeight
+			if (this.hasMessages) {
+				const above = triggerRect.top - gap - viewportPadding
+				const below = window.innerHeight - triggerRect.bottom - gap - viewportPadding
+				const height = tooltip.scrollHeight + tooltip.offsetHeight - tooltip.clientHeight
+				const useAbove = height <= above || above >= below
+				const space = Math.max(0, useAbove ? above : below)
+				maxHeight = space + 'px'
+				top = useAbove ? triggerRect.top - gap - Math.min(height, space) : triggerRect.bottom + gap
+			}
 			this.tooltipStyle = {
+				maxHeight,
 				left: `${left}px`,
 				top: `${top}px`
 			}
@@ -170,6 +228,10 @@ export default {
 	border-radius: var(--border-radius, 6px);
 	pointer-events: none;
 }
+
+.table-tooltip-messages { inset: auto; margin: 0; text-align: start; box-sizing: border-box; overflow-y: auto; pointer-events: auto; }
+.table-tooltip-plain a { color: inherit; text-decoration: underline; }
+.table-tooltip-plain { white-space: pre-line; overflow-wrap: anywhere; }
 
 .table-tooltip-line {
 	display: block;

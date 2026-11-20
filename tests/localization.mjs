@@ -75,6 +75,22 @@ for (const [language, translations, incomeHeading, reportHeading] of [
 	assert.equal(formatCalendarLabel(date, { dateStyle: 'medium' }), new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(date), `${language}: print cutoff date`)
 }
 
+// A single imported payment can introduce both a category and a partner.
+for (const [language, translations, one, two, preview, result] of [
+	['en', {}, 'Import 1 payment', 'Import 2 payments', 'Ready to import: 1 · Expenses: 1 · Income: 0', 'Payments imported: 1 · New categories: 1 · New payment partners: 1'],
+	['de', catalog, '1 Zahlung importieren', '2 Zahlungen importieren', 'Bereit zum Import: 1 · Ausgaben: 1 · Einnahmen: 0', 'Importierte Zahlungen: 1 · Neue Kategorien: 1 · Neue Zahlungspartner: 1'],
+	['fr', frenchCatalog, 'Importer 1 paiement', 'Importer 2 paiements', 'À importer : 1 · Dépenses : 1 · Revenus : 0', 'Paiements importés : 1 · Nouvelles catégories : 1 · Nouveaux tiers : 1'],
+	['es', spanishCatalog, 'Importar 1 pago', 'Importar 2 pagos', 'Para importar: 1 · Gastos: 1 · Ingresos: 0', 'Pagos importados: 1 · Nuevas categorías: 1 · Nuevas contrapartes: 1'],
+]) {
+	setLanguage(language)
+	unregister('cobudget')
+	register('cobudget', translations)
+	assert.equal(texts.bulkImport.confirmImport(1), one)
+	assert.equal(texts.bulkImport.confirmImport(2), two)
+	assert.equal(texts.bulkImport.previewSummary(1, 1, 0), preview)
+	assert.equal(texts.bulkImport.importSuccessWithMasterData(1, 1, 1), result)
+}
+
 // Run the actual Nextcloud translation library, including fallback, plural and interpolation paths.
 setLanguage('en')
 unregister('cobudget')

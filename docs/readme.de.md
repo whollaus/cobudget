@@ -30,12 +30,12 @@ Zahlungen, die du erfasst.
   optionale E-Mails lassen sich je unterstütztem Ereignis getrennt aktivieren.
   Erinnerungen können mit einem Kalender synchronisiert werden; Änderungen in
   privaten Kalendern werden auch nach CoBudget übernommen.
-- **Exporte und Backups:** Berichte drucken, CSV exportieren, Tabellen in eine
-  Tabellenkalkulation kopieren und persönliche Exporte oder Admin-Backups erstellen.
+- **[Zahlungsimport](payment-imports.de.md):** optional Zahlungen im JSON-Format manuell mit Vorschau oder automatisch aus einem Nextcloud-Ordner importieren.
+- **Exporte und Backups:** Berichte drucken, CSV exportieren, Tabellen in eine Tabellenkalkulation kopieren und persönliche Exporte oder Admin-Backups erstellen.
 - **Workspaces und Darstellung:** getrennte Datenbestände mit Workspaces, mobile und
   Desktop-Ansicht sowie helles, dunkles oder Systemdesign.
+- **Sprachen der Oberfläche:** Englisch, Deutsch, Französisch und Spanisch.
 
-Die Oberfläche ist auf Deutsch, Englisch, Französisch und Spanisch verfügbar.
 Die weiterführende technische Dokumentation ist auf Englisch:
 [Funktionsübersicht](../FEATURES.md), [Auswertungen](reports.md) und
 [Konzept von CoBudget](concept.md).

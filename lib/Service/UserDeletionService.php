@@ -68,6 +68,8 @@ class UserDeletionService {
 			}
 
 			$step = 'removing standalone personal data';
+			$this->deleteRowsByStringColumn('cobudget_import_rules', 'user_id', $userId);
+			$this->deleteRowsByStringColumn('cobudget_import_files', 'user_id', $userId);
 			$this->deleteRowsByStringColumn('cobudget_reminders', 'user_id', $userId);
 			$personalEntryIds = $this->personalEntryIds($userId);
 			$report['deleted_entries'] += count($personalEntryIds);
@@ -338,7 +340,7 @@ class UserDeletionService {
 		$this->deleteRowsByColumnValues('cobudget_settlement_balances', 'settlement_id', $settlementIds);
 		$this->deleteRowsByColumnValues('cobudget_settlement_transfers', 'settlement_id', $settlementIds);
 		$this->deleteRowsByIntColumn('cobudget_settlements', 'project_id', $projectId);
-		foreach (['cobudget_categories', 'cobudget_payment_partners', 'cobudget_members'] as $table) {
+		foreach (['cobudget_import_files', 'cobudget_import_rules', 'cobudget_categories', 'cobudget_payment_partners', 'cobudget_members'] as $table) {
 			$this->deleteRowsByIntColumn($table, 'project_id', $projectId);
 		}
 		$this->deleteRowsByIntColumn('cobudget_projects', 'id', $projectId);

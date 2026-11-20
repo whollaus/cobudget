@@ -301,6 +301,15 @@ return [
 
 			[$controller, $method] = explode('#', $route['name'], 2);
 			$body = $t->methodBody('lib/Controller/' . $controllerClassName($controller) . 'Controller.php', $method);
+			if ($controller === 'auto_import') {
+				$path = 'lib/Controller/AutoImportController.php';
+				if (in_array($method, ['create', 'update'], true)) {
+					$t->assertContains('$this->save(', $body, 'Rule changes use the common save method');
+					$body = $t->methodBody($path, 'save');
+				}
+				$t->assertContains('$this->inWorkspace(', $body, 'Rule endpoints enter the authenticated workspace');
+				$body = $t->methodBody($path, 'inWorkspace');
+			}
 			if ($controller === 'master_data') { $body .= $t->methodBody('lib/Controller/MasterDataController.php', 'apply'); }
 			if (in_array($controller, ['talk', 'calendar', 'reminder'], true)) {
 				$t->assertContains('$this->userSession->getUser()', $body, 'Personal Talk settings use only the authenticated account');
@@ -2002,11 +2011,11 @@ return [
 		},
 
 		'User settings validate values through shared helpers' => function(TestRunner $t): void {
-			$userController = $t->read('lib/Controller/UserController.php');
-			$t->assertContains('CURRENCY_BY_COUNTRY', $userController, 'User settings should map common locales to currencies');
-			$t->assertContains("'AT' => 'EUR'", $userController, 'Austrian locale should default to EUR');
-			$t->assertContains("'CH' => 'CHF'", $userController, 'Swiss locale should default to CHF');
-			$t->assertContains("'US' => 'USD'", $userController, 'US locale should default to USD');
+			$currencyDefaults = $t->read('lib/Controller/WorkspaceAwareTrait.php');
+			$t->assertContains('CURRENCY_BY_COUNTRY', $currencyDefaults, 'User settings should map common locales to currencies');
+			$t->assertContains("'AT' => 'EUR'", $currencyDefaults, 'Austrian locale should default to EUR');
+			$t->assertContains("'CH' => 'CHF'", $currencyDefaults, 'Swiss locale should default to CHF');
+			$t->assertContains("'US' => 'USD'", $currencyDefaults, 'US locale should default to USD');
 
 			$getSettings = $t->methodBody('lib/Controller/UserController.php', 'getSettings');
 			foreach (['enable_child_related', 'enable_important_payments', 'enable_review_payments', 'enable_tax_relevant', 'enable_budget_goals', 'enable_advanced_master_data', 'enable_projects', 'enable_shared_projects', 'notify_project_entries', 'notify_project_settlements', 'enable_receipts', 'show_nextcloud_header_desktop', 'show_nextcloud_header_mobile', 'receipt_storage_folder', 'receipt_folder_grouping', 'delete_receipts_with_entry'] as $setting) {

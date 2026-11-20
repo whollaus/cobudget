@@ -127,6 +127,15 @@ namespace CoBudget\Tests {
 	);
 
 	return [
+		'Folder import notifications link to the rule settings and include the file result' => function (TestRunner $t) use ($createNotifier): void {
+			foreach (['automatic_import_error' => 'Automatic import needs attention', 'automatic_import_success' => 'Automatic import completed'] as $subject => $title) {
+				$item = new NotifierTestNotification('cobudget', $subject, ['result' => 'delivery.json — result']);
+				$createNotifier()->prepare($item, 'en');
+				$t->assertSame($title, $item->parsedSubject, 'Show the outcome of the folder import');
+				$t->assertSame('delivery.json — result', $item->parsedMessage, 'Include the individual file result');
+				$t->assertTrue(str_ends_with($item->link, '#/settings?section=automatic-imports'), 'Link directly to automatic imports');
+			}
+		},
         'Independent reminders allow an omitted description and link to the organizer' => function(TestRunner $t) use ($createNotifier): void {
             $notification = new NotifierTestNotification('cobudget', 'organizer_reminder', ['title'=>'Cancel subscription', 'id'=>42, 'description'=>'']);
             $createNotifier()->prepare($notification, 'en');

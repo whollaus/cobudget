@@ -68,7 +68,7 @@
 					</div>
 					<NcNoteCard v-if="memberError" type="error" :text="memberError" />
 				</section>
-				<section v-if="canManageProject" class="settings-block settings-master-data-block"><ProjectScopedSettings class="area-master-data" :project-id="projectId" @changed="onProjectScopedSettingsChanged" /></section>
+				<section v-if="canManageProject && !isArchived" class="settings-block settings-master-data-block"><ProjectScopedSettings class="area-master-data" :project-id="projectId" @changed="onProjectScopedSettingsChanged" /></section>
 
 				<template v-if="canManageProject">
 					<section class="settings-block">

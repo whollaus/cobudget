@@ -34,6 +34,8 @@ class ResetAllCommand extends Command {
 		'cobudget_budget_goals',
 		'cobudget_budget_snapshots',
 		'cobudget_reminders',
+		'cobudget_import_rules',
+		'cobudget_import_files',
 	];
 
 	private const APP_VALUE_KEYS_TO_RESET = [

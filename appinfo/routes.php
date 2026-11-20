@@ -20,6 +20,12 @@ return [
 		// API routes for Entries
 		['name' => 'entry#index', 'url' => '/api/entries', 'verb' => 'GET'],
 		['name' => 'entry#exportCsv', 'url' => '/api/entries/export', 'verb' => 'GET'],
+		['name' => 'entry#importPacket', 'url' => '/api/entries/import', 'verb' => 'PUT'],
+		['name' => 'auto_import#index', 'url' => '/api/auto-imports', 'verb' => 'GET'],
+		['name' => 'auto_import#create', 'url' => '/api/auto-imports', 'verb' => 'POST'],
+		['name' => 'auto_import#update', 'url' => '/api/auto-imports/{id}', 'verb' => 'PUT', 'requirements' => ['id' => '\d+']],
+		['name' => 'auto_import#runNow', 'url' => '/api/auto-imports/{id}/run', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'auto_import#destroy', 'url' => '/api/auto-imports/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
 		['name' => 'entry#dashboard', 'url' => '/api/dashboard', 'verb' => 'GET'],
 		['name' => 'sync#state', 'url' => '/api/sync/state', 'verb' => 'GET'],
 		['name' => 'entry#suggestCategory', 'url' => '/api/entries/category-suggestion', 'verb' => 'GET'],

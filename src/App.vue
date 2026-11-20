@@ -7,7 +7,7 @@
 		}">
 		<NcAppNavigation>
 			<template #list>
-				<NcAppNavigationItem :name="$texts.labels.allPayments()" :active="activePaymentView === ''" @click.prevent="navigateTo('/')">
+				<NcAppNavigationItem :name="$texts.labels.allPayments()" :active="activePaymentView === '' || $route?.name === 'import'" @click.prevent="navigateTo('/')">
 					<template #icon><CoBudgetIcon :size="20" /></template>
 				</NcAppNavigationItem>
 				<NcAppNavigationItem v-if="$enableIncomes" :name="$texts.labels.incomePayments()" :active="activePaymentView === 'income'" @click.prevent="navigateTo('/?filter=income')">
@@ -312,6 +312,9 @@ export default {
 			return this.$enableWorkspaces && this.$showWorkspaceSwitcher !== false && this.visibleWorkspaces.length > 1;
 		},
 		mobileFinancesActive() {
+			if (this.$route?.name === 'import') {
+				return true;
+			}
 			return ['personal', 'payments'].includes(this.$route?.name);
 		},
 		mobileAreasActive() {

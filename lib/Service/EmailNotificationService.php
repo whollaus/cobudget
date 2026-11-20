@@ -12,7 +12,7 @@ use Psr\Log\LoggerInterface;
 
 /** Uses only the recipient's current Nextcloud profile address and the server mail transport. */
 class EmailNotificationService {
-	public const SETTINGS = ['notify_reminders_email', 'notify_planned_payments_email', 'notify_project_entries_email', 'notify_project_settlements_email'];
+	public const SETTINGS = ['notify_reminders_email', 'notify_planned_payments_email', 'notify_project_entries_email', 'notify_project_settlements_email', 'notify_automatic_imports_email'];
 
 	public function __construct(
 		private IMailer $mailer,
@@ -30,6 +30,7 @@ class EmailNotificationService {
 			'planned' => self::SETTINGS[1],
 			'entry' => self::SETTINGS[2],
 			'settlement' => self::SETTINGS[3],
+			'import' => self::SETTINGS[4],
 			default => throw new \InvalidArgumentException('Unknown email event'),
 		};
 		try {
@@ -54,6 +55,10 @@ class EmailNotificationService {
 				$body = $l->t('%s of %s %s', [$l->t($params['type']), $params['amount'], $params['currency']]);
 				$body .= "\n" . $l->t('Payment from %s', [$params['entryDate']]);
 				if (!empty($params['projectId'])) $link .= '#/projects/' . (int)$params['projectId'];
+			} elseif ($event === 'import') {
+				$subject = $params['error'] ? $l->t('Automatic import needs attention') : $l->t('Automatic import completed');
+				$body = $params['result'];
+				$link .= '#/settings?section=automatic-imports';
 			} elseif ($event === 'entry') {
 				$subject = $l->t('New payments in shared areas');
 				$body = $l->t($params['type'] === 'income'

@@ -64,6 +64,73 @@ class HashtagService {
 		$this->cleanupUnusedHashtags(array_diff($oldIds, $newIds));
 	}
 
+	/**
+	 * Groups hashtag extraction, lookup, creation, and link insertion across a batch of newly created entries.
+	 *
+	 * @param array<int, ?string> $descriptionsByEntryId
+	 */
+	public function syncNewEntriesHashtags(int $workspaceId, array $descriptionsByEntryId): void {
+		if ($workspaceId <= 0 || $descriptionsByEntryId === []) {
+			return;
+		}
+
+		$tagsByEntryId = [];
+		$uniqueTagsByNormalized = [];
+		foreach ($descriptionsByEntryId as $entryId => $description) {
+			$entryId = (int)$entryId;
+			if ($entryId <= 0) {
+				continue;
+			}
+
+			$extracted = $this->extractFromText(is_string($description) ? $description : null);
+			if ($extracted === []) {
+				continue;
+			}
+
+			$tagsByEntryId[$entryId] = $extracted;
+			foreach ($extracted as $hashtag) {
+				$uniqueTagsByNormalized[(string)$hashtag['normalizedName']] = (string)$hashtag['displayName'];
+			}
+		}
+
+		if ($uniqueTagsByNormalized === []) {
+			return;
+		}
+
+		$hashtagIdByNormalized = [];
+		foreach (array_chunk(array_keys($uniqueTagsByNormalized), 200) as $chunk) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('id', 'normalized_name', 'display_name')
+				->from('cobudget_hashtags')
+				->where($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)))
+				->andWhere($qb->expr()->in('normalized_name', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)));
+			$result = $qb->executeQuery();
+			$rows = $result->fetchAll();
+			$result->closeCursor();
+
+			foreach ($rows as $row) {
+				$norm = (string)$row['normalized_name'];
+				$hashtagId = (int)$row['id'];
+				$hashtagIdByNormalized[$norm] = $hashtagId;
+				if ((string)($row['display_name'] ?? '') !== $uniqueTagsByNormalized[$norm]) {
+					$this->updateHashtagDisplayName($hashtagId, $uniqueTagsByNormalized[$norm]);
+				}
+			}
+		}
+
+		foreach ($uniqueTagsByNormalized as $norm => $displayName) {
+			if (!isset($hashtagIdByNormalized[$norm])) {
+				$hashtagIdByNormalized[$norm] = $this->findOrCreateHashtag($workspaceId, (string)$norm, $displayName);
+			}
+		}
+
+		foreach ($tagsByEntryId as $entryId => $tags) {
+			foreach ($tags as $hashtag) {
+				$this->insertEntryHashtagLink($entryId, $hashtagIdByNormalized[(string)$hashtag['normalizedName']], $workspaceId);
+			}
+		}
+	}
+
 	public function deleteEntryHashtags(int $entryId): void {
 		if ($entryId <= 0) {
 			return;

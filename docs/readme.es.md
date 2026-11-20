@@ -29,12 +29,12 @@ que registras.
   correo electrónico opcional, por separado según el evento. Los recordatorios
   también se sincronizan con un calendario; los cambios en calendarios privados
   se reflejan en CoBudget.
-- **Exportaciones y copias de seguridad:** imprime informes, exporta CSV, copia tablas a una hoja
-  de cálculo y crea exportaciones personales o copias de seguridad de administrador.
+- **[Importación de pagos](payment-imports.es.md):** opcionalmente, importar pagos en formato JSON manualmente con vista previa o automáticamente desde una carpeta de Nextcloud.
+- **Exportaciones y copias de seguridad:** imprimir informes, exportar en CSV, copiar tablas a una hoja de cálculo y crear exportaciones personales o copias de seguridad de administrador.
 - **Espacios de trabajo y apariencia:** conjuntos de datos separados mediante espacios de
   trabajo, vistas para móvil y escritorio y temas claro, oscuro o del sistema.
+- **Idiomas de la interfaz:** inglés, alemán, francés y español.
 
-La interfaz está disponible en inglés, alemán, francés y español.
 La documentación técnica adicional está en inglés:
 [funciones](../FEATURES.md), [cálculos de los informes](reports.md) y
 [concepto de CoBudget](concept.md).

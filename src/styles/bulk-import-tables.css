@@ -1,0 +1,95 @@
+.bulk-import-chip-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: calc(var(--default-grid-baseline, 4px) * 1.5);
+}
+
+.bulk-import-table-wrapper {
+	width: 100%;
+	overflow-x: auto;
+	background: var(--cobudget-surface);
+}
+
+.bulk-import-table {
+	width: 100%;
+	min-width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	border: 0;
+	border-radius: 0;
+	background: var(--cobudget-surface);
+}
+
+.bulk-import-table th,
+.bulk-import-table td {
+	box-sizing: border-box;
+	min-width: 0;
+	padding: var(--cobudget-table-cell-padding);
+	border-bottom: 1px solid var(--payment-table-separator, var(--cobudget-table-separator));
+	vertical-align: middle;
+	font-size: var(--cobudget-font-base);
+	text-align: start;
+}
+
+.bulk-import-table th {
+	height: var(--cobudget-payment-table-header-height);
+	background: var(--cobudget-table-header-background, var(--cobudget-surface));
+	color: var(--cobudget-text-muted);
+	font-weight: 400;
+	letter-spacing: normal;
+	white-space: nowrap;
+}
+
+.bulk-import-table td {
+	color: var(--cobudget-text);
+}
+
+@media (min-width: 769px) {
+	.bulk-import-table tbody tr {
+		height: var(--cobudget-payment-table-row-height);
+	}
+}
+
+@media (max-width: 768px) {
+	.bulk-import-table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
+
+	.bulk-import-table tbody {
+		display: block;
+	}
+
+	.bulk-import-table tbody tr {
+		display: flex;
+		flex-direction: column;
+		gap: calc(var(--default-grid-baseline, 4px) * 1.5);
+		padding: calc(var(--default-grid-baseline, 4px) * 2.5) 0;
+		border-bottom: 1px solid var(--cobudget-border);
+	}
+
+	.bulk-import-table td {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--cobudget-content-gap);
+		width: auto !important;
+		padding: 2px 0;
+		border-bottom: 0;
+		text-align: end;
+		overflow-wrap: anywhere;
+	}
+
+	.bulk-import-table td[data-label]::before {
+		content: attr(data-label);
+		color: var(--cobudget-text-muted);
+		font-size: var(--cobudget-font-caption);
+		font-weight: 500;
+		text-align: start;
+		flex: 0 0 auto;
+	}
+
+}

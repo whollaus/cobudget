@@ -44,6 +44,16 @@ final class EntryProjectionService {
 		'note',
 	];
 
+	private bool $batchCacheEnabled = false;
+	/** @var array<string, int> */
+	private array $personalWorkspaceCache = [];
+	/** @var array<string, int> */
+	private array $personalCategoryCache = [];
+	/** @var array<string, int> */
+	private array $personalPartnerCache = [];
+	/** @var array<int, array<int, string>>|null */
+	private ?array $deferredNewPersonalHashtagsByWorkspace = null;
+
 	public function __construct(
 		private IDBConnection $db,
 		private EntryShareService $entryShareService,
@@ -61,6 +71,47 @@ final class EntryProjectionService {
 		$shareRows = $this->entryShareService->sharesForEntries([$sourceEntryId])[$sourceEntryId] ?? [];
 
 		return $this->materializeStoredShares($source, $shareRows);
+	}
+
+	/**
+	 * Synchronizes multiple shared entries with request-scoped lookup caching
+	 * and grouped hashtag synchronization per personal workspace.
+	 *
+	 * @param int[] $sourceEntryIds
+	 */
+	public function syncSharedEntries(array $sourceEntryIds, bool $syncAttachments = true): void {
+		$sourceEntryIds = $this->positiveIds($sourceEntryIds);
+		if ($sourceEntryIds === []) {
+			return;
+		}
+
+		$this->batchCacheEnabled = true;
+		$this->personalWorkspaceCache = [];
+		$this->personalCategoryCache = [];
+		$this->personalPartnerCache = [];
+		$this->deferredNewPersonalHashtagsByWorkspace = [];
+
+		try {
+			foreach ($sourceEntryIds as $sourceEntryId) {
+				$source = $this->sourceEntry($sourceEntryId);
+				$this->assertOpenSharedSource($source);
+
+				$this->entryShareService->syncEntry($sourceEntryId);
+				$shareRows = $this->entryShareService->sharesForEntries([$sourceEntryId])[$sourceEntryId] ?? [];
+
+				$this->materializeStoredShares($source, $shareRows, $syncAttachments);
+			}
+
+			foreach ($this->deferredNewPersonalHashtagsByWorkspace as $workspaceId => $descriptionsByEntryId) {
+				$this->hashtagService->syncNewEntriesHashtags((int)$workspaceId, $descriptionsByEntryId);
+			}
+		} finally {
+			$this->batchCacheEnabled = false;
+			$this->personalWorkspaceCache = [];
+			$this->personalCategoryCache = [];
+			$this->personalPartnerCache = [];
+			$this->deferredNewPersonalHashtagsByWorkspace = null;
+		}
 	}
 
 	/**
@@ -84,7 +135,7 @@ final class EntryProjectionService {
 	}
 
 	/** @param array<string, array{share_basis_points: int, amount_cents: int, personal_entry_id: ?int}> $shareRows */
-	private function materializeStoredShares(array $source, array $shareRows): array {
+	private function materializeStoredShares(array $source, array $shareRows, bool $syncAttachments = true): array {
 		$sourceEntryId = (int)$source['id'];
 		$wantedUserIds = [];
 		$personalEntryIds = [];
@@ -106,14 +157,20 @@ final class EntryProjectionService {
 				? $this->insertPersonalEntry($source, $userId, $workspaceId, $amountCents, (int)$allocation['share_basis_points'])
 				: $this->updatePersonalEntry((int)$existing['id'], $source, $userId, $workspaceId, $amountCents, (int)$allocation['share_basis_points']);
 
-			$this->hashtagService->syncEntryHashtags($personalEntryId, $workspaceId, (string)($source['description'] ?? ''));
+			if ($existing === null && $this->deferredNewPersonalHashtagsByWorkspace !== null) {
+				$this->deferredNewPersonalHashtagsByWorkspace[$workspaceId][$personalEntryId] = (string)($source['description'] ?? '');
+			} else {
+				$this->hashtagService->syncEntryHashtags($personalEntryId, $workspaceId, (string)($source['description'] ?? ''));
+			}
 			$this->setShareProjection($sourceEntryId, $userId, $personalEntryId);
 			$wantedUserIds[$userId] = true;
 			$personalEntryIds[$userId] = $personalEntryId;
 		}
 
 		$this->deleteStaleLockedProjections($sourceEntryId, array_keys($wantedUserIds));
-		$this->attachmentProjectionService->syncSharedEntry($sourceEntryId);
+		if ($syncAttachments) {
+			$this->attachmentProjectionService->syncSharedEntry($sourceEntryId);
+		}
 
 		return $personalEntryIds;
 	}
@@ -440,6 +497,11 @@ final class EntryProjectionService {
 	}
 
 	private function personalWorkspaceId(int $projectId, string $userId): int {
+		$cacheKey = $projectId . ':' . $userId;
+		if ($this->batchCacheEnabled && isset($this->personalWorkspaceCache[$cacheKey])) {
+			return $this->personalWorkspaceCache[$cacheKey];
+		}
+
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('personal_workspace_id')
 			->from('cobudget_members')
@@ -448,7 +510,11 @@ final class EntryProjectionService {
 			->setMaxResults(1);
 		$workspaceId = $qb->executeQuery()->fetchOne();
 		if ($workspaceId !== false && $workspaceId !== null && $this->workspaceBelongsToUser((int)$workspaceId, $userId)) {
-			return (int)$workspaceId;
+			$resolvedId = (int)$workspaceId;
+			if ($this->batchCacheEnabled) {
+				$this->personalWorkspaceCache[$cacheKey] = $resolvedId;
+			}
+			return $resolvedId;
 		}
 
 		$workspaceId = $this->defaultWorkspaceId($userId);
@@ -458,6 +524,10 @@ final class EntryProjectionService {
 			->where($update->expr()->eq('project_id', $update->createNamedParameter($projectId, \PDO::PARAM_INT)))
 			->andWhere($update->expr()->eq('user_id', $update->createNamedParameter($userId)));
 		$update->executeStatement();
+
+		if ($this->batchCacheEnabled) {
+			$this->personalWorkspaceCache[$cacheKey] = $workspaceId;
+		}
 
 		return $workspaceId;
 	}
@@ -497,6 +567,11 @@ final class EntryProjectionService {
 	}
 
 	private function personalCategoryId(int $categoryId, int $projectId, string $userId, int $workspaceId): int {
+		$cacheKey = $projectId . ':' . $categoryId . ':' . $userId . ':' . $workspaceId;
+		if ($this->batchCacheEnabled && isset($this->personalCategoryCache[$cacheKey])) {
+			return $this->personalCategoryCache[$cacheKey];
+		}
+
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')
 			->from('cobudget_categories')
@@ -520,6 +595,9 @@ final class EntryProjectionService {
 			$parentCategoryId
 		);
 		if ($existing !== null) {
+			if ($this->batchCacheEnabled) {
+				$this->personalCategoryCache[$cacheKey] = $existing;
+			}
 			return $existing;
 		}
 
@@ -545,7 +623,11 @@ final class EntryProjectionService {
 		]);
 		$insert->executeStatement();
 
-		return (int)$this->db->lastInsertId('*PREFIX*cobudget_categories');
+		$resolvedId = (int)$this->db->lastInsertId('*PREFIX*cobudget_categories');
+		if ($this->batchCacheEnabled) {
+			$this->personalCategoryCache[$cacheKey] = $resolvedId;
+		}
+		return $resolvedId;
 	}
 
 	private function personalCategoryLookupId(string $name, string $type, string $userId, int $workspaceId, ?int $parentCategoryId): ?int {
@@ -571,6 +653,11 @@ final class EntryProjectionService {
 	}
 
 	private function personalPaymentPartnerId(int $partnerId, int $projectId, string $userId, int $workspaceId): int {
+		$cacheKey = $projectId . ':' . $partnerId . ':' . $userId . ':' . $workspaceId;
+		if ($this->batchCacheEnabled && isset($this->personalPartnerCache[$cacheKey])) {
+			return $this->personalPartnerCache[$cacheKey];
+		}
+
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')
 			->from('cobudget_payment_partners')
@@ -584,6 +671,9 @@ final class EntryProjectionService {
 
 		$existing = $this->personalLookupId('cobudget_payment_partners', (string)$row['name'], (string)$row['type'], $userId, $workspaceId);
 		if ($existing !== null) {
+			if ($this->batchCacheEnabled) {
+				$this->personalPartnerCache[$cacheKey] = $existing;
+			}
 			return $existing;
 		}
 
@@ -607,7 +697,11 @@ final class EntryProjectionService {
 		$insert->insert('cobudget_payment_partners')->values($values);
 		$insert->executeStatement();
 
-		return (int)$this->db->lastInsertId('*PREFIX*cobudget_payment_partners');
+		$resolvedId = (int)$this->db->lastInsertId('*PREFIX*cobudget_payment_partners');
+		if ($this->batchCacheEnabled) {
+			$this->personalPartnerCache[$cacheKey] = $resolvedId;
+		}
+		return $resolvedId;
 	}
 
 	private function personalLookupId(string $table, string $name, string $type, string $userId, int $workspaceId): ?int {

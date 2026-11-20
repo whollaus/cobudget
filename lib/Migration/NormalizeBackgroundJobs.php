@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\CoBudget\Migration;
 
+use OCA\CoBudget\Cron\AutoImportJob;
 use OCA\CoBudget\Cron\BackupJob;
 use OCA\CoBudget\Cron\BudgetSnapshotJob;
 use OCA\CoBudget\Cron\RecurringEntriesJob;
@@ -23,6 +24,7 @@ final class NormalizeBackgroundJobs implements IRepairStep {
 		RemindersJob::class,
 		BackupJob::class,
 		BudgetSnapshotJob::class,
+		AutoImportJob::class,
 	];
 
 	public function __construct(

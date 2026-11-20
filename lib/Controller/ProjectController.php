@@ -1,6 +1,7 @@
 <?php
 namespace OCA\CoBudget\Controller;
 
+use OCA\CoBudget\Service\AutoImportRules;
 use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\EntryProjectionService;
 use OCA\CoBudget\Service\DataChangeService;
@@ -40,7 +41,7 @@ class ProjectController extends Controller {
 	private ParticipantService $participantService;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IUserManager $userManager, IConfig $config, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IUserManager $userManager, IConfig $config, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IL10N $l10n, private AutoImportRules $autoImportRules) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
@@ -556,6 +557,8 @@ class ProjectController extends Controller {
 			try {
 				$this->deleteRowsByColumnValues('cobudget_categories', 'project_id', [$id]);
 				$this->deleteRowsByColumnValues('cobudget_payment_partners', 'project_id', [$id]);
+				$this->deleteRowsByColumnValues('cobudget_import_files', 'project_id', [$id]);
+				$this->deleteRowsByColumnValues('cobudget_import_rules', 'project_id', [$id]);
 				$this->deleteRowsByColumnValues('cobudget_members', 'project_id', [$id]);
 
 				$qb = $this->db->getQueryBuilder();
@@ -607,36 +610,40 @@ class ProjectController extends Controller {
 
 	#[NoAdminRequired]
 	public function archive(int $id): DataResponse {
-			try {
-				if ($error = $this->authErrorResponse()) {
-					return $error;
-				}
-
-				if ($validationError = $this->validatePositiveId($id)) {
-					return $validationError;
-				}
-
-				if ($ownerError = $this->requireProjectOwner($id)) {
-					return $ownerError;
-				}
-
-				$project = $this->projectOwnerForCurrentUser($id);
-				if (!$project) {
-					return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
-				}
-				$workspaceId = (int)$project['workspace_id'];
-			if ($this->projectHasOpenSharedPayments($id, $workspaceId)) {
-				return $this->errorResponse('Settle the area before archiving it.', Http::STATUS_CONFLICT);
+		try {
+			if ($error = $this->authErrorResponse()) {
+				return $error;
 			}
-			$qb = $this->db->getQueryBuilder();
-			$qb->update('cobudget_projects')
-				->set('is_archived', $qb->createNamedParameter(true, \PDO::PARAM_BOOL))
-				->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
-				->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
-			$qb->executeStatement();
-			$this->dataChangeService->publishForProject($id, ['projects']);
 
-			return new DataResponse(['status' => 'success']);
+			if ($validationError = $this->validatePositiveId($id)) {
+				return $validationError;
+			}
+
+			if ($ownerError = $this->requireProjectOwner($id)) {
+				return $ownerError;
+			}
+
+			$project = $this->projectOwnerForCurrentUser($id);
+			if (!$project) {
+				return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
+			}
+			$workspaceId = (int)$project['workspace_id'];
+			return $this->autoImportRules->withAreaLock($id, true, function () use ($id, $workspaceId) {
+				if ($this->projectHasOpenSharedPayments($id, $workspaceId)) {
+					return $this->errorResponse('Settle the area before archiving it.', Http::STATUS_CONFLICT);
+				}
+				$qb = $this->db->getQueryBuilder();
+				$qb->update('cobudget_projects')
+					->set('is_archived', $qb->createNamedParameter(true, \PDO::PARAM_BOOL))
+					->where($qb->expr()->eq('id', $qb->createNamedParameter($id, \PDO::PARAM_INT)))
+					->andWhere($qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)));
+				$qb->executeStatement();
+				$this->dataChangeService->publishForProject($id, ['projects']);
+
+				return new DataResponse(['status' => 'success']);
+			});
+		} catch (\OCP\Lock\LockedException) {
+			return $this->errorResponse('This automatic import is running. Try again shortly.', Http::STATUS_CONFLICT);
 		} catch (\Exception $e) {
 			return $this->loggedErrorResponse($e);
 		}

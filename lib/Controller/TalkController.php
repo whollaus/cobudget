@@ -38,7 +38,7 @@ class TalkController extends Controller {
 		if ($user === null) {
 			return new DataResponse(['error' => $this->l10n->t('Not authenticated')], 401);
 		}
-		if (!in_array($channel, ['payments', 'reminders', 'planned'], true)) {
+		if (!in_array($channel, ['payments', 'reminders', 'planned', 'imports'], true)) {
 			return new DataResponse(['error' => $this->l10n->t('Invalid notification channel')], 400);
 		}
 		try {

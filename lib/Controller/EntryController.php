@@ -16,6 +16,7 @@ use OCA\CoBudget\Service\EntryAttachmentProjectionService;
 use OCA\CoBudget\Service\DataChangeService;
 use OCA\CoBudget\Service\ProjectNotificationService;
 use OCA\CoBudget\Service\ParticipantService;
+use OCA\CoBudget\Service\PaymentImportJson;
 use OCA\CoBudget\Service\ReminderService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataDownloadResponse;
@@ -41,6 +42,35 @@ class EntryController extends Controller {
 
 	private const EXPORT_LIMIT = 50000;
 	private const CLIPBOARD_EXPORT_LIMIT = 1000;
+	private const MAX_BULK_IMPORT_ENTRIES = 5000;
+	private const MAX_IMPORT_PACKET_ROWS = 50;
+	// cobudget_entries.date is a signed SQL INTEGER on PostgreSQL and MariaDB.
+	private const MAX_ENTRY_TIMESTAMP = 2_147_483_647;
+	private const MAX_IMPORT_PACKET_BYTES = 196608;
+	private const MAX_BULK_IMPORT_ERRORS = 50;
+	private const BULK_IMPORT_ALLOWED_FIELDS = [
+		'date',
+		'amount',
+		'category',
+		'payment_partner',
+		'description',
+		'important',
+		'review',
+		'fixed_cost',
+		'children',
+		'subscription',
+		'tax_relevant',
+		'insurance',
+	];
+	private const BULK_IMPORT_LABEL_MAP = [
+		'important' => 'is_important',
+		'review' => 'needs_review',
+		'fixed_cost' => 'is_fixed_cost',
+		'children' => 'is_child_related',
+		'subscription' => 'is_subscription',
+		'tax_relevant' => 'is_tax_relevant',
+		'insurance' => 'is_insurance',
+	];
 	private int $reportLookupWorkspaceId;
 	private const MAX_PAGE_SIZE = 250;
 	private const MAX_PAGE_OFFSET = 1000000;
@@ -2902,7 +2932,7 @@ class EntryController extends Controller {
 	}
 
 	private function normalizeEntryRow(array $entry): array {
-		unset($entry['planned_delivery'], $entry['planned_notified']);
+		unset($entry['planned_delivery'], $entry['planned_notified'], $entry['import_key']);
 		$entry = $this->normalizeAmountRow($entry);
 		// Expose the job's effective time without rewriting legacy series timestamps.
 		$entry['recurrence_due_date'] = !empty($entry['recurrence_next_date'])
@@ -3269,6 +3299,744 @@ class EntryController extends Controller {
 			if ($reminderDetails !== null && $e instanceof \InvalidArgumentException) return $this->errorResponse($this->l10n->t('Check the reminder fields. To reactivate, choose a future reminder time.'), 400);
 			return $this->loggedErrorResponse($e);
 		}
+	}
+
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 240, period: 60)]
+	public function importPacket(): DataResponse {
+		if ($error = $this->authErrorResponse()) {
+			return $error;
+		}
+		if ($this->config->getUserValue($this->userId, 'cobudget', 'enable_payment_imports', 'no') !== 'yes') {
+			return $this->errorResponse('Enable payment imports in Settings to use this feature.', Http::STATUS_FORBIDDEN);
+		}
+		if ($this->request->getHeader('Content-Type') !== 'application/octet-stream') {
+			return $this->errorResponse('Expected a binary import packet.', 415);
+		}
+		$length = $this->request->getHeader('Content-Length');
+		if ($length !== '' && (!ctype_digit($length) || (int)$length > self::MAX_IMPORT_PACKET_BYTES)) {
+			return $this->errorResponse('Incomplete or oversized import packet.', 413);
+		}
+		$stream = $this->request->put;
+		if (!is_resource($stream)) {
+			return $this->errorResponse('Missing import packet.', 400);
+		}
+		try {
+			$body = stream_get_contents($stream, self::MAX_IMPORT_PACKET_BYTES + 1);
+		} finally {
+			fclose($stream);
+		}
+		if ($body !== false && strlen($body) > self::MAX_IMPORT_PACKET_BYTES) {
+			return $this->errorResponse('Incomplete or oversized import packet.', 413);
+		}
+		if ($body === false || ($length !== '' && strlen($body) !== (int)$length)) {
+			return $this->errorResponse('Incomplete or oversized import packet.', 400);
+		}
+		try {
+			$packet = PaymentImportJson::decode($body, true, 8);
+		} catch (\JsonException $e) {
+			return $this->errorResponse('Invalid import packet.', 400);
+		}
+		if (!is_array($packet) || !is_string($packet['importId'] ?? null)
+			|| !preg_match('/^[a-f0-9]{64}$/D', $packet['importId'])
+			|| !is_int($packet['offset'] ?? null) || !is_bool($packet['dryRun'] ?? null)
+			|| !is_array($packet['payments'] ?? null) || !array_is_list($packet['payments'])
+			|| (isset($packet['projectId']) && !is_int($packet['projectId']))
+			|| (isset($packet['scope']) && !is_string($packet['scope']))
+			|| (!$packet['dryRun'] && empty($packet['scope']))) {
+			return $this->errorResponse('Invalid import packet.', 400);
+		}
+		return $this->bulkImport($packet['projectId'] ?? null, $packet['payments'], $packet['dryRun'],
+			$packet['importId'], $packet['offset'], $packet['scope'] ?? null);
+	}
+
+	/** Build an isolated import context for a stored rule without changing the cron session. */
+	public function forScheduledImport(string $userId, int $workspaceId, string $timezone): self {
+		$context = clone $this;
+		$context->userId = $userId;
+		$user = \OCP\Server::get(\OCP\IUserManager::class)->get($userId);
+		if (!$user || !$user->isEnabled() || !$context->workspaceBelongsToUser($workspaceId)) {
+			throw new \DomainException('The account or workspace is no longer available.');
+		}
+		$context->workspaceId = $workspaceId;
+		$context->workspaceHeaderErrorResponse = null;
+		$context->calendarTimezone = new \DateTimeZone($timezone);
+		$languages = \OCP\Server::get(\OCP\L10N\IFactory::class);
+		$context->l10n = $languages->get('cobudget', $languages->getUserLanguage($user));
+		return $context;
+	}
+
+	/** Recover the currency of an unfinished delivery from before it was stored in the journal. */
+	private function previousImportCurrency(string $scope, string $importId, int $previousRows): ?string {
+		for ($start = 0; $start < $previousRows; $start += self::MAX_IMPORT_PACKET_ROWS) {
+			$keys = [];
+			for ($i = $start; $i < min($previousRows, $start + self::MAX_IMPORT_PACKET_ROWS); $i++) {
+				$keys[] = hash('sha256', $scope . $importId . ':' . $i);
+			}
+			$q = $this->db->getQueryBuilder();
+			$result = $q->select('currency')->from('cobudget_entries')
+				->where($q->expr()->in('import_key', $q->createNamedParameter($keys, IQueryBuilder::PARAM_STR_ARRAY)))
+				->orderBy('id')->setMaxResults(1)->executeQuery();
+			try {
+				$value = $result->fetchOne();
+				if (is_string($value) && $value !== '') return $value;
+			} finally {
+				$result->closeCursor();
+			}
+		}
+		return null;
+	}
+
+	public function bulkImport(?int $projectId, array $payments, bool $dryRun, string $importId, int $offset = 0, ?string $expectedScope = null, ?string $deliveryCurrency = null, int $previousRows = 0): DataResponse {
+		try {
+			if ($error = $this->authErrorResponse()) {
+				return $error;
+			}
+
+			$commitLimit = self::MAX_IMPORT_PACKET_ROWS;
+			if ($projectId !== null) {
+				if ($projectId <= 0) {
+					return $this->errorResponse('Invalid area id', Http::STATUS_BAD_REQUEST);
+				}
+				if ($this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_projects', 'yes') !== 'yes') {
+					return $this->errorResponse('Areas are disabled.', Http::STATUS_FORBIDDEN);
+				}
+				$project = $this->projectVisibleForCurrentUser($projectId);
+				if ($project === null) {
+					return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
+				}
+				if ($this->dbBool($project['is_archived'] ?? false)) {
+					return $this->errorResponse('Archived areas cannot accept new payments.', Http::STATUS_CONFLICT);
+				}
+				$workspaceId = (int)$project['workspace_id'];
+				$isAreaOwner = (string)($project['owner_id'] ?? '') === (string)$this->userId;
+				$memberCount = $this->projectMemberCountInActiveWorkspace($projectId);
+				if ($memberCount === null || $memberCount < 1) {
+					return $this->errorResponse('Area not found or not in the active workspace', Http::STATUS_FORBIDDEN);
+				}
+				$entryKind = $memberCount > 1 ? 'shared' : 'personal';
+				// One write packet creates at most 100 member projections.
+				$commitLimit = min($commitLimit, max(1, intdiv(100, $memberCount)));
+				if ($entryKind === 'shared' && $this->projectHasFormerMember($projectId)) {
+					return $this->errorResponse(
+						$this->l10n->t('This area contains a former member. Settle existing payments and remove the former member before creating new payments.'),
+						Http::STATUS_CONFLICT
+					);
+				}
+			} else {
+				$workspaceId = $this->getWorkspaceId();
+				if ($workspaceId === null) {
+					return $this->errorResponse('Invalid workspace id', Http::STATUS_BAD_REQUEST);
+				}
+				$isAreaOwner = true;
+				$entryKind = 'personal';
+			}
+
+			if (!is_array($payments) || $payments === []) {
+				return $this->errorResponse('The import file contains no payments.', Http::STATUS_BAD_REQUEST);
+			}
+			if (count($payments) > self::MAX_IMPORT_PACKET_ROWS) {
+				return $this->errorResponse('An import packet may contain at most 50 payments.', Http::STATUS_BAD_REQUEST);
+			}
+			if ($offset < 0 || $offset + count($payments) > self::MAX_BULK_IMPORT_ENTRIES) {
+				return $this->errorResponse(
+					(string)$this->l10n->t('A bulk import may contain at most %s payments.', [(string)self::MAX_BULK_IMPORT_ENTRIES]),
+					Http::STATUS_BAD_REQUEST
+				);
+			}
+
+			if (!$dryRun && count($payments) > $commitLimit) {
+				return $this->errorResponse('The import target has changed. Open the preview again.', 409);
+			}
+			$scope = hash('sha256', json_encode([$this->userId, $workspaceId, $projectId], JSON_THROW_ON_ERROR));
+			if ($expectedScope !== null && $scope !== $expectedScope) {
+				return $this->errorResponse('The import target has changed. Open the preview again.', 409);
+			}
+			$keys = [];
+			foreach (array_keys($payments) as $index) {
+				$keys[$index] = hash('sha256', $scope . $importId . ':' . ($offset + $index));
+			}
+			$query = $this->db->getQueryBuilder();
+			$result = $query->select('import_key')->from('cobudget_entries')
+				->where($query->expr()->in('import_key', $query->createNamedParameter($keys, IQueryBuilder::PARAM_STR_ARRAY)))
+				->executeQuery();
+			$saved = array_flip(array_column($result->fetchAll(), 'import_key'));
+			$result->closeCursor();
+			$incomesEnabled = $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_incomes', 'yes') === 'yes';
+			$futureEnabled = $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_future_payments', 'yes') === 'yes';
+			$enabledLabels = [
+				'important' => $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_important_payments', 'yes') === 'yes',
+				'review' => $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_review_payments', 'yes') === 'yes',
+				'fixed_cost' => $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_fixed_costs', 'yes') === 'yes',
+				'children' => $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_child_related', 'yes') === 'yes',
+				'subscription' => $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_subscriptions', 'yes') === 'yes',
+				'tax_relevant' => $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_tax_relevant', 'yes') === 'yes',
+				'insurance' => $this->config->getUserValue((string)$this->userId, 'cobudget', 'enable_insurance', 'yes') === 'yes',
+			];
+			$currency = $deliveryCurrency ?? $this->previousImportCurrency($scope, $importId, $previousRows) ?? $this->effectiveCurrency();
+
+			$existingCategories = $this->loadBulkImportLookupMap('cobudget_categories', $workspaceId, $projectId, array_column($payments, 'category'));
+			$existingPartners = $this->loadBulkImportLookupMap('cobudget_payment_partners', $workspaceId, $projectId, array_column($payments, 'payment_partner'));
+
+			$timezone = $this->calendarDate()->getTimezone();
+			$now = time();
+			$todayStr = $this->calendarDate($now)->format('Y-m-d');
+
+			$errors = [];
+			$normalizedRows = [];
+			$newCategories = [];
+			$newPaymentPartners = [];
+			$expenseCount = 0;
+			$expenseCents = 0;
+			$incomeCount = 0;
+			$incomeCents = 0;
+
+			foreach ($payments as $index => $rawRow) {
+				if (isset($saved[$keys[$index]])) {
+					continue;
+				}
+				$rowNum = $offset + $index + 1;
+				if (count($errors) >= self::MAX_BULK_IMPORT_ERRORS) {
+					break;
+				}
+				if (!is_array($rawRow) || ($rawRow !== [] && array_is_list($rawRow))) {
+					$errors[] = (string)$this->l10n->t('Row %s: Expected a JSON object.', [(string)$rowNum]);
+					continue;
+				}
+
+				$rowError = false;
+				foreach (array_keys($rawRow) as $key) {
+					if (!is_string($key) || !in_array($key, self::BULK_IMPORT_ALLOWED_FIELDS, true)) {
+						$errors[] = (string)$this->l10n->t('Row %1$s: Unknown field "%2$s".', [(string)$rowNum, (string)$key]);
+						$rowError = true;
+						if (count($errors) >= self::MAX_BULK_IMPORT_ERRORS) {
+							break;
+						}
+					}
+				}
+				if ($rowError) {
+					continue;
+				}
+
+				$dateStr = $rawRow['date'] ?? null;
+				$timestamp = $this->parseBulkImportTimestamp($dateStr, $timezone, $now, $todayStr);
+				if ($timestamp === null) {
+					$errors[] = (string)$this->l10n->t('Row %s: Invalid date. Expected format YYYY-MM-DD.', [(string)$rowNum]);
+					$rowError = true;
+				} elseif ($timestamp > self::MAX_ENTRY_TIMESTAMP) {
+					$errors[] = (string)$this->l10n->t('Row %1$s: The date %2$s is too late to store as a payment.', [(string)$rowNum, $dateStr]);
+					$rowError = true;
+				} elseif ((string)$dateStr > $todayStr && !$futureEnabled) {
+					$errors[] = (string)$this->l10n->t('Row %s: Planned payments in the future are disabled in your settings.', [(string)$rowNum]);
+					$rowError = true;
+				}
+
+				$signedCents = $this->parseBulkImportAmountCents($rawRow['amount'] ?? null);
+				$type = null;
+				$amountCents = 0;
+				if ($signedCents === null || $signedCents === 0) {
+					$errors[] = (string)$this->l10n->t('Row %s: Invalid amount. Use a non-zero amount with up to two decimal places, for example -45.90.', [(string)$rowNum]);
+					$rowError = true;
+				} else {
+					$type = $signedCents < 0 ? 'expense' : 'income';
+					$amountCents = abs($signedCents);
+					if ($type === 'income' && !$incomesEnabled) {
+						$errors[] = (string)$this->l10n->t('Row %s: Income payments are disabled in your settings.', [(string)$rowNum]);
+						$rowError = true;
+					}
+				}
+
+				$categoryName = $this->parseBulkImportLookupName($rawRow['category'] ?? null, $categoryValid);
+				if (!$categoryValid) {
+					$errors[] = (string)$this->l10n->t('Row %s: Invalid category. Must be text up to 128 characters.', [(string)$rowNum]);
+					$rowError = true;
+				}
+
+				$partnerName = $this->parseBulkImportLookupName($rawRow['payment_partner'] ?? null, $partnerValid);
+				if (!$partnerValid) {
+					$errors[] = (string)$this->l10n->t('Row %s: Invalid payment partner. Must be text up to 128 characters.', [(string)$rowNum]);
+					$rowError = true;
+				}
+
+				$description = $this->parseBulkImportDescription($rawRow['description'] ?? null, $descriptionValid);
+				if (!$descriptionValid) {
+					$errors[] = (string)$this->l10n->t('Row %s: Invalid description. Must be text up to 512 characters.', [(string)$rowNum]);
+					$rowError = true;
+				}
+
+				$flags = [];
+				foreach (self::BULK_IMPORT_LABEL_MAP as $jsonKey => $dbColumn) {
+					$rawFlag = array_key_exists($jsonKey, $rawRow) ? $rawRow[$jsonKey] : 0;
+					if ($rawFlag === null) {
+						$rawFlag = 0;
+					}
+					$parsedFlag = $this->parseBulkImportLabelFlag($rawFlag);
+					if ($parsedFlag === null) {
+						$errors[] = (string)$this->l10n->t('Row %1$s: Invalid value for "%2$s". Allowed values are 0 or 1.', [(string)$rowNum, $jsonKey]);
+						$rowError = true;
+						$flags[$dbColumn] = false;
+						continue;
+					}
+					$allowedForType = !in_array($jsonKey, ['fixed_cost', 'subscription'], true) || $type === 'expense';
+					$flags[$dbColumn] = $parsedFlag && $enabledLabels[$jsonKey] && $allowedForType;
+				}
+
+				if ($rowError || $type === null || $timestamp === null) {
+					continue;
+				}
+
+				$categoryId = null;
+				$resolvedCategoryName = '';
+				$isNewCategory = false;
+				$categoryKey = '';
+				if ($categoryName !== '') {
+					$categoryKey = $type . ':' . $this->normalizeVisibleName($categoryName);
+					if (isset($existingCategories[$categoryKey])) {
+						$categoryId = (int)$existingCategories[$categoryKey]['id'];
+						$resolvedCategoryName = (string)$existingCategories[$categoryKey]['name'];
+					} else {
+						$resolvedCategoryName = $categoryName;
+						$isNewCategory = true;
+						if (!isset($newCategories[$categoryKey])) {
+							$newCategories[$categoryKey] = [
+								'key' => $categoryKey,
+								'name' => $categoryName,
+								'type' => $type,
+							];
+						}
+					}
+				}
+
+				$partnerId = null;
+				$resolvedPartnerName = '';
+				$isNewPartner = false;
+				$partnerKey = '';
+				if ($partnerName !== '') {
+					$partnerKey = $type . ':' . $this->normalizeVisibleName($partnerName);
+					if (isset($existingPartners[$partnerKey])) {
+						$partnerId = (int)$existingPartners[$partnerKey]['id'];
+						$resolvedPartnerName = (string)$existingPartners[$partnerKey]['name'];
+					} else {
+						$resolvedPartnerName = $partnerName;
+						$isNewPartner = true;
+						if (!isset($newPaymentPartners[$partnerKey])) {
+							$newPaymentPartners[$partnerKey] = [
+								'key' => $partnerKey,
+								'name' => $partnerName,
+								'type' => $type,
+							];
+						}
+					}
+				}
+
+				if ($type === 'expense') {
+					$expenseCount++;
+					$expenseCents += $amountCents;
+				} else {
+					$incomeCount++;
+					$incomeCents += $amountCents;
+				}
+
+				$normalizedRows[] = [
+					'rowNumber' => $rowNum,
+					'date' => (string)$dateStr,
+					'timestamp' => $timestamp,
+					'type' => $type,
+					'amountCents' => $amountCents,
+					'signedAmount' => ($type === 'expense' ? -1 : 1) * ($amountCents / 100),
+					'categoryKey' => $categoryKey,
+					'categoryId' => $categoryId,
+					'categoryName' => $resolvedCategoryName,
+					'isNewCategory' => $isNewCategory,
+					'paymentPartnerKey' => $partnerKey,
+					'paymentPartnerId' => $partnerId,
+					'paymentPartnerName' => $resolvedPartnerName,
+					'isNewPaymentPartner' => $isNewPartner,
+					'description' => $description,
+					'flags' => $flags,
+				];
+			}
+
+			$permissionBlocked = false;
+			if ($projectId !== null && !$isAreaOwner && ($newCategories !== [] || $newPaymentPartners !== [])) {
+				$permissionBlocked = true;
+				$missing = [];
+				if ($newCategories) {
+					$missing[] = $this->l10n->t('Missing categories: %s.', [implode(', ', array_unique(array_column($newCategories, 'name')))]);
+				}
+				if ($newPaymentPartners) {
+					$missing[] = $this->l10n->t('Missing payment partners: %s.', [implode(', ', array_unique(array_column($newPaymentPartners, 'name')))]);
+				}
+				$errors[] = implode(' ', $missing);
+			}
+
+			if ($errors !== []) {
+				$status = $permissionBlocked && count($errors) === 1
+					? Http::STATUS_FORBIDDEN
+					: Http::STATUS_BAD_REQUEST;
+				return new DataResponse([
+					'error' => $errors[0],
+					'errors' => $errors,
+					'valid' => false,
+				], $status);
+			}
+
+			if ($dryRun) {
+				$previewRows = array_map(static function(array $row): array {
+					return [
+						'rowNumber' => $row['rowNumber'],
+						'date' => $row['date'],
+						'type' => $row['type'],
+						'amountCents' => $row['amountCents'],
+						'signedAmount' => $row['signedAmount'],
+						'categoryName' => $row['categoryName'],
+						'isNewCategory' => $row['isNewCategory'],
+						'paymentPartnerName' => $row['paymentPartnerName'],
+						'isNewPaymentPartner' => $row['isNewPaymentPartner'],
+						'description' => $row['description'],
+						'is_important' => $row['flags']['is_important'],
+						'needs_review' => $row['flags']['needs_review'],
+						'is_fixed_cost' => $row['flags']['is_fixed_cost'],
+						'is_child_related' => $row['flags']['is_child_related'],
+						'is_subscription' => $row['flags']['is_subscription'],
+						'is_tax_relevant' => $row['flags']['is_tax_relevant'],
+						'is_insurance' => $row['flags']['is_insurance'],
+					];
+				}, $normalizedRows);
+
+				return new DataResponse([
+					'status' => 'preview',
+					'scope' => $scope,
+					'commitLimit' => $commitLimit,
+					'skippedCount' => count($saved),
+					'valid' => true,
+					'summary' => [
+						'totalCount' => count($normalizedRows),
+						'expenseCount' => $expenseCount,
+						'expenseTotal' => $expenseCents / 100,
+						'incomeCount' => $incomeCount,
+						'incomeTotal' => $incomeCents / 100,
+						'currency' => $currency,
+					],
+					'newCategories' => array_values(array_map(static fn(array $item): array => [
+						'name' => $item['name'],
+						'type' => $item['type'],
+					], $newCategories)),
+					'newPaymentPartners' => array_values(array_map(static fn(array $item): array => [
+						'name' => $item['name'],
+						'type' => $item['type'],
+					], $newPaymentPartners)),
+					'rows' => $previewRows,
+				]);
+			}
+
+			if (!$normalizedRows) {
+				return new DataResponse(['status' => 'success', 'currency' => $currency, 'importedCount' => 0, 'skippedCount' => count($saved),
+					'createdCategoriesCount' => 0, 'createdPaymentPartnersCount' => 0]);
+			}
+
+			$this->db->beginTransaction();
+			try {
+				$createdCategoryIds = [];
+				foreach ($newCategories as $key => $item) {
+					$createdCategoryIds[$key] = $this->insertBulkImportLookup(
+						'cobudget_categories',
+						$item['name'],
+						$item['type'],
+						$workspaceId,
+						$projectId,
+						true
+					);
+				}
+
+				$createdPartnerIds = [];
+				foreach ($newPaymentPartners as $key => $item) {
+					$createdPartnerIds[$key] = $this->insertBulkImportLookup(
+						'cobudget_payment_partners',
+						$item['name'],
+						$item['type'],
+						$workspaceId,
+						$projectId,
+						false
+					);
+				}
+
+				$entryDescriptionsByEntryId = [];
+				$sharedEntryIds = [];
+				foreach ($normalizedRows as $row) {
+					$categoryId = $row['categoryId'] ?? ($row['categoryKey'] !== '' ? ($createdCategoryIds[$row['categoryKey']] ?? null) : null);
+					$partnerId = $row['paymentPartnerId'] ?? ($row['paymentPartnerKey'] !== '' ? ($createdPartnerIds[$row['paymentPartnerKey']] ?? null) : null);
+
+					$qb = $this->db->getQueryBuilder();
+					$qb->insert('cobudget_entries')
+						->values([
+							'user_id' => $qb->createNamedParameter((string)$this->userId),
+							'import_key' => $qb->createNamedParameter($keys[$row['rowNumber'] - $offset - 1]),
+							'created_by' => $qb->createNamedParameter((string)$this->userId),
+							'project_id' => $qb->createNamedParameter($projectId, $projectId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+							'entry_kind' => $qb->createNamedParameter($entryKind),
+							'source_entry_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'is_locked' => $qb->createNamedParameter(false, \PDO::PARAM_BOOL),
+							'allocation_basis_points' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'type' => $qb->createNamedParameter($row['type']),
+							'amount' => $qb->createNamedParameter($this->centsToAmountString($row['amountCents'])),
+							'amount_cents' => $qb->createNamedParameter($row['amountCents'], \PDO::PARAM_INT),
+							'currency' => $qb->createNamedParameter($currency),
+							'date' => $qb->createNamedParameter($row['timestamp'], \PDO::PARAM_INT),
+							'category_id' => $qb->createNamedParameter($categoryId, $categoryId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+							'description' => $qb->createNamedParameter($row['description']),
+							'payment_partner_id' => $qb->createNamedParameter($partnerId, $partnerId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+							'split_mode' => $qb->createNamedParameter('project_shares'),
+							'split_user_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'is_settled' => $qb->createNamedParameter(false, \PDO::PARAM_BOOL),
+							'recurrence_interval' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'recurrence_multiplier' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'recurrence_next_date' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'recurrence_end_date' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'is_subscription' => $qb->createNamedParameter($row['flags']['is_subscription'], \PDO::PARAM_BOOL),
+							'is_fixed_cost' => $qb->createNamedParameter($row['flags']['is_fixed_cost'], \PDO::PARAM_BOOL),
+							'is_child_related' => $qb->createNamedParameter($row['flags']['is_child_related'], \PDO::PARAM_BOOL),
+							'is_important' => $qb->createNamedParameter($row['flags']['is_important'], \PDO::PARAM_BOOL),
+							'needs_review' => $qb->createNamedParameter($row['flags']['needs_review'], \PDO::PARAM_BOOL),
+							'is_tax_relevant' => $qb->createNamedParameter($row['flags']['is_tax_relevant'], \PDO::PARAM_BOOL),
+							'is_insurance' => $qb->createNamedParameter($row['flags']['is_insurance'], \PDO::PARAM_BOOL),
+							'reminder_date' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'planned_notified' => $qb->createNamedParameter(true, \PDO::PARAM_BOOL),
+							'reminder_notified' => $qb->createNamedParameter(false, \PDO::PARAM_BOOL),
+							'reminder_text' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'recurrence_parent_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'recurrence_series_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
+							'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
+						]);
+					$qb->executeStatement();
+
+					$entryId = (int)$this->db->lastInsertId('*PREFIX*cobudget_entries');
+					$entryDescriptionsByEntryId[$entryId] = $row['description'];
+					if ($entryKind === 'shared') {
+						$sharedEntryIds[] = $entryId;
+					}
+				}
+				$this->hashtagService->syncNewEntriesHashtags($workspaceId, $entryDescriptionsByEntryId);
+				if ($sharedEntryIds !== []) {
+					$this->entryProjectionService->syncSharedEntries($sharedEntryIds, false);
+				}
+				$this->db->commit();
+			} catch (\Throwable $e) {
+				$this->db->rollBack();
+				throw $e;
+			}
+
+			// Notifications are deliberately suppressed for bulk imports.
+			$this->dataChangeService->publishForEntry([
+				'entry_kind' => $entryKind,
+				'project_id' => $projectId,
+				'user_id' => (string)$this->userId,
+			], ['entries', 'projects', 'analytics', 'budgets']);
+
+			return new DataResponse([
+				'status' => 'success',
+				'importedCount' => count($normalizedRows),
+				'currency' => $currency,
+				'skippedCount' => count($saved),
+				'createdCategoriesCount' => count($newCategories),
+				'createdPaymentPartnersCount' => count($newPaymentPartners),
+			]);
+		} catch (\OCP\DB\Exception $e) {
+			if ($e->getReason() === \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				return $this->errorResponse('A concurrent import changed this packet. Retry the same file.', 409);
+			}
+			return $this->loggedErrorResponse($e);
+		} catch (\Throwable $e) {
+			return $this->loggedErrorResponse($e);
+		}
+	}
+
+	/** @return array<string, array{id: int, name: string}> */
+	private function loadBulkImportLookupMap(string $table, int $workspaceId, ?int $projectId, array $names): array {
+		$wanted = [];
+		foreach ($names as $name) {
+			if (is_string($name)) {
+				$wanted[$this->normalizeVisibleName($name)] = true;
+			}
+		}
+		if (!$wanted) return [];
+		$qb = $this->db->getQueryBuilder();
+		$globalScope = $qb->expr()->andX(
+			$qb->expr()->eq('is_global', $qb->createNamedParameter(true, \PDO::PARAM_BOOL)),
+			$qb->expr()->eq('is_hidden', $qb->createNamedParameter(false, \PDO::PARAM_BOOL))
+		);
+		$localScope = $projectId !== null
+			? $qb->expr()->andX(
+				$qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)),
+				$qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)),
+				$qb->expr()->eq('project_id', $qb->createNamedParameter($projectId, \PDO::PARAM_INT))
+			)
+			: $qb->expr()->andX(
+				$qb->expr()->eq('is_global', $qb->createNamedParameter(false, \PDO::PARAM_BOOL)),
+				$qb->expr()->eq('user_id', $qb->createNamedParameter((string)$this->userId)),
+				$qb->expr()->eq('workspace_id', $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT)),
+				$qb->expr()->isNull('project_id')
+			);
+
+		$qb->select('id', 'name', 'type', 'is_global')
+			->from($table)
+			->where($qb->expr()->orX($globalScope, $localScope))
+			->orderBy('is_global', 'DESC')
+			->addOrderBy('id', 'ASC');
+		$result = $qb->executeQuery();
+		$map = [];
+		while ($row = $result->fetch()) {
+			$type = (string)($row['type'] ?? 'expense');
+			$name = (string)($row['name'] ?? '');
+			$normalized = $this->normalizeVisibleName($name);
+			if (!isset($wanted[$normalized])) continue;
+			$key = $type . ':' . $normalized;
+			if (!isset($map[$key])) {
+				$map[$key] = [
+					'id' => (int)$row['id'],
+					'name' => $name,
+				];
+			}
+		}
+
+		$result->closeCursor();
+		return $map;
+	}
+
+	private function insertBulkImportLookup(string $table, string $name, string $type, int $workspaceId, ?int $projectId, bool $withIcon): int {
+		$values = [
+			'name' => null,
+			'type' => null,
+			'is_global' => null,
+			'is_hidden' => null,
+			'user_id' => null,
+			'workspace_id' => null,
+			'project_id' => null,
+		];
+		$qb = $this->db->getQueryBuilder();
+		$values['name'] = $qb->createNamedParameter($name);
+		$values['type'] = $qb->createNamedParameter($type);
+		$values['is_global'] = $qb->createNamedParameter(false, \PDO::PARAM_BOOL);
+		$values['is_hidden'] = $qb->createNamedParameter(false, \PDO::PARAM_BOOL);
+		$values['user_id'] = $qb->createNamedParameter((string)$this->userId);
+		$values['workspace_id'] = $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT);
+		$values['project_id'] = $projectId === null
+			? $qb->createNamedParameter(null, \PDO::PARAM_NULL)
+			: $qb->createNamedParameter($projectId, \PDO::PARAM_INT);
+		if ($withIcon) {
+			$values['icon'] = $qb->createNamedParameter('Shape');
+		}
+
+		$qb->insert($table)->values($values);
+		$qb->executeStatement();
+
+		return (int)$this->db->lastInsertId('*PREFIX*' . $table);
+	}
+
+	private function parseBulkImportTimestamp(mixed $value, \DateTimeZone $timezone, int $now, string $todayStr): ?int {
+		if (!is_string($value) || preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches) !== 1) {
+			return null;
+		}
+		$year = (int)$matches[1];
+		$month = (int)$matches[2];
+		$day = (int)$matches[3];
+		if ($year < 1970 || !checkdate($month, $day, $year)) {
+			return null;
+		}
+
+		$noon = new \DateTimeImmutable($value . ' 12:00:00', $timezone);
+		$timestamp = $noon->getTimestamp();
+		if ($value === $todayStr && $timestamp > $now) {
+			return $now;
+		}
+
+		return $timestamp;
+	}
+
+	private function parseBulkImportAmountCents(mixed $rawAmount): ?int {
+		if (is_int($rawAmount)) {
+			$normalized = (string)$rawAmount;
+		} elseif (is_float($rawAmount)) {
+			if (!is_finite($rawAmount)) {
+				return null;
+			}
+			// A numeric JSON value must already equal a whole number of cents.
+			$normalized = sprintf('%.2F', $rawAmount);
+			if ((float)$normalized !== $rawAmount) return null;
+		} elseif (is_string($rawAmount)) {
+			$normalized = trim($rawAmount);
+		} else {
+			return null;
+		}
+
+		if (preg_match('/^([+-]?)(\d+)(?:\.(\d{1,2}))?$/', $normalized, $matches) !== 1) {
+			return null;
+		}
+
+		$sign = $matches[1] === '-' ? -1 : 1;
+		$wholeDigits = ltrim($matches[2], '0');
+		if (strlen($wholeDigits) > 8) {
+			return null;
+		}
+		$whole = $wholeDigits === '' ? 0 : (int)$wholeDigits;
+		$fraction = isset($matches[3]) ? (int)str_pad($matches[3], 2, '0', STR_PAD_RIGHT) : 0;
+		$cents = ($whole * 100) + $fraction;
+		if ($cents <= 0 || $cents > 9999999999) {
+			return null;
+		}
+
+		return $sign * $cents;
+	}
+
+	private function parseBulkImportLookupName(mixed $value, ?bool &$valid = null): string {
+		if ($value === null) {
+			$valid = true;
+			return '';
+		}
+		if (!is_string($value) || !mb_check_encoding($value, 'UTF-8') || str_contains($value, "\u{FFFD}") || preg_match('/[\x00-\x1F\x7F]/', $value) === 1) {
+			$valid = false;
+			return '';
+		}
+
+		$normalized = trim((string)preg_replace('/\s+/u', ' ', $value));
+		if (mb_strlen($normalized) > 128) {
+			$valid = false;
+			return '';
+		}
+
+		$valid = true;
+		return $normalized;
+	}
+
+	private function parseBulkImportDescription(mixed $value, ?bool &$valid = null): string {
+		if ($value === null) {
+			$valid = true;
+			return '';
+		}
+		if (!is_string($value) || !mb_check_encoding($value, 'UTF-8') || str_contains($value, "\u{FFFD}") || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', $value) === 1) {
+			$valid = false;
+			return '';
+		}
+
+		$normalized = trim($value);
+		if (mb_strlen($normalized) > 512) {
+			$valid = false;
+			return '';
+		}
+
+		$valid = true;
+		return $normalized;
+	}
+
+	private function parseBulkImportLabelFlag(mixed $value): ?bool {
+		if ($value === 0 || $value === false || $value === '0') {
+			return false;
+		}
+		if ($value === 1 || $value === true || $value === '1') {
+			return true;
+		}
+
+		return null;
 	}
 
 	#[NoAdminRequired]

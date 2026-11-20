@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\CoBudget\Service;
 
+use OCA\CoBudget\Cron\AutoImportJob;
 use OCA\CoBudget\Cron\BackupJob;
 use OCA\CoBudget\Cron\BudgetSnapshotJob;
 use OCA\CoBudget\Cron\RecurringEntriesJob;
@@ -19,6 +20,7 @@ final class BackgroundJobService {
 		RemindersJob::class,
 		BackupJob::class,
 		BudgetSnapshotJob::class,
+		AutoImportJob::class,
 	];
 
 	public function __construct(

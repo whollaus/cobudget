@@ -70,6 +70,10 @@ See [payments and shares in CoBudget](docs/concept.md) for an example.
   settings. Choose Once in the interval list to disable repeating, or clear the
   reminder date and save to remove the reminder.
 
+### Import payments from JSON
+
+Enable **Payment imports** under **Settings → Features** to use either import method. The [payment import guide](docs/payment-imports.md) covers the JSON format, manual bulk imports with a preview and automatic imports from Nextcloud folders. Open a filename in an automatic import result to inspect the delivery in Nextcloud Files.
+
 ## Reminders
 
 - Open reminders show Today or N days ago alongside their date; overdue open rows have a subtle highlight. Completed and archived reminders retain their status colors.
@@ -195,6 +199,10 @@ See [Operating CoBudget](docs/operations.md) for cron diagnostics and Talk setup
 - Review open member balances, suggested repayments and immutable settlement
   history, and export settled payments as CSV (download, save in Nextcloud, or
   copy up to 1,000 payments to the clipboard) from the settlements action menu.
+- Bulk-import up to 5,000 payments from JSON directly into an active shared area
+  with the uploader recorded as payer and creator under the area's default split,
+  dry-run preview highlighting any new area-scoped categories or payment partners,
+  area-admin-only creation of missing master data, and suppressed notifications.
   The settlement confirmation uses all open shared payments, regardless
   of current table filters or pagination.
 - Member, default-share and archival changes require all open shared payments to

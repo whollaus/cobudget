@@ -159,7 +159,7 @@ namespace CoBudget\Tests {
 			$report = $service->check(true);
 			$t->assertTrue($report['healthy'], 'Restored registrations should pass');
 			$t->assertSame([$classes[1], $classes[2]], $queue->added, 'Only missing CoBudget jobs should be registered');
-			$t->assertSame([false, true, true, false], array_column($report['jobs'], 'restored'), 'The report should identify exactly what was restored');
+			$t->assertSame(array_map(static fn(string $class): bool => in_array($class, [$classes[1], $classes[2]], true), $classes), array_column($report['jobs'], 'restored'), 'The report should identify exactly what was restored');
 			foreach ($before as $class => $rows) {
 				$t->assertSame($rows, $queue->rows[$class], 'Existing jobs must keep their timestamps and reservations');
 			}
@@ -167,7 +167,7 @@ namespace CoBudget\Tests {
 			$secondReport = $service->check(true);
 			$t->assertSame($after, $queue->rows, 'Running repair twice must leave existing queue state intact');
 			$t->assertSame([$classes[1], $classes[2]], $queue->added, 'A second repair must not re-add or reset jobs');
-			$t->assertSame([false, false, false, false], array_column($secondReport['jobs'], 'restored'), 'An idempotent repair should report no new registrations');
+			$t->assertSame(array_fill(0, count($classes), false), array_column($secondReport['jobs'], 'restored'), 'An idempotent repair should report no new registrations');
 		},
 
 		'Background job repair preserves working legacy empty-array registrations' => function (TestRunner $t) use ($fixture, $classes): void {

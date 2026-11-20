@@ -12,6 +12,7 @@ use Psr\Log\LoggerInterface;
 
 class TalkNotificationService {
 	public const SETTING = 'notify_project_entries_talk';
+	public const IMPORT_SETTING = 'notify_automatic_imports_talk';
 	public const TOKEN = 'talk_personal_token';
 	public const PLANNED_SETTING = 'notify_planned_payments_talk';
 	public const REMINDER_SETTING = 'notify_reminders_talk';
@@ -39,6 +40,7 @@ class TalkNotificationService {
 		return [
 			'available' => $available,
 			'enabled' => $this->config->getUserValue($userId, 'cobudget', self::SETTING, 'no') === 'yes',
+			'imports_enabled' => $this->config->getUserValue($userId, 'cobudget', self::IMPORT_SETTING, 'no') === 'yes',
 			'planned_enabled' => $this->config->getUserValue($userId, 'cobudget', self::PLANNED_SETTING, 'no') === 'yes',
 			'reminders_enabled' => $this->config->getUserValue($userId, 'cobudget', self::REMINDER_SETTING, 'no') === 'yes',
 			'ready' => $ready,
@@ -51,6 +53,7 @@ class TalkNotificationService {
 			'payments' => self::SETTING,
 			'reminders' => self::REMINDER_SETTING,
 			'planned' => self::PLANNED_SETTING,
+			'imports' => self::IMPORT_SETTING,
 			default => throw new \InvalidArgumentException('Unknown Talk notification channel'),
 		};
 		// Serialize bot creation and opt-in/out with delivery, including concurrent requests.
@@ -103,6 +106,14 @@ class TalkNotificationService {
 			if (!empty($params['organizerId'])) $link .= '#/reminders?reminder=' . (int)$params['organizerId'];
 			elseif (!empty($params['projectId'])) $link .= '#/projects/' . (int)$params['projectId'];
 			return $message . "\n" . $link;
+		});
+	}
+
+	public function notifyAutomaticImport(string $userId, bool $error, string $result): bool {
+		return $this->deliver($userId, self::IMPORT_SETTING, function ($l) use ($error, $result): string {
+			$title = $error ? $l->t('Automatic import needs attention') : $l->t('Automatic import completed');
+			return $title . "\n" . self::plainText($result, 1024) . "\n"
+				. $this->urlGenerator->linkToRouteAbsolute('cobudget.page.index') . '#/settings?section=automatic-imports';
 		});
 	}
 

@@ -7,6 +7,37 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 
 trait WorkspaceAwareTrait {
+	private const CURRENCY_BY_COUNTRY = [
+		'AT' => 'EUR',
+		'BE' => 'EUR',
+		'CH' => 'CHF',
+		'DE' => 'EUR',
+		'DK' => 'DKK',
+		'ES' => 'EUR',
+		'FI' => 'EUR',
+		'FR' => 'EUR',
+		'GB' => 'GBP',
+		'IE' => 'EUR',
+		'IT' => 'EUR',
+		'LI' => 'CHF',
+		'LU' => 'EUR',
+		'NL' => 'EUR',
+		'NO' => 'NOK',
+		'PL' => 'PLN',
+		'PT' => 'EUR',
+		'SE' => 'SEK',
+		'US' => 'USD',
+	];
+
+	private const CURRENCY_BY_LANGUAGE = [
+		'de' => 'EUR',
+		'es' => 'EUR',
+		'fr' => 'EUR',
+		'it' => 'EUR',
+		'nl' => 'EUR',
+		'pt' => 'EUR',
+	];
+
 	protected ?int $workspaceId = null;
 	protected ?DataResponse $workspaceHeaderErrorResponse = null;
 
@@ -498,6 +529,35 @@ trait WorkspaceAwareTrait {
 		}
 
 		return $this->validateRecurrencePayload($recurrenceInterval, $recurrenceMultiplier, $recurrenceNextDate, $recurrenceEndDate, $reminderDate);
+	}
+
+	private function effectiveCurrency(): string {
+		$storedCurrency = trim($this->config->getUserValue((string)$this->userId, 'cobudget', 'currency', ''));
+		if ($storedCurrency !== '' && mb_strlen($storedCurrency) <= 10) {
+			return $storedCurrency;
+		}
+
+		return $this->detectCurrencyFromLocale();
+	}
+
+	private function detectCurrencyFromLocale(): string {
+		$locale = trim($this->config->getUserValue((string)$this->userId, 'core', 'locale', ''));
+		if ($locale === '') {
+			$locale = trim($this->config->getUserValue((string)$this->userId, 'core', 'lang', ''));
+		}
+
+		$localeParts = array_values(array_filter(explode('_', str_replace('-', '_', $locale)), static fn(string $part): bool => $part !== ''));
+		$language = strtolower((string)($localeParts[0] ?? ''));
+		$country = strtoupper((string)($localeParts[1] ?? ''));
+
+		if ($country !== '' && isset(self::CURRENCY_BY_COUNTRY[$country])) {
+			return self::CURRENCY_BY_COUNTRY[$country];
+		}
+		if ($language !== '' && isset(self::CURRENCY_BY_LANGUAGE[$language])) {
+			return self::CURRENCY_BY_LANGUAGE[$language];
+		}
+
+		return 'EUR';
 	}
 
 	protected function validateCurrencySetting(string &$currency): ?DataResponse {

@@ -201,6 +201,13 @@ try {
  $restoredPast=(new ReflectionMethod($backup,'insertRowGenerated'))->invoke($backup,'cobudget_entries',$oldArchive);
  $check($done($restoredPast),'Old personal archive past payment stays silent');
  $check(!str_contains(json_encode($logger->records),'PRIVATE TRANSPORT ERROR'),'Logs omit private transport details');
+ $before = count($backend->sent);
+ $talkController->update(false, 'imports');
+ $talk->notifyAutomaticImport($uid, true, 'rejected.json');
+ $check(count($backend->sent) === $before, 'Other Talk channels never opt in to import results');
+ $check($talkController->update(true, 'imports')->getData()['imports_enabled'], 'Personal Talk can opt in to import results');
+ $check($talk->notifyAutomaticImport($uid, false, 'delivery.json') && count($backend->sent) === $before + 1
+  && end($backend->sent)['user'] === $uid && str_contains(end($backend->sent)['message'], 'delivery.json'), 'Import result reaches only the personal Talk conversation');
  echo "Planned notifications: $assertions assertions passed (all writes rolled back, no real messages).\n";
 } finally {
  $db->rollBack();$session->setUser($original);

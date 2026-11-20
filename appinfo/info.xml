@@ -18,6 +18,7 @@ CoBudget does not connect to bank accounts. Its reports are based on the payment
 - Share a household, trip or small-group area: record who paid, choose the split and settle outstanding balances
 - Keep receipts in Nextcloud Files and manage independent or payment-linked reminders
 - Choose Nextcloud notifications, a private Talk chat or optional email for supported events; synchronize reminders with a calendar
+- Optionally import payment files manually or automatically from a Nextcloud folder
 - Print reports, export CSV and create personal exports or administrator backups
 - Use separate workspaces, mobile and desktop layouts, and light or dark appearance
 
@@ -35,6 +36,7 @@ CoBudget hat keine Anbindung an Bankkonten. Die Auswertungen beruhen auf den Zah
 - Bereiche für Haushalt, Reise oder kleine Gruppen teilen: festhalten, wer bezahlt hat, Anteile wählen und offene Salden abrechnen
 - Belege in Nextcloud Files ablegen und eigene oder zahlungsbezogene Erinnerungen verwalten
 - Nextcloud, privaten Talk-Chat oder optionale E-Mails je unterstütztem Ereignis wählen; Erinnerungen mit einem Kalender synchronisieren
+- Optional Zahlungsdateien manuell oder automatisch aus einem Nextcloud-Ordner importieren
 - Berichte drucken, CSV exportieren und persönliche Exporte oder Admin-Backups erstellen
 - Getrennte Workspaces, mobile und Desktop-Ansicht sowie helles oder dunkles Design nutzen
 
@@ -52,6 +54,7 @@ CoBudget ne se connecte pas aux comptes bancaires. Les rapports reposent sur les
 - Partagez un espace pour le foyer, un voyage ou un petit groupe : indiquez qui a payé, répartissez les frais et soldez les comptes
 - Conservez les justificatifs dans Nextcloud Files et gérez des rappels autonomes ou liés à un paiement
 - Choisissez Nextcloud, une conversation Talk privée ou l’e-mail facultatif selon l’événement ; synchronisez les rappels avec un calendrier
+- En option, importez des fichiers de paiements manuellement ou automatiquement depuis un dossier Nextcloud
 - Imprimez des rapports, exportez en CSV et créez des exports personnels ou des sauvegardes administrateur
 - Utilisez des espaces de travail séparés, un affichage mobile ou bureau et un thème clair ou sombre
 
@@ -69,13 +72,14 @@ CoBudget no se conecta a cuentas bancarias. Los informes se basan en los pagos q
 - Comparte áreas para el hogar, viajes o grupos pequeños: indica quién pagó, elige el reparto y liquida saldos pendientes
 - Guarda justificantes en Nextcloud Files y gestiona recordatorios independientes o vinculados a pagos
 - Elige Nextcloud, un chat privado de Talk o correo opcional según el evento; sincroniza recordatorios con un calendario
+- Opcionalmente, importa archivos de pagos manual o automáticamente desde una carpeta de Nextcloud
 - Imprime informes, exporta CSV y crea exportaciones personales o copias de seguridad de administrador
 - Usa espacios de trabajo separados, vistas para móvil y escritorio y temas claro u oscuro
 
 Disponible en inglés, alemán, francés y español. Las copias guardan las rutas de los justificantes, no los archivos; respalda también los archivos de Nextcloud correspondientes.
 
 CoBudget requiere Nextcloud 34 o posterior.]]></description>
-	<version>1.1.0</version>
+	<version>1.2.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>
@@ -103,6 +107,7 @@ CoBudget requiere Nextcloud 34 o posterior.]]></description>
         <job>OCA\CoBudget\Cron\RemindersJob</job>
         <job>OCA\CoBudget\Cron\BackupJob</job>
         <job>OCA\CoBudget\Cron\BudgetSnapshotJob</job>
+        <job>OCA\CoBudget\Cron\AutoImportJob</job>
     </background-jobs>
     <repair-steps>
         <post-migration>

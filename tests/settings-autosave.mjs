@@ -28,7 +28,7 @@ let reloads = 0
 const api = { post: async (...args) => { requests.push(args); return { data: { status: 'success' } } } }
 const bindings = {
 	...Object.fromEntries(imports.map(name => [name, {}])),
-	axios: api, generalSettingsFields, applySavedSettings,
+	axios: api, generalSettingsFields, applySavedSettings, applyThemeMode: value => value,
 	ENTRY_PAGE_SIZE_OPTIONS: [10, 25, 50, 100, 250],
 	normalizeEntryPageSize: value => [10, 25, 50, 100, 250].includes(Number(value)) ? Number(value) : 25,
 	normalizeThemeMode: value => ['auto', 'light', 'dark'].includes(value) ? value : 'auto',
@@ -157,7 +157,18 @@ await vm.saveTalkSettings(true, 'reminders')
 assert.equal(vm.talk.reminders_enabled, false, 'Failed opt-in keeps the saved model')
 assert.equal(vm.talkError, 'Talk unavailable')
 assert.equal(vm.talkBusy, false)
-assert.ok(source.includes("talk.planned_enabled ? 'planned' : 'payments'"), 'Reconnect preserves reminder-only opt-in')
+vm.talk = { ...vm.talk, enabled: false, reminders_enabled: true }
+assert.equal(vm.reconnectTalkChannel, 'reminders', 'Reconnect preserves reminder-only opt-in')
+vm.talk = { ...vm.talk, reminders_enabled: false, imports_enabled: true }
+assert.equal(vm.reconnectTalkChannel, null)
+vm.hasActiveImports = true
+assert.equal(vm.reconnectTalkChannel, null, 'A configured folder cannot expose imports while the feature is off')
+assert(!vm.notificationRows.some(row => row.field === 'notifyAutomaticImports'))
+vm.enablePaymentImports = true
+assert.equal(vm.reconnectTalkChannel, 'imports', 'Import-only reconnect keeps the original channel')
+vm.$texts.autoImports = { title: () => 'Automatic imports' }
+assert.equal(vm.notificationRows.at(-1).talkField, 'imports_enabled')
+vm.hasActiveImports = false
 console.log('Reminder settings passed: independent saves, shared-chat opt-in/out, reconnect and failed-write preservation.')
 
 vm.enableProjects = false
@@ -252,3 +263,16 @@ await vm.saveEmailPreference('notifyRemindersEmail', true)
 assert.equal(vm.notifyRemindersEmail, false, 'Failed save restores persisted opt-out')
 assert.equal(errors.at(-1), 'Email save failed')
 console.log('Email settings passed: default-off, address guard and independent saving.')
+
+// Personal notification rows are available from the first settings request while workspace and Files are still loading.
+vm.applyLocalNextcloudHeaderVisibility = () => ({ showDesktop: true, showMobile: true })
+vm.fetchBackups = async () => {}
+vm.ensureValidWorkspaceContext = async () => {}
+vm.restoreWorkspacePosition = () => {}
+vm.fetchWorkspaceScopedWithRetry = async () => ({ data: [] })
+for (const active of [true, false]) {
+	api.get = async () => ({ data: { enable_payment_imports: true, has_active_automatic_imports: active } })
+	await vm.fetchData()
+	assert.equal(vm.settingsLoadError, '')
+	assert.equal(vm.notificationRows.some(row => row.field === 'notifyAutomaticImports'), active)
+}

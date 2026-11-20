@@ -74,6 +74,13 @@ try {
   $check($email->send($uid,$event,['type'=>'Expense','amount'=>'12.34','currency'=>'EUR','entryDate'=>'2026-11-12','actorName'=>'Actor','projectName'=>'Area','projectId'=>12,'description'=>'SECRET PAYMENT DESCRIPTION']), 'Other event delivery');
   $check(!str_contains(end($mailer->sent)->getPlainBody(),'SECRET PAYMENT DESCRIPTION'),'No payment description copied');
  }
+ $before = count($mailer->sent);
+ $params = ['error' => true, 'result' => 'invalid.json'];
+ $email->send($uid, 'import', $params);
+ $check(count($mailer->sent) === $before, 'Import email requires its own opt-in');
+ $config->setUserValue($uid, 'cobudget', 'notify_automatic_imports_email', 'yes');
+ $check($email->send($uid, 'import', $params) && count($mailer->sent) === $before + 1, 'Import result reaches the selected mail channel');
+ $check(str_contains(end($mailer->sent)->getPlainBody(), 'invalid.json') && str_contains(end($mailer->sent)->getPlainBody(), '#/settings?section=automatic-imports'), 'Import email includes the result and settings link');
  // Real organizer rows and persisted status: failed mail retries even after push is already done.
  $q=$db->getQueryBuilder();$q->update('cobudget_reminders')->set('email_notified',$q->createNamedParameter(true))->executeStatement();
  $q=$db->getQueryBuilder();$q->insert('cobudget_reminders');
@@ -120,9 +127,10 @@ try {
  try {
   $ref=new ReflectionClass(OCA\CoBudget\Controller\UserController::class);
   $controller=$ref->newInstanceArgs(array_map(fn($p)=>$p->getName()==='appName'?'cobudget':($p->getType()->getName()===OCP\IL10N::class?Server::get(OCP\L10N\IFactory::class)->get('cobudget','en'):Server::get($p->getType()->getName())),$ref->getConstructor()->getParameters()));
-  $response=$controller->saveSettings(notify_reminders_email:true,notify_planned_payments_email:false,notify_project_entries_email:true,notify_project_settlements_email:false);
+  $response=$controller->saveSettings(notify_reminders_email:true,notify_planned_payments_email:false,notify_project_entries_email:true,notify_project_settlements_email:false,notify_automatic_imports:false,notify_automatic_imports_email:true);
   $check($response->getStatus()===200,'Settings save succeeds');
   $settings=$controller->getSettings()->getData();
+  $check(!$settings['notify_automatic_imports'] && $settings['notify_automatic_imports_email'], 'Import mail can be enabled independently of Nextcloud');
   $check($settings['notify_reminders_email'] && !$settings['notify_planned_payments_email'] && $settings['notify_project_entries_email'] && !$settings['notify_project_settlements_email'],'All email settings independently roundtrip');
  } finally { $session->setUser($original); }
  echo "Email integration passed: $n assertions; no external messages sent.\n";

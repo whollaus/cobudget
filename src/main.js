@@ -29,11 +29,13 @@ const AnnualOverviewView = () => import(/* webpackChunkName: "cobudget-view-annu
 const SettingsView = () => import(/* webpackChunkName: "cobudget-view-settings" */ './views/SettingsView.vue')
 
 const RemindersView = () => import(/* webpackChunkName: "cobudget-view-reminders" */ './views/RemindersView.vue')
+const BulkImportView = () => import(/* webpackChunkName: "cobudget-view-bulk-import" */ './views/BulkImportView.vue')
 
 const routes = [
 	{ path: '/reminders', name: 'reminders', component: RemindersView },
 	{ path: '/', name: 'personal', component: TransactionsView },
 	{ path: '/payments', name: 'payments', component: TransactionsView },
+	{ path: '/import', name: 'import', component: BulkImportView },
 	{ path: '/projects', name: 'projects', component: ProjectList },
 	{ path: '/projects/new', name: 'project-new', component: ProjectCreateView },
 	{ path: '/projects/:id/payments', name: 'project-payments', component: ProjectDetail, props: true },
@@ -184,6 +186,7 @@ async function init() {
 		app.config.globalProperties.$enableReminders = res.data.enable_reminders ?? true
 		app.config.globalProperties.$enableBudgetGoals = res.data.enable_budget_goals ?? true
 		app.config.globalProperties.$enableAdvancedMasterData = res.data.enable_advanced_master_data ?? false
+		app.config.globalProperties.$enablePaymentImports = res.data.enable_payment_imports === true
 		app.config.globalProperties.$enableIncomes = res.data.enable_incomes ?? true
 		app.config.globalProperties.$enableProjects = res.data.enable_projects ?? true
 		app.config.globalProperties.$enableSharedProjects = res.data.enable_shared_projects ?? true
@@ -233,6 +236,7 @@ async function init() {
 		app.config.globalProperties.$enableReminders = true
 		app.config.globalProperties.$enableBudgetGoals = true
 		app.config.globalProperties.$enableAdvancedMasterData = false
+		app.config.globalProperties.$enablePaymentImports = false
 		app.config.globalProperties.$enableIncomes = true
 		app.config.globalProperties.$enableProjects = true
 		app.config.globalProperties.$enableSharedProjects = true
@@ -247,9 +251,14 @@ async function init() {
 		app.config.globalProperties.$showNextcloudHeaderMobile = headerVisibility.showMobile
 	}
 
+	router.beforeEach(to => {
+		if (to.name === 'import' && !app.config.globalProperties.$enablePaymentImports) return { name: 'personal' }
+	})
+
 	// Initial hash navigation may finish before the settings request.
 	await router.isReady()
-	if (app.config.globalProperties.$enableReminders === false && router.currentRoute.value.name === 'reminders') {
+	if ((!app.config.globalProperties.$enablePaymentImports && router.currentRoute.value.name === 'import')
+		|| (app.config.globalProperties.$enableReminders === false && router.currentRoute.value.name === 'reminders')) {
 		await router.replace({ name: 'personal' })
 	}
 	app.mount('#cobudget-app')

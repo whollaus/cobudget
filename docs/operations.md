@@ -6,7 +6,7 @@ data invariants, see [Architecture](architecture.md#backups).
 
 ## Background jobs
 
-CoBudget uses Nextcloud background jobs for recurring payments, reminders, automatic backups and budget snapshots. Configure system cron to call Nextcloud's `cron.php` every five minutes as the web server user; see the [Nextcloud background-job documentation](https://docs.nextcloud.com/server/stable/admin_manual/configuration_server/background_jobs_configuration.html#cron).
+CoBudget uses Nextcloud background jobs for recurring payments, reminders, automatic folder imports, automatic backups and budget snapshots. Configure system cron to call Nextcloud's `cron.php` every five minutes as the web server user; see the [Nextcloud background-job documentation](https://docs.nextcloud.com/server/stable/admin_manual/configuration_server/background_jobs_configuration.html#cron).
 
 If the log reports `failed to create instance of background job`, check the CoBudget jobs from the Nextcloud directory, using the same PHP installation and user as your cron setup:
 
@@ -22,7 +22,13 @@ After resolving any loading errors, restore missing registrations with:
 php occ cobudget:background-jobs:check --repair
 ```
 
-Repair checks all four jobs before adding missing registrations. Existing registrations, including legacy jobs with empty-array arguments, keep their schedule and state. Jobs are run later by the configured Nextcloud scheduler. The command must be installed on the server along with the updated CoBudget files before it is available.
+Repair checks the CoBudget jobs before adding missing registrations. Existing registrations, including legacy jobs with empty-array arguments, keep their schedule and state. Jobs are run later by the configured Nextcloud scheduler. The command must be installed on the server along with the updated CoBudget files before it is available.
+
+### Automatic payment imports
+
+For setup, supported fields and a working file, see [Import payments from JSON](payment-imports.md). Check **Settings → Automatic imports → Last run** when deliveries stop. The configured interval sets when a folder is due. Actual processing also depends on Nextcloud running its background jobs.
+
+A folder import validates the file before booking and writes large deliveries in packets. If an area member's delivery is already partly booked and a required category or payment partner is subsequently renamed, later packets can no longer resolve the original name. Open the timestamp under Last run to see the filename, missing name and booked count while other deliveries continue. Ask the area owner to restore the original name for that payment type. Leave the file in place. CoBudget retries the saved delivery and books the remaining payments and shares.
 
 ## Personal Talk notifications
 

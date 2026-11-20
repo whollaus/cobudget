@@ -60,10 +60,14 @@ class UserResetService {
 		'enable_reminders',
 		'enable_budget_goals',
 		'enable_advanced_master_data',
+		'enable_payment_imports',
 		'enable_incomes',
 		'enable_projects',
 		'enable_shared_projects',
 		'notify_planned_payments',
+		'notify_automatic_imports',
+		'notify_automatic_imports_email',
+		'notify_automatic_imports_talk',
 		'notify_planned_payments_talk',
 		'notify_reminders_email',
 		'notify_planned_payments_email',
@@ -296,6 +300,8 @@ class UserResetService {
 				$report['deleted']['payment_partners'] += $this->deleteUserScopedRows('cobudget_payment_partners', $userId, $workspaceIds, $soloProjectIds);
 				$report['deleted']['budget_snapshots'] += $this->deleteRowsByStringColumn('cobudget_budget_snapshots', 'user_id', $userId);
 				$report['deleted']['budget_goals'] += $this->deleteRowsByStringColumn('cobudget_budget_goals', 'user_id', $userId);
+				$this->deleteRowsByStringColumn('cobudget_import_rules', 'user_id', $userId);
+				$this->deleteRowsByStringColumn('cobudget_import_files', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_reminders', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_members', 'user_id', $userId);
 
@@ -745,6 +751,8 @@ class UserResetService {
 	}
 
 	private function deleteProjectTree(int $projectId, bool $deleteReceiptFiles, ?string $fileOwnerUserId = null): array {
+		$this->deleteRowsByIntColumn('cobudget_import_files', 'project_id', $projectId);
+		$this->deleteRowsByIntColumn('cobudget_import_rules', 'project_id', $projectId);
 		$entryIds = $this->entryProjectionService->prepareEntryDeletion(
 			$this->entryIdsForProjects([$projectId])
 		);

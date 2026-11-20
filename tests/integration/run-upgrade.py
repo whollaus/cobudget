@@ -6,6 +6,7 @@ service container, or a freshly initialized local server via --db-bin. Database
 names are generated here, never taken from a live Nextcloud config. The source server and repository are never modified.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -25,6 +26,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True, type=Path, help='Nextcloud source/template; config is discarded before PHP runs')
     parser.add_argument('--php', default='php')
+    parser.add_argument('--inbox-load', action='store_true', help='Drain 5,000 one-payment inbox files under a 64 MiB PHP limit')
     parser.add_argument('--database', choices=['sqlite', 'mysql', 'pgsql'], default='sqlite')
     parser.add_argument('--db-container', help='Disposable CI database container ID')
     parser.add_argument('--db-bin', type=Path, help='MariaDB/PostgreSQL bin directory; starts and removes a private temporary server')
@@ -168,7 +170,7 @@ def main():
             raise RuntimeError('Refusing to replace an unexpected app directory')
         app.symlink_to(path, target_is_directory=True)
 
-    def kill_at_barrier(command):
+    def kill_at_barrier(command, while_locked=None):
         # No timing guess: kill only after the real write/DDL boundary reports ready.
         with tempfile.TemporaryFile() as err:
             worker = subprocess.Popen([str(x) for x in command], cwd=server, env=env,
@@ -193,6 +195,8 @@ def main():
                             break
                 if not ready:
                     raise RuntimeError('Worker did not reach the fault barrier')
+                if while_locked:
+                    while_locked()
                 worker.kill()  # SIGKILL: no PHP finally/destructor/shutdown cleanup.
                 if worker.wait(timeout=15) != -9:
                     raise RuntimeError('Worker was not killed by SIGKILL')
@@ -274,7 +278,7 @@ def main():
         occ('cobudget:integrity:check')
         fixture('verify')
         progress('Released upgrade, shared graph, user mapping and generated IDs verified')
-        for suite in ['annual-overview.php', 'backup-roundtrip.php', 'backup-concurrency.php']:
+        for suite in ['auto-import-rules.php', 'bulk-import-boundaries.php', 'annual-overview.php', 'backup-roundtrip.php', 'backup-concurrency.php']:
             run([php, '-d', 'memory_limit=512M', repo / 'tests/integration' / suite, '--nextcloud=' + str(server), '--user=upgrade-admin'])
 
         providers = ['database', 'redis'] if args.redis_port else ['database']
@@ -294,6 +298,107 @@ def main():
             time.sleep(16)
             fixture('recover-crash')
             occ('config:system:delete', 'filelocking.ttl')
+        auto_import = [php, '-d', 'memory_limit=96M', repo / 'tests/integration/automatic-import.php', '--nextcloud=' + str(server)]
+        # Fault injection only in the disposable app copy, while the real rule and Files locks are held.
+        runner = Path('lib/Service/AutoImportRunner.php')
+        original = (repo / runner).read_text()
+        boundary = '\t\t\t\t$this->db->commit();'
+        if original.count(boundary) != 1:
+            raise RuntimeError('Import transaction boundary changed; update fault injection explicitly')
+        (fault_app / runner).write_text(original.replace(boundary, boundary + '\nfwrite(STDOUT, "COBUDGET_FAULT_READY\\n"); fflush(STDOUT); fgets(STDIN);'))
+        occ('config:system:set', 'filelocking.ttl', '--type=integer', '--value=10')
+        use_app(fault_app)
+        progress('Interrupting a shared folder import after the first 33 payments')
+        kill_at_barrier([*auto_import, '--phase=interrupt'], lambda: run([*auto_import, '--phase=manual-busy']))
+        use_app(repo)
+        occ('config:system:set', 'filelocking.enabled', '--type=boolean', '--value=false')
+        run([*auto_import, '--phase=locking-off'])
+        occ('config:system:delete', 'filelocking.enabled')
+        time.sleep(11)
+        run([*auto_import, '--phase=resume'])
+        move = "$moved = AutoImportArchiveMove::move($current, $target, $archiveName, $rejection !== null ? $rawHash : null, $beforeMove);"
+        if original.count(move) != 1:
+            raise RuntimeError('Archive move boundary changed; update fault injection explicitly')
+        (fault_app / runner).write_text(original.replace(move, move + '\nfwrite(STDOUT, "COBUDGET_FAULT_READY\\n"); fflush(STDOUT); fgets(STDIN);'))
+        use_app(fault_app)
+        progress('Killing the worker after the Files archive move')
+        kill_at_barrier([*auto_import, '--phase=archive-kill'])
+        use_app(repo)
+        time.sleep(11)
+        run([*auto_import, '--phase=archive-check'])
+        admission = 'foreach ($candidates as $candidate) {'
+        if original.count(admission) != 1:
+            raise RuntimeError('File admission boundary changed; update sync barrier explicitly')
+        barrier = 'if (defined("CB_TEST_RECONCILED")) { fwrite(STDOUT, "RECONCILED\\n"); fflush(STDOUT); fgets(STDIN); }'
+        (fault_app / runner).write_text(original.replace(admission, barrier + '\n' + admission))
+        use_app(fault_app)
+        run([*auto_import, '--phase=sync-race'])
+        use_app(repo)
+        def archive_barrier(label):
+            return f'if (defined("CB_TEST_ARCHIVE_MOVE")) {{ fwrite(STDOUT, "{label}\\n"); fflush(STDOUT); fgets(STDIN); }}'
+        guard = Path('lib/Service/AutoImportArchiveMove.php')
+        move_node = 'return $file->move($path);'
+        guard_source = (repo / guard).read_text()
+        if guard_source.count(move_node) != 1:
+            raise RuntimeError('Files move boundary changed; update archive race fixture')
+        (fault_app / guard).write_text(guard_source.replace(move_node, archive_barrier('BEFORE_MOVE') + '\n' + move_node))
+        (fault_app / runner).write_text(original.replace(move, move + '\n' + archive_barrier('AFTER_MOVE')))
+        use_app(fault_app)
+        run([*auto_import, '--phase=archive-races'])
+        use_app(repo)
+        # Interrupt on either side of the Files move and replace the archived contents before recovery.
+        progress('Recovering interrupted archives after moves, deletions and overwrites')
+        run([*auto_import, '--phase=ownership-prepare'])
+        storage_move = 'return parent::rename($source, $target);'
+        if guard_source.count(storage_move) != 1:
+            raise RuntimeError('Storage rename boundary changed; update the archive ownership fixture')
+        stop = 'fwrite(STDOUT, "COBUDGET_FAULT_READY\\n"); fflush(STDOUT); fgets(STDIN);'
+        for case, rule_id in json.loads((base / 'archive-ownership-rules.json').read_text()).items():
+            after_move = case in ('overwritten', 'replaced')
+            (fault_app / guard).write_text(guard_source if after_move else guard_source.replace(storage_move, stop + '\n' + storage_move))
+            (fault_app / runner).write_text(original.replace(move, move + '\n' + stop) if after_move else original)
+            use_app(fault_app)
+            kill_at_barrier([*auto_import, '--phase=archive-worker', '--rule=' + str(rule_id)])
+            use_app(repo)
+            time.sleep(11)
+            run([*auto_import, '--phase=ownership-check', '--rule=' + str(rule_id)])
+        if args.inbox_load:
+            fixture_data = json.loads((base / 'automatic-import-fixture.json').read_text())
+            folder = fixture_data['folder']
+            inbox = data / 'upgrade-member' / 'files' / folder
+            for i in range(5000):
+                (inbox / f'backlog-{i}.json').write_text(json.dumps({'payments': [
+                    {'date': '2026-01-01', 'amount': -10, 'description': f'backlog-{i}'}]}))
+            occ('files:scan', '--path=/upgrade-member/files/' + folder)
+            worker = [php, '-d', 'memory_limit=64M', *auto_import[3:]]
+            progress('Draining 5,000 distinct JSON files with a three-member split at 64 MiB')
+            start = time.monotonic()
+            for batch in range(100):
+                run([*worker, '--phase=load'])
+                if not any(inbox.glob('backlog-*.json')):
+                    break
+            else:
+                raise RuntimeError('Backlog failed to drain')
+            run([*worker, '--phase=load-check'])
+            progress(f'Backlog drained in {time.monotonic() - start:.1f} seconds across {batch + 1} PHP processes')
+        occ('config:system:delete', 'filelocking.ttl')
+        # Instrument only the disposable copy. Both requests must see the folder as free before either writes.
+        rules = fault_app / 'lib/Service/AutoImportRules.php'
+        original = rules.read_text()
+        boundary = '$q->executeStatement();\n\t\t\t} catch (DatabaseException $e)'
+        if original.count(boundary) != 1:
+            raise RuntimeError('Folder reservation write boundary changed; update the race test explicitly')
+        rules.write_text(original.replace(boundary, '\\awaitFolderSelectionPeer();\n\t\t\t\t' + boundary))
+        for case in ['create', 'update']:
+            progress(f'Racing two paused folder assignments during {case}')
+            command = [php, repo / 'tests/integration/auto-import-rules.php', '--nextcloud=' + str(server),
+                       '--user=upgrade-admin', '--race=' + case]
+            run([*command, '--phase=prepare'])
+            use_app(fault_app)
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                list(pool.map(run, [[*command, '--phase=' + side] for side in ['first', 'second']]))
+            use_app(repo)
+            run([*command, '--phase=verify'])
         recover()
         use_app(old)
         fixture('rollback')

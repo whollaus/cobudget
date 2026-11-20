@@ -14,13 +14,12 @@
 						<NcButton class="cobudget-native-button" variant="secondary" :disabled="!scopes.some(scope => scope.editable)" @click="openEditor(kind, type)"><template #icon><Plus :size="20" /></template>{{ $texts.common.add() }}</NcButton>
 					</div>
 					<div class="master-table-scroll" tabindex="0" :aria-label="heading(kind)">
-						<table class="master-table" :class="{ 'master-table-hierarchy': hasHierarchy(kind, type), 'master-table--personal-scope': scopes.some(scope => scope.key === 'personal') }" :style="{ '--master-scope-count': scopes.length }">
-							<thead><tr><th scope="col">{{ $texts.masterData.entryLabel() }}</th><th v-for="scope in scopes" :key="scope.key" scope="col" :class="{ 'master-personal-scope': scope.key === 'personal' }">{{ scope.name }}<small v-if="!scope.editable">{{ $texts.masterData.readOnly() }}</small></th><th scope="col"><span class="hidden-visually">{{ $texts.common.edit() }}</span></th></tr></thead>
+						<table class="master-table" :class="{ 'master-category-table': kind === 'categories', 'master-table--personal-scope': scopes.some(scope => scope.key === 'personal') }" :style="{ '--master-scope-count': scopes.length }">
+							<thead><tr><th scope="col">{{ $texts.masterData.entryLabel() }}</th><th v-for="scope in scopes" :key="scope.key" scope="col" class="master-scope" :class="{ 'master-personal-scope': scope.key === 'personal' }">{{ scope.name }}<small v-if="!scope.editable">{{ $texts.masterData.readOnly() }}</small></th><th scope="col"><span class="hidden-visually">{{ $texts.common.edit() }}</span></th></tr></thead>
 							<tbody>
 								<tr v-for="row in visibleRows(kind, type)" :key="row.key" @click="openEditor(kind, type, row)">
-									<th scope="row"><div class="master-name" :style="{ paddingInlineStart: `calc(var(--default-grid-baseline, 4px) * ${row.depth * 6})` }">
-										<span v-if="hasHierarchy(kind, type)" class="master-tree-toggle" :class="{ 'master-tree-branch': row.depth > 0 }">
-										</span>
+									<th scope="row"><div class="master-name" :style="{ '--master-depth': row.depth }">
+										<span v-if="row.depth > 0" class="master-tree-branch" aria-hidden="true" />
 										<CategoryIcon v-if="kind === 'categories'" :icon="row.icon" :size="16" />
 										<span class="master-label">{{ row.name }}<span v-if="isGlobalRow(row)" class="master-global" role="img" :aria-label="$texts.common.global()" :title="$texts.common.global()">*</span></span>
 									</div></th>
@@ -233,7 +232,6 @@ export default {
 		heading(kind) { return this.admin ? (kind === 'categories' ? this.$texts.admin.globalCategories() : this.$texts.admin.globalPaymentPartners()) : (kind === 'categories' ? this.$texts.settings.categories() : this.$texts.settings.paymentPartners()) },
 		hasChildren(kind, row) { return this.rows[kind].some(child => child.parentKey === row.key) },
 		isGlobalRow(row) { return Object.values(row?.records || {}).some(record => this.flag(record.is_global)) },
-		hasHierarchy(kind, type) { return kind === 'categories' && this.rows[kind].some(row => row.type === type && row.depth > 0) },
 		visibleRows(kind, type) { return this.rows[kind].filter(row => row.type === type) },
 		scrollToSection(kind) {
 			if (!this.kinds.includes(kind)) return false
@@ -247,7 +245,7 @@ export default {
 				const projects = this.admin ? [] : (await axios.get(generateUrl('/apps/cobudget/api/projects'))).data
 				const scopes = this.admin ? [{ key: 'global', name: this.$texts.common.global(), editable: true }] : [
 					{ key: 'personal', name: this.$texts.masterData.noArea(), editable: true, projectId: null },
-					...projects.map(project => ({ key: String(project.id), name: project.name, color: project.color, projectId: Number(project.id), editable: this.flag(project.is_owner) })),
+					...projects.filter(project => !this.flag(project.is_archived)).map(project => ({ key: String(project.id), name: project.name, color: project.color, projectId: Number(project.id), editable: this.flag(project.is_owner) })),
 				]
 				await Promise.all(scopes.map(async scope => {
 					await Promise.all(this.kinds.map(async kind => {
@@ -522,24 +520,46 @@ export default {
 .master-heading { justify-content: space-between; margin-block: calc(var(--default-grid-baseline, 4px) * 4) calc(var(--default-grid-baseline, 4px) * 2); }
 .master-heading h4 { margin: 0; font-size: var(--cobudget-font-subheading); font-weight: var(--cobudget-font-weight-heading); }
 .master-table-scroll { overflow-x: auto; }
-.master-table { --master-personal-extra: 0px; table-layout: fixed; width: max(100%, calc(var(--master-scope-count) * 112px + 284px + var(--master-personal-extra))); border-collapse: separate; border-spacing: 0; font-size: var(--cobudget-font-body); }
+.master-table {
+	--master-name-min-width: 272px;
+	--master-scope-width: 112px;
+	--master-personal-extra: 0px;
+	--master-action-width: calc(var(--cobudget-mobile-touch-size, 44px) + var(--default-grid-baseline, 4px) * 2);
+	table-layout: fixed;
+	width: 100%;
+	min-width: calc(var(--master-name-min-width) + var(--master-scope-count) * var(--master-scope-width) + var(--master-personal-extra) + var(--master-action-width));
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: var(--cobudget-font-body);
+}
 .master-table--personal-scope { --master-personal-extra: 32px; }
-.master-table th.master-personal-scope { width: 144px; min-width: 144px; white-space: nowrap; }
+.master-table th.master-scope { width: var(--master-scope-width); }
+.master-table th.master-personal-scope { width: calc(var(--master-scope-width) + var(--master-personal-extra)); white-space: nowrap; }
 .master-table th, .master-table td { box-sizing: border-box; padding: var(--cobudget-table-payment-padding); height: auto; border-bottom: 1px solid var(--cobudget-border); text-align: center; vertical-align: middle; min-width: 100px; font-size: var(--cobudget-font-body); font-weight: 400; color: var(--cobudget-text); }
-.master-table th:first-child { text-align: start; width: 240px; position: sticky; inset-inline-start: 0; z-index: 1; background: var(--cobudget-surface); }
-.master-name { white-space: normal; min-height: var(--cobudget-button-height, 34px); }
-.master-table-hierarchy tbody th:first-child { padding-inline-start: var(--default-grid-baseline, 4px); }
+.master-table th:first-child { text-align: start; position: sticky; inset-inline-start: 0; z-index: 1; background: var(--cobudget-surface); }
+.master-name {
+	--master-level-indent: calc(var(--default-grid-baseline, 4px) * 6);
+	--master-indent: calc(var(--master-depth) * var(--master-level-indent));
+	position: relative;
+	padding-inline-start: var(--master-indent);
+	white-space: normal;
+	min-height: var(--cobudget-button-height, 34px);
+}
 .master-label { min-width: 0; overflow-wrap: anywhere; }
 .master-global { margin-inline-start: var(--default-grid-baseline, 4px); color: var(--cobudget-text-muted); }
 .master-name > :deep(.category-icon) { margin-inline-end: 0; padding: calc(var(--default-grid-baseline, 4px) * 0.75); }
-.master-tree-toggle { position: relative; display: flex; align-items: center; justify-content: center; align-self: stretch; flex: 0 0 var(--cobudget-button-height, 34px); margin-inline-end: calc(var(--default-grid-baseline, 4px) * -1); }
-/* Start beneath the parent icon's center and end just before the child icon. */
-.master-tree-branch { --branch-start: calc(var(--cobudget-button-height, 34px) - var(--default-grid-baseline, 4px) * 2.25); }
-.master-tree-branch::before { content: ''; position: absolute; inset-inline-start: var(--branch-start); inset-inline-end: 0; inset-block-start: 0; height: 50%; border-inline-start: 1px solid var(--cobudget-text-muted); border-block-end: 1px solid var(--cobudget-text-muted); }
-.master-table tr:has(+ tr .master-tree-branch) .master-tree-branch::after { content: ''; position: absolute; inset-inline-start: var(--branch-start); inset-block-start: 50%; bottom: -1px; border-inline-start: 1px solid var(--cobudget-text-muted); }
+/* Draw the branch inside the child's indent, from the center of the parent icon. */
+.master-tree-branch {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: calc(100% - var(--master-indent));
+	inline-size: calc(var(--master-level-indent) - 8px - var(--default-grid-baseline, 4px) * 0.75);
+}
+.master-tree-branch::before { content: ''; position: absolute; inset-inline: 0; inset-block-start: 0; height: 50%; border-inline-start: 1px solid var(--cobudget-text-muted); border-block-end: 1px solid var(--cobudget-text-muted); }
+.master-table tr:has(+ tr .master-tree-branch) .master-tree-branch::after { content: ''; position: absolute; inset-inline-start: 0; inset-block-start: 50%; bottom: -1px; border-inline-start: 1px solid var(--cobudget-text-muted); }
 .master-table th { white-space: normal; overflow-wrap: anywhere; }
 .master-name > :deep(.category-icon), .master-name > :deep(.button-vue) { flex-shrink: 0; }
-.master-table th:last-child, .master-table td:last-child { min-width: auto; width: calc(var(--cobudget-mobile-touch-size, 44px) + var(--default-grid-baseline, 4px) * 2); padding-inline: var(--default-grid-baseline, 4px); position: sticky; inset-inline-end: 0; z-index: 1; background: var(--cobudget-surface); }
+.master-table th:last-child, .master-table td:last-child { min-width: auto; width: var(--master-action-width); padding-inline: var(--default-grid-baseline, 4px); position: sticky; inset-inline-end: 0; z-index: 1; background: var(--cobudget-surface); }
 .master-table thead th, .master-table thead th:first-child, .master-table thead th:last-child { padding: var(--cobudget-table-cell-padding); background: var(--cobudget-table-header-background); color: var(--cobudget-text-muted); letter-spacing: normal; font-weight: 400; font-size: var(--cobudget-table-header-font-size); height: var(--cobudget-table-header-height); }
 .master-table tbody tr:hover > *, .master-table tbody tr:focus-within > * { background: var(--cobudget-table-row-hover); }
 .master-table tbody tr:has(.master-name), .master-table tbody tr:has(.master-name) > *, .master-name, .master-label, .master-global, .master-table tbody :deep(.material-design-icon) { cursor: pointer; }
@@ -589,7 +609,13 @@ export default {
 	.master-delete-button :deep(.button-vue__icon) { display: flex; }
 	.master-delete-label { display: none; }
 }
-@media (max-width: 768px) { .master-identity-category { grid-template-columns: minmax(0, 1fr); } .master-parent-field { grid-column: 1 / -1; } .master-table.master-table-hierarchy { width: calc(var(--master-scope-count) * 112px + 264px + var(--master-personal-extra)); } .master-table.master-table-hierarchy th:first-child { width: 220px; min-width: 220px; } .master-scopes-multiple { grid-template-columns: minmax(0, 1fr); } .master-table :deep(.button-vue) { min-width: var(--cobudget-mobile-touch-size, 44px); min-height: var(--cobudget-mobile-touch-size, 44px); } .master-table { width: calc(var(--master-scope-count) * 112px + 224px + var(--master-personal-extra)); } .master-table th:first-child { width: 180px; min-width: 180px; } }
+@media (max-width: 768px) {
+	.master-identity-category, .master-scopes-multiple { grid-template-columns: minmax(0, 1fr); }
+	.master-parent-field { grid-column: 1 / -1; }
+	.master-table { --master-name-min-width: 180px; }
+	.master-category-table { --master-name-min-width: 220px; }
+	.master-table :deep(.button-vue) { min-width: var(--cobudget-mobile-touch-size, 44px); min-height: var(--cobudget-mobile-touch-size, 44px); }
+}
 .master-table :is(th, td) { transition: background-color var(--cobudget-hover-duration) linear; }
 .master-table tr:focus-within > * { transition: none; }
 </style>

@@ -80,6 +80,10 @@
 						<template #icon><DownloadIcon :size="20" /></template>
 						{{ isExporting ? $texts.common.exportCsvBusy() : $texts.common.exportCsv() }}
 					</NcActionButton>
+					<NcActionButton class="cobudget-action-menu-option" v-if="$enablePaymentImports && !isTruthy(project.is_archived) && project.status !== 'archived' && !hasFormerProjectMember" :close-after-click="true" @click="openBulkImport">
+						<template #icon><UploadIcon :size="20" /></template>
+						{{ $texts.bulkImport.menuAction() }}
+					</NcActionButton>
 					<NcActionButton class="cobudget-action-menu-option" v-if="!isProjectPaymentsView && canManageProject" :close-after-click="true" @click="toggleArchiveProject"
 						:disabled="!!archiveBlockedReason || !!confirmDialog || settlingProject"
 						:title="archiveBlockedReason">
@@ -354,6 +358,7 @@ import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import ChevronUpIcon from 'vue-material-design-icons/ChevronUp.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
+import UploadIcon from 'vue-material-design-icons/Upload.vue'
 import PencilIcon from 'vue-material-design-icons/Pencil.vue'
 import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'
 import TrendingDownIcon from 'vue-material-design-icons/TrendingDown.vue'
@@ -376,7 +381,7 @@ import { getAreaColorStyle } from '../utils/areaColor'
 
 export default {
 	name: 'ProjectDetail',
-	components: { PaymentFilterBar, ReportPeriodPicker, DialogTransition, SettlementSummary, RepaymentList, HistoryIcon, DeleteIcon, NcDialog, NcFormGroup, NcNoteCard, NcLoadingIcon, AppPageHeader, NcButton, NcEmptyContent, MemberBalanceList, NcActions, NcActionButton, AnchoredPopover, EntryTable, EntryHistoryModal, TableTooltip, AreaAdminIndicator, FilterVariantIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronUpIcon, CloseIcon, DownloadIcon, TableFilters, DraggableScroller },
+	components: { PaymentFilterBar, ReportPeriodPicker, DialogTransition, SettlementSummary, RepaymentList, HistoryIcon, DeleteIcon, NcDialog, NcFormGroup, NcNoteCard, NcLoadingIcon, AppPageHeader, NcButton, NcEmptyContent, MemberBalanceList, NcActions, NcActionButton, AnchoredPopover, EntryTable, EntryHistoryModal, TableTooltip, AreaAdminIndicator, FilterVariantIcon, AccountMultipleIcon, ChartBarIcon, ArchiveIcon, CheckAllIcon, PencilIcon, TrendingUpIcon, TrendingDownIcon, WalletIcon, SyncIcon, LockIcon, StarIcon, ClipboardCheckIcon, AccountChildIcon, ReceiptTextCheckOutlineIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon, ChevronUpIcon, CloseIcon, DownloadIcon, UploadIcon, TableFilters, DraggableScroller },
 	props: {
 		id: {
 			type: [Number, String],
@@ -551,6 +556,10 @@ export default {
 		},
 		canManageProject() {
 			return this.isTruthy(this.project?.is_owner);
+		},
+		hasFormerProjectMember() {
+			return Array.isArray(this.project?.members)
+				&& this.project.members.some(member => this.isTruthy(member?.is_former ?? member?.isFormer));
 		},
 		canSettleProject() {
 			return this.canManageProject && this.showSettlementControls;
@@ -783,6 +792,9 @@ export default {
 		},
 		openProjectSettlements() {
 			this.$router.push({ name: 'project-settlements', params: { id: this.projectId } });
+		},
+		openBulkImport() {
+			this.$router.push({ name: 'import', query: { projectId: String(this.projectId) } });
 		},
 		resetProjectTableState() {
 			this.filters = createProjectEntryFilters()

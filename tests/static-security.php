@@ -456,10 +456,11 @@ try {
 	$assertContains($user, "'show_nextcloud_header_mobile'", 'User settings expose mobile Nextcloud header visibility');
 	$assertContains($user, 'validateReceiptStorageFolder', 'User settings validate receipt storage folders');
 	$assertContains($user, 'validateReceiptFolderGrouping', 'User settings validate receipt folder grouping');
-	$assertContains($user, 'CURRENCY_BY_COUNTRY', 'User settings can derive currency from Nextcloud locale');
-	$assertContains($user, "'AT' => 'EUR'", 'User settings default Austrian locale to EUR');
-	$assertContains($user, "'CH' => 'CHF'", 'User settings default Swiss locale to CHF');
-	$assertContains($user, "'US' => 'USD'", 'User settings default US locale to USD');
+	$currencyDefaults = $read('lib/Controller/WorkspaceAwareTrait.php');
+	$assertContains($currencyDefaults, 'CURRENCY_BY_COUNTRY', 'User settings can derive currency from Nextcloud locale');
+	$assertContains($currencyDefaults, "'AT' => 'EUR'", 'User settings default Austrian locale to EUR');
+	$assertContains($currencyDefaults, "'CH' => 'CHF'", 'User settings default Swiss locale to CHF');
+	$assertContains($currencyDefaults, "'US' => 'USD'", 'User settings default US locale to USD');
 	$assertContains($user, 'effectiveCurrency()', 'User settings expose an effective currency default');
 	$assertContains($user, 'detectCurrencyFromLocale()', 'User settings persist a detected currency when saving empty currency');
 	$assertContains($user, 'USER_SEARCH_MIN_LENGTH = 3', 'User search requires a minimum query length to reduce enumeration');
@@ -639,6 +640,19 @@ try {
 	$assertContains($workspaceSettings, 'selectWorkspace(workspace)', 'WorkspaceSettings can switch the active workspace');
 	$assertContains($workspaceSettings, 'updateWorkspaceVisibility(workspace, !workspace.is_hidden)', 'WorkspaceSettings toggles quick-switcher visibility');
 	$assertContains($workspaceSettings, 'workspace.is_hidden ? $texts.workspaces.showInQuickSwitcher()', 'WorkspaceSettings labels the available visibility action');
+
+	$bulkImportRoutes = $read('appinfo/routes.php');
+	$bulkImportEntryController = $read('lib/Controller/EntryController.php');
+	$bulkImportView = $read('src/views/BulkImportView.vue');
+	$assertContains($bulkImportRoutes, "['name' => 'entry#importPacket', 'url' => '/api/entries/import', 'verb' => 'PUT']", 'routes.php registers PUT /api/entries/import for entry#importPacket');
+	$assertContains($bulkImportEntryController, 'private const MAX_BULK_IMPORT_ENTRIES = 5000;', 'EntryController bounds the full import to 5000 rows');
+	$assertContains($bulkImportEntryController, 'public function importPacket(): DataResponse', 'EntryController exposes bulkImport endpoint');
+	$assertContains($bulkImportEntryController, "'planned_notified' => \$qb->createNamedParameter(true, \\PDO::PARAM_BOOL)", 'Bulk import suppresses future planned-payment notifications');
+	$assertContains($bulkImportEntryController, 'if ($projectId !== null && !$isAreaOwner && ($newCategories !== [] || $newPaymentPartners !== []))', 'Area bulk import prevents non-admins from creating missing categories or payment partners');
+	$assertContains($bulkImportView, "generateUrl('/apps/cobudget/api/entries/import')", 'BulkImportView sends packets to the bulk import endpoint');
+	$assertContains($bulkImportView, 'await this.sendPacket(offset, true)', 'BulkImportView previews imports via dryRun first');
+	$assertContains($bulkImportView, 'bulk-import-cell--new', 'BulkImportView highlights cells whose category or payment partner will be created');
+	$assertContains($bulkImportView, 'data-cobudget-badge="info"', 'BulkImportView renders a compact info badge for newly created master data');
 } catch (Throwable $e) {
 	$failures[] = $e->getMessage();
 }

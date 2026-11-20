@@ -78,12 +78,12 @@
 							<NcNoteCard v-else-if="calendar.sync_pending" type="warning"><p>{{ $texts.settings.calendarSyncPending() }}</p><NcButton :disabled="calendarBusy" @click="saveCalendarSettings(calendar.enabled, calendar.calendar_id)">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
 							<NcNoteCard v-if="!loading && !emailAddressAvailable" type="warning">{{ $texts.settings.emailAddressMissing() }}</NcNoteCard>
 							<NcNoteCard v-if="talkError" type="error"><p>{{ talkError }}</p><NcButton :disabled="talkBusy" @click="fetchTalkSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
-							<div v-if="!talkError && (!talkLoaded || (talk.available && (talk.enabled || talk.reminders_enabled || talk.planned_enabled) && !talk.ready))" class="settings-talk-status">
+							<div v-if="!talkError && (!talkLoaded || (talk.available && reconnectTalkChannel && !talk.ready))" class="settings-talk-status">
 								<p v-if="!talkLoaded" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.common.loading() }}</p>
 								<template v-else>
-									<template v-if="(talk.enabled || talk.reminders_enabled || talk.planned_enabled) && !talk.ready">
+									<template v-if="reconnectTalkChannel && !talk.ready">
 										<p class="setting-desc">{{ $texts.settings.talkReconnectDescription() }}</p>
-										<NcButton :disabled="talkBusy" @click="saveTalkSettings(true, talk.reminders_enabled ? 'reminders' : (talk.planned_enabled ? 'planned' : 'payments'))">{{ $texts.settings.reconnectPersonalTalk() }}</NcButton>
+										<NcButton :disabled="talkBusy" @click="saveTalkSettings(true, reconnectTalkChannel)">{{ $texts.settings.reconnectPersonalTalk() }}</NcButton>
 									</template>
 								</template>
 							</div>
@@ -122,6 +122,7 @@
 							<NcFormBoxSwitch v-if="enableProjects" v-model="enableSharedProjects" :label="$texts.settings.enableSharedAreas()" :description="$texts.settings.enableSharedAreasDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
 							<NcFormBoxSwitch v-model="enableReminders" :label="$texts.settings.reminders()" :description="$texts.settings.remindersFeatureDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
 							<NcFormBoxSwitch v-model="enableBudgetGoals" :label="$texts.settings.budgetGoals()" :description="$texts.settings.budgetGoalsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
+							<NcFormBoxSwitch v-model="enablePaymentImports" :label="$texts.settings.paymentImports()" :description="$texts.settings.paymentImportsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
 							<NcFormBoxSwitch v-model="enableAdvancedMasterData" :label="$texts.settings.advancedCategoryPaymentPartnerSettings()" :description="$texts.settings.advancedCategoryPaymentPartnerSettingsDescription()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
 							<div ref="workspaceOptions" class="settings-native-options settings-workspace-options">
 								<NcFormBoxSwitch v-model="enableWorkspaces" :label="$texts.settings.enableWorkspaces()" :description="$texts.settings.workspacesHint()" :disabled="loading || backupSettingsSaving" @update:model-value="saveGeneralSettings()" />
@@ -160,6 +161,8 @@
 
 			<WorkspaceSettings v-if="savedGeneralSettings?.enableWorkspaces" ref="workspaceSettings" @loading="workspaceManagementLoading = $event" />
 		</div>
+
+		<AutomaticImportSettings v-if="!loading && enablePaymentImports" :projects="automaticImportProjects" :confirm-removal="openConfirm" @activity-change="hasActiveImports = $event" />
 
 		<div class="settings-subsection backups-section">
 			<h3 class="cobudget-section-heading">{{ $texts.settings.backups() }}</h3>
@@ -305,6 +308,7 @@ import { applyThemeMode, normalizeThemeMode } from '../services/themeMode'
 import { applyNextcloudHeaderVisibility } from '../services/nextcloudHeader'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
 import { sortAreasByName } from '../utils/areaSorting'
+import AutomaticImportSettings from '../components/AutomaticImportSettings.vue'
 import MasterDataSettings from '../components/MasterDataSettings.vue'
 import WorkspaceSettings from '../components/WorkspaceSettings.vue'
 import SettingsList from '../components/SettingsList.vue'
@@ -322,6 +326,7 @@ import DownloadIcon from 'vue-material-design-icons/Download.vue'
 export default {
 	name: 'SettingsView',
 	components: { KeyboardShortcuts, DialogTransition, DisabledActionHint,
+		AutomaticImportSettings,
 		MasterDataSettings,
 		NcInputField,
 		NcSelect,
@@ -358,6 +363,9 @@ export default {
 			emailAddressAvailable: false,
 			notifyRemindersEmail: false,
 			notifyPlannedPaymentsEmail: false,
+			hasActiveImports: false,
+			notifyAutomaticImports: true,
+			notifyAutomaticImportsEmail: false,
 			notifyProjectEntriesEmail: false,
 			notifyProjectSettlementsEmail: false,
 			talkError: '',
@@ -381,6 +389,7 @@ export default {
 			enableAdvancedMasterData: false,
 			enableIncomes: true,
 			enableProjects: true,
+			enablePaymentImports: false,
 			enableSharedProjects: true,
 			notifyProjectEntries: true,
 			notifyReminders: true,
@@ -389,7 +398,7 @@ export default {
 			calendarBusy: false,
 			calendarError: '',
 			calendarSetupOpen: false,
-			talk: { available: false, enabled: false, reminders_enabled: false, planned_enabled: false, ready: false, url: null },
+			talk: { available: false, enabled: false, reminders_enabled: false, planned_enabled: false, imports_enabled: false, ready: false, url: null },
 			talkBusy: false,
 			talkLoaded: false,
 			notifyProjectSettlements: true,
@@ -425,6 +434,12 @@ export default {
 		}
 	},
 	computed: {
+		reconnectTalkChannel() {
+			if (this.talk.reminders_enabled) return 'reminders';
+			if (this.talk.planned_enabled) return 'planned';
+			if (this.talk.enabled) return 'payments';
+			return this.enablePaymentImports && this.hasActiveImports && this.talk.imports_enabled ? 'imports' : null;
+		},
 		notificationRows() {
 			const rows = [
 				{ field: 'notifyReminders', label: this.$texts.settings.reminders(), value: this.notifyReminders, channel: 'reminders', talkField: 'reminders_enabled' },
@@ -434,6 +449,10 @@ export default {
 				{ field: 'notifyProjectEntries', label: this.$texts.settings.newPaymentsInSharedAreas(), value: this.notifyProjectEntries, channel: 'payments', talkField: 'enabled' },
 				{ field: 'notifyProjectSettlements', label: this.$texts.settings.settledAreas(), value: this.notifyProjectSettlements },
 			);
+			if (this.enablePaymentImports && this.hasActiveImports) rows.push({
+				field: 'notifyAutomaticImports', label: this.$texts.autoImports.title(), value: this.notifyAutomaticImports,
+				channel: 'imports', talkField: 'imports_enabled',
+			});
 			return rows;
 		},
 		startPageChoices() {
@@ -483,6 +502,10 @@ export default {
 		},
 		backupActionsDisabled() {
 			return !!this.backupDeletingFileName || !!this.backupRestoringFileName;
+		},
+		automaticImportProjects() {
+			if (!this.enableProjects) return []
+			return sortAreasByName(this.projects).map(project => ({ ...project, archived: this.isArchivedProject(project) }))
 		},
 		activeProjects() {
 			return sortAreasByName(this.projects.filter(project => !this.isArchivedProject(project)));
@@ -1124,11 +1147,16 @@ export default {
 				this.enableBudgetGoals = settingsRes.data.enable_budget_goals ?? true;
 				this.enableAdvancedMasterData = settingsRes.data.enable_advanced_master_data ?? false;
 				this.enableIncomes = settingsRes.data.enable_incomes ?? true;
+				this.enablePaymentImports = settingsRes.data.enable_payment_imports === true;
+				this.$enablePaymentImports = this.enablePaymentImports;
 				this.enableProjects = settingsRes.data.enable_projects ?? true;
 				this.enableSharedProjects = settingsRes.data.enable_shared_projects ?? true;
 				this.notifyProjectEntries = settingsRes.data.notify_project_entries ?? true;
 				this.emailAddressAvailable = settingsRes.data.email_address_available ?? false;
 				this.notifyRemindersEmail = settingsRes.data.notify_reminders_email ?? false;
+				this.hasActiveImports = settingsRes.data.has_active_automatic_imports === true;
+				this.notifyAutomaticImports = settingsRes.data.notify_automatic_imports ?? true;
+				this.notifyAutomaticImportsEmail = settingsRes.data.notify_automatic_imports_email ?? false;
 				this.notifyPlannedPaymentsEmail = settingsRes.data.notify_planned_payments_email ?? false;
 				this.notifyProjectEntriesEmail = settingsRes.data.notify_project_entries_email ?? false;
 				this.notifyProjectSettlementsEmail = settingsRes.data.notify_project_settlements_email ?? false;

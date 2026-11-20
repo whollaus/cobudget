@@ -88,6 +88,10 @@ if ($options['phase'] === 'rollback') {
 	exit(0);
 }
 $fixture = json_decode(file_get_contents($base . '/fixture.json'), true, flags: JSON_THROW_ON_ERROR);
+// Entries from 0.8.5 have no bulk-import identity after migration or restore.
+foreach (array_keys($fixture['graph']['entries']) as $index) {
+	$fixture['graph']['entries'][$index]['import_key'] = null;
+}
 $collect = static fn(): array => (new ReflectionMethod($backup, 'collectFullBackupData'))->invoke($backup);
 if ($options['phase'] === 'prepare-crash') {
 	$archive = $backup->createFullBackup($uid, 'CoBudgetCrash', 10);
@@ -141,7 +145,6 @@ if (in_array($options['phase'], ['check-crash', 'recover-crash'], true)) {
 }
 $integrity = Server::get(OCA\CoBudget\Service\DataIntegrityService::class);
 $check($integrity->inspect()['orphanReferenceCount'] === 0, 'Deleted-goal history is not offered for destructive integrity repair');
-$fixture = json_decode(file_get_contents($base . '/fixture.json'), true, flags: JSON_THROW_ON_ERROR);
 $targetInfo = simplexml_load_string(file_get_contents(dirname(__DIR__, 2) . '/appinfo/info.xml'));
 if ($targetInfo === false || (string)$targetInfo->version === '') {
 	throw new RuntimeException('Could not read the target app version');

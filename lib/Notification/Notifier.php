@@ -32,6 +32,13 @@ class Notifier implements INotifier {
 
 		$l = $this->l10nFactory->get('cobudget', $languageCode);
 
+		if (in_array($notification->getSubject(), ['automatic_import_error', 'automatic_import_success'], true)) {
+			$subject = $notification->getSubject() === 'automatic_import_error'
+				? $l->t('Automatic import needs attention') : $l->t('Automatic import completed');
+			$notification->setParsedSubject($subject)->setLink($this->appLink() . '#/settings?section=automatic-imports');
+			return $this->setParsedMessageWhenPresent($notification, $this->param($notification->getSubjectParameters(), 'result'));
+		}
+
 		if ($notification->getSubject() === 'organizer_reminder') {
 			$params = $notification->getSubjectParameters();
 			$notification->setParsedSubject($l->t('CoBudget reminder: %s', [$this->param($params, 'title')]))

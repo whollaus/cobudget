@@ -171,7 +171,7 @@ Tooltips share the CoBudget surface and normal 15 px text, weight 400 and line
 height 1.5, including nested text. Use
 [tooltipVisibility](../src/services/tooltipVisibility.js) for delayed pointer
 hints (400 ms opening, 100 ms closing); keyboard focus and explicit activation
-remain immediate. Clear timers on leave, dismissal and unmount. Passive hints
+remain immediate. Automatic import results use a focusable timestamp with an interactive popover. Long filenames and messages wrap, and the filename opens the corresponding Nextcloud file in a new tab. An alert icon marks a failed result or outstanding files. Clear timers on leave, dismissal and unmount. Passive hints
 on an existing link or option must not add a second tab stop.
 
 `DisabledActionHint` wraps a genuinely disabled action with a focusable,
@@ -531,6 +531,8 @@ forecast assumptions and export contents are defined in [reports.md](reports.md)
 
 ## Settings and master data
 
+The automatic import settings omit archived areas and show each active area with its colored AreaIcon and a separate Without area row. Folder, interval, notification and activation controls save directly in the row. Activation requires a chosen folder. Place a short description below the heading and the Import format action beside it. Both import screens use the same format dialog. In settings the dialog includes an area selector for the example and lookup lists. On narrow screens, the rule fields stack with visible labels and the actions remain reachable.
+
 ### General preferences and workspaces
 
 [SettingsView](../src/views/SettingsView.vue) keeps general/notification/receipt
@@ -580,7 +582,8 @@ when its context changes without clearing unrelated drafts.
 ### Categories and payment partners
 
 `MasterDataSettings` uses a flat availability matrix with a sticky identity
-column, a Without area column and consistent category disclosure/indentation.
+column, a Without area column and one column per active area. Income and expense
+root categories align. Only child rows reserve space for their branch.
 Income and expense sections use shared small headings. Global markers need an
 accessible explanation; do not add generic warnings to every editable row.
 
@@ -958,6 +961,18 @@ Entry forms reveal their fields together after their lookup data is ready.
 The shell stylesheet is linked from the server response. Initial header visibility
 is represented by server-rendered metadata until the small initialization script
 applies the user's appearance settings. Subsequent setting changes remain reactive.
+
+## Bulk Import Preview Highlighting
+
+The import target, payment data and preview headings use the payment editor’s field-label typography.
+Place Cancel and Import at the trailing edge below the preview table and its pagination, in the same order as the budget goal form actions.
+
+In `BulkImportView.vue`, dry-run preview table cells whose category or payment
+partner does not yet exist in global or target-scope master data use
+`.bulk-import-cell--new` (`--cobudget-feedback-info-bg` fill and `--cobudget-feedback-info-border`
+accent border on desktop rows and stacked mobile cells) paired with a compact
+`[data-cobudget-badge="info"]` (`data-cobudget-badge-size="compact"`) indicator
+so users see newly created entries alongside the flat CoBudget table layout.
 CSS is extracted beside the JS assets, including lazy view styles. Component CSS
 uses Vue scopes or distinct component classes; ordering between independent lazy
 components must not define shared overrides.

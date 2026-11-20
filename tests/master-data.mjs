@@ -51,6 +51,24 @@ assert.ok(operations.some(op => op.action === 'hide' && op.id === 2), 'Hiding pa
 assert.ok(!operations.some(op => op.action === 'destroy'), 'Disabling never deletes historical identities')
 console.log('Master-data grouping, separate drafts, hierarchy and permission checks passed')
 
+// Archived areas must not contribute columns, editable drafts or scoped lookup requests.
+{
+ const projects = [
+  { id: 1, is_owner: true, is_archived: '0' }, { id: 2, is_owner: false, is_archived: 0 },
+  ...[true, 1, '1'].map((is_archived, index) => ({ id: 3 + index, is_archived })),
+ ]
+ const queried = []
+ api.get = async (url, options) => {
+  if (url.endsWith('/projects')) return { data: projects }
+  queried.push(options.params.projectId)
+  return { data: [] }
+ }
+ const state = { ...component.data(), flag: recordFlag, $texts: { masterData: { noArea: () => 'Without area' } }, $emit() {} }
+ assert.equal(await component.methods.load.call(state), true)
+ assert.deepEqual(state.scopes.map(scope => [scope.projectId, scope.editable]), [[null, true], [1, true], [2, false]])
+ assert.deepEqual(queried, [null, null, 1, 1, 2, 2])
+}
+
 // Exercise explicit saving and discard guards with controlled network boundaries.
 function editorVm() {
  const state = { ...component.data(), admin: false, projectId: null, scopes: structuredClone(scopes), $emit() {}, $texts: { masterData: { parentMissing: () => 'Missing parent', saveError: () => 'Save failed', refreshError: () => 'Reload saved entries', validationError: () => 'Invalid fields' } } }

@@ -59,9 +59,19 @@ class BackupService {
 		'cobudget_budget_goals',
 		'cobudget_budget_snapshots',
 		'cobudget_reminders',
+		'cobudget_import_rules',
+		'cobudget_import_files',
 	];
 
 	private const BACKUP_TABLE_COLUMNS = [
+		'cobudget_import_rules' => [
+			'id', 'user_id', 'workspace_id', 'project_id', 'folder', 'folder_id', 'active_folder_id',
+			'timezone', 'interval_minutes', 'notify_mode', 'enabled', 'last_message', 'last_error', 'last_run', 'next_run', 'scan_from', 'report_after', 'report_etag', 'scan_batch',
+		],
+		'cobudget_import_files' => [
+			'id', 'user_id', 'workspace_id', 'project_id', 'rule_id', 'commit_limit', 'imported_count',
+			'scope_key', 'name_key', 'digest', 'content_hash', 'source_name', 'snapshot', 'state', 'next_row', 'detail', 'wait_message', 'last_retry', 'source_etag', 'currency', 'archive_name', 'archive_hash',
+		],
 		'cobudget_reminders' => ['id', 'user_id', 'entry_id', 'title', 'description', 'remind_at', 'due_date', 'labels', 'keep_open', 'completed_at', 'archived_at', 'dismissed', 'notified', 'email_notified', 'entry_signature', 'revision'],
 		'cobudget_deleted_users' => [
 			'id',
@@ -182,6 +192,7 @@ class BackupService {
 			'reminder_date',
 			'planned_notified',
 			'planned_delivery',
+			'import_key',
 			'reminder_notified',
 			'reminder_text',
 			'workspace_id',
@@ -304,6 +315,8 @@ class BackupService {
 	];
 
 	private const USER_COLUMNS = [
+		'cobudget_import_rules' => ['user_id'],
+		'cobudget_import_files' => ['user_id'],
 		'cobudget_workspaces' => ['user_id'],
 		'cobudget_projects' => ['owner_id'],
 		'cobudget_members' => ['user_id'],
@@ -373,10 +386,14 @@ class BackupService {
 		'enable_reminders',
 		'enable_budget_goals',
 		'enable_advanced_master_data',
+		'enable_payment_imports',
 		'enable_incomes',
 		'enable_projects',
 		'enable_shared_projects',
 		'notify_planned_payments',
+		'notify_automatic_imports',
+		'notify_automatic_imports_email',
+		'notify_automatic_imports_talk',
 		'notify_planned_payments_talk',
 		'notify_reminders_email',
 		'notify_planned_payments_email',
@@ -419,10 +436,14 @@ class BackupService {
 		'enable_reminders' => 'yes',
 		'enable_budget_goals' => 'yes',
 		'enable_advanced_master_data' => 'no',
+		'enable_payment_imports' => 'no',
 		'enable_incomes' => 'yes',
 		'enable_projects' => 'yes',
 		'enable_shared_projects' => 'yes',
 		'notify_planned_payments' => 'no',
+		'notify_automatic_imports' => 'yes',
+		'notify_automatic_imports_email' => 'no',
+		'notify_automatic_imports_talk' => 'no',
 		'notify_planned_payments_talk' => 'no',
 		'notify_reminders_email' => 'no',
 		'notify_planned_payments_email' => 'no',
@@ -894,6 +915,7 @@ class BackupService {
 					$this->deleteAllBackupTables();
 					$this->deleteAllCoBudgetSettings();
 					$this->insertTables($tables);
+					AutoImportRules::reservePausedFolders($this->db);
 					$this->restoreAllSettings($settings);
 					$this->synchronizeAutoincrementSequences($tables);
 					$this->dataIntegrityService->assertProjectionIntegrity();
@@ -1578,6 +1600,9 @@ class BackupService {
 						$row[$column] = $userMap[$value];
 					}
 				}
+				if ($table === 'cobudget_import_files') {
+					$row['scope_key'] = AutoImportLedger::scopeKey($row);
+				}
 			}
 			unset($row);
 		}
@@ -1626,6 +1651,9 @@ class BackupService {
 			));
 		}
 
+		// File node IDs and delivery checkpoints are local to the source account.
+		$prepared['cobudget_import_rules'] = [];
+		$prepared['cobudget_import_files'] = [];
 		$prepared = $this->detachDeletedBudgetGoals($prepared);
 
 		$memberSharesByProject = $this->projectMemberSharesByProject($prepared['cobudget_members'], $sourceUserId);
@@ -1825,6 +1853,7 @@ class BackupService {
 			$row['is_settled'] = false;
 			$row['settled_at'] = null;
 			$row['settlement_id'] = null;
+			unset($row['import_key']); // Import identities belong to the original account and workspace.
 			// Personal exports carry only this account's pending delivery progress.
 			if ($isSharedProjectEntry || $isProjectedPersonalEntry) {
 				$row['planned_notified'] = true;
@@ -3328,6 +3357,21 @@ class BackupService {
 
 	private function insertRow(string $table, array $row): void {
 		$row = $this->filterBackupRowColumns($table, $row);
+		if ($table === 'cobudget_import_rules') {
+			// Reconcile every pending report against the newly confirmed inbox on this instance.
+			$row['scan_from'] = null;
+			$row['report_after'] = 0;
+			$row['report_etag'] = null;
+			$row['scan_batch'] = null;
+			// File IDs from the source instance cannot identify a restored result's document.
+			$row['last_message'] = AutoImportResult::unpack($row['last_message'] ?? null)['message'];
+			// The user must confirm the folder on this instance before importing again.
+			$row['active_folder_id'] = $this->backupBool($row['enabled'] ?? false) ? ((int)$row['folder_id'] ?: null) : null;
+			$row['enabled'] = false;
+		}
+		if ($table === 'cobudget_import_files' && isset($row['wait_message'])) {
+			$row['wait_message'] = AutoImportResult::unpack($row['wait_message'])['message'];
+		}
 		if ($table === 'cobudget_reminders' && !array_key_exists('email_notified', $row)) $row['email_notified'] = (bool)($row['notified'] ?? true);
 		if ($table === 'cobudget_entries' && !array_key_exists('planned_notified', $row)) {
 			// Old archives have no delivery state: arm future originals, never past payments.

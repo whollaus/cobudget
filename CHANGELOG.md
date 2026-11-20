@@ -2,8 +2,88 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [1.2.0] - 2026-11-20
+
+- Enable Payment imports in personal settings to preview JSON payments or schedule imports from Nextcloud Files into a personal workspace or shared area.
+- Folder imports resume interrupted payments in bounded batches and protect shared allocations against duplicate uploads.
+- Preserve files overwritten in the processed archive after booking, even when sync keeps the Files ID. A fresh delivery of those independent payments can be imported once.
+
+## [1.1.12] - 2026-11-20
+
+- Record payment data changed by sync before the archive move. After a worker interruption, moving the archived file elsewhere and uploading the changed payments under a fresh name cannot book them again.
+- Automatic import recovery preserves independent files that appear at the planned archive path after an interruption. Their payments can still be imported under a fresh filename.
+
+## [1.1.11] - 2026-11-20
+
+- Folder imports preserve files synced into either archive under the same name. A rejected file corrected before archiving is checked again on the next scan, even when sync preserves its file ID and ETag.
+- Automatic imports verify archived payments against the booking journal, including after an interruption. If sync replaced the file during the move, the changed delivery and subsequent copies go to the error folder.
+
+## [1.1.10] - 2026-11-20
+
+- Folder imports now select up to twelve file versions before checking outstanding deliveries. Sync uploads and edits made during that check receive a fresh check before booking.
+- Uploads between checks allow an existing batch to finish, including when several pages of booked files still await archiving.
+
+## [1.1.9] - 2026-11-20
+
+- A filename conflict now blocks the changed payment data even if it previously appeared in a rejected draft. Corrected drafts with different data can still be imported.
+- Automatic imports recheck earlier outstanding sources when the inbox changes between pages, before booking newly uploaded copies.
+
+## [1.1.8] - 2026-11-20
+
+- Reject copies of an edited, partially imported file even when the original cannot be moved or is temporarily locked.
+- Automatic imports retain one currency across all packets, including resumed shared payments.
+- Pending deliveries are reconciled before new files, preventing duplicate bookings after a source is renamed and edited while another file awaits archiving.
+- Folder checks continue from the next file when their processing budget runs out, so blocked error archives do not hold up later payments.
+
+## [1.1.7] - 2026-11-20
+
+- Preserve the original payment and share identities when a sync client renames an active delivery and reuses its old filename. Other deliveries continue when a file is locked or its error archive is unavailable.
+- Reject fractional cents in manual and scheduled imports before booking, including JSON numbers that would round to a valid amount during decoding.
+- Pause scheduled folder imports when Nextcloud file locking is disabled. Files that cannot be read or moved stay in the inbox and leave the file allowance available to other deliveries.
+- Hide and suspend automatic folder imports while their area is archived.
+- Align top-level income and expense categories in Settings and exclude archived areas from the availability matrix.
+- Open the file from an automatic import result, including rejected and waiting deliveries.
+- Add one personal, default-off Payment imports switch for manual JSON imports and automatic folder imports. Pausing the feature preserves configured folders and booking progress.
+
+- Reserve both filenames when an automatic import is renamed during booking. Reselecting a recreated inbox at the same path lets the worker finish its saved delivery.
+
+- Link each README to a payment import guide in English, German, French or Spanish covering the JSON format, manual imports and folder automation.
+- Explain filename reuse in the import format guide and identify the original filename when rejecting changed payment data.
+- Start an active folder import immediately from Settings. Manual starts share the scheduled worker’s locks, limits and duplicate protection.
+
+## [1.1.6] - 2026-11-20
+
+- Show the time of the last automatic import result in Settings. An alert icon marks errors and waiting files. Hover, focus or tap the time for details.
+
+## [1.1.5] - 2026-11-19
+
+- Keep the filename, booking progress and missing lookup visible for a waiting folder import. Other deliveries continue while the saved file waits to resume.
+- Document manual and scheduled payment imports with a copyable JSON example, a field reference and instructions for recovering a partially booked delivery after an area lookup changes.
+
+## [1.1.4] - 2026-11-19
+
+- Resume automatic imports from the validated delivery, recognize renamed copies with reordered payment fields, and recover the booking result after an interruption during archiving.
+- Read incoming filenames incrementally on large import folders.
+- Show import notification channels as soon as personal settings load, including for imports in other workspaces.
+
+## [1.1.3] - 2026-11-19
+
+- Create `CoBudget/Import` in personal Files when opening Settings and offer it in the folder picker for new assignments.
+- Choose Nextcloud, email and personal Talk channels for import results when an automatic import is active.
+- Reserve each automatic import folder until it is removed or changed, including while paused. Open the JSON format guide directly from automatic import settings.
+
+## [1.1.2] - 2026-11-19
+
+- Add scheduled folder imports with per-account rules, shared-area splits, file notifications and resumable processing. Configure each area directly in the settings table and activate it once a folder is selected.
+
+## [1.1.1] - 2026-11-19
+
+- Validate and save bulk imports in bounded packets. Reopening the same payment data in the same target skips previously imported rows, including after an interrupted response.
+- Use the payment form’s account currency for bulk imports, including locale defaults. Report dates outside the database timestamp range in the preview before confirming the file.
+
 ## [1.1.0] - 2026-11-17
 
+- Add JSON bulk import at `/import` for up to 5,000 payments with an in-place Import Bereich selector (`Without area` or any active area), file selection and text entry in one form with a copyable example, dry-run validation, paginated preview, chunked commit with progress feedback, grouped hashtag/projection processing, area-admin-only creation of missing area master data, and suppressed notifications.
 - Highlight the reminder summary on desktop and mobile with error-button colors and remove its count, preserving reminder titles and dates.
 
 ## [1.0.0] - 2026-11-16

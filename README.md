@@ -25,12 +25,12 @@ you record.
 - **Notifications:** Nextcloud, a private CoBudget Talk chat and optional
   email, with separate choices for supported events. Reminders can also sync with
   a calendar; private calendar edits sync back to CoBudget.
-- **Exports and backups:** print reports, export CSV, copy tables to a spreadsheet and
-  create personal exports or administrator backups.
+- **[Payment imports](docs/payment-imports.md):** optionally import JSON payments manually with a preview or automatically from a Nextcloud folder.
+- **Exports and backups:** print reports, export CSV, copy tables to a spreadsheet and create personal exports or administrator backups.
 - **Workspaces and appearance:** separate data pools with workspaces, use desktop or mobile
   layouts and choose a light, dark or system appearance.
+- **Interface languages:** English, German, French and Spanish.
 
-The interface is available in English, German, French and Spanish.
 [Features](FEATURES.md) explains the workflows and limits;
 [report calculations](docs/reports.md) explains amounts, forecasts and exports.
 

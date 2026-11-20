@@ -68,6 +68,10 @@
 							<template #icon><PrinterIcon :size="20" /></template>
 							{{ $texts.analytics.print() }}
 						</NcActionButton>
+						<NcActionButton v-if="$enablePaymentImports" key="bulk-import" class="cobudget-action-menu-option" close-after-click @click="openBulkImport">
+							<template #icon><UploadIcon :size="20" /></template>
+							{{ $texts.bulkImport.menuAction() }}
+						</NcActionButton>
 						<NcActionButton class="cobudget-action-menu-option" close-after-click @click="openMasterDataSettings('categories')">
 							<template #icon><ShapeOutlineIcon :size="20" /></template>
 							{{ $texts.settings.manageCategories() }}
@@ -487,6 +491,7 @@ import CalendarIcon from 'vue-material-design-icons/CalendarOutline.vue'
 import CalendarMonthIcon from 'vue-material-design-icons/CalendarMonthOutline.vue'
 import CloseIcon from 'vue-material-design-icons/Close.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
+import UploadIcon from 'vue-material-design-icons/Upload.vue'
 import CloudUploadOutlineIcon from 'vue-material-design-icons/CloudUploadOutline.vue'
 import ClipboardTextOutlineIcon from 'vue-material-design-icons/ClipboardTextOutline.vue'
 import PrinterIcon from 'vue-material-design-icons/Printer.vue'
@@ -640,6 +645,7 @@ export default {
 		CalendarMonthIcon, BellOutlineIcon,
 		CloseIcon,
 		DownloadIcon,
+		UploadIcon,
 		CloudUploadOutlineIcon,
 		ClipboardTextOutlineIcon,
 		PrinterIcon,
@@ -1637,6 +1643,12 @@ export default {
 		},
 		openMasterDataSettings(section) {
 			this.$router.push({ name: 'settings', query: { section } })
+		},
+		openBulkImport() {
+			this.$router.push({
+				name: 'import',
+				query: this.isPaymentsView ? { returnTo: 'payments' } : undefined,
+			})
 		},
 		printFilterLabels() {
 			const chips = this.$refs.filterChips?.chips

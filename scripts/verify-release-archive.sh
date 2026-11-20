@@ -67,8 +67,8 @@ if [ -d "$EXTRACT_DIR/cobudget/js" ]; then
 		exit 65
 	fi
 
-	find "$EXTRACT_DIR/cobudget/js" -type f -name '*.js' -exec grep -ohE 'cobudget-[A-Za-z0-9_./-]+\.(js|css)' {} + \
-		| sort -u > "$REFERENCES_FILE" || true
+	find "$EXTRACT_DIR/cobudget/js" -type f -name '*.js' -exec grep -ohE 'cobudget-[A-Za-z0-9_./-]+' {} + \
+		| grep -E '\.(js|css)$' | sort -u > "$REFERENCES_FILE" || true
 
 	while IFS= read -r referencedChunk; do
 		if [ -n "$referencedChunk" ] && ! grep -qx "cobudget/js/$referencedChunk" "$LIST_FILE"; then
