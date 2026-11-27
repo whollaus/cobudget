@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace OCA\CoBudget\Middleware;
 
 use OCA\CoBudget\Controller\AdminBackupController;
+use OCA\CoBudget\Controller\ApiV1Controller;
 use OCA\CoBudget\Controller\BackupController;
+use OCA\CoBudget\Exception\ApiV1HttpException;
 use OCA\CoBudget\Exception\AppBusyException;
+use OCA\CoBudget\Service\ApiV1AuthService;
 use OCA\CoBudget\Service\AppDataLock;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Middleware;
 use OCP\IL10N;
@@ -21,6 +25,11 @@ class AppDataLockMiddleware extends Middleware {
 	}
 
 	public function beforeController(Controller $controller, string $methodName): void {
+		if ($controller instanceof ApiV1Controller) {
+			// ApiV1Controller acquires AppDataLock post-auth so unauthenticated/rate-limited
+			// floods cannot contend with Nextcloud locks or backup/restore exclusive locks.
+			return;
+		}
 		$exclusive = ($controller instanceof BackupController || $controller instanceof AdminBackupController)
 			&& in_array($methodName, ['create', 'restore'], true);
 		// GETs can perform lazy normalization, so they participate as well.
@@ -33,16 +42,34 @@ class AppDataLockMiddleware extends Middleware {
 
 	public function afterController(Controller $controller, string $methodName, Response $response): Response {
 		$this->release();
+		if ($controller instanceof ApiV1Controller) {
+			ApiV1AuthService::applySecurityHeadersToResponse($response);
+		}
 		return $response;
 	}
 
 	public function afterException(Controller $controller, string $methodName, \Exception $exception): Response {
 		$this->release();
 		if ($exception instanceof AppBusyException) {
-			return new DataResponse([
+			$payload = [
 				'error' => $this->l10n->t('CoBudget is temporarily busy with a backup, restore or another operation. Please try again shortly.'),
 				'code' => 'cobudget_busy',
-			], 503, ['Retry-After' => '5']);
+			];
+			if ($controller instanceof ApiV1Controller) {
+				$response = new JSONResponse($payload, 503);
+				$response->addHeader('Retry-After', '5');
+				ApiV1AuthService::applySecurityHeadersToResponse($response);
+				return $response;
+			}
+			return new DataResponse($payload, 503, ['Retry-After' => '5']);
+		}
+		if ($controller instanceof ApiV1Controller && $exception instanceof ApiV1HttpException) {
+			$response = new JSONResponse(['error' => $exception->getMessage()], $exception->getStatusCode());
+			foreach ($exception->getHeaders() as $header => $value) {
+				$response->addHeader($header, $value);
+			}
+			ApiV1AuthService::applySecurityHeadersToResponse($response);
+			return $response;
 		}
 		throw $exception;
 	}

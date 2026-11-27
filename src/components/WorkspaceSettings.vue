@@ -553,7 +553,7 @@ export default {
 	.workspace-editor-modal :deep(.modal-container__content) { display: flex; min-height: 0; overflow: hidden; }
 	.workspace-editor { display: flex; flex-direction: column; width: 100%; min-width: 0; height: 100%; min-height: 0; padding: 0; }
 	.workspace-editor h2 { flex-shrink: 0; margin: 0; padding: calc(var(--default-grid-baseline, 4px) * 3) calc(var(--cobudget-mobile-touch-size, 44px) + var(--cobudget-dialog-padding)) var(--cobudget-space-2, 8px) var(--cobudget-dialog-padding); line-height: 1.5; overflow-wrap: anywhere; }
-	.workspace-editor-body { display: grid; align-content: start; flex: 1; min-height: 0; overflow: auto; gap: var(--cobudget-space-2, 8px); padding: var(--default-grid-baseline, 4px) var(--cobudget-dialog-padding) calc(var(--default-grid-baseline, 4px) * 3); }
+	.workspace-editor-body { display: grid; align-content: start; flex: 1; min-height: 0; background-color: inherit; overflow: auto; overscroll-behavior: none; transform: translateZ(0); backface-visibility: hidden; gap: var(--cobudget-space-2, 8px); padding: var(--default-grid-baseline, 4px) var(--cobudget-dialog-padding) calc(var(--default-grid-baseline, 4px) * 3); }
 	.workspace-editor-hint { margin: 0; font-size: var(--cobudget-font-sm, 13px); line-height: 1.4; }
 	.workspace-editor-actions { flex-shrink: 0; flex-wrap: nowrap; margin: 0; padding: calc(var(--default-grid-baseline, 4px) * 3) var(--cobudget-dialog-padding) max(var(--cobudget-dialog-padding), env(safe-area-inset-bottom)); }
 	.workspace-confirm-actions { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }

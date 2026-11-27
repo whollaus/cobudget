@@ -2,6 +2,19 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [1.3.0] - 2026-11-27
+
+- Mark the external API as Beta in personal and administration settings. Document setup, permissions, supported endpoints and integration examples in the [API guide](docs/api.md).
+- Add an instance-wide API switch. Both the administrator and the account owner must enable access before a key can be used.
+
+- Harden API payment and key permissions, receipt file identity, concurrent settlement and restore. Payment writes return only the ID when the key has no read permission for the target. Nextcloud password confirmation protects changes to the instance-wide switch, personal activation and key management. The API uses stateless key authentication and records security-relevant changes in the server log.
+- Limit work per API request and document how to enforce the 64 KiB API body limit and preserve trusted proxy forwarding headers before PHP. Show a warning in Nextcloud’s administration overview when the public API accepts oversized requests or its limit cannot be verified.
+- Add a release package check that installs CoBudget on a fresh Nextcloud for each supported major and verifies persisted personal and shared payments.
+
+## [1.2.1] - 2026-11-25
+
+- Add personal API key management in Settings with per-workspace binding, personal/area access controls, granular action scopes and optional expiry dates.
+
 ## [1.2.0] - 2026-11-20
 
 - Enable Payment imports in personal settings to preview JSON payments or schedule imports from Nextcloud Files into a personal workspace or shared area.

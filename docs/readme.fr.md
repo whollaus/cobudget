@@ -30,6 +30,7 @@ paiements que vous enregistrez.
   et e-mail facultatif, activables séparément selon l’événement. Les rappels peuvent
   aussi être synchronisés avec un calendrier ; les modifications d’un calendrier
   privé sont répercutées dans CoBudget.
+- **API externe (bêta)** pour les intégrations, avec des clés personnelles par espace de travail et des droits distincts pour les paiements personnels et chaque espace partagé. Une fois l’API activée par un administrateur Nextcloud, vous pouvez créer vos clés dans les paramètres de CoBudget. [Configuration et référence de l’API (anglais)](api.md)
 - **[Import de paiements](payment-imports.fr.md) :** en option, importer des paiements au format JSON manuellement avec un aperçu ou automatiquement depuis un dossier Nextcloud.
 - **Exports et sauvegardes :** imprimer des rapports, exporter en CSV, copier des tableaux dans un tableur et créer des exports personnels ou des sauvegardes administrateur.
 - **Espaces de travail et affichage :** jeux de données séparés grâce aux espaces de travail,
@@ -101,10 +102,8 @@ administrateur** contient les données financières de tous les utilisateurs de
 CoBudget et leurs paramètres transférables. Sa restauration remplace les données
 actuelles de l’application.
 
-**Les fichiers justificatifs ne sont pas inclus : seuls leurs chemins sont
-conservés.** Utilisez votre solution de sauvegarde habituelle pour Nextcloud Files
-pour protéger ces fichiers. Cette responsabilité reste volontairement séparée.
-Ces archives ne remplacent pas une sauvegarde complète de Nextcloud. CoBudget
+**Incluez les justificatifs dans votre sauvegarde de Nextcloud Files.** Les archives CoBudget contiennent leurs références. Après un déplacement ou la restauration d’une sauvegarde ancienne ou provenant d’une autre instance, vous devrez parfois joindre le fichier à nouveau. Conservez une sauvegarde complète de Nextcloud pour pouvoir restaurer le serveur.
+CoBudget
 bloque temporairement l’accès à l’application pendant la sauvegarde et la
 restauration. Si une opération est en cours, réessayez après sa fin. Rechargez
 les onglets CoBudget ouverts après une restauration. Voir la

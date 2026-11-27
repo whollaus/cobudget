@@ -3,6 +3,7 @@ namespace OCA\CoBudget\AppInfo;
 
 use OCA\CoBudget\Notification\Notifier;
 use OCA\CoBudget\Listener\BeforeUserDeletedListener;
+use OCA\CoBudget\SetupChecks\ApiRequestBodyLimit;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -17,6 +18,7 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
+		$context->registerSetupCheck(ApiRequestBodyLimit::class);
 		$context->registerMiddleware(\OCA\CoBudget\Middleware\AppDataLockMiddleware::class);
 		$context->registerEventListener(BeforeUserDeletedEvent::class, BeforeUserDeletedListener::class);
 		$context->registerEventListener(\OCP\User\Events\UserDeletedEvent::class, BeforeUserDeletedListener::class);

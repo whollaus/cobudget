@@ -425,7 +425,7 @@ try {
 	$assertContains($entry, 'cobudget_entry_attachments', 'EntryController stores attachment metadata in a dedicated table');
 	$assertContains($entry, 'entryVisibleInActiveWorkspace($id)', 'EntryController keeps attachment APIs tied to visible active-workspace entries');
 	$assertContains($entry, '$workspaceId !== null && (int)$workspaceId !== $activeWorkspaceId', 'EntryController validates explicit workspace ids for attachment display');
-	$assertContains($entry, 'FileDisplayResponse', 'EntryController displays receipt files inline where possible');
+	$assertContains($entry, 'Content-Disposition\' => "inline;', 'EntryController displays receipt files inline where possible');
 	$assertContains($entry, '#[NoCSRFRequired]', 'EntryController receipt display avoids browser CSRF failures');
 	$assertContains($entry, "'receipt_storage_folder'", 'EntryController uses the configured receipt storage folder');
 	$assertContains($entry, "'receipt_folder_grouping'", 'EntryController uses the configured receipt folder grouping');
@@ -653,6 +653,123 @@ try {
 	$assertContains($bulkImportView, 'await this.sendPacket(offset, true)', 'BulkImportView previews imports via dryRun first');
 	$assertContains($bulkImportView, 'bulk-import-cell--new', 'BulkImportView highlights cells whose category or payment partner will be created');
 	$assertContains($bulkImportView, 'data-cobudget-badge="info"', 'BulkImportView renders a compact info badge for newly created master data');
+
+	$apiTokenService = $read('lib/Service/ApiTokenService.php');
+	$apiTokenController = $read('lib/Controller/ApiTokenController.php');
+	$assertContains($apiTokenService, 'random_bytes(32)', 'ApiTokenService generates 256-bit random API keys');
+	$assertContains($apiTokenService, "hash('sha256'", 'ApiTokenService stores only SHA-256 hashes of API keys');
+	$assertContains($apiTokenService, 'MAX_TOKENS_PER_USER = 50', 'ApiTokenService bounds API keys per user');
+	$assertContains($apiTokenService, "in_array('reports:read'", 'ApiTokenService restricts reports:read to full workspace data access');
+	$assertContains($apiTokenController, 'use WorkspaceAwareTrait;', 'ApiTokenController uses WorkspaceAwareTrait');
+	$assertContains($apiTokenController, 'authErrorResponse()', 'ApiTokenController enforces authenticated web session checks');
+	$assertContains($apiTokenController, '#[PasswordConfirmationRequired]', 'ApiTokenController enforces sudo password confirmation on token mutations');
+	if (!preg_match('/#\[PasswordConfirmationRequired\]\s*#\[UserRateLimit\([^)]*\)\]\s*public function enableAccess\(/', $apiTokenController)) {
+		$failures[] = 'Enabling API access and resuming existing keys requires Nextcloud password confirmation';
+	}
+	$assertContains($read('lib/Controller/UserController.php'), 'if ($enable_api_access === true)', 'General settings reject enable requests before saving any preferences');
+	$assertContains($apiTokenController, "'no-store, private'", 'ApiTokenController applies no-store Cache-Control headers to token responses');
+	$assertNotContains($apiTokenController, 'NoCSRFRequired', 'ApiTokenController keeps CSRF protection enabled on all token management routes');
+	$assertNotContains($apiTokenController, 'PublicPage', 'ApiTokenController never exposes public token management routes');
+	if (preg_match('/private const BACKUP_TABLES = \[(.*?)\];/s', $backupService, $backupTablesMatch) !== 1) {
+		$failures[] = 'BackupService BACKUP_TABLES constant missing';
+	} else {
+		$assertNotContains($backupTablesMatch[1], "'cobudget_api_tokens'", 'BackupService BACKUP_TABLES excludes cobudget_api_tokens from backup archives');
+	}
+	$assertContains($backupService, "deleteAllBackupTables()", 'BackupService keeps full restore cleanup hook');
+	$assertContains($backupService, "cobudget_api_tokens", 'BackupService clears API tokens during full/personal restore cleanup');
+	$assertContains($backupService, "'enable_api_access'", 'BackupService clears enable_api_access during restore settings reset');
+	$assertContains($userResetService, "cobudget_api_tokens", 'UserResetService deletes API tokens on user reset');
+	$assertContains($userResetService, "'enable_api_access'", 'UserResetService resets enable_api_access');
+	$userDeletion = $read('lib/Service/UserDeletionService.php');
+	$assertContains($userDeletion, "'cobudget_api_tokens'", 'UserDeletionService deletes API tokens when deleting an account');
+	$assertContains($workspace, "'cobudget_api_tokens'", 'WorkspaceController deletes API tokens when deleting a workspace');
+	$resetAllCommand = $read('lib/Command/ResetAllCommand.php');
+	$assertContains($resetAllCommand, "'cobudget_api_tokens'", 'ResetAllCommand includes cobudget_api_tokens');
+	$assertContains($resetAllCommand, "'enable_api_access'", 'ResetAllCommand resets global enable_api_access app config');
+
+	$adminApiController = $read('lib/Controller/AdminApiController.php');
+	$assertContains($adminApiController, 'IGroupManager', 'AdminApiController injects the Nextcloud admin group manager');
+	$assertContains($adminApiController, 'requireAdmin()', 'AdminApiController uses an explicit admin guard');
+	$assertContains($adminApiController, '$this->groupManager->isAdmin', 'AdminApiController checks Nextcloud admin status');
+	$assertContains($adminApiController, '#[PasswordConfirmationRequired]', 'AdminApiController requires Nextcloud password confirmation before changing global API access');
+	$assertContains($adminApiController, "'no-store, private'", 'AdminApiController applies no-store headers');
+	$assertNotContains($adminApiController, 'NoAdminRequired', 'AdminApiController requires administrator permissions');
+	$assertNotContains($adminApiController, 'NoCSRFRequired', 'AdminApiController keeps CSRF protection enabled');
+	$assertNotContains($adminApiController, 'PublicPage', 'AdminApiController never exposes public routes');
+	$assertNotContains($apiTokenController, "\n\t\t\treturn new DataResponse(", 'ApiTokenController wraps all direct DataResponse returns with applyNoStoreHeaders');
+	$assertContains($apiTokenService, "APP_SETTING_ENABLED = 'enable_api_access'", 'ApiTokenService defines global admin setting key');
+	$assertContains($apiTokenService, 'isGloballyEnabled()', 'ApiTokenService enforces global admin API toggle');
+	$assertContains($apiTokenService, 'tokenHashExists(', 'ApiTokenService checks known token hashes without widening auth');
+	$apiLimitDocs = $read('docs/api-request-limits.md');
+	$assertContains($apiLimitDocs, 'proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;', 'api-request-limits.md preserves trusted X-Forwarded-For header in nginx location');
+	$assertContains($apiLimitDocs, 'location ~ ^/+(?:index\.php/+)?apps/+cobudget/+api/+v1(?:/+|$)', 'api-request-limits.md matches repeated slashes in nginx location');
+
+	$apiV1Controller = $read('lib/Controller/ApiV1Controller.php');
+	$apiV1AuthService = $read('lib/Service/ApiV1AuthService.php');
+	$assertContains($apiV1AuthService, 'isGloballyEnabled()', 'ApiV1AuthService enforces global admin API toggle pre-lookup');
+	$assertContains($apiV1AuthService, 'hasAuthenticatedWebSession()', 'ApiV1AuthService rejects authenticated web sessions and login cookies on v1 endpoints');
+	$assertContains($apiV1AuthService, 'REMOTE_USER', 'ApiV1AuthService rejects server-authenticated REMOTE_USER headers on v1 endpoints');
+	$apiV1EntriesService = $read('lib/Service/ApiV1EntriesService.php');
+	$apiV1ReportsService = $read('lib/Service/ApiV1ReportsService.php');
+	$apiV1SettingsService = $read('lib/Service/ApiV1SettingsService.php');
+	$appDataLockMiddleware = $read('lib/Middleware/AppDataLockMiddleware.php');
+	$routesFile = $read('appinfo/routes.php');
+
+	foreach ([
+		'me',
+		'areas',
+		'categories',
+		'paymentPartners',
+		'entriesIndex',
+		'entriesShow',
+		'entriesCreate',
+		'entriesUpdate',
+		'entriesDestroy',
+		'reportsSummary',
+		'reportsAnnual',
+		'budgetsIndex',
+		'settingsGet',
+		'settingsPatch',
+	] as $apiAction) {
+		$pattern = '/public function ' . preg_quote($apiAction, '/') . '\(\):\s*JSONResponse/';
+		$assertMatches($apiV1Controller, $pattern, "ApiV1Controller::$apiAction takes zero parameters so Nextcloud dispatcher cannot pre-parse request bodies");
+		$assertContains($routesFile, "'name' => 'api_v1#$apiAction'", "routes.php registers api_v1#$apiAction");
+	}
+	$assertContains($apiV1Controller, '#[PublicPage]', 'ApiV1Controller marks token-authenticated endpoints with PublicPage');
+	$assertContains($apiV1Controller, '#[NoCSRFRequired]', 'ApiV1Controller uses stateless token auth without cookie CSRF');
+	$assertContains($apiV1Controller, '#[NoSameSiteCookieRequired]', 'ApiV1Controller disables SameSite cookie enforcement for API clients');
+	$assertContains($apiV1Controller, '#[NoTwoFactorRequired]', 'ApiV1Controller disables web 2FA middleware for stateless token clients');
+	$assertNotContains($apiV1Controller, '#[CORS]', 'ApiV1Controller never enables CORS headers');
+	$assertNotContains($apiV1Controller, 'use WorkspaceAwareTrait', 'ApiV1Controller never uses session-backed WorkspaceAwareTrait');
+	$assertNotContains($apiV1Controller, 'use OCP\IUserSession', 'ApiV1Controller never imports Nextcloud web session');
+	$assertNotContains($apiV1Controller, 'IUserSession $', 'ApiV1Controller never injects Nextcloud web session');
+	$assertNotContains($apiV1Controller, '->getParam(', 'ApiV1Controller never calls getParam()');
+	$assertContains($apiV1Controller, 'AppDataLock $appDataLock', 'ApiV1Controller injects AppDataLock to acquire it only post-auth');
+
+	$assertContains($apiV1AuthService, 'MAX_JSON_BODY_BYTES = 65536', 'ApiV1AuthService caps JSON request bodies at 64 KiB');
+	$assertContains($apiV1AuthService, 'MAX_QUERY_STRING_BYTES = 4096', 'ApiV1AuthService caps query string length at 4 KiB');
+	$assertContains($apiV1AuthService, 'MAX_QUERY_ARRAY_DEPTH = 8', 'ApiV1AuthService caps query array nesting depth');
+	$assertContains($apiV1AuthService, 'hash_equals(', 'ApiV1AuthService uses constant-time token comparison');
+	$assertContains($apiV1AuthService, 'IThrottler', 'ApiV1AuthService integrates Nextcloud brute-force throttler');
+	$assertContains($apiV1AuthService, 'ILimiter', 'ApiV1AuthService integrates Nextcloud rate limiter');
+	$assertContains($apiV1AuthService, "addHeader('X-User-Id', '')", 'ApiV1AuthService clears leaked X-User-Id response headers');
+	$assertNotContains($apiV1AuthService, 'IUserSession', 'ApiV1AuthService never trusts cookie user session');
+	$assertNotContains($apiV1AuthService, 'WorkspaceAwareTrait', 'ApiV1AuthService never uses WorkspaceAwareTrait');
+	$assertNotContains($apiV1AuthService, '->getParam(', 'ApiV1AuthService never mixes query and body via getParam()');
+
+	foreach ([
+		'ApiV1EntriesService.php' => $apiV1EntriesService,
+		'ApiV1ReportsService.php' => $apiV1ReportsService,
+		'ApiV1SettingsService.php' => $apiV1SettingsService,
+	] as $serviceName => $serviceSource) {
+		$assertNotContains($serviceSource, 'IUserSession', "$serviceName is stateless and never injects IUserSession");
+		$assertNotContains($serviceSource, 'WorkspaceAwareTrait', "$serviceName never uses WorkspaceAwareTrait");
+	}
+
+	$assertContains($appDataLockMiddleware, 'ApiV1Controller', 'AppDataLockMiddleware applies v1 security headers to ApiV1Controller responses');
+	$assertContains($appDataLockMiddleware, 'ApiV1HttpException', 'AppDataLockMiddleware converts ApiV1HttpException into JSON responses');
+	$assertContains($appDataLockMiddleware, 'AppBusyException', 'AppDataLockMiddleware converts AppBusyException on v1 routes into 503 JSON responses');
+	$assertContains($routesFile, "'requirements' => ['id' => '\\d+']", 'routes.php restricts v1 entry ID route parameters to digits');
 } catch (Throwable $e) {
 	$failures[] = $e->getMessage();
 }

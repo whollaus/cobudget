@@ -191,6 +191,96 @@ try {
 	$restored = $qb->executeQuery()->fetch();
 	$check(json_decode($restored['hidden_category_ids'], true) === [$maps['cobudget_categories'][(int)$child['id']]], 'Restore remaps local category visibility to generated IDs');
 	$check(json_decode($restored['hidden_payment_partner_ids'], true) === [$maps['cobudget_payment_partners'][(int)$housePartner['id']]], 'Restore remaps partner visibility to generated IDs');
+	// Admin master-data save: create, edit, hide/unhide, parent-child, delete, duplicate conflict, and authorization.
+	$request = new OC\AppFramework\Http\Request([], Server::get(IRequestId::class), Server::get(IConfig::class));
+	$config = Server::get(IConfig::class);
+	$l10n = Server::get(IFactory::class)->get('cobudget', 'en');
+	$groups = Server::get(OCP\IGroupManager::class);
+	$session->setUser(null);
+	$anonManager = new OCA\CoBudget\Controller\MasterDataController('cobudget', $request, $db, $session, $config, $l10n, $groups, $categories, $partners);
+	$nonAdminUser = Server::get(IUserManager::class)->get('testuser');
+	$session->setUser($nonAdminUser ?? $user);
+	$nonAdminManager = new OCA\CoBudget\Controller\MasterDataController('cobudget', $request, $db, $session, $config, $l10n, $groups, $categories, $partners);
+	if ($nonAdminUser === null) {
+		$userIdProp = new ReflectionProperty(OCA\CoBudget\Controller\MasterDataController::class, 'userId');
+		$userIdProp->setValue($nonAdminManager, '__non_admin_master__');
+	}
+	$session->setUser($user);
+	$check($anonManager->adminSave([])->getStatus() === 401, 'Anonymous caller is rejected on adminSave');
+	$check($nonAdminManager->adminSave([])->getStatus() === 403, 'Non-admin caller is rejected on adminSave');
+
+	$data($manager->adminSave([
+		['kind' => 'categories', 'action' => 'create', 'ref' => '@entry0', 'name' => '__Admin Global Category__', 'type' => 'expense', 'icon' => 'Tag'],
+		['kind' => 'categories', 'action' => 'update', 'id' => '@entry0', 'name' => '__Admin Global Category__', 'code' => 'GC-100', 'parentCategoryId' => 0],
+		['kind' => 'categories', 'action' => 'updateIcon', 'id' => '@entry0', 'icon' => 'Home'],
+		['kind' => 'categories', 'action' => 'unhide', 'id' => '@entry0'],
+	]));
+	$findGlobalCategory = static function(string $name) use ($categories, $data): ?array {
+		$matches = array_values(array_filter($data($categories->adminIndex()), static fn(array $row): bool => $row['name'] === $name));
+		return $matches[0] ?? null;
+	};
+	$globalCat = $findGlobalCategory('__Admin Global Category__');
+	$check($globalCat !== null && $globalCat['code'] === 'GC-100' && $globalCat['icon'] === 'Home' && !(bool)$globalCat['is_hidden'], 'adminSave creates global category with code, icon, and visible state');
+
+	$data($manager->adminSave([
+		['kind' => 'categories', 'action' => 'update', 'id' => (int)$globalCat['id'], 'name' => '__Admin Global Category Edited__', 'code' => 'GC-200', 'parentCategoryId' => 0],
+		['kind' => 'categories', 'action' => 'updateIcon', 'id' => (int)$globalCat['id'], 'icon' => 'Car'],
+		['kind' => 'categories', 'action' => 'hide', 'id' => (int)$globalCat['id']],
+	]));
+	$editedGlobalCat = $findGlobalCategory('__Admin Global Category Edited__');
+	$check($editedGlobalCat !== null && $editedGlobalCat['code'] === 'GC-200' && $editedGlobalCat['icon'] === 'Car' && (bool)$editedGlobalCat['is_hidden'], 'adminSave edits and hides existing global category');
+
+	$data($manager->adminSave([
+		['kind' => 'categories', 'action' => 'unhide', 'id' => (int)$editedGlobalCat['id']],
+	]));
+	$check(!(bool)$findGlobalCategory('__Admin Global Category Edited__')['is_hidden'], 'adminSave unhides global category');
+
+	$data($manager->adminSave([
+		['kind' => 'categories', 'action' => 'create', 'ref' => '@child0', 'name' => '__Admin Global Child__', 'type' => 'expense', 'icon' => 'Tag'],
+		['kind' => 'categories', 'action' => 'update', 'id' => '@child0', 'name' => '__Admin Global Child__', 'code' => 'GC-201', 'parentCategoryId' => (int)$editedGlobalCat['id']],
+		['kind' => 'categories', 'action' => 'unhide', 'id' => '@child0'],
+	]));
+	$globalChild = $findGlobalCategory('__Admin Global Child__');
+	$check($globalChild !== null && (int)$globalChild['parent_category_id'] === (int)$editedGlobalCat['id'], 'adminSave creates global subcategory with parent_category_id');
+	$data($manager->adminSave([
+		['kind' => 'categories', 'action' => 'destroy', 'id' => (int)$globalChild['id']],
+		['kind' => 'categories', 'action' => 'destroy', 'id' => (int)$editedGlobalCat['id']],
+	]));
+	$check($findGlobalCategory('__Admin Global Child__') === null && $findGlobalCategory('__Admin Global Category Edited__') === null, 'adminSave deletes global categories');
+
+	$data($manager->adminSave([
+		['kind' => 'payment-partners', 'action' => 'create', 'ref' => '@entry0', 'name' => '__Admin Global Partner__', 'type' => 'expense'],
+		['kind' => 'payment-partners', 'action' => 'update', 'id' => '@entry0', 'name' => '__Admin Global Partner__', 'details' => ['note' => 'Global note', 'iban' => 'DE89370400440532013000']],
+		['kind' => 'payment-partners', 'action' => 'unhide', 'id' => '@entry0'],
+	]));
+	$findGlobalPartner = static function(string $name) use ($partners, $data): ?array {
+		$matches = array_values(array_filter($data($partners->adminIndex()), static fn(array $row): bool => $row['name'] === $name));
+		return $matches[0] ?? null;
+	};
+	$globalPartner = $findGlobalPartner('__Admin Global Partner__');
+	$check($globalPartner !== null && $globalPartner['note'] === 'Global note' && $globalPartner['iban'] === 'DE89370400440532013000' && !(bool)$globalPartner['is_hidden'], 'adminSave creates global payment partner with details');
+
+	$data($manager->adminSave([
+		['kind' => 'payment-partners', 'action' => 'update', 'id' => (int)$globalPartner['id'], 'name' => '__Admin Global Partner Edited__', 'details' => ['note' => 'Updated global note']],
+		['kind' => 'payment-partners', 'action' => 'hide', 'id' => (int)$globalPartner['id']],
+	]));
+	$editedGlobalPartner = $findGlobalPartner('__Admin Global Partner Edited__');
+	$check($editedGlobalPartner !== null && $editedGlobalPartner['note'] === 'Updated global note' && $editedGlobalPartner['iban'] === 'DE89370400440532013000' && (bool)$editedGlobalPartner['is_hidden'], 'adminSave edits and hides existing global payment partner while preserving omitted details');
+
+	$data($manager->adminSave([
+		['kind' => 'payment-partners', 'action' => 'unhide', 'id' => (int)$editedGlobalPartner['id']],
+	]));
+	$check(!(bool)$findGlobalPartner('__Admin Global Partner Edited__')['is_hidden'], 'adminSave unhides global payment partner');
+
+	$duplicateGlobalResponse = $manager->adminSave([
+		['kind' => 'payment-partners', 'action' => 'create', 'ref' => '@dup0', 'name' => '__Admin Global Partner Edited__', 'type' => 'expense'],
+	]);
+	$check($duplicateGlobalResponse->getStatus() === 409, 'adminSave rejects duplicate global payment partner with 409');
+	$data($manager->adminSave([
+		['kind' => 'payment-partners', 'action' => 'destroy', 'id' => (int)$editedGlobalPartner['id']],
+	]));
+	$check($findGlobalPartner('__Admin Global Partner Edited__') === null, 'adminSave deletes global payment partner');
+
 	fwrite(STDOUT, "Master-data integration passed: {$assertions} assertions (rolled back).\n");
 } finally {
 	$db->rollBack();

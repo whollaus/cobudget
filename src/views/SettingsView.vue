@@ -241,6 +241,17 @@
 			</div>
 		</div>
 
+		<ApiTokenSettings
+			ref="apiTokenSettings"
+			:enabled="enableApiAccess"
+			:admin-enabled="apiAccessAdminEnabled === true"
+			:admin-loaded="apiAccessAdminEnabled !== null"
+			:workspaces-enabled="enableWorkspaces"
+			:areas-enabled="enableProjects"
+			:settings-busy="loading || backupSettingsSaving"
+			@toggle-enabled="toggleApiAccess"
+		/>
+
 		<KeyboardShortcuts />
 
 		<div class="settings-subsection reset-section">
@@ -309,6 +320,7 @@ import { applyNextcloudHeaderVisibility } from '../services/nextcloudHeader'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from '../services/workspaceStorage'
 import { sortAreasByName } from '../utils/areaSorting'
 import AutomaticImportSettings from '../components/AutomaticImportSettings.vue'
+import ApiTokenSettings from '../components/ApiTokenSettings.vue'
 import MasterDataSettings from '../components/MasterDataSettings.vue'
 import WorkspaceSettings from '../components/WorkspaceSettings.vue'
 import SettingsList from '../components/SettingsList.vue'
@@ -327,6 +339,7 @@ export default {
 	name: 'SettingsView',
 	components: { KeyboardShortcuts, DialogTransition, DisabledActionHint,
 		AutomaticImportSettings,
+		ApiTokenSettings,
 		MasterDataSettings,
 		NcInputField,
 		NcSelect,
@@ -390,6 +403,8 @@ export default {
 			enableIncomes: true,
 			enableProjects: true,
 			enablePaymentImports: false,
+			apiAccessAdminEnabled: null,
+			enableApiAccess: false,
 			enableSharedProjects: true,
 			notifyProjectEntries: true,
 			notifyReminders: true,
@@ -592,6 +607,31 @@ export default {
 			if (this.loading || this.backupSettingsSaving || !this.notificationRows.some(row => row.field === field)) return;
 			this[field] = enabled;
 			await this.saveGeneralSettings();
+		},
+		async toggleApiAccess(enabled) {
+			if (this.loading || this.backupSettingsSaving || !this.savedGeneralSettings || this.settingsLoadError) return;
+			if (enabled && !this.apiAccessAdminEnabled) return;
+			if (!enabled) {
+				this.enableApiAccess = false;
+				await this.saveGeneralSettings();
+				return;
+			}
+			this.loading = true;
+			try {
+				const { cancelled } = await this.$refs.apiTokenSettings.runWithPasswordConfirmation(() => axios.post(
+					generateUrl('/apps/cobudget/api/settings/api-access/enable'), {}, { skipWorkspaceHeader: true },
+				));
+				if (!cancelled) {
+					this.enableApiAccess = true;
+					this.savedGeneralSettings.enableApiAccess = true;
+					this.$enableApiAccess = true;
+					window.dispatchEvent(new CustomEvent('cobudget-settings-changed'));
+				}
+			} catch (error) {
+				this.showError(this.extractError(error, this.$texts.settings.generalSaveError()));
+			} finally {
+				this.loading = false;
+			}
 		},
 		backupRestoreHint(backup) {
 			if (backup.can_restore === false) return this.$texts.settings.restoreBackupBlocked();
@@ -1149,6 +1189,9 @@ export default {
 				this.enableIncomes = settingsRes.data.enable_incomes ?? true;
 				this.enablePaymentImports = settingsRes.data.enable_payment_imports === true;
 				this.$enablePaymentImports = this.enablePaymentImports;
+				this.apiAccessAdminEnabled = settingsRes.data.api_access_admin_enabled === true;
+				this.enableApiAccess = this.apiAccessAdminEnabled && settingsRes.data.enable_api_access === true;
+				this.$enableApiAccess = this.enableApiAccess;
 				this.enableProjects = settingsRes.data.enable_projects ?? true;
 				this.enableSharedProjects = settingsRes.data.enable_shared_projects ?? true;
 				this.notifyProjectEntries = settingsRes.data.notify_project_entries ?? true;

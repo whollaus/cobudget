@@ -240,7 +240,7 @@ return [
 		$t->assertContains('$this->deleteAttachment($copy)', $sync, 'Removed source receipts remove stale projected copies while open');
 		$t->assertContains('$this->rootFolder->getUserFolder($targetUserId)', $copy, 'Every participant receives a physical file in their own Nextcloud Files');
 		$t->assertContains("'source_attachment_id'", $copy, 'Projected receipt metadata links to its source while open');
-		$t->assertContains('$createdFile->delete()', $copy, 'A failed metadata insert compensates its newly created file');
+		$t->assertContains('ReceiptFile::deleteFile($createdFile)', $copy, 'A failed metadata insert compensates its newly created file');
 		$t->assertContains('$this->attachmentProjectionService->syncSharedEntry($id)', $upload, 'Uploading a source receipt propagates it before commit');
 		$t->assertContains('$this->attachmentProjectionService->deleteSourceAttachmentCopies($attachmentId)', $delete, 'Deleting a source receipt removes every open personal copy');
 		$t->assertContains('Only the receipt owner can delete this file', $delete, 'A member cannot physically delete another users receipt directly');

@@ -211,6 +211,14 @@ class DataIntegrityService {
 			'targetLabel' => 'Workspace',
 			'repairAction' => 'delete',
 		],
+		[
+			'sourceTable' => 'cobudget_api_tokens',
+			'sourceLabel' => 'API keys',
+			'column' => 'workspace_id',
+			'targetTable' => 'cobudget_workspaces',
+			'targetLabel' => 'Workspace',
+			'repairAction' => 'delete',
+		],
 	];
 
 	private const DUPLICATE_NAME_CHECKS = [

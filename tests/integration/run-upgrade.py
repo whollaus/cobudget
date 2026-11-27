@@ -281,6 +281,9 @@ def main():
         for suite in ['auto-import-rules.php', 'bulk-import-boundaries.php', 'annual-overview.php', 'backup-roundtrip.php', 'backup-concurrency.php']:
             run([php, '-d', 'memory_limit=512M', repo / 'tests/integration' / suite, '--nextcloud=' + str(server), '--user=upgrade-admin'])
 
+        run([php, '-d', 'memory_limit=512M', repo / 'tests/integration/receipt-file-identity.php',
+             '--nextcloud=' + str(server), '--user=upgrade-admin', '--other-user=upgrade-member'])
+
         providers = ['database', 'redis'] if args.redis_port else ['database']
         for provider in providers:
             if provider == 'redis':

@@ -184,6 +184,7 @@ return [
 		$integrity = $t->read('lib/Service/DataIntegrityService.php');
 		$repair = $t->methodBody('lib/Service/DataIntegrityService.php', 'repair');
 
+		$t->assertTrue(strpos($destroy, 'lockProject($id)') < strpos($destroy, 'projectHasPayments($id)') && str_contains($destroy, 'lockProject($id)'), 'Area deletion checks open payments under the same lock as API payment mutations');
 		$t->assertContains('projectHasPayments($id)', $destroy, 'Area delete should reject every area that still contains payments');
 		$t->assertContains('projectHasLifecycleHistory($id)', $destroy, 'Area delete should preserve settlement and audit history');
 		$t->assertContains('budgetGoalsReferenceProject($id, $workspaceId, $categoryIds)', $destroy, 'Area delete should preserve budget references');

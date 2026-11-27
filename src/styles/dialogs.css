@@ -7,6 +7,9 @@
 .cobudget-dialog--contained {
 	max-height: calc(100dvh - 32px);
 	overflow-y: auto;
+	overscroll-behavior: none;
+	transform: translateZ(0);
+	backface-visibility: hidden;
 }
 
 .cobudget-dialog-header {
@@ -125,4 +128,28 @@
 		white-space: normal;
 		overflow-wrap: anywhere;
 	}
+}
+
+/* Keep @nextcloud/dialogs pickers mounted outside DialogTransition scroll-contained. */
+.cobudget-folder-picker {
+	isolation: isolate;
+}
+.cobudget-folder-picker .modal-mask {
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+.cobudget-folder-picker .modal-wrapper {
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+.cobudget-folder-picker .modal-mask .modal-wrapper .modal-container {
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+.cobudget-folder-picker .modal-container__content,
+.cobudget-folder-picker .dialog__content {
+	background-color: inherit;
+	overscroll-behavior: none;
+	transform: translateZ(0);
+	backface-visibility: hidden;
 }

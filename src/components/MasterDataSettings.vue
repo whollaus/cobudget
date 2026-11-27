@@ -561,7 +561,9 @@ export default {
 .master-name > :deep(.category-icon), .master-name > :deep(.button-vue) { flex-shrink: 0; }
 .master-table th:last-child, .master-table td:last-child { min-width: auto; width: var(--master-action-width); padding-inline: var(--default-grid-baseline, 4px); position: sticky; inset-inline-end: 0; z-index: 1; background: var(--cobudget-surface); }
 .master-table thead th, .master-table thead th:first-child, .master-table thead th:last-child { padding: var(--cobudget-table-cell-padding); background: var(--cobudget-table-header-background); color: var(--cobudget-text-muted); letter-spacing: normal; font-weight: 400; font-size: var(--cobudget-table-header-font-size); height: var(--cobudget-table-header-height); }
-.master-table tbody tr:hover > *, .master-table tbody tr:focus-within > * { background: var(--cobudget-table-row-hover); }
+.master-table tbody tr:has(.master-name):hover > *, .master-table tbody tr:has(.master-name):focus-within > * { background: var(--color-background-hover, var(--cobudget-surface-muted)); }
+.master-table tbody tr:not(:has(.master-name)), .master-table tbody tr:not(:has(.master-name)):hover, .master-table tbody tr:not(:has(.master-name)):focus, .master-table tbody tr:not(:has(.master-name)):active { background: transparent; }
+.master-table tbody tr:not(:has(.master-name)) > * { background: var(--cobudget-surface); }
 .master-table tbody tr:has(.master-name), .master-table tbody tr:has(.master-name) > *, .master-name, .master-label, .master-global, .master-table tbody :deep(.material-design-icon) { cursor: pointer; }
 .master-table small { display: block; font-weight: normal; color: var(--color-text-maxcontrast); }
 .master-active { color: var(--color-primary-element); }
@@ -597,7 +599,7 @@ export default {
 	.master-editor-modal :deep(.modal-container__content) { display: flex; min-height: 0; overflow: hidden; }
 	.master-editor { display: flex; flex-direction: column; width: 100%; min-width: 0; height: 100%; min-height: 0; padding: 0; gap: 0; }
 	.master-editor h2 { flex-shrink: 0; margin: 0; padding: calc(var(--default-grid-baseline, 4px) * 3) calc(var(--cobudget-mobile-touch-size, 44px) + var(--cobudget-dialog-padding)) var(--cobudget-space-2, 8px) var(--cobudget-dialog-padding); line-height: 1.5; }
-	.master-editor-body { display: grid; align-content: start; flex: 1; min-height: 0; overflow: auto; gap: var(--cobudget-space-2, 8px); padding: var(--default-grid-baseline, 4px) var(--cobudget-dialog-padding) calc(var(--default-grid-baseline, 4px) * 3); }
+	.master-editor-body { display: grid; align-content: start; flex: 1; min-height: 0; background-color: inherit; overflow: auto; overscroll-behavior: none; transform: translateZ(0); backface-visibility: hidden; gap: var(--cobudget-space-2, 8px); padding: var(--default-grid-baseline, 4px) var(--cobudget-dialog-padding) calc(var(--default-grid-baseline, 4px) * 3); }
 	.master-editor .cobudget-form-hint { font-size: var(--cobudget-font-sm, 13px); line-height: 1.4; }
 	.master-editor-section { margin-block-start: var(--cobudget-space-4, 16px); }
 	.master-identity { gap: var(--cobudget-space-2, 8px); }

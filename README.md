@@ -25,6 +25,7 @@ you record.
 - **Notifications:** Nextcloud, a private CoBudget Talk chat and optional
   email, with separate choices for supported events. Reminders can also sync with
   a calendar; private calendar edits sync back to CoBudget.
+- **External API (Beta)** lets integrations use a single workspace with separate permissions for personal payments and each area. A Nextcloud administrator enables access for the instance before users can create keys in CoBudget Settings. [API setup and reference](docs/api.md)
 - **[Payment imports](docs/payment-imports.md):** optionally import JSON payments manually with a preview or automatically from a Nextcloud folder.
 - **Exports and backups:** print reports, export CSV, copy tables to a spreadsheet and create personal exports or administrator backups.
 - **Workspaces and appearance:** separate data pools with workspaces, use desktop or mobile
@@ -93,10 +94,8 @@ only into an empty CoBudget user state. Shared amounts become independent person
 payments. An **administrator full backup** preserves all CoBudget financial data
 and portable user settings; restoring it replaces the app's current data.
 
-**Neither archive contains receipt files.** It stores their paths. Back up the
-associated Nextcloud Files with your existing Nextcloud Files backup solution.
-Receipt-file backup is deliberately handled there. These archives do not replace a
-complete Nextcloud backup. CoBudget temporarily blocks app access during backup and
+**Back up receipt files with your Nextcloud Files backup.** CoBudget archives store receipt references. After moving a file or restoring an older archive or one from another instance, you may need to attach the receipt again. Keep a complete Nextcloud backup for server recovery.
+CoBudget temporarily blocks app access during backup and
 restore. If an operation is already running, retry once it has finished. Reload open
 CoBudget tabs after a restore. See the
 [recovery procedure](docs/operations.md#backup-and-recovery).

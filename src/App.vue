@@ -803,6 +803,7 @@ export default {
 :global(#content.app-cobudget .app-content-vue),
 :global(#content.app-cobudget .app-content) {
 	background: var(--cobudget-page-background);
+	overscroll-behavior: contain;
 }
 
 .content-wrapper {

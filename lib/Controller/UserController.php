@@ -5,6 +5,7 @@ use OCA\CoBudget\Service\BackupService;
 use OCA\CoBudget\Service\ResetBlockedException;
 use OCA\CoBudget\Service\UserResetService;
 use OCA\CoBudget\Service\AutoImportRules;
+use OCA\CoBudget\Service\ApiTokenService;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
@@ -31,7 +32,7 @@ class UserController extends Controller {
 	private UserResetService $userResetService;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserManager $userManager, IUserSession $userSession, IConfig $config, BackupService $backupService, UserResetService $userResetService, IL10N $l10n) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserManager $userManager, IUserSession $userSession, IConfig $config, BackupService $backupService, UserResetService $userResetService, IL10N $l10n, private ApiTokenService $apiTokenService) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$this->userManager = $userManager;
@@ -126,6 +127,8 @@ class UserController extends Controller {
 				'enable_projects' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_projects', 'yes') === 'yes',
 				'enable_shared_projects' => $this->config->getUserValue($this->userId, 'cobudget', 'enable_shared_projects', 'yes') === 'yes',
 				'enable_payment_imports' => $paymentImports,
+				'api_access_admin_enabled' => $this->apiTokenService->isGloballyEnabled(),
+				'enable_api_access' => $this->apiTokenService->isEnabledForUser((string)$this->userId),
 				'has_active_automatic_imports' => $paymentImports && AutoImportRules::hasActiveImports($this->db, $this->userId),
 				'notify_automatic_imports' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_automatic_imports', 'yes') === 'yes',
 				'notify_automatic_imports_email' => $this->config->getUserValue($this->userId, 'cobudget', 'notify_automatic_imports_email', 'no') === 'yes',
@@ -159,10 +162,14 @@ class UserController extends Controller {
 	}
 
 	#[NoAdminRequired]
-	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null, ?bool $enable_insurance = null, ?bool $notify_reminders = null, ?bool $notify_planned_payments = null, ?bool $enable_reminders = null, ?bool $notify_reminders_email = null, ?bool $notify_planned_payments_email = null, ?bool $notify_project_entries_email = null, ?bool $notify_project_settlements_email = null, ?bool $notify_automatic_imports = null, ?bool $notify_automatic_imports_email = null, ?bool $enable_payment_imports = null): DataResponse {
+	public function saveSettings(string $currency = '', ?bool $enable_subscriptions = null, ?bool $enable_fixed_costs = null, ?bool $enable_child_related = null, ?bool $enable_important_payments = null, ?bool $enable_review_payments = null, ?bool $enable_tax_relevant = null, ?bool $enable_future_payments = null, ?bool $enable_budget_goals = null, ?bool $enable_advanced_master_data = null, ?bool $enable_incomes = null, ?bool $enable_projects = null, ?bool $enable_shared_projects = null, ?bool $notify_project_entries = null, ?bool $notify_project_settlements = null, ?bool $enable_workspaces = null, ?bool $show_workspace_switcher = null, ?bool $enable_receipts = null, ?string $default_start_page = null, ?int $entries_per_page = null, ?string $theme_mode = null, ?bool $show_nextcloud_header_desktop = null, ?bool $show_nextcloud_header_mobile = null, ?string $receipt_storage_folder = null, ?string $receipt_folder_grouping = null, ?bool $delete_receipts_with_entry = null, ?string $backup_storage_folder = null, ?int $backup_retention_count = null, ?string $backup_schedule = null, ?bool $enable_insurance = null, ?bool $notify_reminders = null, ?bool $notify_planned_payments = null, ?bool $enable_reminders = null, ?bool $notify_reminders_email = null, ?bool $notify_planned_payments_email = null, ?bool $notify_project_entries_email = null, ?bool $notify_project_settlements_email = null, ?bool $notify_automatic_imports = null, ?bool $notify_automatic_imports_email = null, ?bool $enable_payment_imports = null, ?bool $enable_api_access = null): DataResponse {
 		try {
 			if ($error = $this->authErrorResponse()) {
 				return $error;
+			}
+
+			if ($enable_api_access === true) {
+				return $this->errorResponse('Enable API access in the API key settings.', Http::STATUS_FORBIDDEN);
 			}
 
 			if ($validationError = $this->validateCurrencySetting($currency)) {
@@ -232,6 +239,9 @@ class UserController extends Controller {
 			}
 			if ($enable_payment_imports !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_payment_imports', $enable_payment_imports ? 'yes' : 'no');
+			}
+			if ($enable_api_access === false) {
+				$this->apiTokenService->setAccessEnabled($this->userId, false);
 			}
 			if ($enable_incomes !== null) {
 				$this->config->setUserValue($this->userId, 'cobudget', 'enable_incomes', $enable_incomes ? 'yes' : 'no');

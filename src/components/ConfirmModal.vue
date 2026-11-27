@@ -181,6 +181,8 @@ export default {
 	justify-content: center;
 	width: 100vw;
 	height: 100vh;
+	overflow: hidden;
+	overscroll-behavior: none;
 	background: var(--cobudget-dialog-backdrop);
 	backdrop-filter: blur(2px);
 	z-index: 10000;

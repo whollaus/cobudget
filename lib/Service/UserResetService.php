@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace OCA\CoBudget\Service;
 
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\Files\File;
 use OCP\Files\IRootFolder;
 use OCP\IConfig;
 use OCP\IDBConnection;
@@ -61,6 +60,7 @@ class UserResetService {
 		'enable_budget_goals',
 		'enable_advanced_master_data',
 		'enable_payment_imports',
+		'enable_api_access',
 		'enable_incomes',
 		'enable_projects',
 		'enable_shared_projects',
@@ -302,6 +302,7 @@ class UserResetService {
 				$report['deleted']['budget_goals'] += $this->deleteRowsByStringColumn('cobudget_budget_goals', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_import_rules', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_import_files', 'user_id', $userId);
+				$this->deleteRowsByStringColumn('cobudget_api_tokens', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_reminders', 'user_id', $userId);
 				$this->deleteRowsByStringColumn('cobudget_members', 'user_id', $userId);
 
@@ -807,24 +808,7 @@ class UserResetService {
 
 	private function deleteAttachmentFile(array $attachment): bool {
 		try {
-			$ownerUserId = (string)($attachment['owner_user_id'] ?? '');
-			$filePath = trim((string)($attachment['file_path'] ?? ''), '/');
-			if ($ownerUserId === '' || $filePath === '') {
-				return false;
-			}
-
-			$userFolder = $this->rootFolder->getUserFolder($ownerUserId);
-			if (!$userFolder->nodeExists($filePath)) {
-				return false;
-			}
-
-			$node = $userFolder->get($filePath);
-			if (!$node instanceof File) {
-				return false;
-			}
-
-			$node->delete();
-			return true;
+			return ReceiptFile::delete($this->rootFolder, $attachment);
 		} catch (\Throwable $e) {
 			return false;
 		}

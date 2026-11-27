@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\CoBudget\Controller;
 
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IDBConnection;
@@ -37,6 +38,16 @@ class MasterDataController extends Controller {
 	public function adminSave(array $operations = []): DataResponse {
 		if ($error = $this->requireAdmin()) { return $error; }
 		return $this->apply($operations, true);
+	}
+
+	private function requireAdmin(): ?DataResponse {
+		if ($this->userId === null) {
+			return $this->errorResponse('Authentication required', Http::STATUS_UNAUTHORIZED);
+		}
+		if (!$this->groupManager->isAdmin($this->userId)) {
+			return $this->errorResponse('Administrator permissions required', Http::STATUS_FORBIDDEN);
+		}
+		return null;
 	}
 
 	private function apply(array $operations, bool $admin): DataResponse {

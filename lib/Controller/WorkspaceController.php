@@ -211,7 +211,7 @@ class WorkspaceController extends Controller {
 					$this->deleteRowsByColumnValues($table, 'project_id', $projectIds);
 				}
 
-				foreach (['cobudget_categories', 'cobudget_payment_partners', 'cobudget_budget_goals', 'cobudget_budget_snapshots', 'cobudget_import_files', 'cobudget_import_rules'] as $table) {
+				foreach (['cobudget_categories', 'cobudget_payment_partners', 'cobudget_budget_goals', 'cobudget_budget_snapshots', 'cobudget_import_files', 'cobudget_import_rules', 'cobudget_api_tokens'] as $table) {
 					$this->deleteRowsByWorkspaceAndUser($table, 'user_id', $id);
 				}
 

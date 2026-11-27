@@ -1,7 +1,7 @@
 <template>
 	<Teleport to="body">
 		<Transition name="cobudget-dialog-fade" :duration="reducedMotion ? 0 : 250" appear @before-enter="rememberTrigger" @before-leave="makeInactive" @after-leave="restoreTrigger">
-			<div v-if="show" class="cobudget-dialog-layer">
+			<div v-if="show" class="cobudget-dialog-layer" @wheel="containWheelScroll">
 				<slot :return-focus="returnFocus" />
 			</div>
 		</Transition>
@@ -45,6 +45,28 @@ export default {
 			element.restoreDialogFocus = this.restoreDialogFocus
 			deactivateDialog(element)
 		},
+		containWheelScroll(event) {
+			if (event.ctrlKey) return
+			let el = event.target instanceof Element ? event.target : null
+			const root = event.currentTarget
+			const useVertical = Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+			while (el && el !== root) {
+				const style = window.getComputedStyle(el)
+				if (useVertical) {
+					if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 1) {
+						if ((event.deltaY < 0 && el.scrollTop > 0) || (event.deltaY > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 1)) {
+							return
+						}
+					}
+				} else if ((style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 1) {
+					if ((event.deltaX < 0 && el.scrollLeft > 0) || (event.deltaX > 0 && el.scrollLeft + el.clientWidth < el.scrollWidth - 1)) {
+						return
+					}
+				}
+				el = el.parentElement
+			}
+			event.preventDefault()
+		},
 	},
 }
 </script>
@@ -54,9 +76,36 @@ export default {
 	position: fixed;
 	inset: 0;
 	z-index: 9998; /* NcModal's native dialog layer; popovers remain above it. */
+	isolation: isolate;
 	pointer-events: none;
 }
 .cobudget-dialog-layer > * { pointer-events: auto; }
+.cobudget-dialog-layer .modal-mask,
+.cobudget-dialog-layer .confirm-modal-backdrop {
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+.cobudget-dialog-layer .modal-wrapper {
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+.cobudget-dialog-layer .modal-mask .modal-wrapper .modal-container {
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+.cobudget-dialog-layer .confirm-modal {
+	overscroll-behavior: none;
+	transform: translateZ(0);
+	backface-visibility: hidden;
+}
+.cobudget-dialog-layer .modal-container__content,
+.cobudget-dialog-layer .dialog__content,
+.cobudget-dialog-layer .dialog__wrapper:not(.dialog__wrapper--collapsed) .dialog__navigation {
+	background-color: inherit;
+	overscroll-behavior: none;
+	transform: translateZ(0);
+	backface-visibility: hidden;
+}
 .cobudget-dialog-layer[inert],
 .cobudget-dialog-layer[inert] * { pointer-events: none !important; }
 /* Let NcModal run its native mask + wrapper fades on entry. The installed
@@ -68,13 +117,19 @@ export default {
    this host, so mirror NcModal's leave states on that snapshot, not the entire
    layer. Native .modal-container still owns its 300 ms transform transition. */
 .cobudget-dialog-fade-leave-active .modal-mask,
-.cobudget-dialog-fade-leave-active .modal-wrapper { transition: opacity 250ms ease; }
+.cobudget-dialog-fade-leave-active .modal-wrapper {
+	transition: opacity 250ms ease;
+	will-change: opacity;
+}
 .cobudget-dialog-fade-leave-to .modal-mask,
 .cobudget-dialog-fade-leave-to .modal-wrapper { opacity: 0; }
 .cobudget-dialog-fade-leave-to .modal-container { transform: scale(.9); }
 /* The remaining legacy confirmation shell has no native inner transitions. */
 .cobudget-dialog-fade-enter-active .confirm-modal-backdrop,
-.cobudget-dialog-fade-leave-active .confirm-modal-backdrop { transition: opacity 250ms ease; }
+.cobudget-dialog-fade-leave-active .confirm-modal-backdrop {
+	transition: opacity 250ms ease;
+	will-change: opacity;
+}
 .cobudget-dialog-layer .confirm-modal { transition: transform 300ms ease; }
 .cobudget-dialog-fade-enter-from .confirm-modal-backdrop,
 .cobudget-dialog-fade-leave-to .confirm-modal-backdrop { opacity: 0; }

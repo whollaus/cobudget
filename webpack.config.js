@@ -16,6 +16,10 @@ webpackConfig.output.publicPath = 'auto'
 
 if (!webpackConfig.module) webpackConfig.module = { rules: [] };
 webpackConfig.module.rules.push({
+    test: /api-request-limits\.md$/,
+    type: 'asset/source',
+});
+webpackConfig.module.rules.push({
     test: /\.m?js/,
     resolve: {
         fullySpecified: false

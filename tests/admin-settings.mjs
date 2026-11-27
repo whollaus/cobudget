@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import parseMarkdownGuide from '../src/utils/markdownGuide.js'
 
+const apiLimitGuideMarkdown = fs.readFileSync(new URL('../docs/api-request-limits.md', import.meta.url), 'utf8')
 const source = fs.readFileSync(new URL('../src/components/AdminSettings.vue', import.meta.url), 'utf8')
 let script = source.split('<script>')[1].split('</script>')[0]
 const imports = [...script.matchAll(/^import (\w+) from .+$/gm)].map(match => match[1])
@@ -9,8 +11,8 @@ const writes = []
 const api = { post: async (...args) => { writes.push(args); throw new Error('Unavailable') } }
 let selection, pickCount = 0, canPick
 const builder = { setMultiSelect() { return this }, allowDirectories() { return this }, setMimeTypeFilter() { return this }, startAt() { return this }, setCanPick(fn) { canPick = fn; return this }, setButtonFactory() { return this }, build() { return this }, async pick() { pickCount++; return selection() } }
-const component = new Function('getCurrentUser', 'getFilePickerBuilder', 'Permission', 'generateOcsUrl', 'generateUrl', 'extractError', 'showToast', ...imports, script)(() => ({uid: 'admin'}), () => builder, {CREATE: 4}, url => url, url => url, (e, fallback) => e?.message || fallback, () => {}, ...imports.map(name => name === 'axios' ? api : name === 'pickFolder' ? picker => picker.pick() : {}))
-const vm = { ...component.data(), $texts: Object.fromEntries(['admin', 'common', 'memberSearch', 'settings'].map(group => [group, new Proxy({}, { get: (_, key) => () => key })])) }
+const component = new Function('getCurrentUser', 'getFilePickerBuilder', 'Permission', 'generateOcsUrl', 'generateUrl', 'extractError', 'showToast', ...imports, script)(() => ({uid: 'admin'}), () => builder, {CREATE: 4}, url => url, url => url, (e, fallback) => e?.message || fallback, () => {}, ...imports.map(name => name === 'axios' ? api : name === 'pickFolder' ? picker => picker.pick() : name === 'parseMarkdownGuide' ? parseMarkdownGuide : name === 'apiLimitGuide' ? apiLimitGuideMarkdown : {}))
+const vm = { ...component.data(), $texts: Object.fromEntries(['admin', 'apiTokens', 'common', 'memberSearch', 'settings'].map(group => [group, new Proxy({}, { get: (_, key) => () => key })])) }
 for (const [name, method] of Object.entries(component.methods)) vm[name] = method.bind(vm)
 for (const [name, getter] of Object.entries(component.computed)) Object.defineProperty(vm, name, typeof getter === 'function' ? { get: getter.bind(vm) } : { get: getter.get.bind(vm), set: getter.set.bind(vm) })
 
@@ -219,7 +221,7 @@ await retry
 assert.equal(vm.fullBackupSettingsError, '')
 assert.equal(vm.fullBackupSettingsDirty, false)
 
-// Clearing the account with scheduling off is a valid automatic save.
+// Clear selection with scheduling off is a valid automatic save.
 vm.setFullBackupSchedule('none')
 pending[5].resolve({data: {settings: {...validSettings, ...pending[5].args[1]}, backups: []}})
 await new Promise(resolve => setTimeout(resolve, 0))
@@ -230,3 +232,144 @@ await new Promise(resolve => setTimeout(resolve, 0))
 assert.equal(vm.fullBackupCreateHint, 'fullBackupSelectUser')
 assert.ok(!source.includes('admin-backup-save-action'))
 console.log('Admin autosave passed: native selection triggers, folder selection, unchanged/invalid edits, serialized latest changes, preserved text drafts, inline retry and backup creation guards.')
+
+// Global API access admin toggle loads, saves, guards load errors, rolls back failures, and prevents concurrent saves.
+const apiGets = []
+api.get = async (...args) => {
+ apiGets.push(args)
+ return { data: { enabled: true } }
+}
+await vm.fetchApiSettings()
+assert.deepEqual(apiGets.at(-1), ['/apps/cobudget/api/admin/api/settings', { skipWorkspaceHeader: true }])
+assert.equal(vm.apiAccessEnabled, true)
+assert.equal(vm.apiSettingsLoadError, '')
+assert.equal(vm.apiSettingsLoading, false)
+
+api.get = async () => { throw new Error('API settings load failed') }
+await vm.fetchApiSettings()
+assert.equal(vm.apiSettingsLoadError, 'API settings load failed')
+const beforeBlockedApiSave = writes.length
+assert.equal(await vm.saveApiAccessEnabled(false), false)
+assert.equal(writes.length, beforeBlockedApiSave, 'Blocked when API settings failed to load')
+
+api.get = async () => ({ data: { enabled: false } })
+await vm.fetchApiSettings()
+assert.equal(vm.apiAccessEnabled, false)
+assert.equal(vm.apiSettingsLoadError, '')
+
+let resolveApiSave
+api.post = async (...args) => { writes.push(args); return new Promise((resolve, reject) => { resolveApiSave = { resolve, reject } }) }
+const savingApi = vm.saveApiAccessEnabled(true)
+assert.equal(vm.apiSettingsSaving, true)
+assert.equal(vm.apiAccessEnabled, true)
+assert.equal(await vm.saveApiAccessEnabled(false), false, 'Concurrent API settings save is ignored while saving')
+assert.equal(writes.length, beforeBlockedApiSave + 1)
+assert.deepEqual(writes.at(-1), ['/apps/cobudget/api/admin/api/settings', { enabled: true }, { skipWorkspaceHeader: true }])
+resolveApiSave.reject(new Error('Save rejected'))
+assert.equal(await savingApi, false)
+assert.equal(vm.apiAccessEnabled, false, 'Failed save rolls back admin API toggle')
+assert.equal(vm.apiSettingsSaveError, 'Save rejected')
+assert.equal(vm.apiSettingsSaving, false)
+
+api.post = async (...args) => { writes.push(args); return { data: { enabled: true } } }
+assert.equal(await vm.saveApiAccessEnabled(true), true)
+assert.equal(vm.apiAccessEnabled, true)
+assert.equal(vm.apiSettingsSaveError, '')
+
+// Both enabling and disabling global API access handle 403 X-NC-Auth-NotConfirmed via /login/confirm, and rollback cleanly on cancel.
+let adminNeedsConfirm = true
+api.post = async (url, body, config) => {
+ writes.push([url, body, config])
+ if (url === '/login/confirm') {
+  if (body?.password !== 'admin-pass') {
+   throw Object.assign(new Error('Forbidden'), { response: { status: 403, headers: {} } })
+  }
+  adminNeedsConfirm = false
+  return { data: { lastLogin: 1700001234 } }
+ }
+ if (adminNeedsConfirm) {
+  throw Object.assign(new Error('Password confirmation required'), {
+   response: { status: 403, headers: { 'X-NC-Auth-NotConfirmed': 'true' } },
+  })
+ }
+ return { data: { enabled: !!body?.enabled } }
+}
+
+const cancelDisablePromise = vm.saveApiAccessEnabled(false)
+await Promise.resolve()
+await Promise.resolve()
+assert.equal(vm.passwordConfirm.open, true, 'Disabling global API access prompts for password confirmation on 403 challenge')
+vm.cancelPasswordConfirmation()
+assert.equal(await cancelDisablePromise, false)
+assert.equal(vm.apiAccessEnabled, true, 'Cancelling password confirmation rolls back admin API toggle to true')
+assert.equal(vm.apiSettingsSaveError, '', 'Cancelling password confirmation sets no save error')
+
+const confirmDisablePromise = vm.saveApiAccessEnabled(false)
+await Promise.resolve()
+await Promise.resolve()
+assert.equal(vm.passwordConfirm.open, true)
+vm.passwordConfirm.password = 'wrong-pass'
+await vm.submitPasswordConfirmation()
+assert.equal(vm.passwordConfirm.open, true, 'Wrong admin password keeps confirmation dialog open')
+assert.equal(vm.passwordConfirm.password, '', 'Wrong admin password clears password input immediately')
+assert.equal(vm.passwordConfirm.error, 'passwordConfirmInvalid')
+vm.passwordConfirm.password = 'admin-pass'
+await vm.submitPasswordConfirmation()
+assert.equal(await confirmDisablePromise, true)
+assert.equal(vm.passwordConfirm.open, false)
+assert.equal(vm.apiAccessEnabled, false, 'Confirmed password retries and disables global API access')
+
+adminNeedsConfirm = true
+const confirmEnablePromise = vm.saveApiAccessEnabled(true)
+await Promise.resolve()
+await Promise.resolve()
+assert.equal(vm.passwordConfirm.open, true, 'Enabling global API access also prompts for password confirmation')
+vm.passwordConfirm.password = 'admin-pass'
+await vm.submitPasswordConfirmation()
+assert.equal(await confirmEnablePromise, true)
+assert.equal(vm.apiAccessEnabled, true, 'Confirmed password retries and enables global API access')
+
+vm.passwordConfirm.password = 'ephemeral-secret'
+vm.passwordConfirm.open = true
+component.beforeUnmount.call(vm)
+assert.equal(vm.passwordConfirm.password, '', 'beforeUnmount clears admin password confirmation input')
+assert.equal(vm.passwordConfirm.open, false, 'beforeUnmount closes admin password confirmation dialog')
+console.log('Admin API settings passed: load, load-error guard, concurrent save guard, password confirmation on enable/disable, cancel rollback, and save.')
+
+// Web server guide opens in an interactive modal rather than downloading a data URI file.
+assert.ok(!source.includes('download="cobudget-api-request-limits.md"'))
+assert.ok(!source.includes('data:text/plain'))
+assert.equal(vm.apiLimitGuideOpen, false)
+vm.openApiLimitGuide()
+assert.equal(vm.apiLimitGuideOpen, true)
+const guideBlocks = vm.apiLimitGuideBlocks
+assert.ok(guideBlocks.some(block => block.type === 'heading' && block.level === 2 && block.segments.some(seg => seg.text.includes('nginx'))))
+const codeBlocks = guideBlocks.filter(block => block.type === 'code')
+assert.equal(codeBlocks.length, 2)
+assert.deepEqual(codeBlocks.map(block => block.lang), ['nginx', 'apache'])
+assert.ok(codeBlocks[0].code.includes('client_max_body_size 65536;'))
+assert.ok(codeBlocks[0].code.includes('proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'))
+assert.ok(codeBlocks[0].code.includes('location ~ ^/+(?:index\\.php/+)?apps/+cobudget/+api/+v1(?:/+|$)'))
+assert.ok(codeBlocks[1].code.includes('LimitRequestBody 65536'))
+const tableBlock = guideBlocks.find(block => block.type === 'table')
+assert.ok(tableBlock)
+assert.equal(tableBlock.headers.length, 3)
+assert.equal(tableBlock.rows.length, 2)
+assert.ok(guideBlocks.some(block => block.type === 'paragraph' && block.segments.some(seg => seg.type === 'link' && seg.href.startsWith('https://'))))
+const unsafeParsed = parseMarkdownGuide('[Click](javascript:alert(1)) and [Safe](https://nginx.org/)')
+assert.equal(unsafeParsed[0].segments.some(seg => seg.type === 'link' && seg.href.startsWith('javascript:')), false)
+assert.equal(unsafeParsed[0].segments.some(seg => seg.type === 'link' && seg.href === 'https://nginx.org/'), true)
+vm.closeApiLimitGuide()
+assert.equal(vm.apiLimitGuideOpen, false)
+const guideStyleSection = source.slice(source.indexOf('.admin-api-guide-dialog {'))
+assert.ok(guideStyleSection.includes('padding:'), 'Guide modal defines internal dialog padding')
+assert.ok(!/\.admin-api-guide-dialog\s*\{[^}]*max-height:/s.test(guideStyleSection), 'Guide modal scrolls as one flow without fixed header/footer height clamp')
+assert.ok(!/\.admin-api-guide-body\s*\{[^}]*overflow-y:\s*auto/s.test(guideStyleSection), 'Guide modal avoids nested body scroll container')
+assert.ok(/\.admin-api-guide-dialog a\s*\{[^}]*text-decoration:\s*underline/s.test(guideStyleSection), 'Guide modal styles links visibly')
+assert.ok(!guideStyleSection.includes('--color-primary-element-text-dark'), 'Guide links do not use light foreground token on white modal background')
+assert.ok(source.includes('<style scoped src="../styles/bulk-import-tables.css"></style>'), 'AdminSettings reuses standard Nextcloud bulk-import-tables.css')
+assert.ok(source.includes('class="bulk-import-table admin-api-guide-table"'), 'Guide table uses Nextcloud bulk-import-table styling')
+assert.ok(/\.admin-api-limit-actions\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s.test(source), 'Guide and overview actions render side by side')
+assert.ok(source.includes('<NcFormBoxButton :href="overviewUrl" :label="$texts.admin.openOverview()" />'), 'Overview action renders as native NcFormBoxButton link')
+assert.ok(source.includes('@click="openApiLimitGuide"'), 'Guide action renders as NcFormBoxButton trigger')
+console.log('Admin web server guide modal passed: inline modal open/close, nginx/apache code blocks, Nextcloud table styling, safe link filtering, and NcFormBoxButton actions.')

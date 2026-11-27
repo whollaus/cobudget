@@ -55,6 +55,8 @@ try {
   foreach($row as $k=>$v)$q->setValue($k,$q->createNamedParameter($v));
   $q->executeStatement();return (int)$q->getLastInsertId();
  };
+ $receiptPath='CoBudget/Belege/example.txt';
+ $insert('entry_attachments',['entry_id'=>$entry,'workspace_id'=>$ws,'owner_user_id'=>$uid,'file_id'=>123456,'file_path'=>$receiptPath,'file_name'=>'example.txt','created_at'=>time()]);
  $goal=$insert('budget_goals',['user_id'=>$uid,'workspace_id'=>$ws,'name'=>'Audit deleted goal','amount_cents'=>10000]);
  $liveGoal=$insert('budget_goals',['user_id'=>$uid,'workspace_id'=>$ws,'name'=>'Audit live goal','amount_cents'=>20000]);
  foreach([$goal,$liveGoal]as$goalId)$insert('budget_snapshots',['budget_goal_id'=>$goalId,'user_id'=>$uid,'workspace_id'=>$ws,'goal_name'=>$goalId===$goal?'Audit deleted goal':'Audit live goal','amount_cents'=>12345,'spent_cents'=>1234,'snapshot_reason'=>$goalId===$goal?'deleted':'period_closed']);
@@ -64,6 +66,12 @@ try {
  $check($full['file_size']>0 && $personal['file_size']>0,'Both ZIP archives are nonempty');
  $pfile=$root->getUserFolder($uid)->get($personal['file_path']);
  $fFile=$root->getUserFolder($uid)->get($full['file_path']);
+ $personalArchive=$call('readBackupArchive',$pfile);
+ $attachmentRows=$personalArchive['tables']['cobudget_entry_attachments'];
+ $receiptRow=array_column($attachmentRows,null,'file_path')[$receiptPath];
+ $check((int)$receiptRow['file_id']===123456,'A local personal archive retains its verified Files ID');
+ $mapped=$call('applyUserMapToTables',['cobudget_entry_attachments'=>[$receiptRow]],[$uid=>'another-account']);
+ $check($mapped['cobudget_entry_attachments'][0]['file_id']===null,'Files IDs do not transfer between owners');
  $before=$call('collectFullBackupData');
  $q=$db->getQueryBuilder();$q->update('cobudget_entries')->set('amount_cents',$q->createNamedParameter(999))->where($q->expr()->eq('id',$q->createNamedParameter($entry)))->executeStatement();
  \OCP\Server::get(\OCP\IConfig::class)->setUserValue($uid,'cobudget','currency','USD');
@@ -107,6 +115,17 @@ try {
  // Mutate an archive, keeping the original safe. Each corruption must be rejected before writes.
  $temp=tempnam(sys_get_temp_dir(),'cb-audit-');
  try {
+  foreach (['legacy', 'foreign'] as $format) {
+   file_put_contents($temp,$pfile->contents);
+   $zip=new ZipArchive();$zip->open($temp);
+   $manifest=json_decode($zip->getFromName('manifest.json'),true,flags:JSON_THROW_ON_ERROR);
+   if ($format==='legacy') unset($manifest['receipt_identity_mac']); else $manifest['receipt_identity_mac']='another-instance';
+   $zip->addFromString('manifest.json',json_encode($manifest,JSON_THROW_ON_ERROR));$zip->close();
+   $copy=new AuditFile(new AuditFolder(),'portable.zip');$copy->contents=file_get_contents($temp);
+   $archive=$call('readBackupArchive',$copy);
+   $rows=array_column($archive['tables']['cobudget_entry_attachments'],null,'file_path');
+   $check(isset($rows[$receiptPath]) && $rows[$receiptPath]['file_id']===null,'Portable receipt metadata remains available in a '.$format.' archive');
+  }
   foreach(['missing-table','missing-settings','bad-json','unknown-table','empty-inventory','path-traversal']as$case){
    file_put_contents($temp,$fFile->contents);$zip=new ZipArchive();$zip->open($temp);$manifest=json_decode($zip->getFromName('manifest.json'),true);
    if($case==='missing-table')$zip->deleteName('data/cobudget_settlement_transfers.json');

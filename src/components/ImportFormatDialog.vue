@@ -458,14 +458,28 @@ export default {
 	background: var(--cobudget-surface-muted);
 }
 
+.bulk-import-format-modal :deep(.modal-container) {
+	overflow: hidden;
+}
+
+.bulk-import-format-modal :deep(.modal-container__content) {
+	display: flex;
+	min-height: 0;
+	overflow: hidden;
+}
+
 .bulk-import-format-dialog {
 	display: flex;
 	flex-direction: column;
+	width: 100%;
+	min-width: 0;
+	max-height: 100%;
 	gap: var(--cobudget-content-gap);
 	padding: calc(var(--default-grid-baseline, 4px) * 3) var(--cobudget-dialog-padding, 24px) var(--cobudget-dialog-padding, 24px);
 }
 
 .bulk-import-format-dialog h2 {
+	flex-shrink: 0;
 	margin: 0;
 	padding-inline-end: var(--cobudget-mobile-touch-size, 44px);
 	font-size: var(--cobudget-dialog-title-size, 20px);
@@ -477,9 +491,16 @@ export default {
 .bulk-import-format-dialog-body {
 	display: flex;
 	flex-direction: column;
+	flex: 1;
+	min-height: 0;
 	gap: var(--cobudget-content-gap);
 	max-height: min(68dvh, 660px);
+	background-color: inherit;
 	overflow-y: auto;
+	overscroll-behavior: none;
+	transform: translateZ(0);
+	backface-visibility: hidden;
+	scrollbar-gutter: stable;
 	padding-block: var(--default-grid-baseline, 4px);
 }
 
@@ -508,6 +529,7 @@ export default {
 }
 
 .bulk-import-format-dialog-actions {
+	flex-shrink: 0;
 	display: flex;
 	justify-content: flex-end;
 	gap: 8px;

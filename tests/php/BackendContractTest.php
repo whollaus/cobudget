@@ -40,8 +40,8 @@ return [
 		$seen = [];
 		foreach ($config['routes'] as $route) {
 			$t->assertTrue(isset($route['name'], $route['url'], $route['verb']), 'Every route should declare name, url, and verb');
-			$t->assertMatches('/^[a-z_]+#[A-Za-z][A-Za-z0-9_]*$/', $route['name'], 'Route names should use controller#method format');
-			$t->assertTrue(in_array($route['verb'], ['GET', 'POST', 'PUT', 'DELETE'], true), 'Route verb should be supported: ' . $route['name']);
+			$t->assertMatches('/^[a-z0-9_]+#[A-Za-z][A-Za-z0-9_]*$/', $route['name'], 'Route names should use controller#method format');
+			$t->assertTrue(in_array($route['verb'], ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], true), 'Route verb should be supported: ' . $route['name']);
 
 			$key = $route['verb'] . ' ' . $route['url'];
 			$t->assertFalse(isset($seen[$key]), 'Route verb/url should be unique: ' . $key);
@@ -291,6 +291,8 @@ return [
 			'admin_backup#destroy' => true,
 			'admin_backup#download' => true,
 			'admin_backup#restore' => true,
+			'admin_api#settings' => true,
+			'admin_api#saveSettings' => true,
 		];
 
 		$controllerClassName = static fn(string $controller): string => str_replace(' ', '', ucwords(str_replace('_', ' ', $controller)));
@@ -318,6 +320,13 @@ return [
 				$t->assertFalse(str_contains($body, 'workspace'), 'Personal Talk settings are independent of workspace selection');
 				continue;
 			}
+			if ($controller === 'api_v1') {
+				$t->assertContains('$this->runEndpoint(', $body, 'API v1 endpoints delegate to the central stateless auth wrapper: ' . $route['name']);
+				$runEndpoint = $t->methodBody('lib/Controller/ApiV1Controller.php', 'runEndpoint');
+				$t->assertContains('$this->auth->authenticate(', $runEndpoint, 'API v1 wrapper enforces stateless bearer/token authentication');
+				$t->assertContains('$this->auth->errorResponse(', $runEndpoint, 'API v1 wrapper returns sanitized JSON errors');
+				continue;
+			}
 			$t->assertContains('authErrorResponse()', $body, 'User-data route should check auth/workspace errors: ' . $route['name']);
 			$t->assertTrue(
 				strpos($body, "['error' =>") !== false || strpos($body, 'errorResponse(') !== false || strpos($body, 'loggedErrorResponse(') !== false,
@@ -330,17 +339,71 @@ return [
 		foreach ([
 			'CategoryController.php' => ['adminIndex', 'adminCreate', 'adminUpdate', 'adminUpdateIcon', 'adminHide', 'adminUnhide', 'adminDestroy'],
 			'PaymentPartnerController.php' => ['adminIndex', 'adminCreate', 'adminUpdate', 'adminHide', 'adminUnhide', 'adminDestroy'],
+			'MasterDataController.php' => ['adminSave'],
 			'IntegrityController.php' => ['inspect', 'repair', 'merge'],
 			'AdminBackupController.php' => ['settings', 'saveSettings', 'create', 'destroy', 'download', 'restore'],
+			'AdminApiController.php' => ['settings', 'saveSettings'],
 		] as $file => $methods) {
 			$source = $t->read('lib/Controller/' . $file);
 			$t->assertContains('IGroupManager', $source, $file . ' should inject the Nextcloud admin group manager');
+			$t->assertMatches('/function\s+requireAdmin\s*\(/', $source, $file . ' should define requireAdmin()');
 			$t->assertContains('requireAdmin()', $source, $file . ' should use an explicit admin guard');
 			$t->assertContains('isAdmin(', $source, $file . ' should check Nextcloud admin status');
 
 			foreach ($methods as $method) {
 				$body = $t->methodBody('lib/Controller/' . $file, $method);
 				$t->assertContains('requireAdmin()', $body, $file . '::' . $method . ' should require admin rights');
+			}
+		}
+	},
+
+	'Controller $this method calls resolve to defined methods' => function(TestRunner $t): void {
+		$traitSource = $t->read('lib/Controller/WorkspaceAwareTrait.php');
+		preg_match_all('/function\s+([a-zA-Z0-9_]+)\s*\(/', $traitSource, $traitMatches);
+		$traitMethods = array_flip($traitMatches[1]);
+		$inheritedMethods = array_flip(['__construct']);
+
+		foreach (glob($t->path('lib/Controller/*.php')) ?: [] as $file) {
+			$source = (string)file_get_contents($file);
+			$name = basename($file);
+			if (preg_match('/^\s*trait\s+/m', $source) === 1) {
+				continue;
+			}
+			preg_match_all('/function\s+([a-zA-Z0-9_]+)\s*\(/', $source, $definedMatches);
+			$defined = array_flip($definedMatches[1]) + $inheritedMethods;
+			if (str_contains($source, 'use WorkspaceAwareTrait')) {
+				$defined += $traitMethods;
+			}
+
+			$tokens = token_get_all($source);
+			$count = count($tokens);
+			for ($i = 0; $i < $count; $i++) {
+				if (!is_array($tokens[$i]) || $tokens[$i][0] !== T_VARIABLE || $tokens[$i][1] !== '$this') {
+					continue;
+				}
+				$j = $i + 1;
+				while ($j < $count && is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) {
+					$j++;
+				}
+				if ($j >= $count || !is_array($tokens[$j]) || $tokens[$j][0] !== T_OBJECT_OPERATOR) {
+					continue;
+				}
+				$k = $j + 1;
+				while ($k < $count && is_array($tokens[$k]) && $tokens[$k][0] === T_WHITESPACE) {
+					$k++;
+				}
+				if ($k >= $count || !is_array($tokens[$k]) || $tokens[$k][0] !== T_STRING) {
+					continue;
+				}
+				$m = $k + 1;
+				while ($m < $count && is_array($tokens[$m]) && $tokens[$m][0] === T_WHITESPACE) {
+					$m++;
+				}
+				if ($m >= $count || $tokens[$m] !== '(') {
+					continue;
+				}
+				$called = $tokens[$k][1];
+				$t->assertTrue(isset($defined[$called]), sprintf('%s calls undefined $this->%s()', $name, $called));
 			}
 		}
 	},
@@ -462,6 +525,7 @@ return [
 			'full_backup_schedule',
 			'full_backup_last_auto_at',
 			'theming_icon_cache_version',
+			'enable_api_access',
 		] as $appValueKey) {
 			$t->assertContains("'" . $appValueKey . "'", $command, 'Global reset should clear CoBudget app value: ' . $appValueKey);
 		}
@@ -1954,7 +2018,7 @@ return [
 			}
 
 			$entrySource = $t->read('lib/Controller/EntryController.php');
-			$t->assertContains('FileDisplayResponse', $entrySource, 'Attachment downloads should render files inline where possible');
+			$t->assertContains('StreamResponse', $entrySource, 'Attachment downloads should render files inline where possible');
 			$t->assertContains('#[NoCSRFRequired]', $entrySource, 'Attachment display route should allow direct browser opening without CSRF failure');
 
 			foreach (['attachments', 'uploadAttachment', 'downloadAttachment', 'destroyAttachment'] as $method) {
@@ -1967,7 +2031,7 @@ return [
 			$download = $t->methodBody('lib/Controller/EntryController.php', 'downloadAttachment');
 			$t->assertContains('$workspaceId !== null && (int)$workspaceId !== $activeWorkspaceId', $download, 'Attachment display with explicit workspace should reject mismatched workspaces');
 			$t->assertContains('fetchEntryAttachment($attachmentId, $id, (int)$activeWorkspaceId)', $download, 'Attachment display should load the exact entry/workspace attachment row');
-			$t->assertContains('new FileDisplayResponse', $download, 'Attachment display should use inline file responses');
+			$t->assertContains('Content-Disposition\' => "inline;', $download, 'Attachment display should use inline file responses');
 
 			$fetchList = $t->methodBody('lib/Controller/EntryController.php', 'fetchEntryAttachments');
 			$t->assertContains("eq('entry_id'", $fetchList, 'Attachment lists should scope by entry id');

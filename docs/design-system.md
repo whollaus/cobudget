@@ -949,6 +949,24 @@ sync/deletion consequence at the target picker; document setup and delivery deta
 in the operating guide.
 Preserve visible header spacing and 44 px targets at narrow widths and in both themes.
 
+### Personal API keys
+
+The personal and administrator API sections include the localized Beta status
+in their existing section headings. The request-size check and web server guide
+are presented in the administration settings.
+
+`ApiTokenSettings` renders directly below Personal export in `SettingsView`, using the
+same section heading, master `NcFormBoxSwitch`, flat semantic table (`api-token-table`
+matching `AutomaticImportSettings` with neutral row hover `--color-background-hover`,
+container-queried stacked mobile rows, and `Name`, masked `API key` preview,
+`Expiration`, inline `Active` switch, `Last run` and edit columns), compact
+`[data-cobudget-badge]` expired indicators, and `NcModal` editor layout as
+`MasterDataSettings` (with a per-area payment checkbox matrix `Read`/`Edit`/`Create`/`Delete`,
+an aligned General checkbox matrix for reports/budget goals and settings with named `—` dashes on unsupported columns,
+and a two-column `Expiration` select — `No expiration`, `Expires on`, plus a non-selectable `Templates` group — paired with a `Date` input). Newly created
+secrets open in a non-light-dismissed `NcDialog` with an explicit warning note,
+monospaced read-only field, and an accessible copy button that keeps focus and shows standard toast feedback.
+
 ### Initial layout
 
 The first finance dashboard keeps an accessible loading indicator in place until

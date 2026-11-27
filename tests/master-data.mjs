@@ -165,6 +165,9 @@ for (const kind of ['categories', 'payment-partners']) {
  assert.equal(editor.editor, null, 'Unchanged edits close directly')
 }
 const template = read('src/components/MasterDataSettings.vue').split('<script>')[0]
+const styles = read('src/components/MasterDataSettings.vue').split('<style scoped>')[1] || ''
+assert.ok(styles.includes('var(--color-background-hover, var(--cobudget-surface-muted))'), 'Master-data tables use neutral row hover matching settings tables')
+assert.ok(!styles.includes('--cobudget-table-row-hover'), 'Master-data tables avoid tinted blue row hover')
 assert.ok(!template.includes('@change="autoSave"'), 'Form changes never trigger writes')
 assert.ok(template.includes('@submit.prevent="save"'))
 assert.ok(template.includes('@click="discardAndClose">{{ $texts.common.cancel() }}'))

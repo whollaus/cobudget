@@ -281,7 +281,23 @@ behind their count; pending uploads remain visible until saving succeeds.
 Shared receipts use physical per-user copies. While a payment is open, attachments
 follow the source; after settlement, each personal copy is independent. Optional
 receipt deletion follows payment permissions. Backups retain receipt paths but do
-not embed the files themselves.
+not embed the files themselves. If a receipt has moved or its file reference cannot be verified after a restore, attach the intended file again.
+
+## External API (Beta)
+
+Use personal keys in external scripts and integrations. A Nextcloud administrator
+enables API access for the instance in the CoBudget administration settings.
+Each account owner then enables personal API access and creates keys in CoBudget
+Settings. Each key belongs to one workspace. Grant Read, Create, Edit or Delete
+separately for personal payments and each area. Optional scopes cover reports,
+budget goals and selected account settings. Keys can expire, be paused or be revoked.
+
+The endpoints dialog shows the operations available to each key and includes
+cURL examples, OpenAPI JSON and `.http` downloads. See the [API setup and reference](docs/api.md)
+for authentication, endpoint permissions, limits and response codes. Administrators
+can check the 64 KiB limit in the Nextcloud administration overview and open the
+web server guide directly from the CoBudget administration settings.
+
 
 ## Settings, backup and administration
 

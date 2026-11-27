@@ -29,6 +29,7 @@ que registras.
   correo electrónico opcional, por separado según el evento. Los recordatorios
   también se sincronizan con un calendario; los cambios en calendarios privados
   se reflejan en CoBudget.
+- **API externa (beta)** para integraciones con claves personales por espacio de trabajo y permisos separados para los pagos personales y cada área. Una vez que un administrador de Nextcloud active la API, puedes crear tus claves en los ajustes de CoBudget. [Configuración y referencia de la API (inglés)](api.md)
 - **[Importación de pagos](payment-imports.es.md):** opcionalmente, importar pagos en formato JSON manualmente con vista previa o automáticamente desde una carpeta de Nextcloud.
 - **Exportaciones y copias de seguridad:** imprimir informes, exportar en CSV, copiar tablas a una hoja de cálculo y crear exportaciones personales o copias de seguridad de administrador.
 - **Espacios de trabajo y apariencia:** conjuntos de datos separados mediante espacios de
@@ -100,10 +101,8 @@ administrador** contiene los datos financieros de todos los usuarios de CoBudget
 y sus preferencias transferibles. Al restaurarla, se reemplazan los datos actuales
 de la aplicación.
 
-**Los archivos justificantes no se incluyen; solo se guardan sus rutas.** Haz
-copias de esos archivos con tu solución habitual de copias de seguridad para
-Nextcloud Files. Esa tarea se mantiene separada de CoBudget. Estas copias no
-sustituyen una copia completa de Nextcloud. CoBudget bloquea temporalmente el
+**Incluye los justificantes en tu copia de Nextcloud Files.** Las copias de CoBudget contienen sus referencias. Si mueves el archivo o recuperas una copia antigua o de otra instancia, puede que debas adjuntarlo de nuevo. Conserva una copia completa de Nextcloud para poder recuperar el servidor.
+CoBudget bloquea temporalmente el
 acceso a la aplicación durante las copias y restauraciones. Si hay una operación
 en curso, vuelve a intentarlo cuando termine. Recarga las pestañas abiertas de
 CoBudget después de una restauración. Consulta el

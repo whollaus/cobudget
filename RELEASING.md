@@ -10,10 +10,37 @@ requirements and the signing helper included in this repository.
   entries in `package-lock.json`, and the intended `vX.Y.Z` tag.
 - Run `npm test`, `npm run build` and `git diff --check`; include the generated
   `js/` assets in the reviewed release commit on `main`.
-- Complete relevant installation, upgrade and browser checks on supported
+- Run the fresh-install payment check below on the final archive.
+- Complete relevant upgrade and browser checks on supported
   Nextcloud versions. See [tests/README.md](tests/README.md).
 - Ensure the signed package corresponds to the release commit and tag; inspect
   the archive and its checks before publishing.
+
+## Fresh installation of the release package
+
+From the CoBudget repository, run the following command with the actual release archive.
+
+```sh
+python3 tests/integration/run-fresh-install.py /path/to/cobudget.tar.gz
+```
+
+The test reads the supported Nextcloud major versions from the archive. For each
+major it needs a local server distribution at `../local-nextcloud/<major>/server`.
+Use `--templates DIR` for another parent directory and `--php PATH` to select a
+compatible PHP CLI with SQLite. Use Python 3.12 or later.
+
+Each run creates a temporary Nextcloud configuration, data directory, SQLite
+database and two accounts. It enables CoBudget from the supplied archive and
+checks its internal signature when present. A regular user creates an expense,
+an income and a shared payment through the app controllers. Another PHP process
+reads all three payments and checks both members' shares and linked personal
+entries. The test also checks background job registration, data integrity and
+that Nextcloud has left maintenance mode with no pending database upgrade.
+
+All supported versions must pass before publication. Keep the archive SHA-256
+and the version-specific results with the release. Temporary instances are
+removed on success and on test failure. Continue testing upgrades against
+existing data, including an upgrade from the last published release.
 
 ## Signing and archive requirements
 

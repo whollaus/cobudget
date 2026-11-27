@@ -6,6 +6,38 @@
 		<NcNoteCard v-if="loadError" type="error" :text="loadError" />
 		<MasterDataSettings ref="masterData" admin class="admin-master-data" />
 
+		<section id="cobudget-api-settings" class="integrity-card admin-api-card">
+			<h3 class="cobudget-section-heading">{{ $texts.admin.apiAccessTitle() }}</h3>
+			<p class="admin-section-hint">{{ $texts.admin.apiAccessHint() }}</p>
+			<NcNoteCard v-if="apiSettingsLoadError" type="error">
+				<p>{{ apiSettingsLoadError }}</p>
+				<NcButton variant="tertiary" :disabled="apiSettingsLoading" @click="fetchApiSettings">{{ $texts.common.retry() }}</NcButton>
+			</NcNoteCard>
+			<NcNoteCard v-if="apiSettingsSaveError" type="error" :text="apiSettingsSaveError" />
+			<p v-if="apiSettingsLoading" class="integrity-status settings-loading" role="status">
+				<NcLoadingIcon :size="20" />
+				{{ $texts.common.loading() }}
+			</p>
+			<NcFormBoxSwitch
+				v-else
+				:model-value="apiAccessEnabled"
+				:label="$texts.admin.apiAccessEnableLabel()"
+				:description="$texts.admin.apiAccessEnableDescription()"
+				:disabled="apiSettingsLoading || apiSettingsSaving || !!apiSettingsLoadError"
+				@update:model-value="saveApiAccessEnabled" />
+		</section>
+
+		<section id="cobudget-api-request-limit" class="integrity-card">
+			<h3 class="cobudget-section-heading">{{ $texts.admin.apiRequestSize() }}</h3>
+			<p class="admin-section-hint">{{ $texts.admin.apiRequestSizeHint() }}</p>
+			<div class="admin-api-limit-actions">
+				<NcFormBoxButton :href="overviewUrl" :label="$texts.admin.openOverview()" />
+				<NcFormBoxButton :label="$texts.admin.webServerGuide()" @click="openApiLimitGuide">
+					<template #icon><FileDocumentOutlineIcon :size="24" /></template>
+				</NcFormBoxButton>
+			</div>
+		</section>
+
 		<div class="integrity-card">
 			<h3 class="cobudget-section-heading">{{ $texts.admin.dataQuality() }}</h3>
 			<div class="integrity-card-header">
@@ -219,6 +251,144 @@
 				</template>
 			</NcDialog>
 		</DialogTransition>
+		<DialogTransition :show="passwordConfirm.open" v-slot="{ returnFocus }">
+			<NcDialog
+				:container="null"
+				:set-return-focus="returnFocus"
+				class="cobudget-native-dialog cobudget-standard-dialog admin-api-password-dialog"
+				size="normal"
+				:name="$texts.apiTokens.passwordConfirmTitle()"
+				:no-close="passwordConfirm.busy"
+				:close-on-click-outside="!passwordConfirm.busy"
+				@closing="cancelPasswordConfirmation">
+				<form class="admin-api-password-body" @submit.prevent="submitPasswordConfirmation">
+					<p class="cobudget-confirm-message">{{ $texts.admin.apiAccessPasswordConfirmHint() }}</p>
+					<NcNoteCard v-if="passwordConfirm.error" type="error" :text="passwordConfirm.error" />
+					<NcFormGroup class="cobudget-form-group">
+						<template #label>
+							<label class="cobudget-form-label" for="admin-api-confirm-password">{{ $texts.apiTokens.passwordConfirmLabel() }}</label>
+						</template>
+						<NcInputField
+							id="admin-api-confirm-password"
+							v-model="passwordConfirm.password"
+							type="password"
+							autocomplete="current-password"
+							label-outside
+							:label="$texts.apiTokens.passwordConfirmLabel()"
+							required
+							:disabled="passwordConfirm.busy" />
+					</NcFormGroup>
+				</form>
+				<template #actions>
+					<div class="cobudget-confirm-actions">
+						<NcButton
+							variant="tertiary"
+							:disabled="passwordConfirm.busy"
+							@click="cancelPasswordConfirmation">
+							{{ $texts.common.cancel() }}
+						</NcButton>
+						<NcButton
+							variant="primary"
+							:disabled="passwordConfirm.busy || !passwordConfirm.password"
+							@click="submitPasswordConfirmation">
+							{{ $texts.apiTokens.passwordConfirmButton() }}
+						</NcButton>
+					</div>
+				</template>
+			</NcDialog>
+		</DialogTransition>
+		<DialogTransition :show="apiLimitGuideOpen" v-slot="{ returnFocus }">
+			<NcModal
+				:container="null"
+				:set-return-focus="returnFocus"
+				class="cobudget-native-dialog cobudget-settings-modal admin-api-guide-modal"
+				:show="true"
+				label-id="admin-api-guide-title"
+				size="large"
+				:close-on-click-outside="true"
+				@update:show="closeApiLimitGuide"
+				@keydown.esc.stop.prevent="closeApiLimitGuide">
+				<div class="admin-api-guide-dialog">
+					<h2 id="admin-api-guide-title">{{ $texts.admin.webServerGuideTitle() }}</h2>
+					<div class="admin-api-guide-body">
+						<template v-for="(block, blockIndex) in apiLimitGuideBlocks" :key="`guide-${blockIndex}`">
+							<h3 v-if="block.type === 'heading' && block.level <= 2" class="cobudget-section-heading admin-api-guide-heading">
+								<template v-for="(segment, segIndex) in block.segments" :key="`seg-${segIndex}`">
+									<code v-if="segment.type === 'code'">{{ segment.text }}</code>
+									<strong v-else-if="segment.type === 'strong'">{{ segment.text }}</strong>
+									<a v-else-if="segment.type === 'link'" :href="segment.href" target="_blank" rel="noopener noreferrer">{{ segment.text }}</a>
+									<template v-else>{{ segment.text }}</template>
+								</template>
+							</h3>
+							<h4 v-else-if="block.type === 'heading'" class="cobudget-subheading admin-api-guide-heading">
+								<template v-for="(segment, segIndex) in block.segments" :key="`seg-${segIndex}`">
+									<code v-if="segment.type === 'code'">{{ segment.text }}</code>
+									<strong v-else-if="segment.type === 'strong'">{{ segment.text }}</strong>
+									<a v-else-if="segment.type === 'link'" :href="segment.href" target="_blank" rel="noopener noreferrer">{{ segment.text }}</a>
+									<template v-else>{{ segment.text }}</template>
+								</template>
+							</h4>
+							<p v-else-if="block.type === 'paragraph'" class="admin-api-guide-paragraph">
+								<template v-for="(segment, segIndex) in block.segments" :key="`seg-${segIndex}`">
+									<code v-if="segment.type === 'code'">{{ segment.text }}</code>
+									<strong v-else-if="segment.type === 'strong'">{{ segment.text }}</strong>
+									<a v-else-if="segment.type === 'link'" :href="segment.href" target="_blank" rel="noopener noreferrer">{{ segment.text }}</a>
+									<template v-else>{{ segment.text }}</template>
+								</template>
+							</p>
+							<div v-else-if="block.type === 'code'" class="admin-api-guide-code-card">
+								<div class="admin-api-guide-code-toolbar">
+									<span class="admin-api-guide-code-lang">{{ block.lang || 'config' }}</span>
+									<NcButton
+										variant="tertiary"
+										:title="$texts.admin.copyConfigSnippet()"
+										:aria-label="$texts.admin.copyConfigSnippet()"
+										@click="copyGuideSnippet(block.code)">
+										<template #icon><ContentCopyIcon :size="16" /></template>
+										{{ $texts.common.copy() }}
+									</NcButton>
+								</div>
+								<pre class="admin-api-guide-code"><code>{{ block.code }}</code></pre>
+							</div>
+							<div v-else-if="block.type === 'table'" class="bulk-import-table-wrapper admin-api-guide-table-wrap">
+								<table class="bulk-import-table admin-api-guide-table">
+									<thead>
+										<tr>
+											<th v-for="(headerCell, cellIndex) in block.headers" :key="`th-${cellIndex}`" scope="col">
+												<template v-for="(segment, segIndex) in headerCell" :key="`seg-${segIndex}`">
+													<code v-if="segment.type === 'code'">{{ segment.text }}</code>
+													<strong v-else-if="segment.type === 'strong'">{{ segment.text }}</strong>
+													<a v-else-if="segment.type === 'link'" :href="segment.href" target="_blank" rel="noopener noreferrer">{{ segment.text }}</a>
+													<template v-else>{{ segment.text }}</template>
+												</template>
+											</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr v-for="(row, rowIndex) in block.rows" :key="`tr-${rowIndex}`">
+											<td
+												v-for="(cell, cellIndex) in row"
+												:key="`td-${cellIndex}`"
+												:data-label="plainGuideText(block.headers[cellIndex])">
+												<template v-for="(segment, segIndex) in cell" :key="`seg-${segIndex}`">
+													<code v-if="segment.type === 'code'">{{ segment.text }}</code>
+													<strong v-else-if="segment.type === 'strong'">{{ segment.text }}</strong>
+													<a v-else-if="segment.type === 'link'" :href="segment.href" target="_blank" rel="noopener noreferrer">{{ segment.text }}</a>
+													<template v-else>{{ segment.text }}</template>
+												</template>
+											</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</template>
+					</div>
+					<div class="admin-api-guide-actions">
+						<NcButton variant="tertiary" @click="closeApiLimitGuide">{{ $texts.common.close() }}</NcButton>
+					</div>
+				</div>
+			</NcModal>
+		</DialogTransition>
 	</div>
 </template>
 
@@ -237,17 +407,23 @@ import DisabledActionHint from './DisabledActionHint.vue'
 import { getAppLocale } from '../utils/formatMoney'
 import axios from '../services/http'
 import { generateUrl, generateOcsUrl } from '@nextcloud/router'
+import apiLimitGuide from '../../docs/api-request-limits.md'
+import parseMarkdownGuide from '../utils/markdownGuide'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcInputField from '@nextcloud/vue/components/NcInputField'
+import NcFormBoxSwitch from '@nextcloud/vue/components/NcFormBoxSwitch'
 import NcFormGroup from '@nextcloud/vue/components/NcFormGroup'
+import NcModal from '@nextcloud/vue/components/NcModal'
 import NcRadioGroup from '@nextcloud/vue/components/NcRadioGroup'
 import NcRadioGroupButton from '@nextcloud/vue/components/NcRadioGroupButton'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import MasterDataSettings from './MasterDataSettings.vue'
+import ContentCopyIcon from 'vue-material-design-icons/ContentCopy.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/TrashCanOutline.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
+import FileDocumentOutlineIcon from 'vue-material-design-icons/FileDocumentOutline.vue'
 import { extractError, showToast } from '../services/notifications'
 
 export default {
@@ -256,18 +432,36 @@ export default {
 		MasterDataSettings,
 		NcDialog,
 		NcInputField,
+		NcFormBoxSwitch,
 		NcFormGroup,
+		NcModal,
 		NcRadioGroup,
 		NcRadioGroupButton,
 		NcNoteCard,
 		NcButton,
+		ContentCopyIcon,
 		DeleteOutlineIcon,
 		DownloadIcon,
+		FileDocumentOutlineIcon,
 	},
 	data() {
 		return {
+			apiLimitGuideOpen: false,
+			overviewUrl: generateUrl('/settings/admin/overview'),
 			loading: false,
 			loadError: '',
+			apiAccessEnabled: false,
+			apiSettingsLoading: false,
+			apiSettingsSaving: false,
+			apiSettingsLoadError: '',
+			apiSettingsSaveError: '',
+			passwordConfirm: {
+				open: false,
+				password: '',
+				busy: false,
+				error: '',
+			},
+			passwordConfirmResolver: null,
 			integrityError: '',
 			fullBackupError: '',
 			fullBackupLoadError: '',
@@ -303,6 +497,9 @@ export default {
 		}
 	},
 	computed: {
+		apiLimitGuideBlocks() {
+			return typeof parseMarkdownGuide === 'function' ? parseMarkdownGuide(apiLimitGuide) : [];
+		},
 		selectedStorageUser: {
 			get() { return this.storageUsers.find(user => user.id === this.fullBackupStorageUser) || (this.fullBackupStorageUser ? { id: this.fullBackupStorageUser, displayName: this.fullBackupStorageUser } : null); },
 			set(user) { this.fullBackupStorageUser = user?.id || ''; this.saveFullBackupSettings(); },
@@ -370,12 +567,60 @@ export default {
 	},
 	mounted() {
 		this.fetchData()
+		this.fetchApiSettings()
 		this.fetchIntegrityReport()
 		this.fetchFullBackupSettings()
 		this.fetchStorageUsers()
 	},
-	beforeUnmount() { clearTimeout(this.storageUserSearchTimer); this.storageUserRequest++; },
+	beforeUnmount() {
+		clearTimeout(this.storageUserSearchTimer);
+		this.storageUserRequest++;
+		this.passwordConfirm.password = '';
+		this.passwordConfirm.open = false;
+		if (typeof this.passwordConfirmResolver === 'function') {
+			const resolve = this.passwordConfirmResolver;
+			this.passwordConfirmResolver = null;
+			resolve(false);
+		}
+	},
 	methods: {
+		openApiLimitGuide() {
+			this.apiLimitGuideOpen = true;
+		},
+		closeApiLimitGuide() {
+			this.apiLimitGuideOpen = false;
+		},
+		plainGuideText(segments) {
+			return Array.isArray(segments) ? segments.map(segment => segment.text || '').join('') : '';
+		},
+		async copyGuideSnippet(code) {
+			const value = String(code || '');
+			if (!value) return;
+			try {
+				if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+					await navigator.clipboard.writeText(value);
+					showToast(this.$texts.admin.configSnippetCopied());
+					return;
+				}
+			} catch {
+				// Fall through to legacy textarea copy.
+			}
+			try {
+				const previousFocus = document.activeElement;
+				const field = Object.assign(document.createElement('textarea'), { value });
+				field.setAttribute('readonly', '');
+				field.style.cssText = 'position:fixed;inset-block-start:0;opacity:0';
+				document.body.append(field);
+				field.select();
+				const copied = document.execCommand('copy');
+				field.remove();
+				previousFocus?.focus?.({ preventScroll: true });
+				if (!copied) throw new Error('Copy failed');
+				showToast(this.$texts.admin.configSnippetCopied());
+			} catch {
+				showToast(this.$texts.admin.configSnippetCopyError(), 'error');
+			}
+		},
 		searchStorageUsers(term) {
 			this.storageUserSearch = term;
 			this.storageUserRequest++;
@@ -442,6 +687,133 @@ export default {
 				this.loadError = extractError(e, this.$texts.admin.loadError());
 			} finally {
 				this.loading = false;
+			}
+		},
+		async fetchApiSettings() {
+			this.apiSettingsLoadError = '';
+			this.apiSettingsSaveError = '';
+			this.apiSettingsLoading = true;
+			try {
+				const response = await axios.get(generateUrl('/apps/cobudget/api/admin/api/settings'), { skipWorkspaceHeader: true });
+				this.apiAccessEnabled = response.data?.enabled === true;
+			} catch (e) {
+				this.apiSettingsLoadError = extractError(e, this.$texts.admin.apiAccessLoadError());
+			} finally {
+				this.apiSettingsLoading = false;
+			}
+		},
+		isPasswordConfirmationRequired(error) {
+			if (error?.response?.status !== 403) return false;
+			const headers = error.response.headers;
+			if (!headers || typeof headers !== 'object') return false;
+			const check = name => {
+				const direct = typeof headers.get === 'function' ? headers.get(name) : undefined;
+				if (direct !== undefined && direct !== null) return String(direct).toLowerCase() === 'true';
+				const matchKey = Object.keys(headers).find(key => key.toLowerCase() === name);
+				return matchKey ? String(headers[matchKey]).toLowerCase() === 'true' : false;
+			};
+			return check('x-nc-auth-notconfirmed') || check('x-nextcloud-password-confirmation');
+		},
+		requestPasswordConfirmation() {
+			if (typeof this.passwordConfirmResolver === 'function') {
+				const prev = this.passwordConfirmResolver;
+				this.passwordConfirmResolver = null;
+				prev(false);
+			}
+			this.passwordConfirm = {
+				open: true,
+				password: '',
+				busy: false,
+				error: '',
+			};
+			return new Promise(resolve => {
+				this.passwordConfirmResolver = resolve;
+			});
+		},
+		cancelPasswordConfirmation() {
+			if (this.passwordConfirm.busy) return;
+			this.passwordConfirm.password = '';
+			this.passwordConfirm.error = '';
+			this.passwordConfirm.open = false;
+			if (typeof this.passwordConfirmResolver === 'function') {
+				const resolve = this.passwordConfirmResolver;
+				this.passwordConfirmResolver = null;
+				resolve(false);
+			}
+		},
+		async submitPasswordConfirmation() {
+			if (!this.passwordConfirm.open || this.passwordConfirm.busy || !this.passwordConfirm.password) return;
+			this.passwordConfirm.busy = true;
+			this.passwordConfirm.error = '';
+			try {
+				const { data } = await axios.post(
+					generateUrl('/login/confirm'),
+					{ password: this.passwordConfirm.password },
+					{ skipWorkspaceHeader: true },
+				);
+				if (typeof window !== 'undefined' && data?.lastLogin) {
+					window.nc_lastLogin = Number(data.lastLogin);
+				}
+				this.passwordConfirm.password = '';
+				this.passwordConfirm.open = false;
+				if (typeof this.passwordConfirmResolver === 'function') {
+					const resolve = this.passwordConfirmResolver;
+					this.passwordConfirmResolver = null;
+					resolve(true);
+				}
+			} catch (error) {
+				this.passwordConfirm.password = '';
+				if (error?.response?.status === 403) {
+					this.passwordConfirm.error = this.$texts.apiTokens.passwordConfirmInvalid();
+				} else {
+					this.passwordConfirm.error = extractError(error, this.$texts.apiTokens.passwordConfirmError());
+				}
+			} finally {
+				this.passwordConfirm.busy = false;
+			}
+		},
+		async runWithPasswordConfirmation(actionFn) {
+			try {
+				return { cancelled: false, result: await actionFn() };
+			} catch (error) {
+				if (!this.isPasswordConfirmationRequired(error)) {
+					throw error;
+				}
+				const confirmed = await this.requestPasswordConfirmation();
+				if (!confirmed) {
+					return { cancelled: true, result: null };
+				}
+				return { cancelled: false, result: await actionFn() };
+			}
+		},
+		async saveApiAccessEnabled(enabled) {
+			if (this.apiSettingsLoading || this.apiSettingsSaving || this.apiSettingsLoadError) {
+				return false;
+			}
+			const previous = this.apiAccessEnabled;
+			const next = !!enabled;
+			this.apiAccessEnabled = next;
+			this.apiSettingsSaveError = '';
+			this.apiSettingsSaving = true;
+			try {
+				const { cancelled, result } = await this.runWithPasswordConfirmation(() => axios.post(
+					generateUrl('/apps/cobudget/api/admin/api/settings'),
+					{ enabled: next },
+					{ skipWorkspaceHeader: true }
+				));
+				if (cancelled) {
+					this.apiAccessEnabled = previous;
+					return false;
+				}
+				this.apiAccessEnabled = result.data?.enabled === true;
+				showToast(this.$texts.admin.apiAccessSaved());
+				return true;
+			} catch (e) {
+				this.apiAccessEnabled = previous;
+				this.apiSettingsSaveError = extractError(e, this.$texts.admin.apiAccessSaveError());
+				return false;
+			} finally {
+				this.apiSettingsSaving = false;
 			}
 		},
 		async fetchIntegrityReport() {
@@ -719,6 +1091,8 @@ export default {
 }
 </script>
 
+<style scoped src="../styles/bulk-import-tables.css"></style>
+
 <style scoped>
 /* Nextcloud Settings' .section p rule must not offset native note content. */
 .cobudget-admin-settings :deep(.notecard p) {
@@ -776,6 +1150,160 @@ export default {
 	font-size: var(--cobudget-font-section-title);
 	font-weight: var(--cobudget-font-weight-heading);
 	margin: 0 0 12px 0;
+}
+
+.admin-section-hint {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	line-height: 1.45;
+	margin: 0 0 12px 0;
+}
+
+.admin-api-card :deep(.notecard) {
+	margin-bottom: 12px;
+}
+
+.admin-api-limit-actions {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-api-limit-actions > * {
+	min-width: 0;
+}
+
+.admin-api-guide-dialog {
+	display: block;
+	padding: calc(var(--default-grid-baseline, 4px) * 3) var(--cobudget-dialog-padding, 24px) var(--cobudget-dialog-padding, 24px);
+}
+
+.admin-api-guide-dialog h2 {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	display: block;
+	font-size: var(--cobudget-dialog-title-size, 20px);
+	font-weight: var(--cobudget-font-weight-heading, 600);
+	line-height: 1.4;
+	margin: 0 0 calc(var(--default-grid-baseline, 4px) * 4) 0;
+	max-width: none;
+	padding-inline-end: var(--cobudget-mobile-touch-size, 44px);
+	text-align: start;
+}
+
+.admin-api-guide-body {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.admin-api-guide-dialog h3.admin-api-guide-heading {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-size: var(--cobudget-font-section-title, 18px);
+	font-weight: var(--cobudget-font-weight-heading, 600);
+	line-height: 1.35;
+	margin: 14px 0 0 0;
+}
+
+.admin-api-guide-dialog h4.admin-api-guide-heading {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-size: var(--cobudget-font-subheading, 16px);
+	font-weight: var(--cobudget-font-weight-heading, 600);
+	line-height: 1.35;
+	margin: 10px 0 0 0;
+}
+
+.admin-api-guide-heading:first-child {
+	margin-top: 0;
+}
+
+.admin-api-guide-dialog .admin-api-guide-paragraph {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-size: var(--cobudget-font-body, 15px);
+	line-height: 1.55;
+	margin: 0;
+	max-width: none;
+}
+
+.admin-api-guide-dialog a {
+	color: var(--cobudget-info-text, var(--color-primary-element-light-text, var(--color-primary-element, #0082c9)));
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+.admin-api-guide-dialog a:hover,
+.admin-api-guide-dialog a:focus-visible {
+	color: var(--cobudget-primary-hover, var(--color-primary-element-hover, #006a92));
+}
+
+.admin-api-guide-paragraph code,
+.admin-api-guide-table code {
+	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
+	border: 1px solid var(--cobudget-border, #ddd);
+	border-radius: var(--border-radius, 4px);
+	font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+	font-size: 0.88em;
+	padding: 1px 5px;
+	overflow-wrap: anywhere;
+}
+
+.admin-api-guide-code-card {
+	flex: 0 0 auto;
+	min-width: 0;
+	background: var(--cobudget-surface-muted, var(--color-background-hover, #f5f5f5));
+	border: 1px solid var(--cobudget-border, #ddd);
+	border-radius: var(--border-radius-large, 8px);
+}
+
+.admin-api-guide-code-toolbar {
+	align-items: center;
+	background: var(--cobudget-surface, var(--color-main-background, #fff));
+	border-bottom: 1px solid var(--cobudget-border, #ddd);
+	border-radius: var(--border-radius-large, 8px) var(--border-radius-large, 8px) 0 0;
+	display: flex;
+	gap: 8px;
+	justify-content: space-between;
+	padding: 4px 8px 4px 12px;
+}
+
+.admin-api-guide-code-lang {
+	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #666));
+	font-size: var(--cobudget-font-caption, 12px);
+	font-weight: var(--font-weight-heading, 600);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.admin-api-guide-code {
+	color: var(--cobudget-text, var(--color-main-text, #222));
+	font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+	font-size: var(--cobudget-font-sm, 13px);
+	line-height: 1.5;
+	margin: 0;
+	overflow-x: auto;
+	padding: 12px 14px;
+}
+
+.admin-api-guide-table-wrap {
+	flex: 0 0 auto;
+	min-width: 0;
+	border: 1px solid var(--cobudget-border, #ddd);
+	border-radius: var(--border-radius-large, 8px);
+}
+
+.admin-api-guide-table :is(th, td) {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.admin-api-guide-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.admin-api-guide-actions {
+	border-top: 1px solid var(--cobudget-border, #ddd);
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 20px;
+	padding-top: 12px;
 }
 
 .integrity-card-header p,
@@ -983,12 +1511,23 @@ export default {
 }
 
 /* NcRadioGroup renders its buttons in an NcFormBox row without wrapping. */
+.admin-api-password-body {
+	display: grid;
+	gap: 12px;
+}
+
 .admin-backup-schedule :deep([class*="ncFormBox_row"]) {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 768px) {
+	.admin-api-limit-actions {
+		grid-template-columns: 1fr;
+	}
+	.admin-api-guide-dialog {
+		padding: calc(var(--default-grid-baseline, 4px) * 3) var(--cobudget-dialog-padding, 20px) var(--cobudget-dialog-padding, 20px);
+	}
 	.settings-section { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
 	.settings-section > h2 { font-size: var(--cobudget-font-page-title-mobile); }
 	.settings-section {

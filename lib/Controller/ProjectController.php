@@ -1,6 +1,7 @@
 <?php
 namespace OCA\CoBudget\Controller;
 
+use OCA\CoBudget\Service\ApiTokenService;
 use OCA\CoBudget\Service\AutoImportRules;
 use OCA\CoBudget\Service\EntryShareService;
 use OCA\CoBudget\Service\EntryProjectionService;
@@ -41,7 +42,7 @@ class ProjectController extends Controller {
 	private ParticipantService $participantService;
 	private IL10N $l10n;
 
-	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IUserManager $userManager, IConfig $config, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IL10N $l10n, private AutoImportRules $autoImportRules) {
+	public function __construct(string $appName, IRequest $request, IDBConnection $db, IUserSession $userSession, IUserManager $userManager, IConfig $config, EntryShareService $entryShareService, EntryProjectionService $entryProjectionService, DataChangeService $dataChangeService, ProjectNotificationService $projectNotificationService, ParticipantService $participantService, IL10N $l10n, private AutoImportRules $autoImportRules, private ApiTokenService $apiTokenService) {
 		parent::__construct($appName, $request);
 		$this->db = $db;
 		$user = $userSession->getUser();
@@ -539,26 +540,31 @@ class ProjectController extends Controller {
 				return $ownerError;
 			}
 
-			$project = $this->projectOwnerForCurrentUser($id);
-			if ($project === null) {
-				return $this->errorResponse('Area not found.', Http::STATUS_NOT_FOUND);
-			}
-			$workspaceId = (int)$project['workspace_id'];
-			if ($this->projectHasPayments($id) || $this->projectHasLifecycleHistory($id)) {
-				return $this->errorResponse('This area contains payments or settlement history and can only be archived.', Http::STATUS_CONFLICT);
-			}
-			$categoryIds = $this->projectScopedCategoryIds($id);
-			if ($this->budgetGoalsReferenceProject($id, $workspaceId, $categoryIds)) {
-				return $this->errorResponse('Remove this area from budget goals before permanently deleting it.', Http::STATUS_CONFLICT);
-			}
-			$memberUserIds = $this->projectMemberIds($this->projectMembers($id));
-
 			$this->db->beginTransaction();
 			try {
+				$this->entryShareService->lockProject($id);
+				$project = $this->projectOwnerForCurrentUser($id);
+				if ($project === null) {
+					$this->db->rollBack();
+					return $this->errorResponse('Area not found.', Http::STATUS_NOT_FOUND);
+				}
+				$workspaceId = (int)$project['workspace_id'];
+				if ($this->projectHasPayments($id) || $this->projectHasLifecycleHistory($id)) {
+					$this->db->rollBack();
+					return $this->errorResponse('This area contains payments or settlement history and can only be archived.', Http::STATUS_CONFLICT);
+				}
+				$categoryIds = $this->projectScopedCategoryIds($id);
+				if ($this->budgetGoalsReferenceProject($id, $workspaceId, $categoryIds)) {
+					$this->db->rollBack();
+					return $this->errorResponse('Remove this area from budget goals before permanently deleting it.', Http::STATUS_CONFLICT);
+				}
+				$memberUserIds = $this->projectMemberIds($this->projectMembers($id));
+
 				$this->deleteRowsByColumnValues('cobudget_categories', 'project_id', [$id]);
 				$this->deleteRowsByColumnValues('cobudget_payment_partners', 'project_id', [$id]);
 				$this->deleteRowsByColumnValues('cobudget_import_files', 'project_id', [$id]);
 				$this->deleteRowsByColumnValues('cobudget_import_rules', 'project_id', [$id]);
+				$this->apiTokenService->removeProjectReferences([$id]);
 				$this->deleteRowsByColumnValues('cobudget_members', 'project_id', [$id]);
 
 				$qb = $this->db->getQueryBuilder();
@@ -898,6 +904,15 @@ class ProjectController extends Controller {
 
 			$this->db->beginTransaction();
 			try {
+				$this->entryShareService->lockProject($id);
+				if ($ownerError = $this->requireProjectOwner($id)) {
+					$this->db->rollBack();
+					return $ownerError;
+				}
+				if ($this->projectHasPayments($id)) {
+					$this->db->rollBack();
+					return $this->errorResponse('Settle the area before changing its members.', Http::STATUS_CONFLICT);
+				}
 				$personalWorkspaceId = $this->entryProjectionService->personalWorkspaceIdForMember($id, $userId);
 				$qbInsert = $this->db->getQueryBuilder();
 				$qbInsert->insert('cobudget_members')
@@ -970,6 +985,11 @@ class ProjectController extends Controller {
 			$memberUserIds = [];
 			$this->db->beginTransaction();
 			try {
+				$this->entryShareService->lockProject($id);
+				if ($ownerError = $this->requireProjectOwner($id)) {
+					$this->db->rollBack();
+					return $ownerError;
+				}
 				$members = $this->projectMembers($id);
 				$memberUserIds = $this->projectMemberIds($members);
 				if (!in_array($userId, $this->projectMemberIds($members), true)) {
@@ -986,6 +1006,7 @@ class ProjectController extends Controller {
 					);
 				}
 				$this->entryProjectionService->detachSettledMember($id, $userId);
+				$this->apiTokenService->removeProjectReferences([$id], $userId);
 
 				$qbDel = $this->db->getQueryBuilder();
 				$qbDel->delete('cobudget_members')
@@ -1066,6 +1087,15 @@ class ProjectController extends Controller {
 
 			$this->db->beginTransaction();
 			try {
+				$this->entryShareService->lockProject($id);
+				if ($ownerError = $this->requireProjectOwner($id)) {
+					$this->db->rollBack();
+					return $ownerError;
+				}
+				if ($this->projectHasOpenSharedPayments($id, (int)$project['workspace_id'])) {
+					$this->db->rollBack();
+					return $this->errorResponse('Settle the area before changing its default split.', Http::STATUS_CONFLICT);
+				}
 				foreach ($normalizedShares as $userId => $shareBasisPoints) {
 					$qb = $this->db->getQueryBuilder();
 					$qb->update('cobudget_members')
@@ -1155,27 +1185,32 @@ class ProjectController extends Controller {
 				return $ownerError;
 			}
 
-			$project = $this->projectOwnerForCurrentUser($id);
-			if (!$project) {
-				return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
-			}
-			$workspaceId = (int)$project['workspace_id'];
-			$members = $this->projectMembers($id);
-			if (count($members) <= 1) {
-				return $this->errorResponse('An area with one member does not need to be settled.', Http::STATUS_BAD_REQUEST);
-			}
-			$balanceSnapshot = $this->calculateBalanceSnapshotCents($id, $workspaceId, $members);
-			$transfers = $this->calculateRepaymentTransfers($balanceSnapshot);
-			$entryIds = $this->unsettledProjectEntryIds($id, $workspaceId);
-			if ($entryIds === []) {
-				return $this->errorResponse('There are no open payments to settle.', Http::STATUS_BAD_REQUEST);
-			}
-
-			$createdAt = time();
-			$currency = $this->config->getUserValue((string)$this->userId, 'cobudget', 'currency', 'EUR');
-			$settlementNotifications = $this->projectNotificationService->prepareSettlementNotifications($id, $workspaceId, (string)$this->userId);
 			$this->db->beginTransaction();
 			try {
+				$this->entryShareService->lockProject($id);
+				$project = $this->projectOwnerForCurrentUser($id);
+				if (!$project) {
+					$this->db->rollBack();
+					return $this->errorResponse('Only the area owner may perform this action.', Http::STATUS_FORBIDDEN);
+				}
+				$workspaceId = (int)$project['workspace_id'];
+				$members = $this->projectMembers($id);
+				if (count($members) <= 1) {
+					$this->db->rollBack();
+					return $this->errorResponse('An area with one member does not need to be settled.', Http::STATUS_BAD_REQUEST);
+				}
+				$balanceSnapshot = $this->calculateBalanceSnapshotCents($id, $workspaceId, $members);
+				$transfers = $this->calculateRepaymentTransfers($balanceSnapshot);
+				$entryIds = $this->unsettledProjectEntryIds($id, $workspaceId);
+				if ($entryIds === []) {
+					$this->db->rollBack();
+					return $this->errorResponse('There are no open payments to settle.', Http::STATUS_BAD_REQUEST);
+				}
+
+				$createdAt = time();
+				$currency = $this->config->getUserValue((string)$this->userId, 'cobudget', 'currency', 'EUR');
+				$settlementNotifications = $this->projectNotificationService->prepareSettlementNotifications($id, $workspaceId, (string)$this->userId);
+
 				$qbSettlement = $this->db->getQueryBuilder();
 				$qbSettlement->insert('cobudget_settlements')
 					->values([

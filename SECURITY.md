@@ -13,6 +13,19 @@ or reproduce the issue on a newer version.
 CoBudget 1.0 requires Nextcloud 34 or newer and supports Nextcloud 34 and 35.
 Nextcloud 33 is no longer supported.
 
+## External API (Beta) deployments
+
+The instance-wide API switch starts off. Owners opt in separately and grant only
+the actions each integration needs. Use HTTPS and keep keys in the client’s
+secret store. Revoke a lost or exposed key from CoBudget Settings. Keys are
+excluded from exports and backups. [API setup and permissions](docs/api.md)
+
+Restrict request bodies to 65,536 bytes at the HTTP server for both forms of the external API path, including repeated slashes when slash merging is disabled, and preserve trusted `X-Forwarded-For` / `X-Real-IP` headers on any API-specific proxy `location`. Nextcloud can read request data before app authentication. The operating guide includes nginx and Apache configurations and a check for chunked requests. [External API request limit](docs/api-request-limits.md)
+
+Nextcloud’s administration overview reports when an oversized request reaches CoBudget or the configured public address cannot be verified.
+
+Enabling or disabling the global administrator API switch, enabling personal API access, and creating, editing, pausing or deleting personal API keys require Nextcloud password confirmation (`#[PasswordConfirmationRequired]`). Nextcloud caches interactive password confirmation in the web session for 30 minutes, rejects Nextcloud app passwords on Basic-authenticated web requests, and honors SSO/OIDC `SCOPE_SKIP_PASSWORD_VALIDATION` tokens for federated accounts without local passwords. External `/api/v1/*` endpoints reject authenticated web sessions, Nextcloud login cookies (`nc_session_id`, `nc_token`, `nc_username`), and server-side authentication headers while tolerating Nextcloud's anonymous session cookies so HTTP clients with cookie jars continue to work across requests.
+
 ## Reporting a vulnerability
 
 Use [GitHub Issues](https://github.com/whollaus/cobudget/issues) to contact the

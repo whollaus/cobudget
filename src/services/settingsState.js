@@ -16,6 +16,7 @@ export const generalSettingsFields = {
 	enableAdvancedMasterData: 'enable_advanced_master_data',
 	enableIncomes: 'enable_incomes',
 	enablePaymentImports: 'enable_payment_imports',
+	enableApiAccess: 'enable_api_access',
 	enableProjects: 'enable_projects',
 	enableSharedProjects: 'enable_shared_projects',
 	notifyRemindersEmail: 'notify_reminders_email',

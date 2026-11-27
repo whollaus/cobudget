@@ -71,6 +71,29 @@ const count = requests.length
 await vm.saveGeneralSettings()
 assert.equal(requests.length, count, 'Unchanged preferences do not write')
 
+let confirmed = false
+vm.$refs = { apiTokenSettings: { runWithPasswordConfirmation: async action => {
+	if (confirmed) await action()
+	return { cancelled: !confirmed }
+} } }
+vm.apiAccessAdminEnabled = false
+await vm.toggleApiAccess(true)
+assert.equal(vm.enableApiAccess, false, 'Admin-disabled API access cannot be enabled by user')
+assert.equal(requests.length, count, 'Admin-disabled API access makes no enable request')
+vm.apiAccessAdminEnabled = true
+await vm.toggleApiAccess(true)
+assert.equal(vm.enableApiAccess, false, 'Cancelling confirmation keeps API access off')
+assert.equal(requests.length, count, 'Cancelling does not persist a change')
+confirmed = true
+await vm.toggleApiAccess(true)
+assert.deepEqual(requests.at(-1), ['/apps/cobudget/api/settings/api-access/enable', {}, { skipWorkspaceHeader: true }])
+assert.equal(vm.enableApiAccess, true)
+assert.equal(vm.savedGeneralSettings.enableApiAccess, true)
+confirmed = false
+await vm.toggleApiAccess(false)
+assert.equal(vm.enableApiAccess, false, 'Emergency disable does not require password confirmation')
+assert.deepEqual(requests.at(-1)[1], { currency: 'EUR', enable_api_access: false })
+
 const post = api.post
 api.post = async () => { throw new Error('Offline') }
 vm.enableIncomes = false
@@ -271,8 +294,10 @@ vm.ensureValidWorkspaceContext = async () => {}
 vm.restoreWorkspacePosition = () => {}
 vm.fetchWorkspaceScopedWithRetry = async () => ({ data: [] })
 for (const active of [true, false]) {
-	api.get = async () => ({ data: { enable_payment_imports: true, has_active_automatic_imports: active } })
+	api.get = async () => ({ data: { enable_payment_imports: true, has_active_automatic_imports: active, api_access_admin_enabled: active, enable_api_access: true } })
 	await vm.fetchData()
 	assert.equal(vm.settingsLoadError, '')
+	assert.equal(vm.apiAccessAdminEnabled, active)
+	assert.equal(vm.enableApiAccess, active, 'User enableApiAccess stays false while admin toggle is disabled')
 	assert.equal(vm.notificationRows.some(row => row.field === 'notifyAutomaticImports'), active)
 }

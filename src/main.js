@@ -187,6 +187,7 @@ async function init() {
 		app.config.globalProperties.$enableBudgetGoals = res.data.enable_budget_goals ?? true
 		app.config.globalProperties.$enableAdvancedMasterData = res.data.enable_advanced_master_data ?? false
 		app.config.globalProperties.$enablePaymentImports = res.data.enable_payment_imports === true
+		app.config.globalProperties.$enableApiAccess = res.data.enable_api_access === true
 		app.config.globalProperties.$enableIncomes = res.data.enable_incomes ?? true
 		app.config.globalProperties.$enableProjects = res.data.enable_projects ?? true
 		app.config.globalProperties.$enableSharedProjects = res.data.enable_shared_projects ?? true
@@ -237,6 +238,7 @@ async function init() {
 		app.config.globalProperties.$enableBudgetGoals = true
 		app.config.globalProperties.$enableAdvancedMasterData = false
 		app.config.globalProperties.$enablePaymentImports = false
+		app.config.globalProperties.$enableApiAccess = false
 		app.config.globalProperties.$enableIncomes = true
 		app.config.globalProperties.$enableProjects = true
 		app.config.globalProperties.$enableSharedProjects = true

@@ -18,10 +18,11 @@ use OCA\CoBudget\Service\ProjectNotificationService;
 use OCA\CoBudget\Service\ParticipantService;
 use OCA\CoBudget\Service\PaymentImportJson;
 use OCA\CoBudget\Service\ReminderService;
+use OCA\CoBudget\Service\ReceiptFile;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\StreamResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Controller;
@@ -4448,7 +4449,7 @@ class EntryController extends Controller {
 			$relativePath = trim($folderPath . '/' . $fileName, '/');
 			$mimeType = $detectedMimeType;
 			$fileSize = method_exists($createdFile, 'getSize') ? (int)$createdFile->getSize() : (int)($upload['size'] ?? strlen($content));
-			$fileId = method_exists($createdFile, 'getId') ? $createdFile->getId() : null;
+			$fileId = $createdFile->getId();
 
 			$this->db->beginTransaction();
 			try {
@@ -4459,7 +4460,7 @@ class EntryController extends Controller {
 						'source_attachment_id' => $qb->createNamedParameter(null, \PDO::PARAM_NULL),
 						'workspace_id' => $qb->createNamedParameter($workspaceId, \PDO::PARAM_INT),
 						'owner_user_id' => $qb->createNamedParameter($this->userId),
-						'file_id' => $qb->createNamedParameter($fileId, $fileId === null ? \PDO::PARAM_NULL : \PDO::PARAM_INT),
+						'file_id' => $qb->createNamedParameter($fileId, \PDO::PARAM_INT),
 						'file_path' => $qb->createNamedParameter($relativePath),
 						'file_name' => $qb->createNamedParameter(mb_substr($displayName, 0, 255)),
 						'mime_type' => $qb->createNamedParameter($mimeType !== '' ? mb_substr($mimeType, 0, 128) : null, $mimeType === '' ? \PDO::PARAM_NULL : \PDO::PARAM_STR),
@@ -4486,12 +4487,12 @@ class EntryController extends Controller {
 
 			return new DataResponse([
 				'status' => 'success',
-				'attachment' => $attachment,
+				'attachment' => $this->normalizeAttachmentRow($attachment),
 			]);
 		} catch (\Throwable $e) {
 			if (!$attachmentStored && $createdFile instanceof File) {
 				try {
-					$createdFile->delete();
+					ReceiptFile::deleteFile($createdFile);
 				} catch (\Throwable $cleanupError) {
 					$this->logInternalException($cleanupError, 'Failed to remove receipt file after metadata rollback');
 				}
@@ -4537,14 +4538,19 @@ class EntryController extends Controller {
 				return $this->errorResponse('Receipt not found', Http::STATUS_NOT_FOUND);
 			}
 
-			$file = $this->attachmentFile($attachment);
-			if (!$file instanceof File) {
+			$receipt = ReceiptFile::open($this->rootFolder, $attachment);
+			if ($receipt === null) {
 				return $this->errorResponse('Receipt file not found', Http::STATUS_NOT_FOUND);
 			}
-
-			return new FileDisplayResponse($file, Http::STATUS_OK, [
+			$file = $receipt['file'];
+			$response = new StreamResponse($receipt['stream'], Http::STATUS_OK, [
+				'Content-Disposition' => "inline; filename*=UTF-8''" . rawurlencode($file->getName()),
 				'Content-Type' => (string)($attachment['mime_type'] ?: $file->getMimeType() ?: 'application/octet-stream'),
+				'Content-Length' => (string)$file->getSize(),
 			]);
+			$response->setETag($file->getEtag());
+			$response->setLastModified((new \DateTime())->setTimestamp($file->getMTime()));
+			return $response;
 		} catch (\Throwable $e) {
 			return $this->loggedErrorResponse($e);
 		}
@@ -4732,7 +4738,7 @@ class EntryController extends Controller {
 				->addOrderBy('id', 'DESC');
 			$result = $qb->executeQuery();
 			foreach ($result->fetchAll() as $row) {
-				$attachments[] = $this->normalizeAttachmentRow($row);
+				$attachments[] = $row;
 			}
 			$result->closeCursor();
 		}
@@ -4808,7 +4814,7 @@ class EntryController extends Controller {
 			->setMaxResults(1);
 		$row = $qb->executeQuery()->fetch();
 
-		return $row ? $this->normalizeAttachmentRow($row) : null;
+		return $row ?: null;
 	}
 
 	private function normalizeAttachmentRow(array $row): array {
@@ -5138,33 +5144,6 @@ class EntryController extends Controller {
 		return $baseName . '-' . time() . $extension;
 	}
 
-	private function attachmentFile(array $attachment): ?File {
-		try {
-			$ownerUserId = (string)($attachment['owner_user_id'] ?? '');
-			$filePath = trim((string)($attachment['file_path'] ?? ''), '/');
-			if ($ownerUserId === '' || $filePath === '') {
-				return null;
-			}
-
-			$userFolder = $this->rootFolder->getUserFolder($ownerUserId);
-			if (!$userFolder->nodeExists($filePath)) {
-				return null;
-			}
-
-			$node = $userFolder->get($filePath);
-			return $node instanceof File ? $node : null;
-		} catch (\Throwable $e) {
-			return null;
-		}
-	}
-
-	private function deleteAttachmentFile(array $attachment): void {
-		$file = $this->attachmentFile($attachment);
-		if ($file instanceof File) {
-			$file->delete();
-		}
-	}
-
 	private function attachmentOwnerUserId(array $attachment): ?string {
 		$ownerUserId = trim((string)($attachment['owner_user_id'] ?? ''));
 
@@ -5200,7 +5179,7 @@ class EntryController extends Controller {
 
 	private function deleteAttachmentFileAfterCommit(array $attachment): void {
 		try {
-			$this->deleteAttachmentFile($attachment);
+			ReceiptFile::delete($this->rootFolder, $attachment);
 		} catch (\Throwable $e) {
 			$this->logInternalException($e, 'Failed to remove receipt file after database commit');
 		}

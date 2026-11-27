@@ -1030,6 +1030,7 @@ class BackupService {
 				'users' => [$userId],
 				'includes_attachments' => false,
 				'attachment_paths_only' => true,
+				'receipt_identity_mac' => $this->receiptIdentityMac($data['tables']['cobudget_entry_attachments']),
 				'tables' => array_map('count', $data['tables']),
 			];
 
@@ -1065,6 +1066,7 @@ class BackupService {
 				'users' => $data['users'],
 				'includes_attachments' => false,
 				'attachment_paths_only' => true,
+				'receipt_identity_mac' => $this->receiptIdentityMac($data['tables']['cobudget_entry_attachments']),
 				'tables' => array_map('count', $data['tables']),
 			];
 
@@ -1080,6 +1082,15 @@ class BackupService {
 		if (!$zip->close()) {
 			throw new \RuntimeException('Backup-ZIP konnte nicht abgeschlossen werden');
 		}
+	}
+
+	/** A Files ID belongs to one instance. Authenticate the attachment rows separately from portable payment data. */
+	private function receiptIdentityMac(array $attachments): string {
+		$digest = hash_init('sha256');
+		foreach ($attachments as $row) {
+			hash_update($digest, json_encode($row, JSON_THROW_ON_ERROR) . "\n");
+		}
+		return bin2hex(\OCP\Server::get(\OCP\Security\ICrypto::class)->calculateHMAC('cobudget-receipts-v1:' . hash_final($digest)));
 	}
 
 	private function readBackupArchive(File $file): array {
@@ -1110,6 +1121,15 @@ class BackupService {
 				$tables = [];
 				foreach (self::BACKUP_TABLES as $table) {
 					$tables[$table] = $this->normalizeTableRows($table, $this->readJson($zip, 'data/' . $table . '.json', array_key_exists($table, $manifest['tables']), $limits['max_json_bytes'], $remainingUncompressedBytes));
+				}
+
+				$mac = $manifest['receipt_identity_mac'] ?? null;
+				if (!is_string($mac) || !hash_equals($this->receiptIdentityMac($tables['cobudget_entry_attachments']), $mac)) {
+					// Older or foreign backups retain their receipt metadata without authorizing access to local files.
+					foreach ($tables['cobudget_entry_attachments'] as &$attachment) {
+						$attachment['file_id'] = null;
+					}
+					unset($attachment);
 				}
 
 				return [
@@ -1597,6 +1617,9 @@ class BackupService {
 				foreach (self::USER_COLUMNS[$table] ?? [] as $column) {
 					$value = (string)($row[$column] ?? '');
 					if ($value !== '' && !ParticipantService::isReservedFormerId($value) && isset($userMap[$value])) {
+						if ($table === 'cobudget_entry_attachments' && $value !== $userMap[$value]) {
+							$row['file_id'] = null;
+						}
 						$row[$column] = $userMap[$value];
 					}
 				}
@@ -1961,6 +1984,9 @@ class BackupService {
 			}
 			$row['entry_id'] = $entryId;
 			$row['workspace_id'] = $workspaceId;
+			if (($row['owner_user_id'] ?? '') !== $userId || $sourceUserId !== $userId) {
+				$row['file_id'] = null;
+			}
 			$row['owner_user_id'] = $userId;
 			$row['source_attachment_id'] = null;
 			$attachments[] = $row;
@@ -2484,6 +2510,7 @@ class BackupService {
 			}
 			$this->deleteRowsWhereUserColumns($table, $columns, $userId);
 		}
+		$this->deleteRowsWhereUserColumns('cobudget_api_tokens', ['user_id'], $userId);
 		$this->deleteSettingsForUsers([$userId]);
 	}
 
@@ -3313,12 +3340,15 @@ class BackupService {
 			$qb->delete($table);
 			$qb->executeStatement();
 		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('cobudget_api_tokens');
+		$qb->executeStatement();
 	}
 
 	private function deleteSettingsForUsers(array $userIds): void {
 		$userIds = array_values(array_filter(array_unique(array_map('strval', $userIds)), static fn (string $userId): bool => $userId !== ''));
 		foreach ($userIds as $userId) {
-			foreach (array_merge(self::SETTINGS_KEYS, ['notify_reminders_calendar', 'reminder_calendar_id', 'reminder_calendar_sync_error']) as $key) {
+			foreach (array_merge(self::SETTINGS_KEYS, ['notify_reminders_calendar', 'reminder_calendar_id', 'reminder_calendar_sync_error', 'enable_api_access']) as $key) {
 				$qb = $this->db->getQueryBuilder();
 				$qb->delete('preferences')
 					->where($qb->expr()->eq('appid', $qb->createNamedParameter('cobudget')))
@@ -3331,7 +3361,7 @@ class BackupService {
 	}
 
 	private function deleteAllCoBudgetSettings(): void {
-		foreach (array_merge(self::SETTINGS_KEYS, ['notify_reminders_calendar', 'reminder_calendar_id', 'reminder_calendar_sync_error']) as $key) {
+		foreach (array_merge(self::SETTINGS_KEYS, ['notify_reminders_calendar', 'reminder_calendar_id', 'reminder_calendar_sync_error', 'enable_api_access']) as $key) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('preferences')
 				->where($qb->expr()->eq('appid', $qb->createNamedParameter('cobudget')))

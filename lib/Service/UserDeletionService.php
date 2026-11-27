@@ -70,6 +70,7 @@ class UserDeletionService {
 			$step = 'removing standalone personal data';
 			$this->deleteRowsByStringColumn('cobudget_import_rules', 'user_id', $userId);
 			$this->deleteRowsByStringColumn('cobudget_import_files', 'user_id', $userId);
+			$this->deleteRowsByStringColumn('cobudget_api_tokens', 'user_id', $userId);
 			$this->deleteRowsByStringColumn('cobudget_reminders', 'user_id', $userId);
 			$personalEntryIds = $this->personalEntryIds($userId);
 			$report['deleted_entries'] += count($personalEntryIds);
@@ -145,6 +146,7 @@ class UserDeletionService {
 			['cobudget_settlement_transfers', 'to_user_id'],
 			['cobudget_budget_goals', 'user_id'],
 			['cobudget_budget_snapshots', 'user_id'],
+			['cobudget_api_tokens', 'user_id'],
 		] as [$table, $column]) {
 			if ($this->rowExistsByStringColumn($table, $column, $userId)) {
 				return true;
@@ -363,7 +365,7 @@ class UserDeletionService {
 		$this->deleteRowsByIntColumn('cobudget_settlements', 'workspace_id', $workspaceId);
 		$goalIds = $this->idsByIntColumn('cobudget_budget_goals', 'workspace_id', $workspaceId);
 		$this->deleteRowsByColumnValues('cobudget_budget_snapshots', 'budget_goal_id', $goalIds);
-		foreach (['cobudget_budget_snapshots', 'cobudget_budget_goals', 'cobudget_categories', 'cobudget_payment_partners', 'cobudget_hashtags'] as $table) {
+		foreach (['cobudget_budget_snapshots', 'cobudget_budget_goals', 'cobudget_categories', 'cobudget_payment_partners', 'cobudget_hashtags', 'cobudget_api_tokens'] as $table) {
 			$this->deleteRowsByIntColumn($table, 'workspace_id', $workspaceId);
 		}
 		$this->deleteRowsByIntColumn('cobudget_workspaces', 'id', $workspaceId);

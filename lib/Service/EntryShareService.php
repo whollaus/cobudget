@@ -321,7 +321,8 @@ final class EntryShareService {
 		$qb->executeStatement();
 	}
 
-	private function lockProject(int $projectId): void {
+	/** Serializes area payments and their settlement until the surrounding transaction commits. */
+	public function lockProject(int $projectId): void {
 		$qb = $this->db->getQueryBuilder();
 		$qb->update('cobudget_projects')
 			->set('id', $qb->createFunction('id'))

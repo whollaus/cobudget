@@ -30,6 +30,7 @@ Zahlungen, die du erfasst.
   optionale E-Mails lassen sich je unterstütztem Ereignis getrennt aktivieren.
   Erinnerungen können mit einem Kalender synchronisiert werden; Änderungen in
   privaten Kalendern werden auch nach CoBudget übernommen.
+- **Externe API (Beta)** für Integrationen mit persönlichen Schlüsseln pro Workspace und getrennten Rechten für persönliche Zahlungen und einzelne Bereiche. Die Nextcloud-Administration schaltet die API für die Instanz frei. Danach kannst du Schlüssel in den CoBudget-Einstellungen erstellen. [Einrichtung und API-Referenz (Englisch)](api.md)
 - **[Zahlungsimport](payment-imports.de.md):** optional Zahlungen im JSON-Format manuell mit Vorschau oder automatisch aus einem Nextcloud-Ordner importieren.
 - **Exporte und Backups:** Berichte drucken, CSV exportieren, Tabellen in eine Tabellenkalkulation kopieren und persönliche Exporte oder Admin-Backups erstellen.
 - **Workspaces und Darstellung:** getrennte Datenbestände mit Workspaces, mobile und
@@ -100,10 +101,8 @@ dabei eigenständige persönliche Zahlungen. Ein **Admin-Vollbackup** enthält a
 CoBudget-Finanzdaten und übertragbare Benutzereinstellungen. Seine Wiederherstellung
 ersetzt den aktuellen Datenbestand der App.
 
-**Belegdateien sind in keinem der Archive enthalten, nur ihre Pfade.** Sichere die
-zugehörigen Dateien mit deiner vorhandenen Backup-Lösung für Nextcloud Files.
-Die Belegsicherung bleibt bewusst deren Aufgabe. Die Archive ersetzen kein
-vollständiges Nextcloud-Backup. Während Backup und Restore sperrt CoBudget den
+**Sichere Belegdateien mit deinem Backup für Nextcloud Files.** CoBudget-Archive enthalten Belegverweise. Nach einem Verschieben oder dem Einspielen einer älteren oder fremden Sicherung musst du den Beleg gegebenenfalls erneut anhängen. Halte für die Wiederherstellung des Servers ein vollständiges Nextcloud-Backup bereit.
+Während Backup und Restore sperrt CoBudget den
 App-Zugriff vorübergehend. Läuft noch ein Vorgang, starte die Sicherung oder
 Wiederherstellung danach erneut. Lade offene CoBudget-Tabs nach einem Restore neu.
 Siehe [Wiederherstellung](operations.md#backup-and-recovery).

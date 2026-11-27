@@ -129,6 +129,19 @@ Email controls cannot be enabled; add the address in the personal Nextcloud sett
 Email is optional for reminders, planned/recurring payment activations, new payments
 in shared areas and settlements. All email preferences start disabled.
 
+## External API administration
+
+The Beta API starts disabled at the instance level. The switch is in
+**Administration settings → CoBudget → API access (Beta)** and requires Nextcloud
+password confirmation. Disabling it blocks all keys on new requests. Integrations
+need new keys after restoring CoBudget data. [Setup and usage](api.md)
+
+### External API request size
+
+Before exposing the API, configure a 65,536-byte limit on its routes at the public web server and verify it with both known-length and chunked requests. Other Nextcloud routes retain their own upload limits. [Configuration and verification](api-request-limits.md)
+
+Run the check in **Administration settings → Overview** or with `occ setupchecks`. The CoBudget administration settings include a copy of the web server guide for your hosting provider.
+
 ## Backup and recovery
 
 CoBudget provides three different ways to take data out of the app:
@@ -140,7 +153,7 @@ CoBudget provides three different ways to take data out of the app:
 | Administrator full backup ZIP | Preserve CoBudget financial tables and portable settings across users. | Replaces the app's current tables/settings; existing target accounts or explicit account mappings are required. |
 
 Neither ZIP includes receipt binaries, Talk history or calendar events/connections.
-The attachment paths need matching Nextcloud Files after restoration. Use your
+CoBudget opens a restored receipt only when the owner, path and Files ID match and the backup carries the original instance’s verification of the reference. An older archive, an account remapping or an import from another instance can preserve the receipt description and path while leaving it detached. Attach the intended file again to restore access. Use your
 existing backup solution for Nextcloud Files to protect and recover those files;
 receipt-file backup is intentionally outside CoBudget. Keep a separate complete
 Nextcloud backup (database, configuration and data) and a copy
@@ -181,7 +194,7 @@ or added to a new goal's history.
 
 ### Server locking requirements
 
-Nextcloud file locking must be enabled (`filelocking.enabled`). Backup/restore
+Enable Nextcloud file locking (`filelocking.enabled`). CoBudget relies on it to bind a receipt read, copy or physical deletion to the verified file. When locking is disabled, receipt metadata remains available and CoBudget leaves receipt files in place. Backup/restore
 refuses to run without it. The database locking provider and the configured native
 locking cache are used through Nextcloud's public API; multi-node installations
 must share a coherent locking provider. Configure `filelocking.ttl` longer than the

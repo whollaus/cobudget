@@ -13,6 +13,7 @@ The web app is designed for smartphones and tablets too. You can record payments
 
 CoBudget does not connect to bank accounts. Its reports are based on the payments you record.
 
+- Connect integrations through the external API (Beta) with personal keys and workspace permissions
 - Track income and expenses with categories, payment partners, labels and tags
 - Plan recurring payments and budget goals; explore reports, comparisons and forecasts
 - Share a household, trip or small-group area: record who paid, choose the split and settle outstanding balances
@@ -22,7 +23,7 @@ CoBudget does not connect to bank accounts. Its reports are based on the payment
 - Print reports, export CSV and create personal exports or administrator backups
 - Use separate workspaces, mobile and desktop layouts, and light or dark appearance
 
-Available in English, German, French and Spanish. Backup archives store receipt paths, not receipt files; back up the associated Nextcloud Files separately.
+Available in English, German, French and Spanish. Back up receipt files separately in Nextcloud Files. After restoring an older archive or moving a receipt, you may need to attach the file again.
 
 CoBudget requires Nextcloud 34 or newer.]]></description>
 	<description lang="de"><![CDATA[CoBudget verbindet ein persönliches Haushaltsbuch mit gemeinsamen Bereichen in Nextcloud. Du erfasst Einnahmen und Ausgaben und legst bei gemeinsamen Zahlungen fest, wer bezahlt hat und wie der Betrag aufgeteilt wird. Deine persönliche Übersicht berücksichtigt deinen Anteil; der gemeinsame Bereich zeigt die gesamte Zahlung und wer wem noch etwas schuldet.
@@ -31,6 +32,7 @@ Die Web-App ist auch für Smartphones und Tablets ausgelegt. So kannst du Zahlun
 
 CoBudget hat keine Anbindung an Bankkonten. Die Auswertungen beruhen auf den Zahlungen, die du erfasst.
 
+- Integrationen über die externe API (Beta) mit persönlichen Schlüsseln und Workspace-Rechten verbinden
 - Einnahmen und Ausgaben mit Kategorien, Zahlungspartnern, Labels und Tags erfassen
 - Wiederkehrende Zahlungen und Budgetziele planen; Auswertungen, Vergleiche und Prognosen nutzen
 - Bereiche für Haushalt, Reise oder kleine Gruppen teilen: festhalten, wer bezahlt hat, Anteile wählen und offene Salden abrechnen
@@ -40,7 +42,7 @@ CoBudget hat keine Anbindung an Bankkonten. Die Auswertungen beruhen auf den Zah
 - Berichte drucken, CSV exportieren und persönliche Exporte oder Admin-Backups erstellen
 - Getrennte Workspaces, mobile und Desktop-Ansicht sowie helles oder dunkles Design nutzen
 
-Verfügbar auf Deutsch, Englisch, Französisch und Spanisch. Die Archive enthalten Belegpfade, keine Belegdateien; sichere die zugehörigen Nextcloud-Dateien zusätzlich.
+Verfügbar auf Deutsch, Englisch, Französisch und Spanisch. Sichere Belegdateien separat in Nextcloud Files. Nach einer Wiederherstellung aus einem älteren Archiv oder dem Verschieben eines Belegs musst du ihn gegebenenfalls erneut anhängen.
 
 CoBudget setzt Nextcloud 34 oder neuer voraus.]]></description>
 	<description lang="fr"><![CDATA[CoBudget réunit un budget personnel et des espaces partagés dans Nextcloud. Vous enregistrez vos revenus et dépenses et, pour les paiements partagés, indiquez qui a payé et comment répartir le montant. Votre vue personnelle tient compte de votre part ; l’espace partagé affiche le paiement complet et les sommes dues entre membres.
@@ -49,6 +51,7 @@ L’application web est également adaptée aux smartphones et aux tablettes. Vo
 
 CoBudget ne se connecte pas aux comptes bancaires. Les rapports reposent sur les paiements que vous enregistrez.
 
+- Connectez vos intégrations via l’API externe (bêta) avec des clés personnelles par espace de travail
 - Suivez revenus et dépenses avec catégories, partenaires de paiement, libellés et tags
 - Planifiez paiements récurrents et objectifs budgétaires ; consultez rapports, comparaisons et prévisions
 - Partagez un espace pour le foyer, un voyage ou un petit groupe : indiquez qui a payé, répartissez les frais et soldez les comptes
@@ -58,7 +61,7 @@ CoBudget ne se connecte pas aux comptes bancaires. Les rapports reposent sur les
 - Imprimez des rapports, exportez en CSV et créez des exports personnels ou des sauvegardes administrateur
 - Utilisez des espaces de travail séparés, un affichage mobile ou bureau et un thème clair ou sombre
 
-Disponible en anglais, allemand, français et espagnol. Les archives conservent les chemins des justificatifs, pas les fichiers ; sauvegardez aussi les fichiers Nextcloud correspondants.
+Disponible en anglais, allemand, français et espagnol. Sauvegardez les justificatifs séparément dans Nextcloud Files. Après la restauration d’une ancienne archive ou le déplacement d’un justificatif, vous devrez parfois joindre le fichier à nouveau.
 
 CoBudget nécessite Nextcloud 34 ou une version ultérieure.]]></description>
 	<description lang="es"><![CDATA[CoBudget combina un presupuesto personal con áreas compartidas en Nextcloud. Registras ingresos y gastos y, para los pagos compartidos, indicas quién pagó y cómo se reparte el importe. Tu vista personal incluye tu parte; el área compartida muestra el pago completo y cuánto se deben los miembros entre sí.
@@ -67,6 +70,7 @@ La aplicación web también está adaptada a móviles y tabletas. Así puedes re
 
 CoBudget no se conecta a cuentas bancarias. Los informes se basan en los pagos que registras.
 
+- Conecta integraciones mediante la API externa (beta) con claves personales por espacio de trabajo
 - Registra ingresos y gastos con categorías, destinatarios de pagos, etiquetas y tags
 - Planifica pagos recurrentes y objetivos de presupuesto; consulta informes, comparaciones y previsiones
 - Comparte áreas para el hogar, viajes o grupos pequeños: indica quién pagó, elige el reparto y liquida saldos pendientes
@@ -76,10 +80,10 @@ CoBudget no se conecta a cuentas bancarias. Los informes se basan en los pagos q
 - Imprime informes, exporta CSV y crea exportaciones personales o copias de seguridad de administrador
 - Usa espacios de trabajo separados, vistas para móvil y escritorio y temas claro u oscuro
 
-Disponible en inglés, alemán, francés y español. Las copias guardan las rutas de los justificantes, no los archivos; respalda también los archivos de Nextcloud correspondientes.
+Disponible en inglés, alemán, francés y español. Guarda los justificantes por separado en Nextcloud Files. Si restauras una copia antigua o mueves un justificante, puede que debas adjuntar el archivo de nuevo.
 
 CoBudget requiere Nextcloud 34 o posterior.]]></description>
-	<version>1.2.0</version>
+	<version>1.3.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://hollaus-it.at/">Wolfgang Hollaus</author>
     <namespace>CoBudget</namespace>

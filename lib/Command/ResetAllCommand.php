@@ -36,6 +36,7 @@ class ResetAllCommand extends Command {
 		'cobudget_reminders',
 		'cobudget_import_rules',
 		'cobudget_import_files',
+		'cobudget_api_tokens',
 	];
 
 	private const APP_VALUE_KEYS_TO_RESET = [
@@ -47,6 +48,7 @@ class ResetAllCommand extends Command {
 		'full_backup_schedule',
 		'full_backup_last_auto_at',
 		'theming_icon_cache_version',
+		'enable_api_access',
 	];
 
 	public function __construct(

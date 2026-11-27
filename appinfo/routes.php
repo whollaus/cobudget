@@ -85,6 +85,8 @@ return [
 		['name' => 'admin_backup#destroy', 'url' => '/api/admin/full-backup/{fileName}', 'verb' => 'DELETE'],
 		['name' => 'admin_backup#download', 'url' => '/api/admin/full-backup/{fileName}/download', 'verb' => 'GET'],
 		['name' => 'admin_backup#restore', 'url' => '/api/admin/full-backup/restore', 'verb' => 'POST'],
+		['name' => 'admin_api#settings', 'url' => '/api/admin/api/settings', 'verb' => 'GET'],
+		['name' => 'admin_api#saveSettings', 'url' => '/api/admin/api/settings', 'verb' => 'POST'],
 
 		// API routes for Projects
 		['name' => 'project#index', 'url' => '/api/projects', 'verb' => 'GET'],
@@ -126,6 +128,11 @@ return [
 		// API routes for Users and Settings
 		['name' => 'talk#state', 'url' => '/api/settings/talk', 'verb' => 'GET'],
 		['name' => 'talk#update', 'url' => '/api/settings/talk', 'verb' => 'POST'],
+		['name' => 'api_token#enableAccess', 'url' => '/api/settings/api-access/enable', 'verb' => 'POST'],
+		['name' => 'api_token#index', 'url' => '/api/settings/api-tokens', 'verb' => 'GET'],
+		['name' => 'api_token#create', 'url' => '/api/settings/api-tokens', 'verb' => 'POST'],
+		['name' => 'api_token#update', 'url' => '/api/settings/api-tokens/{id}', 'verb' => 'PUT', 'requirements' => ['id' => '\d+']],
+		['name' => 'api_token#destroy', 'url' => '/api/settings/api-tokens/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
 		['name' => 'user#search', 'url' => '/api/users/search', 'verb' => 'GET'],
 		['name' => 'user#getSettings', 'url' => '/api/settings', 'verb' => 'GET'],
 		['name' => 'user#saveSettings', 'url' => '/api/settings', 'verb' => 'POST'],
@@ -139,5 +146,21 @@ return [
 		['name' => 'workspace#hide', 'url' => '/api/workspaces/{id}/hide', 'verb' => 'POST'],
 		['name' => 'workspace#unhide', 'url' => '/api/workspaces/{id}/unhide', 'verb' => 'POST'],
 		['name' => 'workspace#destroy', 'url' => '/api/workspaces/{id}', 'verb' => 'DELETE'],
+
+		// External Token-Authenticated REST API v1 routes
+		['name' => 'api_v1#me', 'url' => '/api/v1/me', 'verb' => 'GET'],
+		['name' => 'api_v1#areas', 'url' => '/api/v1/areas', 'verb' => 'GET'],
+		['name' => 'api_v1#categories', 'url' => '/api/v1/categories', 'verb' => 'GET'],
+		['name' => 'api_v1#paymentPartners', 'url' => '/api/v1/payment-partners', 'verb' => 'GET'],
+		['name' => 'api_v1#entriesIndex', 'url' => '/api/v1/entries', 'verb' => 'GET'],
+		['name' => 'api_v1#entriesShow', 'url' => '/api/v1/entries/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'api_v1#entriesCreate', 'url' => '/api/v1/entries', 'verb' => 'POST'],
+		['name' => 'api_v1#entriesUpdate', 'url' => '/api/v1/entries/{id}', 'verb' => 'PATCH', 'requirements' => ['id' => '\d+']],
+		['name' => 'api_v1#entriesDestroy', 'url' => '/api/v1/entries/{id}', 'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
+		['name' => 'api_v1#reportsSummary', 'url' => '/api/v1/reports/summary', 'verb' => 'GET'],
+		['name' => 'api_v1#reportsAnnual', 'url' => '/api/v1/reports/annual', 'verb' => 'GET'],
+		['name' => 'api_v1#budgetsIndex', 'url' => '/api/v1/budgets', 'verb' => 'GET'],
+		['name' => 'api_v1#settingsGet', 'url' => '/api/v1/settings', 'verb' => 'GET'],
+		['name' => 'api_v1#settingsPatch', 'url' => '/api/v1/settings', 'verb' => 'PATCH'],
 	]
 ];

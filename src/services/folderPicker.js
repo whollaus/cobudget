@@ -70,13 +70,41 @@ async function pickFolderWithDismiss(picker, doc) {
 			mask.dispatchEvent(escEvent)
 		}
 	}
+	const containPickerWheel = event => {
+		if (event.ctrlKey) return
+		const mask = [...doc.querySelectorAll('.modal-mask')].reverse().find(node => !existing.has(node) && (node.querySelector?.('.file-picker') || node.classList?.contains?.('file-picker') || !existing.has(node)))
+		if (!mask) return
+		let el = event.target
+		if (!el || (typeof Element !== 'undefined' && !(el instanceof Element)) || !mask.contains?.(el)) return
+		const getStyle = doc.defaultView?.getComputedStyle || globalThis.getComputedStyle
+		if (typeof getStyle !== 'function') return
+		const useVertical = Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+		while (el && el !== mask) {
+			const style = getStyle(el)
+			if (useVertical) {
+				if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 1) {
+					if ((event.deltaY < 0 && el.scrollTop > 0) || (event.deltaY > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 1)) {
+						return
+					}
+				}
+			} else if ((style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 1) {
+				if ((event.deltaX < 0 && el.scrollLeft > 0) || (event.deltaX > 0 && el.scrollLeft + el.clientWidth < el.scrollWidth - 1)) {
+					return
+				}
+			}
+			el = el.parentElement
+		}
+		event.preventDefault?.()
+	}
 	doc.addEventListener('pointerdown', dismiss)
 	doc.addEventListener('mousedown', dismiss)
+	doc.addEventListener('wheel', containPickerWheel, { passive: false })
 	try {
 		return await picker.pick()
 	} finally {
 		doc.removeEventListener('pointerdown', dismiss)
 		doc.removeEventListener('mousedown', dismiss)
+		doc.removeEventListener('wheel', containPickerWheel)
 	}
 }
 

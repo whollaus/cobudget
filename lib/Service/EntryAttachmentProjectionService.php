@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace OCA\CoBudget\Service;
 
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\IConfig;
@@ -160,12 +159,19 @@ final class EntryAttachmentProjectionService {
 
 	/** @return array<string, mixed> */
 	private function createCopy(array $sourceAttachment, array $personalEntry): array {
-		$sourceFile = $this->attachmentFile($sourceAttachment);
-		if ($sourceFile === null) {
+		$receipt = ReceiptFile::open($this->rootFolder, $sourceAttachment);
+		if ($receipt === null) {
 			throw new \RuntimeException('Shared receipt file could not be loaded for its personal copies.');
 		}
 
-		$content = $sourceFile->getContent();
+		try {
+			$content = stream_get_contents($receipt['stream']);
+			if ($content === false) {
+				throw new \RuntimeException('Shared receipt file could not be read.');
+			}
+		} finally {
+			fclose($receipt['stream']);
+		}
 		$targetUserId = (string)$personalEntry['user_id'];
 		$folderPath = $this->attachmentFolderPath($targetUserId, (int)$personalEntry['date']);
 		$targetFolder = $this->ensureFolderPath($this->rootFolder->getUserFolder($targetUserId), $folderPath);
@@ -208,7 +214,7 @@ final class EntryAttachmentProjectionService {
 			];
 		} catch (\Throwable $e) {
 			try {
-				$createdFile->delete();
+				ReceiptFile::deleteFile($createdFile);
 			} catch (\Throwable) {
 			}
 			throw $e;
@@ -216,29 +222,11 @@ final class EntryAttachmentProjectionService {
 	}
 
 	private function deleteAttachment(array $attachment): void {
-		$file = $this->attachmentFile($attachment);
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete('cobudget_entry_attachments')
 			->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$attachment['id'], \PDO::PARAM_INT)));
 		$qb->executeStatement();
-		if ($file !== null) {
-			$file->delete();
-		}
-	}
-
-	private function attachmentFile(array $attachment): ?File {
-		try {
-			$userFolder = $this->rootFolder->getUserFolder((string)$attachment['owner_user_id']);
-			$path = trim((string)$attachment['file_path'], '/');
-			if ($path === '' || !$userFolder->nodeExists($path)) {
-				return null;
-			}
-			$node = $userFolder->get($path);
-
-			return $node instanceof File ? $node : null;
-		} catch (\Throwable) {
-			return null;
-		}
+		ReceiptFile::delete($this->rootFolder, $attachment);
 	}
 
 	private function attachmentFolderPath(string $userId, int $entryDate): string {
