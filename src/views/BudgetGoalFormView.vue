@@ -21,125 +21,119 @@
 
 		</AppPageHeader>
 
-		<div class="budget-form">
+		<div v-if="loading || loadError" class="budget-form-feedback">
 			<p v-if="loading" class="budget-loading cobudget-form-hint" role="status"><NcLoadingIcon :size="20" /> {{ $texts.budgetGoals.loading() }}</p>
-			<NcNoteCard v-else-if="loadError" type="error"><p>{{ loadError }}</p><NcButton @click="fetchData">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+			<NcNoteCard v-else type="error"><p>{{ loadError }}</p><NcButton @click="fetchData">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
 		</div>
-		<template v-if="!loading && !loadError">
-			<form id="budget-goal-details-form" class="budget-form settings-section" :aria-busy="saving" @submit.prevent="saveGoalDetails">
-				<section class="budget-form-section budget-general-section">
-					<h3 class="cobudget-section-heading">{{ $texts.settings.generalTitle() }}</h3>
-					<div class="form-grid two-columns">
-						<NcFormGroup class="cobudget-form-group">
-							<template #label><label class="cobudget-form-label" for="budget-name">{{ $texts.masterData.entryLabel() }}</label></template>
-							<NcInputField id="budget-name" ref="nameInput" v-model="form.name" label-outside :label="$texts.masterData.entryLabel()" :placeholder="$texts.budgetGoals.namePlaceholderFlexibleFood()" required maxlength="128" :disabled="busy" :error="nameTouched && !form.name.trim()" :helper-text="nameTouched && !form.name.trim() ? $texts.budgetGoals.nameRequired() : ''" @blur="blurDetail('name')" @keydown.enter.prevent="submitDetail('name')" class="cobudget-native-field" />
-							<NcNoteCard v-if="detailSaveErrors.name" type="error">
-								<p>{{ detailSaveErrors.name }}</p>
-								<NcButton :disabled="busy" @click="saveDetailField('name')">{{ $texts.common.retry() }}</NcButton>
-							</NcNoteCard>
-						</NcFormGroup>
-						<NcFormGroup class="cobudget-form-group">
-							<template #label><label class="cobudget-form-label" for="budget-amount">{{ $texts.budgetGoals.budget() }} ({{ displayCurrency }})</label></template>
-							<NcInputField id="budget-amount" v-model="form.amount" label-outside :label="`${$texts.budgetGoals.budget()} (${displayCurrency})`" inputmode="decimal" type="text" placeholder="0.00" required :disabled="busy" :error="amountTouched && !amountValid" :helper-text="amountTouched && !amountValid ? $texts.budgetGoals.positiveAmountRequired() : ''" @blur="blurDetail('amount')" @keydown.enter.prevent="submitDetail('amount')" class="cobudget-native-field" />
-							<NcNoteCard v-if="detailSaveErrors.amount" type="error">
-								<p>{{ detailSaveErrors.amount }}</p>
-								<NcButton :disabled="busy" @click="saveDetailField('amount')">{{ $texts.common.retry() }}</NcButton>
-							</NcNoteCard>
-						</NcFormGroup>
-						<NcFormGroup class="cobudget-form-group">
-							<template #label><label class="cobudget-form-label" for="budget-period">{{ $texts.budgetGoals.period() }}</label></template>
-							<NcSelect input-id="budget-period" class="cobudget-native-select" label-outside :input-label="$texts.budgetGoals.period()" :options="periodOptions" :model-value="periodOptions.find(option => option.value === form.period)" label="label" :clearable="false" :searchable="false" :disabled="busy" @update:model-value="selectDetail('period', $event)" />
-							<NcNoteCard v-if="detailSaveErrors.period" type="error">
-								<p>{{ detailSaveErrors.period }}</p>
-								<NcButton :disabled="busy" @click="saveDetailField('period')">{{ $texts.common.retry() }}</NcButton>
-							</NcNoteCard>
-						</NcFormGroup>
-						<NcFormGroup class="cobudget-form-group">
-							<template #label><label class="cobudget-form-label" for="budget-mode">{{ $texts.budgetGoals.type() }}</label></template>
-							<NcSelect input-id="budget-mode" class="cobudget-native-select" label-outside :input-label="$texts.budgetGoals.type()" :options="modeOptions" :model-value="modeOptions.find(option => option.value === form.mode)" label="label" :clearable="false" :searchable="false" :disabled="busy" @update:model-value="selectDetail('mode', $event)" />
-							<NcNoteCard v-if="detailSaveErrors.mode" type="error">
-								<p>{{ detailSaveErrors.mode }}</p>
-								<NcButton :disabled="busy" @click="saveDetailField('mode')">{{ $texts.common.retry() }}</NcButton>
-							</NcNoteCard>
-						</NcFormGroup>
-					</div>
-					<NcNoteCard v-if="saveError" type="error" :text="saveError" />
-
-				</section>
+		<SettingsTopicLayout
+			v-else
+			:label="isEdit ? $texts.budgetGoals.editTitle() : $texts.budgetGoals.newTitle()"
+			:to="settingsLocation"
+			:topics="settingsTopics"
+			:requested-topic="requestedTopic">
+			<form v-show="activeTopicId === 'general'" id="budget-goal-details-form" :aria-busy="saving" @submit.prevent="saveGoalDetails">
+				<div class="form-grid two-columns">
+					<NcFormGroup class="cobudget-form-group">
+						<template #label><label class="cobudget-form-label" for="budget-name">{{ $texts.masterData.entryLabel() }}</label></template>
+						<NcInputField id="budget-name" v-model="form.name" label-outside :label="$texts.masterData.entryLabel()" :placeholder="$texts.budgetGoals.namePlaceholderFlexibleFood()" required maxlength="128" :disabled="busy" :error="nameTouched && !form.name.trim()" :helper-text="nameTouched && !form.name.trim() ? $texts.budgetGoals.nameRequired() : ''" @blur="blurDetail('name')" @keydown.enter.prevent="blurDetail('name')" class="cobudget-native-field" />
+						<NcNoteCard v-if="detailSaveErrors.name" type="error">
+							<p>{{ detailSaveErrors.name }}</p>
+							<NcButton :disabled="busy" @click="saveDetailField('name')">{{ $texts.common.retry() }}</NcButton>
+						</NcNoteCard>
+					</NcFormGroup>
+					<NcFormGroup class="cobudget-form-group">
+						<template #label><label class="cobudget-form-label" for="budget-amount">{{ $texts.budgetGoals.budget() }} ({{ displayCurrency }})</label></template>
+						<NcInputField id="budget-amount" v-model="form.amount" label-outside :label="`${$texts.budgetGoals.budget()} (${displayCurrency})`" inputmode="decimal" type="text" placeholder="0.00" required :disabled="busy" :error="amountTouched && !amountValid" :helper-text="amountTouched && !amountValid ? $texts.budgetGoals.positiveAmountRequired() : ''" @blur="blurDetail('amount')" @keydown.enter.prevent="blurDetail('amount')" class="cobudget-native-field" />
+						<NcNoteCard v-if="detailSaveErrors.amount" type="error">
+							<p>{{ detailSaveErrors.amount }}</p>
+							<NcButton :disabled="busy" @click="saveDetailField('amount')">{{ $texts.common.retry() }}</NcButton>
+						</NcNoteCard>
+					</NcFormGroup>
+					<NcFormGroup class="cobudget-form-group">
+						<template #label><label class="cobudget-form-label" for="budget-period">{{ $texts.budgetGoals.period() }}</label></template>
+						<NcSelect input-id="budget-period" class="cobudget-native-select" label-outside :input-label="$texts.budgetGoals.period()" :options="periodOptions" :model-value="periodOptions.find(option => option.value === form.period)" label="label" :clearable="false" :searchable="false" :disabled="busy" @update:model-value="selectDetail('period', $event)" />
+						<NcNoteCard v-if="detailSaveErrors.period" type="error">
+							<p>{{ detailSaveErrors.period }}</p>
+							<NcButton :disabled="busy" @click="saveDetailField('period')">{{ $texts.common.retry() }}</NcButton>
+						</NcNoteCard>
+					</NcFormGroup>
+					<NcFormGroup class="cobudget-form-group">
+						<template #label><label class="cobudget-form-label" for="budget-mode">{{ $texts.budgetGoals.type() }}</label></template>
+						<NcSelect input-id="budget-mode" class="cobudget-native-select" label-outside :input-label="$texts.budgetGoals.type()" :options="modeOptions" :model-value="modeOptions.find(option => option.value === form.mode)" label="label" :clearable="false" :searchable="false" :disabled="busy" @update:model-value="selectDetail('mode', $event)" />
+						<NcNoteCard v-if="detailSaveErrors.mode" type="error">
+							<p>{{ detailSaveErrors.mode }}</p>
+							<NcButton :disabled="busy" @click="saveDetailField('mode')">{{ $texts.common.retry() }}</NcButton>
+						</NcNoteCard>
+					</NcFormGroup>
+				</div>
 			</form>
 
-			<section class="budget-form budget-criteria-section settings-section">
-				<section class="budget-form-section">
-					<div class="section-title-row">
-						<div>
-							<h3 class="cobudget-section-heading">{{ $texts.budgetGoals.criteria() }}</h3>
-							<p class="cobudget-form-hint">
-								{{ $texts.budgetGoals.criteriaHint() }} {{ $texts.budgetGoals.multipleRowsHint() }}
-							</p>
-							<p class="cobudget-form-hint">
-								{{ $texts.budgetGoals.categoryHierarchyHint() }}
-							</p>
-						</div>
-					</div>
-
-					<NcNoteCard v-if="criteriaError" type="error" :text="criteriaError" />
-					<div class="budget-criteria-table-wrapper">
-						<table class="budget-criteria-table" :aria-label="$texts.budgetGoals.criteriaTable()">
-							<colgroup><col /><col /><col /><col class="criteria-action-column" /></colgroup>
-							<thead><tr>
-								<th scope="col">{{ $texts.budgetGoals.areas() }}</th>
-								<th scope="col">{{ $texts.budgetGoals.categories() }}</th>
-								<th scope="col">{{ $texts.budgetGoals.labels() }}</th>
-								<th scope="col"><span class="hidden-visually">{{ $texts.common.edit() }}</span></th>
-							</tr></thead>
-							<tbody>
-								<tr class="budget-criteria-input-row" :aria-busy="savingCriteria">
-									<td><label class="criteria-mobile-label cobudget-form-label" for="budget-criterion-area">{{ $texts.budgetGoals.areas() }}</label><NcSelect input-id="budget-criterion-area" class="cobudget-native-select" label-outside :aria-label-combobox="$texts.budgetGoals.areaForNewCriterion()" :options="projectOptions" :model-value="projectOptions.find(option => option.value === newRule.projectId)" label="label" :clearable="false" :disabled="busy" @update:model-value="selectRuleProject">
-										<template #option="option"><span class="budget-area-option"><AreaIcon v-if="option.value" :without-area="option.value === '0'" :color="option.color" /><span>{{ option.label }}</span></span></template>
-										<template #selected-option="option"><span class="budget-area-option budget-area-option--selected" :title="option.label"><AreaIcon v-if="option.value" :without-area="option.value === '0'" :color="option.color" /><span>{{ option.label }}</span></span></template>
-									</NcSelect></td>
-									<td><label class="criteria-mobile-label cobudget-form-label" for="budget-criterion-category">{{ $texts.budgetGoals.categories() }}</label><NcSelect input-id="budget-criterion-category" class="cobudget-native-select" label-outside :aria-label-combobox="$texts.budgetGoals.categoryForNewCriterion()" :options="categoryOptions" :model-value="categoryOptions.find(option => option.value === newRule.categoryId)" label="label" :clearable="false" :disabled="busy" @update:model-value="newRule.categoryId = $event.value" /></td>
-									<td><label class="criteria-mobile-label cobudget-form-label" for="budget-criterion-label">{{ $texts.budgetGoals.labels() }}</label><NcSelect input-id="budget-criterion-label" class="cobudget-native-select" label-outside :aria-label-combobox="$texts.budgetGoals.labelForNewCriterion()" :options="tagOptions" :model-value="tagOptions.find(option => option.value === newRule.tag)" label="label" :clearable="false" :disabled="busy" @update:model-value="newRule.tag = $event.value" /></td>
-									<td class="criteria-action-cell"><NcButton class="criteria-icon-button cobudget-native-button" variant="primary" :disabled="busy || isEmptyRule(newRule)" :aria-label="$texts.budgetGoals.addCriterion()" @click.prevent="addRule">
-										<template #icon><NcLoadingIcon v-if="savingCriteria" :size="20" /><PlusIcon v-else :size="20" /></template>
-									</NcButton></td>
-								</tr>
-								<tr v-for="(rule, index) in rules" :key="rule.key" class="budget-criteria-data-row">
-									<td><span class="criteria-mobile-label cobudget-form-label">{{ $texts.budgetGoals.areas() }}</span><span class="criteria-value budget-area-option"><AreaIcon v-if="rule.projectId !== '' && rule.projectId != null" :without-area="Number(rule.projectId) === 0" :color="projects.find(project => Number(project.id) === Number(rule.projectId))?.color" /><span>{{ projectLabelForRule(rule) }}</span></span></td>
-									<td><span class="criteria-mobile-label cobudget-form-label">{{ $texts.budgetGoals.categories() }}</span><span class="criteria-value">{{ categoryLabelForRule(rule) }}</span></td>
-									<td><span class="criteria-mobile-label cobudget-form-label">{{ $texts.budgetGoals.labels() }}</span><span class="criteria-value">{{ tagLabelForRule(rule) }}</span></td>
-									<td class="criteria-action-cell"><DisabledActionHint :reason="deleteActionHint" :label="$texts.budgetGoals.removeCriterion()" ><NcButton class="criteria-icon-button" variant="tertiary" :disabled="busy" :aria-label="$texts.budgetGoals.removeCriterion()" @click.prevent="removeRule(index)">
-										<template #icon><DeleteOutlineIcon :size="20" /></template>
-									</NcButton></DisabledActionHint></td>
-								</tr>
-							</tbody>
-						</table>
-					</div>
-					<NcNoteCard v-if="rules.length === 0" type="info" :text="$texts.budgetGoals.noCriteriaAllExpenses()" />
-					<div v-if="!isEdit" class="budget-section-actions">
-						<!-- Keep blur validation from moving Cancel between pointer-down and click. -->
-						<NcButton variant="tertiary" type="button" :disabled="busy" @pointerdown.prevent @click="goBack">{{ $texts.common.cancel() }}</NcButton>
-						<NcButton class="budget-save-button" variant="primary" type="submit" form="budget-goal-details-form" :disabled="busy || !canSave">
-							<template v-if="saving" #icon><NcLoadingIcon :size="20" /></template>
-							{{ saving ? $texts.common.saveBusy() : $texts.common.save() }}
-						</NcButton>
-					</div>
-
-				</section>
-			</section>
-
-			<section v-if="isEdit" class="budget-form budget-delete-section settings-section" aria-labelledby="budget-delete-title">
-				<div class="budget-form-section">
-					<h3 id="budget-delete-title" class="cobudget-section-heading">{{ $texts.budgetGoals.deleteTitle() }}</h3>
-					<p class="cobudget-form-hint">{{ $texts.budgetGoals.deleteHint() }}</p>
-					<DisabledActionHint :reason="deleteActionHint" :label="$texts.budgetGoals.deleteConfirm()" ><NcButton class="budget-delete-button" variant="error" :disabled="busy" @click="askDeleteGoal">
-						<template #icon><DeleteOutlineIcon :size="20" /></template>
-						{{ $texts.budgetGoals.deleteConfirm() }}
-					</NcButton></DisabledActionHint>
+			<section v-show="activeTopicId === 'criteria'">
+				<div class="budget-criteria-hints">
+					<p class="cobudget-form-hint">
+						{{ $texts.budgetGoals.criteriaHint() }} {{ $texts.budgetGoals.multipleRowsHint() }}
+					</p>
+					<p class="cobudget-form-hint">
+						{{ $texts.budgetGoals.categoryHierarchyHint() }}
+					</p>
 				</div>
+
+				<NcNoteCard v-if="criteriaError" type="error" :text="criteriaError" />
+				<div class="budget-criteria-table-wrapper">
+					<table class="budget-criteria-table" :aria-label="$texts.budgetGoals.criteriaTable()">
+						<colgroup><col /><col /><col /><col class="criteria-action-column" /></colgroup>
+						<thead><tr>
+							<th scope="col">{{ $texts.budgetGoals.areas() }}</th>
+							<th scope="col">{{ $texts.budgetGoals.categories() }}</th>
+							<th scope="col">{{ $texts.budgetGoals.labels() }}</th>
+							<th scope="col"><span class="hidden-visually">{{ $texts.common.edit() }}</span></th>
+						</tr></thead>
+						<tbody>
+							<tr class="budget-criteria-input-row" :aria-busy="savingCriteria">
+								<td><label class="criteria-mobile-label cobudget-form-label" for="budget-criterion-area">{{ $texts.budgetGoals.areas() }}</label><NcSelect input-id="budget-criterion-area" class="cobudget-native-select" label-outside :aria-label-combobox="$texts.budgetGoals.areaForNewCriterion()" :options="projectOptions" :model-value="projectOptions.find(option => option.value === newRule.projectId)" label="label" :clearable="false" :disabled="busy" @update:model-value="selectRuleProject">
+									<template #option="option"><span class="budget-area-option"><AreaIcon v-if="option.value" :without-area="option.value === '0'" :color="option.color" /><span>{{ option.label }}</span></span></template>
+									<template #selected-option="option"><span class="budget-area-option budget-area-option--selected" :title="option.label"><AreaIcon v-if="option.value" :without-area="option.value === '0'" :color="option.color" /><span>{{ option.label }}</span></span></template>
+								</NcSelect></td>
+								<td><label class="criteria-mobile-label cobudget-form-label" for="budget-criterion-category">{{ $texts.budgetGoals.categories() }}</label><NcSelect input-id="budget-criterion-category" class="cobudget-native-select" label-outside :aria-label-combobox="$texts.budgetGoals.categoryForNewCriterion()" :options="categoryOptions" :model-value="categoryOptions.find(option => option.value === newRule.categoryId)" label="label" :clearable="false" :disabled="busy" @update:model-value="newRule.categoryId = $event.value" /></td>
+								<td><label class="criteria-mobile-label cobudget-form-label" for="budget-criterion-label">{{ $texts.budgetGoals.labels() }}</label><NcSelect input-id="budget-criterion-label" class="cobudget-native-select" label-outside :aria-label-combobox="$texts.budgetGoals.labelForNewCriterion()" :options="tagOptions" :model-value="tagOptions.find(option => option.value === newRule.tag)" label="label" :clearable="false" :disabled="busy" @update:model-value="newRule.tag = $event.value" /></td>
+								<td class="criteria-action-cell"><NcButton class="criteria-icon-button cobudget-native-button" variant="primary" :disabled="busy || isEmptyRule(newRule)" :aria-label="$texts.budgetGoals.addCriterion()" @click.prevent="addRule">
+									<template #icon><NcLoadingIcon v-if="savingCriteria" :size="20" /><PlusIcon v-else :size="20" /></template>
+								</NcButton></td>
+							</tr>
+							<tr v-for="(rule, index) in rules" :key="rule.key" class="budget-criteria-data-row">
+								<td><span class="criteria-mobile-label cobudget-form-label">{{ $texts.budgetGoals.areas() }}</span><span class="criteria-value budget-area-option"><AreaIcon v-if="rule.projectId !== '' && rule.projectId != null" :without-area="Number(rule.projectId) === 0" :color="projects.find(project => Number(project.id) === Number(rule.projectId))?.color" /><span>{{ projectLabelForRule(rule) }}</span></span></td>
+								<td><span class="criteria-mobile-label cobudget-form-label">{{ $texts.budgetGoals.categories() }}</span><span class="criteria-value">{{ categoryLabelForRule(rule) }}</span></td>
+								<td><span class="criteria-mobile-label cobudget-form-label">{{ $texts.budgetGoals.labels() }}</span><span class="criteria-value">{{ tagLabelForRule(rule) }}</span></td>
+								<td class="criteria-action-cell"><DisabledActionHint :reason="deleteActionHint" :label="$texts.budgetGoals.removeCriterion()" ><NcButton class="criteria-icon-button" variant="tertiary" :disabled="busy" :aria-label="$texts.budgetGoals.removeCriterion()" @click.prevent="removeRule(index)">
+									<template #icon><DeleteOutlineIcon :size="20" /></template>
+								</NcButton></DisabledActionHint></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<NcNoteCard v-if="rules.length === 0" type="info" :text="$texts.budgetGoals.noCriteriaAllExpenses()" />
 			</section>
 
-		</template>
+			<section v-if="isEdit" v-show="activeTopicId === 'delete'" class="budget-delete-section">
+				<p class="cobudget-form-hint">{{ $texts.budgetGoals.deleteHint() }}</p>
+				<DisabledActionHint :reason="deleteActionHint" :label="$texts.budgetGoals.deleteConfirm()" ><NcButton class="budget-delete-button" variant="error" :disabled="busy" @click="askDeleteGoal">
+					<template #icon><DeleteOutlineIcon :size="20" /></template>
+					{{ $texts.budgetGoals.deleteConfirm() }}
+				</NcButton></DisabledActionHint>
+			</section>
+
+			<div v-if="!isEdit" class="budget-create-actions">
+				<NcNoteCard v-if="saveError" type="error" :text="saveError" />
+				<div class="budget-section-actions">
+					<!-- Keep blur validation from moving Cancel between pointer-down and click. -->
+					<NcButton variant="tertiary" type="button" :disabled="busy" @pointerdown.prevent @click="goBack">{{ $texts.common.cancel() }}</NcButton>
+					<NcButton class="budget-save-button" variant="primary" type="submit" form="budget-goal-details-form" :disabled="busy || !canSave">
+						<template v-if="saving" #icon><NcLoadingIcon :size="20" /></template>
+						{{ saving ? $texts.common.saveBusy() : $texts.common.save() }}
+					</NcButton>
+				</div>
+			</div>
+		</SettingsTopicLayout>
 		<DialogTransition :show="!!(deleteConfirmOpen)" v-slot="{ returnFocus }">
 			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog cobudget-standard-dialog" :name="$texts.budgetGoals.deleteTitle()" :no-close="deleting" :close-on-click-outside="!deleting" @closing="closeDeleteConfirm">
 				<p>{{ deleteConfirmMessage }}</p>
@@ -162,6 +156,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/TrashCanOutline.vue'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
+import CogOutlineIcon from 'vue-material-design-icons/CogOutline.vue'
+import FilterVariantIcon from 'vue-material-design-icons/FilterVariant.vue'
 import NcFormGroup from '@nextcloud/vue/components/NcFormGroup'
 import NcInputField from '@nextcloud/vue/components/NcInputField'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
@@ -171,6 +167,7 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import AreaIcon from '../components/AreaIcon.vue'
 import ReportPeriodPicker from '../components/ReportPeriodPicker.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
+import SettingsTopicLayout from '../components/SettingsTopicLayout.vue'
 import { extractError, showToast } from '../services/notifications'
 import { categoryChoiceLabel, sortCategoriesHierarchically } from '../utils/categoryHierarchy'
 import { sortAreasByName } from '../utils/areaSorting'
@@ -188,6 +185,7 @@ export default {
 	name: 'BudgetGoalFormView',
 	components: { ReportPeriodPicker, DialogTransition, DisabledActionHint,
 		AppPageHeader,
+		SettingsTopicLayout,
 		NcButton,
 		PlusIcon,
 		DeleteOutlineIcon,
@@ -228,6 +226,23 @@ export default {
 		isEdit() {
 			return !!this.id
 		},
+		settingsTopics() {
+			const topics = [
+				{ id: 'general', label: this.$texts.settings.generalTitle(), icon: CogOutlineIcon },
+				{ id: 'criteria', label: this.$texts.budgetGoals.criteria(), icon: FilterVariantIcon },
+			]
+			if (this.isEdit) topics.push({ id: 'delete', label: this.$texts.budgetGoals.deleteTitle(), icon: DeleteOutlineIcon })
+			return topics
+		},
+		requestedTopic() {
+			return this.settingsTopics.find(topic => topic.id === this.$route.query.section)
+		},
+		activeTopicId() {
+			return this.requestedTopic?.id ?? this.settingsTopics[0].id
+		},
+		settingsLocation() {
+			return this.isEdit ? { name: 'budget-edit', params: { id: this.id } } : { name: 'budget-new' }
+		},
 		activeProjects() {
 			return sortAreasByName(this.projects.filter(project => !this.isArchivedProject(project)))
 		},
@@ -263,9 +278,8 @@ export default {
 			return this.$texts.budgetGoals.deleteNamedMessage(name)
 		}
 	},
-	async mounted() {
-		await this.fetchData()
-		this.$nextTick(() => this.$refs.nameInput?.focus?.())
+	mounted() {
+		this.fetchData()
 	},
 	methods: {
 		async fetchData() {
@@ -493,10 +507,6 @@ export default {
 			this[`${field}Touched`] = true
 			return this.saveDetailField(field)
 		},
-		submitDetail(field) {
-			this[`${field}Touched`] = true
-			return this.isEdit ? this.saveDetailField(field) : this.saveGoalDetails()
-		},
 		selectDetail(field, option) {
 			const options = field === 'period' ? this.periodOptions : field === 'mode' ? this.modeOptions : []
 			if (this.busy || !options.some(item => item.value === option?.value)) return
@@ -624,28 +634,13 @@ export default {
 	width: 100%;
 }
 
-.budget-form {
+.budget-form-feedback {
 	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
 	margin: 0 var(--cobudget-form-inset) 0;
 }
 
-.budget-criteria-section,
+.budget-create-actions,
 .budget-delete-section {
-	padding-block-start: var(--cobudget-settings-heading-gap);
-}
-
-.budget-form-section h3 {
-	margin-block-start: 0;
-}
-
-.budget-general-section > h3 {
-	margin: 0 0 14px;
-	font-size: var(--cobudget-font-section-title);
-	font-weight: var(--cobudget-font-weight-heading);
-}
-
-.budget-delete-section,
-.budget-criteria-section:last-of-type {
 	padding-block-end: var(--cobudget-settings-heading-gap);
 }
 
@@ -670,15 +665,11 @@ export default {
 	margin-top: var(--cobudget-section-gap);
 }
 
-.section-title-row {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: var(--cobudget-card-gap);
+.budget-criteria-hints {
 	margin-bottom: var(--cobudget-section-gap);
 }
 
-.section-title-row p {
+.budget-criteria-hints p {
 	margin: 0;
 }
 
@@ -715,19 +706,15 @@ export default {
 .budget-criteria-table .criteria-action-column { width: calc(var(--default-clickable-area, 44px) + var(--default-grid-baseline, 4px) * 5); }
 .budget-criteria-table .criteria-action-cell { text-align: end; }
 /* Remove the native select’s trailing field margin inside centered table cells. */
-.budget-criteria-input-row .cobudget-native-select { display: block; margin-block: 0; }
+.budget-criteria-input-row .cobudget-native-select.v-select.select { display: block; margin-block: 0; }
 .criteria-mobile-label { display: none; }
 .budget-loading { display: flex; align-items: center; gap: 8px; }
-.budget-form .cobudget-native-select { min-width: 0; width: 100%; }
+.cobudget-native-select.v-select.select { min-width: 0; width: 100%; }
 
 
 @media (max-width: 900px) {
 	.form-grid.two-columns {
 		grid-template-columns: 1fr;
-	}
-
-	.section-title-row {
-		flex-direction: column;
 	}
 }
 
@@ -782,12 +769,10 @@ export default {
 	}
 	.budget-criteria-input-row .criteria-mobile-label { margin: 0; }
 	.budget-criteria-table tbody .budget-criteria-input-row { gap: calc(var(--default-grid-baseline, 4px) * 2); }
-	.budget-form {
+	.budget-form-feedback {
 		width: calc(100% - 32px);
 		margin: 0 16px;
 	}
-
-	form.budget-form { margin-block-start: 16px; }
 
 	.budget-goal-form-view { --default-clickable-area: var(--cobudget-mobile-touch-size); }
 }

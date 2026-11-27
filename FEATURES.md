@@ -72,7 +72,7 @@ See [payments and shares in CoBudget](docs/concept.md) for an example.
 
 ### Import payments from JSON
 
-Enable **Payment imports** under **Settings → Features** to use either import method. The [payment import guide](docs/payment-imports.md) covers the JSON format, manual bulk imports with a preview and automatic imports from Nextcloud folders. Open a filename in an automatic import result to inspect the delivery in Nextcloud Files.
+Enable **Payment imports** under **Settings → Import and API** to use either import method. The [payment import guide](docs/payment-imports.md) covers the JSON format, manual bulk imports with a preview and automatic imports from Nextcloud folders. Open a filename in an automatic import result to inspect the delivery in Nextcloud Files.
 
 ## Reminders
 
@@ -83,7 +83,7 @@ Enable **Payment imports** under **Settings → Features** to use either import 
 - Pending calendar synchronization appears beside the affected reminder date. Retry directly from the warning icon without opening Settings or changing reminder drafts.
 - New or rescheduled reminders use 09:00 on the selected local calendar day.
 - Hide the reminder module, navigation, payment controls and reminder filter through
-  Settings → Features → Reminders. Existing reminders, delivery preferences and
+  Settings → Reminders and notifications → Reminders. Existing reminders, delivery preferences and
   calendar synchronization stay active; editing a payment preserves hidden reminder data.
 - Payments starts with a reminder summary when open reminders are overdue or due
   through the next ten calendar days: total count and the two earliest titles/dates.
@@ -301,6 +301,12 @@ web server guide directly from the CoBudget administration settings.
 
 ## Settings, backup and administration
 
+- Personal settings are organized by topic. Use the topic list on phones or
+  the side navigation on desktop to open the relevant settings. Keyboard
+  shortcuts have their own settings page. Categories and payment partners also have separate pages.
+- Area settings use the same layout for name and color, members, categories,
+  payment partners, archiving or restoring, and deletion.
+- Budget goals use the same layout for general settings and criteria. Existing goals also have a deletion topic.
 - General preferences, folder choices, area names/colors and backup schedules save
   automatically with validation and retry. New records, allocation changes and
   management dialogs retain explicit saving where changes form one operation.
@@ -317,9 +323,9 @@ web server guide directly from the CoBudget administration settings.
 - Backup archives store receipt paths, not receipt files. Keep Nextcloud Files
   backups through your existing Nextcloud Files backup solution. Receipt-file
   backup remains outside CoBudget. See [backup commands](docs/architecture.md#backups).
-- Administrator settings manage global categories/partners, integrity checks,
-  supported repairs and data-quality warnings. Destructive actions have explicit
-  confirmations; integrity checks do not repair data unless requested.
+- Administrator settings use the same layout for global categories, payment
+  partners, data quality, full backups and API access. Integrity checks report
+  issues and offer supported repairs as explicit actions.
 - Bell notifications, optional personal Talk and email notifications have independent
   preferences for supported events. Talk messages omit descriptions/receipts, remain in chat history
   after a payment changes and are not retried after delivery failures.
@@ -351,7 +357,7 @@ app context, nested dialogs and pending operations; browsers may reserve some ke
 
 ### Optional email notifications
 
-In Settings → Notifications, enable Email independently for reminders, due planned
+In Settings → Reminders and notifications, enable Email independently for reminders, due planned
 or recurring payments, new shared-area payments and settlements. All email choices
 start disabled. Delivery uses the account's current Nextcloud email address and
 the administrator-configured outgoing mail service; no separate mail account or

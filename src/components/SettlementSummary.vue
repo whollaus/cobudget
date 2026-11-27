@@ -1,14 +1,28 @@
 <template>
-	<dl class="settlement-summary">
-		<dt>{{ $texts.settlements.area() }}:</dt>
-		<dd>{{ areaName }}</dd>
-		<dt>{{ $texts.settlements.author() }}:</dt>
-		<dd><MemberIdentity :user-id="createdBy" :display-name="createdByDisplayName" /></dd>
-		<dt>{{ $texts.settlements.paymentCount() }}:</dt>
-		<dd>{{ paymentCount }}</dd>
-		<dt>{{ $texts.settlements.total() }}:</dt>
-		<dd class="settlement-summary-total">{{ total }}</dd>
-	</dl>
+	<table class="settlement-summary">
+		<tbody>
+			<tr>
+				<th scope="row">{{ $texts.settlements.area() }}</th>
+				<td>{{ areaName }}</td>
+			</tr>
+			<tr v-if="settlementDate">
+				<th scope="row">{{ $texts.settlements.date() }}</th>
+				<td>{{ settlementDate }}</td>
+			</tr>
+			<tr>
+				<th scope="row">{{ $texts.settlements.author() }}</th>
+				<td><MemberIdentity :user-id="createdBy" :display-name="createdByDisplayName" /></td>
+			</tr>
+			<tr>
+				<th scope="row">{{ $texts.settlements.paymentCount() }}</th>
+				<td>{{ paymentCount }}</td>
+			</tr>
+			<tr>
+				<th scope="row">{{ $texts.settlements.total() }}</th>
+				<td class="settlement-summary-total">{{ total }}</td>
+			</tr>
+		</tbody>
+	</table>
 </template>
 
 <script>
@@ -19,6 +33,7 @@ export default {
 	components: { MemberIdentity },
 	props: {
 		areaName: { type: String, required: true },
+		settlementDate: { type: String, default: '' },
 		createdBy: { type: String, default: '' },
 		createdByDisplayName: { type: String, default: '' },
 		paymentCount: { type: Number, required: true },
@@ -30,28 +45,42 @@ export default {
 
 <style scoped>
 .settlement-summary {
-	display: grid;
-	grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
-	align-items: center;
-	gap: 8px 16px;
+	width: 100%;
 	margin: 0;
-	font-size: var(--font-size, 15px);
-	font-weight: normal;
+	table-layout: fixed;
+	border-collapse: separate;
+	border-spacing: 0;
+	border: 0;
 }
-.settlement-summary dt,
-.settlement-summary dd {
-	margin: 0;
-	padding: 0;
-	width: auto;
-	min-width: 0;
+
+.settlement-summary :is(th, td) {
+	box-sizing: border-box;
+	padding: var(--cobudget-table-payment-padding);
+	padding-block: var(--cobudget-space-2, 8px);
+	vertical-align: middle;
+	font-size: var(--cobudget-font-base);
+	font-weight: 400;
+	letter-spacing: normal;
 	text-align: start;
 	white-space: normal;
 	overflow-wrap: anywhere;
 }
-.settlement-summary dt {
-	color: var(--color-main-text);
-	font-weight: var(--font-weight-element, 500);
+
+.settlement-summary tr:not(:last-child) > :is(th, td) {
+	border-block-end: 1px solid var(--payment-table-separator, var(--cobudget-table-separator));
 }
-.settlement-summary dd { color: var(--color-main-text); }
+
+.settlement-summary th {
+	width: 40%;
+	border-inline-end: 1px solid var(--payment-table-separator, var(--cobudget-table-separator));
+	background: var(--cobudget-table-header-background, var(--cobudget-surface));
+	color: var(--cobudget-text-muted);
+}
+
+.settlement-summary td {
+	background: var(--cobudget-surface);
+	color: var(--cobudget-text);
+}
+
 .settlement-summary-total { font-variant-numeric: tabular-nums; }
 </style>

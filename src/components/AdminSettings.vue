@@ -1,227 +1,230 @@
 <template>
-	<div class="cobudget-admin-settings settings-section">
+	<div class="cobudget-admin-settings">
 		<h2 class="cobudget-section-heading">{{ $texts.admin.title() }}</h2>
-		<p class="settings-hint">{{ $texts.admin.hint() }}</p>
 
-		<NcNoteCard v-if="loadError" type="error" :text="loadError" />
-		<MasterDataSettings ref="masterData" admin class="admin-master-data" />
-
-		<section id="cobudget-api-settings" class="integrity-card admin-api-card">
-			<h3 class="cobudget-section-heading">{{ $texts.admin.apiAccessTitle() }}</h3>
-			<p class="admin-section-hint">{{ $texts.admin.apiAccessHint() }}</p>
-			<NcNoteCard v-if="apiSettingsLoadError" type="error">
-				<p>{{ apiSettingsLoadError }}</p>
-				<NcButton variant="tertiary" :disabled="apiSettingsLoading" @click="fetchApiSettings">{{ $texts.common.retry() }}</NcButton>
-			</NcNoteCard>
-			<NcNoteCard v-if="apiSettingsSaveError" type="error" :text="apiSettingsSaveError" />
-			<p v-if="apiSettingsLoading" class="integrity-status settings-loading" role="status">
-				<NcLoadingIcon :size="20" />
-				{{ $texts.common.loading() }}
-			</p>
-			<NcFormBoxSwitch
-				v-else
-				:model-value="apiAccessEnabled"
-				:label="$texts.admin.apiAccessEnableLabel()"
-				:description="$texts.admin.apiAccessEnableDescription()"
-				:disabled="apiSettingsLoading || apiSettingsSaving || !!apiSettingsLoadError"
-				@update:model-value="saveApiAccessEnabled" />
-		</section>
-
-		<section id="cobudget-api-request-limit" class="integrity-card">
-			<h3 class="cobudget-section-heading">{{ $texts.admin.apiRequestSize() }}</h3>
-			<p class="admin-section-hint">{{ $texts.admin.apiRequestSizeHint() }}</p>
-			<div class="admin-api-limit-actions">
-				<NcFormBoxButton :href="overviewUrl" :label="$texts.admin.openOverview()" />
-				<NcFormBoxButton :label="$texts.admin.webServerGuide()" @click="openApiLimitGuide">
-					<template #icon><FileDocumentOutlineIcon :size="24" /></template>
-				</NcFormBoxButton>
-			</div>
-		</section>
-
-		<div class="integrity-card">
-			<h3 class="cobudget-section-heading">{{ $texts.admin.dataQuality() }}</h3>
-			<div class="integrity-card-header">
-				<div>
-					<p>{{ $texts.admin.dataQualityHint() }}</p>
-				</div>
-				<div class="integrity-actions">
-					<NcButton variant="secondary" :disabled="integrityLoading || integrityRepairing" @click="fetchIntegrityReport">
-						{{ $texts.admin.checkNow() }}
-					</NcButton>
-					<NcButton
-						v-if="integrityOrphanCount > 0"
-						variant="primary"
-						:disabled="integrityLoading || integrityRepairing"
-						@click="repairIntegrityReferences">
-						{{ $texts.admin.repairOrphans() }}
-					</NcButton>
-				</div>
+		<SettingsTopicLayout
+			:label="$texts.admin.title()"
+			:to="{ path: $route.path }"
+			:topics="settingsTopics"
+			:requested-topic="requestedTopic"
+			:prevent-focus-scroll="!!apiAnchor">
+			<div v-show="activeTopicId === 'categories' || activeTopicId === 'payment-partners'">
+				<NcNoteCard v-if="loadError" type="error" :text="loadError" />
+				<MasterDataSettings ref="masterData" admin :section-kind="activeTopicId === 'payment-partners' ? 'payment-partners' : 'categories'" />
 			</div>
 
-			<NcNoteCard v-if="integrityError" type="error" :text="integrityError" />
-			<p v-if="integrityLoading" class="integrity-status settings-loading" role="status"><NcLoadingIcon :size="20" />
-				{{ $texts.admin.checkingDataQuality() }}
-			</p>
-			<p v-else-if="!integrityReport" class="integrity-status">
-				{{ $texts.admin.noCheckLoaded() }}
-			</p>
-			<NcNoteCard v-else-if="integrityIsClean && !integrityError" type="success" :text="$texts.admin.noDataQualityIssues()" />
-			<div v-else class="integrity-results">
-				<div v-if="integrityOrphanCount > 0" class="integrity-group">
-					<h4 class="cobudget-subheading">{{ $texts.admin.orphanReferences(integrityOrphanCount) }}</h4>
-					<p>{{ $texts.admin.orphanReferencesHint() }}</p>
-					<ul class="integrity-list">
-						<li v-for="issue in integrityOrphanReferences" :key="`${issue.sourceTable}-${issue.column}`">
-							<strong>{{ issue.sourceLabel }}: {{ issue.targetLabel }}</strong>
-							<span>{{ issue.column }} · IDs: {{ formatIntegrityIds(issue.ids) }}</span>
-						</li>
-					</ul>
+			<div v-show="activeTopicId === 'data-quality'" class="integrity-card">
+				<div class="integrity-card-header">
+					<div>
+						<p>{{ $texts.admin.dataQualityHint() }}</p>
+					</div>
+					<div class="integrity-actions">
+						<NcButton variant="secondary" :disabled="integrityLoading || integrityRepairing" @click="fetchIntegrityReport">
+							{{ $texts.admin.checkNow() }}
+						</NcButton>
+						<NcButton
+							v-if="integrityOrphanCount > 0"
+							variant="primary"
+							:disabled="integrityLoading || integrityRepairing"
+							@click="repairIntegrityReferences">
+							{{ $texts.admin.repairOrphans() }}
+						</NcButton>
+					</div>
 				</div>
 
-				<div v-if="integrityProjectionCount > 0" class="integrity-group">
-					<h4 class="cobudget-subheading">{{ $texts.admin.projectionIssues(integrityProjectionCount) }}</h4>
-					<p>{{ $texts.admin.projectionIssuesHint() }}</p>
-					<ul class="integrity-list">
-						<li v-for="issue in integrityProjectionIssues" :key="`${issue.code}-${issue.table}-${issue.id}`">
-							<strong>{{ issue.code }}</strong>
-							<span>{{ $texts.admin.projectionIssueLocation(issue.table, issue.id) }}</span>
-						</li>
-					</ul>
-				</div>
+				<NcNoteCard v-if="integrityError" type="error" :text="integrityError" />
+				<p v-if="integrityLoading" class="integrity-status settings-loading" role="status"><NcLoadingIcon :size="20" />
+					{{ $texts.admin.checkingDataQuality() }}
+				</p>
+				<p v-else-if="!integrityReport" class="integrity-status">
+					{{ $texts.admin.noCheckLoaded() }}
+				</p>
+				<NcNoteCard v-else-if="integrityIsClean && !integrityError" type="success" :text="$texts.admin.noDataQualityIssues()" />
+				<div v-else class="integrity-results">
+					<div v-if="integrityOrphanCount > 0" class="integrity-group">
+						<h4 class="cobudget-subheading">{{ $texts.admin.orphanReferences(integrityOrphanCount) }}</h4>
+						<p>{{ $texts.admin.orphanReferencesHint() }}</p>
+						<ul class="integrity-list">
+							<li v-for="issue in integrityOrphanReferences" :key="`${issue.sourceTable}-${issue.column}`">
+								<strong>{{ issue.sourceLabel }}: {{ issue.targetLabel }}</strong>
+								<span>{{ issue.column }} · IDs: {{ formatIntegrityIds(issue.ids) }}</span>
+							</li>
+						</ul>
+					</div>
 
-				<div v-if="integrityDuplicateCount > 0" class="integrity-group">
-					<h4 class="cobudget-subheading">{{ $texts.admin.visibleDuplicates(integrityDuplicateCount) }}</h4>
-					<p>{{ $texts.admin.visibleDuplicatesHint() }}</p>
-					<div class="integrity-duplicate-list">
-						<div
-							v-for="issue in integrityDuplicateVisibleNames"
-							:key="`${issue.table}-${issue.type}-${issue.name}-${formatIntegrityIds(issue.ids)}`"
-							class="integrity-duplicate-row">
-							<div>
-								<strong>{{ issue.label }} "{{ issue.name }}"</strong>
-								<span>{{ typeLabel(issue.type) }} · IDs: {{ formatIntegrityIds(issue.ids) }}</span>
+					<div v-if="integrityProjectionCount > 0" class="integrity-group">
+						<h4 class="cobudget-subheading">{{ $texts.admin.projectionIssues(integrityProjectionCount) }}</h4>
+						<p>{{ $texts.admin.projectionIssuesHint() }}</p>
+						<ul class="integrity-list">
+							<li v-for="issue in integrityProjectionIssues" :key="`${issue.code}-${issue.table}-${issue.id}`">
+								<strong>{{ issue.code }}</strong>
+								<span>{{ $texts.admin.projectionIssueLocation(issue.table, issue.id) }}</span>
+							</li>
+						</ul>
+					</div>
+
+					<div v-if="integrityDuplicateCount > 0" class="integrity-group">
+						<h4 class="cobudget-subheading">{{ $texts.admin.visibleDuplicates(integrityDuplicateCount) }}</h4>
+						<p>{{ $texts.admin.visibleDuplicatesHint() }}</p>
+						<div class="integrity-duplicate-list">
+							<div
+								v-for="issue in integrityDuplicateVisibleNames"
+								:key="`${issue.table}-${issue.type}-${issue.name}-${formatIntegrityIds(issue.ids)}`"
+								class="integrity-duplicate-row">
+								<div>
+									<strong>{{ issue.label }} "{{ issue.name }}"</strong>
+									<span>{{ typeLabel(issue.type) }} · IDs: {{ formatIntegrityIds(issue.ids) }}</span>
+								</div>
+								<div class="integrity-merge-actions">
+									<NcButton variant="tertiary"
+										v-for="id in integrityIds(issue)"
+										:key="id"
+										type="button"
+										class="integrity-merge-button"
+										:disabled="integrityMergingKey === integrityMergeKey(issue, id)"
+										@click="mergeIntegrityDuplicate(issue, id)">
+										{{ $texts.admin.keepId(id) }}
+									</NcButton>
+								</div>
 							</div>
-							<div class="integrity-merge-actions">
-								<NcButton variant="tertiary"
-									v-for="id in integrityIds(issue)"
-									:key="id"
-									type="button"
-									class="integrity-merge-button"
-									:disabled="integrityMergingKey === integrityMergeKey(issue, id)"
-									@click="mergeIntegrityDuplicate(issue, id)">
-									{{ $texts.admin.keepId(id) }}
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div v-show="activeTopicId === 'backups'" class="admin-backup-card">
+				<p class="admin-section-hint">{{ $texts.admin.fullBackupsHint() }}</p>
+
+				<NcNoteCard v-if="fullBackupError" type="error" :text="fullBackupError" />
+				<NcNoteCard v-if="fullBackupSettingsError" type="error"><p>{{ fullBackupSettingsError }}</p><NcButton variant="tertiary" :disabled="fullBackupBusy || folderPickerOpen || !!fullBackupValidationError" @click="saveFullBackupSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+				<NcNoteCard v-if="fullBackupValidationError && fullBackupRetentionValid && !fullBackupSettingsLoading && !fullBackupLoadError" type="warning" :text="fullBackupValidationError" />
+				<NcNoteCard v-if="fullBackupLoadError" type="error"><p>{{ fullBackupLoadError }}</p><NcButton variant="tertiary" :disabled="fullBackupSettingsLoading" @click="fetchFullBackupSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+				<p v-if="fullBackupSettingsLoading" class="integrity-status settings-loading" role="status"><NcLoadingIcon :size="20" />
+					{{ $texts.admin.fullBackupSettingsLoading() }}
+				</p>
+				<form v-else class="admin-backup-settings-grid" :aria-busy="fullBackupBusy" @submit.prevent="saveFullBackupSettings">
+					<NcRadioGroup :model-value="fullBackupSchedule" @update:model-value="setFullBackupSchedule" class="cobudget-form-group admin-backup-schedule" :label="$texts.admin.fullBackupSchedule()" :description="$texts.admin.fullBackupScheduleHint()">
+						<NcRadioGroupButton value="none" :label="$texts.admin.fullBackupScheduleNone()" :disabled="fullBackupSettingsDisabled" />
+						<NcRadioGroupButton value="daily" :label="$texts.admin.fullBackupScheduleDaily()" :disabled="fullBackupSettingsDisabled" />
+						<NcRadioGroupButton value="weekly" :label="$texts.admin.fullBackupScheduleWeekly()" :disabled="fullBackupSettingsDisabled" />
+						<NcRadioGroupButton value="monthly" :label="$texts.admin.fullBackupScheduleMonthly()" :disabled="fullBackupSettingsDisabled" />
+					</NcRadioGroup>
+					<NcFormGroup class="cobudget-form-group admin-backup-wide" :description="$texts.admin.fullBackupStorageUserHint()">
+						<template #label><label class="cobudget-form-label" for="admin-backup-user">{{ $texts.admin.fullBackupStorageUser() }}</label></template>
+						<NcSelect v-model="selectedStorageUser" input-id="admin-backup-user" class="cobudget-native-select" label-outside :input-label="$texts.admin.fullBackupStorageUser()" :options="storageUsers" label="displayName" :filterable="false" :loading="storageUsersLoading" :disabled="fullBackupSettingsDisabled || folderPickerOpen" :placeholder="$texts.areas.searchUsers()" @search="searchStorageUsers">
+							<template #option="user"><MemberIdentity :user-id="user.id" :display-name="user.displayName" :size="32" /></template>
+							<template #selected-option="user"><MemberIdentity :user-id="user.id" :display-name="user.displayName" /></template>
+							<template #no-options>{{ $texts.memberSearch.noResults() }}</template>
+						</NcSelect>
+						<NcNoteCard v-if="storageUsersError" type="error"><p>{{ storageUsersError }}</p><NcButton variant="tertiary" :disabled="storageUsersLoading" @click="fetchStorageUsers">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+					</NcFormGroup>
+					<NcFormGroup class="cobudget-form-group admin-backup-wide" :description="fullBackupStorageUser && !canBrowseBackupFolder ? $texts.admin.fullBackupOtherUserFolderHint() : ''">
+						<template #label><label class="cobudget-form-label" for="admin-backup-folder">{{ $texts.admin.fullBackupFolder() }}</label></template>
+						<NcFormBoxButton v-if="canBrowseBackupFolder || !fullBackupStorageUser" id="admin-backup-folder" :label="'/' + fullBackupStorageFolder.replace(/^\/+/, '')" :disabled="fullBackupSettingsDisabled || folderPickerOpen || !canBrowseBackupFolder" @click="chooseFullBackupFolder"><template #icon><FolderOpenOutlineIcon :size="24" /></template></NcFormBoxButton>
+						<NcInputField v-else id="admin-backup-folder" v-model="fullBackupStorageFolder" label-outside :label="$texts.admin.fullBackupFolder()" class="cobudget-native-field" :disabled="fullBackupSettingsDisabled" @blur="saveFullBackupSettings" @keydown.enter.prevent="$event.target.blur()" />
+					</NcFormGroup>
+					<NcFormGroup class="cobudget-form-group" :description="$texts.admin.fullBackupRetentionHint()">
+						<template #label><label class="cobudget-form-label" for="admin-backup-retention">{{ $texts.admin.fullBackupRetention() }}</label></template>
+						<NcInputField id="admin-backup-retention" v-model.number="fullBackupRetentionCount" label-outside :label="$texts.admin.fullBackupRetention()" class="cobudget-native-field" :disabled="fullBackupSettingsDisabled" type="number" min="1" max="100" step="1" required :error="!fullBackupRetentionValid" :helper-text="!fullBackupRetentionValid ? $texts.settings.invalidRetentionCount() : ''" @blur="saveFullBackupSettings" @keydown.enter.prevent="$event.target.blur()" />
+					</NcFormGroup>
+					<div class="admin-backup-create-action">
+						<DisabledActionHint :reason="fullBackupCreateHint" :label="$texts.admin.fullBackupCreateNow()"><NcButton variant="secondary" :disabled="!!fullBackupCreateHint" @click="createFullBackupNow"><template #icon><PlusIcon :size="20" /></template>{{ fullBackupCreating ? $texts.admin.fullBackupCreating() : $texts.admin.fullBackupCreateNow() }}</NcButton></DisabledActionHint>
+					</div>
+				</form>
+				<div v-if="!fullBackupSettingsLoading" class="admin-backup-list">
+					<div class="admin-backup-list-header">
+						<div>
+							<h4 class="cobudget-subheading">{{ $texts.admin.fullBackupLastBackups() }}</h4>
+							<p>{{ $texts.admin.fullBackupHistoryHint() }}</p>
+						</div>
+					</div>
+					<p v-if="fullBackups.length === 0" class="integrity-status">
+						{{ $texts.admin.fullBackupNoBackups() }}
+					</p>
+					<ul v-else class="admin-backup-items">
+						<li
+							v-for="backup in fullBackups"
+							:key="backup.file_name"
+							class="admin-backup-item">
+							<div class="admin-backup-info">
+								<strong>{{ formatBackupDate(backup.created_at) }}</strong>
+								<small>{{ backup.file_path }} · {{ formatBackupSize(backup.file_size) }}</small>
+								<details class="admin-backup-occ">
+									<summary>{{ $texts.admin.fullBackupRestoreOccCommand() }}</summary>
+									<p class="cobudget-form-hint">{{ $texts.admin.fullBackupRestoreOccHint() }}</p>
+									<code>{{ fullBackupOccCommand(backup) }}</code>
+								</details>
+							</div>
+							<div class="admin-backup-item-actions">
+								<DisabledActionHint :reason="fullBackupRestoringFileName ? $texts.admin.fullBackupRestoring() : fullBackupSettingsSaving ? $texts.common.saveBusy() : ''" :label="$texts.admin.fullBackupRestore()"><NcButton
+									variant="tertiary"
+									:disabled="!!fullBackupRestoringFileName || fullBackupSettingsSaving"
+									@click="openFullBackupRestore(backup)">
+									{{ $texts.admin.fullBackupRestore() }}
+								</NcButton></DisabledActionHint>
+
+								<NcButton
+									variant="tertiary"
+									class="admin-backup-icon-button"
+									:aria-label="$texts.admin.fullBackupDownloadAria(backup.file_name)"
+									:title="$texts.admin.fullBackupDownloadAria(backup.file_name)"
+									:disabled="!!fullBackupRestoringFileName"
+									@click="downloadFullBackup(backup)">
+									<template #icon>
+										<DownloadIcon :size="20" />
+									</template>
+								</NcButton>
+
+								<NcButton
+									variant="tertiary"
+									class="admin-backup-icon-button"
+									:aria-label="$texts.admin.fullBackupDeleteAria(backup.file_name)"
+									:title="$texts.admin.fullBackupDeleteAria(backup.file_name)"
+									:disabled="fullBackupDeletingFileName === backup.file_name || !!fullBackupRestoringFileName || fullBackupSettingsSaving"
+									@click="deleteFullBackup(backup)">
+									<template #icon>
+										<DeleteOutlineIcon :size="20" />
+									</template>
 								</NcButton>
 							</div>
-						</div>
+						</li>
+					</ul>
+				</div>
+			</div>
+
+			<div v-show="activeTopicId === 'api'">
+				<section id="cobudget-api-settings" class="admin-api-card">
+					<p class="admin-section-hint">{{ $texts.admin.apiAccessHint() }}</p>
+					<NcNoteCard v-if="apiSettingsLoadError" type="error">
+						<p>{{ apiSettingsLoadError }}</p>
+						<NcButton variant="tertiary" :disabled="apiSettingsLoading" @click="fetchApiSettings">{{ $texts.common.retry() }}</NcButton>
+					</NcNoteCard>
+					<NcNoteCard v-if="apiSettingsSaveError" type="error" :text="apiSettingsSaveError" />
+					<p v-if="apiSettingsLoading" class="integrity-status settings-loading" role="status">
+						<NcLoadingIcon :size="20" />
+						{{ $texts.common.loading() }}
+					</p>
+					<NcFormBoxSwitch
+						v-else
+						:model-value="apiAccessEnabled"
+						:label="$texts.admin.apiAccessEnableLabel()"
+						:description="$texts.admin.apiAccessEnableDescription()"
+						:disabled="apiSettingsLoading || apiSettingsSaving || !!apiSettingsLoadError"
+						@update:model-value="saveApiAccessEnabled" />
+				</section>
+
+				<section id="cobudget-api-request-limit" class="admin-api-request-limit">
+					<h4 class="cobudget-subheading">{{ $texts.admin.apiRequestSize() }}</h4>
+					<p class="admin-section-hint">{{ $texts.admin.apiRequestSizeHint() }}</p>
+					<div class="admin-api-limit-actions">
+						<NcFormBoxButton :href="overviewUrl" :label="$texts.admin.openOverview()" />
+						<NcFormBoxButton :label="$texts.admin.webServerGuide()" @click="openApiLimitGuide">
+							<template #icon><FileDocumentOutlineIcon :size="24" /></template>
+						</NcFormBoxButton>
 					</div>
-				</div>
+				</section>
 			</div>
-		</div>
-
-		<div class="admin-backup-card">
-			<div class="integrity-card-header">
-				<div>
-					<h3 class="cobudget-section-heading">{{ $texts.admin.fullBackups() }}</h3>
-					<p>{{ $texts.admin.fullBackupsHint() }}</p>
-				</div>
-			</div>
-
-			<NcNoteCard v-if="fullBackupError" type="error" :text="fullBackupError" />
-			<NcNoteCard v-if="fullBackupSettingsError" type="error"><p>{{ fullBackupSettingsError }}</p><NcButton variant="tertiary" :disabled="fullBackupBusy || folderPickerOpen || !!fullBackupValidationError" @click="saveFullBackupSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
-			<NcNoteCard v-if="fullBackupValidationError && fullBackupRetentionValid && !fullBackupSettingsLoading && !fullBackupLoadError" type="warning" :text="fullBackupValidationError" />
-			<NcNoteCard v-if="fullBackupLoadError" type="error"><p>{{ fullBackupLoadError }}</p><NcButton variant="tertiary" :disabled="fullBackupSettingsLoading" @click="fetchFullBackupSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
-			<p v-if="fullBackupSettingsLoading" class="integrity-status settings-loading" role="status"><NcLoadingIcon :size="20" />
-				{{ $texts.admin.fullBackupSettingsLoading() }}
-			</p>
-			<form v-else class="admin-backup-settings-grid" :aria-busy="fullBackupBusy" @submit.prevent="saveFullBackupSettings">
-				<NcRadioGroup :model-value="fullBackupSchedule" @update:model-value="setFullBackupSchedule" class="cobudget-form-group admin-backup-schedule" :label="$texts.admin.fullBackupSchedule()" :description="$texts.admin.fullBackupScheduleHint()">
-					<NcRadioGroupButton value="none" :label="$texts.admin.fullBackupScheduleNone()" :disabled="fullBackupSettingsDisabled" />
-					<NcRadioGroupButton value="daily" :label="$texts.admin.fullBackupScheduleDaily()" :disabled="fullBackupSettingsDisabled" />
-					<NcRadioGroupButton value="weekly" :label="$texts.admin.fullBackupScheduleWeekly()" :disabled="fullBackupSettingsDisabled" />
-					<NcRadioGroupButton value="monthly" :label="$texts.admin.fullBackupScheduleMonthly()" :disabled="fullBackupSettingsDisabled" />
-				</NcRadioGroup>
-				<NcFormGroup class="cobudget-form-group admin-backup-wide" :description="$texts.admin.fullBackupStorageUserHint()">
-					<template #label><label class="cobudget-form-label" for="admin-backup-user">{{ $texts.admin.fullBackupStorageUser() }}</label></template>
-					<NcSelect v-model="selectedStorageUser" input-id="admin-backup-user" class="cobudget-native-select" label-outside :input-label="$texts.admin.fullBackupStorageUser()" :options="storageUsers" label="displayName" :filterable="false" :loading="storageUsersLoading" :disabled="fullBackupSettingsDisabled || folderPickerOpen" :placeholder="$texts.areas.searchUsers()" @search="searchStorageUsers">
-						<template #option="user"><MemberIdentity :user-id="user.id" :display-name="user.displayName" :size="32" /></template>
-						<template #selected-option="user"><MemberIdentity :user-id="user.id" :display-name="user.displayName" /></template>
-						<template #no-options>{{ $texts.memberSearch.noResults() }}</template>
-					</NcSelect>
-					<NcNoteCard v-if="storageUsersError" type="error"><p>{{ storageUsersError }}</p><NcButton variant="tertiary" :disabled="storageUsersLoading" @click="fetchStorageUsers">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
-				</NcFormGroup>
-				<NcFormGroup class="cobudget-form-group admin-backup-wide" :description="fullBackupStorageUser && !canBrowseBackupFolder ? $texts.admin.fullBackupOtherUserFolderHint() : ''">
-					<template #label><label class="cobudget-form-label" for="admin-backup-folder">{{ $texts.admin.fullBackupFolder() }}</label></template>
-					<NcFormBoxButton v-if="canBrowseBackupFolder || !fullBackupStorageUser" id="admin-backup-folder" :label="'/' + fullBackupStorageFolder.replace(/^\/+/, '')" :disabled="fullBackupSettingsDisabled || folderPickerOpen || !canBrowseBackupFolder" @click="chooseFullBackupFolder"><template #icon><FolderOpenOutlineIcon :size="24" /></template></NcFormBoxButton>
-					<NcInputField v-else id="admin-backup-folder" v-model="fullBackupStorageFolder" label-outside :label="$texts.admin.fullBackupFolder()" class="cobudget-native-field" :disabled="fullBackupSettingsDisabled" @blur="saveFullBackupSettings" @keydown.enter.prevent="$event.target.blur()" />
-				</NcFormGroup>
-				<NcFormGroup class="cobudget-form-group" :description="$texts.admin.fullBackupRetentionHint()">
-					<template #label><label class="cobudget-form-label" for="admin-backup-retention">{{ $texts.admin.fullBackupRetention() }}</label></template>
-					<NcInputField id="admin-backup-retention" v-model.number="fullBackupRetentionCount" label-outside :label="$texts.admin.fullBackupRetention()" class="cobudget-native-field" :disabled="fullBackupSettingsDisabled" type="number" min="1" max="100" step="1" required :error="!fullBackupRetentionValid" :helper-text="!fullBackupRetentionValid ? $texts.settings.invalidRetentionCount() : ''" @blur="saveFullBackupSettings" @keydown.enter.prevent="$event.target.blur()" />
-				</NcFormGroup>
-				<div class="admin-backup-create-action">
-					<DisabledActionHint :reason="fullBackupCreateHint" :label="$texts.admin.fullBackupCreateNow()"><NcButton variant="secondary" :disabled="!!fullBackupCreateHint" @click="createFullBackupNow"><template #icon><PlusIcon :size="20" /></template>{{ fullBackupCreating ? $texts.admin.fullBackupCreating() : $texts.admin.fullBackupCreateNow() }}</NcButton></DisabledActionHint>
-				</div>
-			</form>
-			<div v-if="!fullBackupSettingsLoading" class="admin-backup-list">
-				<div class="admin-backup-list-header">
-					<div>
-						<h4 class="cobudget-subheading">{{ $texts.admin.fullBackupLastBackups() }}</h4>
-						<p>{{ $texts.admin.fullBackupHistoryHint() }}</p>
-					</div>
-				</div>
-				<p v-if="fullBackups.length === 0" class="integrity-status">
-					{{ $texts.admin.fullBackupNoBackups() }}
-				</p>
-				<ul v-else class="admin-backup-items">
-					<li
-						v-for="backup in fullBackups"
-						:key="backup.file_name"
-						class="admin-backup-item">
-						<div class="admin-backup-info">
-							<strong>{{ formatBackupDate(backup.created_at) }}</strong>
-							<small>{{ backup.file_path }} · {{ formatBackupSize(backup.file_size) }}</small>
-							<details class="admin-backup-occ">
-								<summary>{{ $texts.admin.fullBackupRestoreOccCommand() }}</summary>
-								<p class="cobudget-form-hint">{{ $texts.admin.fullBackupRestoreOccHint() }}</p>
-								<code>{{ fullBackupOccCommand(backup) }}</code>
-							</details>
-						</div>
-						<div class="admin-backup-item-actions">
-							<DisabledActionHint :reason="fullBackupRestoringFileName ? $texts.admin.fullBackupRestoring() : fullBackupSettingsSaving ? $texts.common.saveBusy() : ''" :label="$texts.admin.fullBackupRestore()"><NcButton
-								variant="tertiary"
-								:disabled="!!fullBackupRestoringFileName || fullBackupSettingsSaving"
-								@click="openFullBackupRestore(backup)">
-								{{ $texts.admin.fullBackupRestore() }}
-							</NcButton></DisabledActionHint>
-
-							<NcButton
-								variant="tertiary"
-								class="admin-backup-icon-button"
-								:aria-label="$texts.admin.fullBackupDownloadAria(backup.file_name)"
-								:title="$texts.admin.fullBackupDownloadAria(backup.file_name)"
-								:disabled="!!fullBackupRestoringFileName"
-								@click="downloadFullBackup(backup)">
-								<template #icon>
-									<DownloadIcon :size="20" />
-								</template>
-							</NcButton>
-
-							<NcButton
-								variant="tertiary"
-								class="admin-backup-icon-button"
-								:aria-label="$texts.admin.fullBackupDeleteAria(backup.file_name)"
-								:title="$texts.admin.fullBackupDeleteAria(backup.file_name)"
-								:disabled="fullBackupDeletingFileName === backup.file_name || !!fullBackupRestoringFileName || fullBackupSettingsSaving"
-								@click="deleteFullBackup(backup)">
-								<template #icon>
-									<DeleteOutlineIcon :size="20" />
-								</template>
-							</NcButton>
-						</div>
-					</li>
-				</ul>
-			</div>
-		</div>
+		</SettingsTopicLayout>
 
 		<DialogTransition :show="!!(fullBackupRestoreCandidate)" v-slot="{ returnFocus }">
 			<NcDialog :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog cobudget-standard-dialog" :name="$texts.admin.fullBackupRestoreTitle()" :no-close="!!fullBackupRestoringFileName" :close-on-click-outside="!fullBackupRestoringFileName" is-form @submit="confirmFullBackupRestore" @closing="closeFullBackupRestoreModal">
@@ -420,6 +423,12 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import MasterDataSettings from './MasterDataSettings.vue'
+import SettingsTopicLayout from './SettingsTopicLayout.vue'
+import TagMultipleOutlineIcon from 'vue-material-design-icons/TagMultipleOutline.vue'
+import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
+import DatabaseCheckOutlineIcon from 'vue-material-design-icons/DatabaseCheckOutline.vue'
+import ArchiveOutlineIcon from 'vue-material-design-icons/ArchiveOutline.vue'
+import KeyOutlineIcon from 'vue-material-design-icons/KeyOutline.vue'
 import ContentCopyIcon from 'vue-material-design-icons/ContentCopy.vue'
 import DeleteOutlineIcon from 'vue-material-design-icons/TrashCanOutline.vue'
 import DownloadIcon from 'vue-material-design-icons/Download.vue'
@@ -430,6 +439,7 @@ export default {
 	name: 'AdminSettings',
 	components: { DialogTransition, NcLoadingIcon, DisabledActionHint, NcSelect, NcFormBoxButton, MemberIdentity, PlusIcon, FolderOpenOutlineIcon,
 		MasterDataSettings,
+		SettingsTopicLayout,
 		NcDialog,
 		NcInputField,
 		NcFormBoxSwitch,
@@ -497,6 +507,27 @@ export default {
 		}
 	},
 	computed: {
+		settingsTopics() {
+			const { admin, settings } = this.$texts;
+			return [
+				{ id: 'categories', label: settings.categories(), icon: TagMultipleOutlineIcon },
+				{ id: 'payment-partners', label: settings.paymentPartners(), icon: AccountMultipleIcon },
+				{ id: 'data-quality', label: admin.dataQuality(), icon: DatabaseCheckOutlineIcon },
+				{ id: 'backups', label: admin.fullBackups(), icon: ArchiveOutlineIcon },
+				{ id: 'api', label: admin.apiAccessTitle(), icon: KeyOutlineIcon },
+			];
+		},
+		apiAnchor() {
+			const hash = this.$route.hash;
+			return ['#cobudget-api-settings', '#cobudget-api-request-limit'].includes(hash) ? hash : '';
+		},
+		requestedTopic() {
+			const section = this.apiAnchor ? 'api' : this.$route.query.section;
+			return this.settingsTopics.find(topic => topic.id === section);
+		},
+		activeTopicId() {
+			return this.requestedTopic?.id ?? this.settingsTopics[0].id;
+		},
 		apiLimitGuideBlocks() {
 			return typeof parseMarkdownGuide === 'function' ? parseMarkdownGuide(apiLimitGuide) : [];
 		},
@@ -565,7 +596,11 @@ export default {
 				&& !this.fullBackupRestoringFileName;
 		}
 	},
+	watch: {
+		apiAnchor: 'scrollToApiSection',
+	},
 	mounted() {
+		this.scrollToApiSection()
 		this.fetchData()
 		this.fetchApiSettings()
 		this.fetchIntegrityReport()
@@ -584,6 +619,11 @@ export default {
 		}
 	},
 	methods: {
+		async scrollToApiSection() {
+			if (!this.apiAnchor) return;
+			await this.$nextTick();
+			if (this.apiAnchor) this.$el.querySelector(this.apiAnchor)?.scrollIntoView({ block: 'start', inline: 'nearest' });
+		},
 		openApiLimitGuide() {
 			this.apiLimitGuideOpen = true;
 		},
@@ -1100,40 +1140,23 @@ export default {
 	color: inherit;
 }
 
-.settings-section {
-	display: block;
-	margin: var(--cobudget-form-inset);
-	width: min(var(--cobudget-form-max-width), calc(100% - var(--cobudget-form-inset) * 2));
-	box-sizing: border-box;
+.cobudget-admin-settings {
 	color: var(--cobudget-text, var(--color-main-text, #222));
 }
 
-.settings-section h2,
-.settings-section h3,
-.settings-section h4 {
-	color: var(--cobudget-text, var(--color-main-text, #222));
+.cobudget-admin-settings :deep(.settings-layout) {
+	margin-inline: 0;
+	width: auto;
 }
 
-.settings-hint {
-	color: var(--cobudget-text-muted, var(--color-text-maxcontrast, #888));
-	margin-top: 0;
-	margin-bottom: 24px;
+.cobudget-admin-settings > h2 {
+	font-size: var(--cobudget-font-page-title);
+	font-weight: var(--cobudget-font-weight-heading);
+	line-height: 1.3;
+	margin-block: 0 var(--cobudget-content-gap);
+	overflow-wrap: anywhere;
 }
 
-.settings-grid {
-	display: flex;
-	gap: var(--cobudget-settings-section-gap);
-	margin-bottom: 28px;
-}
-
-.admin-master-data { margin-block: 0; }
-.admin-master-data :deep(.master-section + .master-section) { margin-block-start: var(--cobudget-settings-heading-gap); }
-.settings-section > h2 { font-size: var(--cobudget-font-page-title); font-weight: var(--cobudget-font-weight-heading); line-height: 1.3; margin-block: 0 12px; overflow-wrap: anywhere; }
-.admin-master-data :deep(.master-section > h3) { font-size: var(--cobudget-font-section-title); font-weight: var(--cobudget-font-weight-heading); }
-.admin-master-data :deep(.master-heading h4) { font-size: var(--cobudget-font-subheading); font-weight: var(--cobudget-font-weight-heading); }
-.admin-master-data :deep(.master-section > h3) { margin-block: 0 12px; }
-.integrity-card,
-.admin-backup-card { margin-block: var(--cobudget-settings-heading-gap) 0; }
 .settings-loading { display: flex; align-items: center; gap: var(--cobudget-space-2, 8px); }
 .admin-backup-settings-grid > *, .integrity-card-header > div { min-width: 0; }
 .integrity-list li, .integrity-duplicate-row, .integrity-group h4 { overflow-wrap: anywhere; }
@@ -1145,11 +1168,12 @@ export default {
 	justify-content: space-between;
 }
 
-.integrity-card h3,
-.admin-backup-card h3 {
-	font-size: var(--cobudget-font-section-title);
-	font-weight: var(--cobudget-font-weight-heading);
-	margin: 0 0 12px 0;
+.admin-api-request-limit {
+	margin-block-start: var(--cobudget-settings-heading-gap);
+}
+
+.admin-api-request-limit > h4 {
+	margin-block: 0 var(--cobudget-content-gap);
 }
 
 .admin-section-hint {
@@ -1528,17 +1552,8 @@ export default {
 	.admin-api-guide-dialog {
 		padding: calc(var(--default-grid-baseline, 4px) * 3) var(--cobudget-dialog-padding, 20px) var(--cobudget-dialog-padding, 20px);
 	}
-	.settings-section { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
-	.settings-section > h2 { font-size: var(--cobudget-font-page-title-mobile); }
-	.settings-section {
-		margin: 0;
-		width: 100%;
-	}
-
-	.settings-grid {
-		flex-direction: column;
-		gap: 24px;
-	}
+	.cobudget-admin-settings { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
+	.cobudget-admin-settings > h2 { font-size: var(--cobudget-font-page-title-mobile); }
 
 	.integrity-card-header,
 	.integrity-duplicate-row {

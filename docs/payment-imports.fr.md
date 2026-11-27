@@ -2,7 +2,7 @@
 
 [English](payment-imports.md) · [Deutsch](payment-imports.de.md) · **Français** · [Español](payment-imports.es.md)
 
-Activez **Paramètres → Fonctionnalités → Import de paiements** pour utiliser les deux méthodes. Cette option est désactivée par défaut. La désactiver suspend les imports depuis un dossier et conserve leurs paramètres et leur progression. Les imports actifs reprennent lorsque vous réactivez l’option.
+Activez **Paramètres → Importation et API → Import de paiements** pour utiliser les deux méthodes. Cette option est désactivée par défaut. La désactiver suspend les imports depuis un dossier et conserve leurs paramètres et leur progression. Les imports actifs reprennent lorsque vous réactivez l’option.
 
 Pour un import ponctuel, ouvrez **Import en masse**. Pour des imports réguliers, configurez un dossier. Les deux méthodes utilisent le même format JSON. Vous êtes le payeur pour les dépenses et le bénéficiaire pour les revenus. Dans un espace partagé, CoBudget applique la répartition habituelle de l’espace.
 
@@ -63,8 +63,8 @@ Après une interruption, affichez à nouveau l’aperçu des mêmes données pou
 
 ## Import automatique depuis un dossier
 
-1. Ouvrez **Paramètres → Importations automatiques**. Sur la ligne de la destination souhaitée, choisissez un dossier dans Fichiers Nextcloud. À l’ouverture des paramètres, CoBudget prépare le dossier `CoBudget/Import`. Utilisez un dossier distinct par destination. Le dossier reste réservé lorsque l’import est en pause.
-2. Choisissez l’intervalle (toutes les 5 ou 15 minutes, toutes les heures ou tous les jours) et les notifications (aucune, uniquement en cas d’erreur ou après chaque import), puis activez **Actif**. Dès qu’un import est actif, **Paramètres → Notifications** permet de choisir Nextcloud, l’e-mail ou votre conversation Talk personnelle, selon les services disponibles sur le serveur.
+1. Ouvrez **Paramètres → Importation et API → Importations automatiques**. Sur la ligne de la destination souhaitée, choisissez un dossier dans Fichiers Nextcloud. À l’ouverture des paramètres, CoBudget prépare le dossier `CoBudget/Import`. Utilisez un dossier distinct par destination. Le dossier reste réservé lorsque l’import est en pause.
+2. Choisissez l’intervalle (toutes les 5 ou 15 minutes, toutes les heures ou tous les jours) et les notifications (aucune, uniquement en cas d’erreur ou après chaque import), puis activez **Actif**. Dès qu’un import est actif, **Paramètres → Rappels et notifications** permet de choisir Nextcloud, l’e-mail ou votre conversation Talk personnelle, selon les services disponibles sur le serveur.
 3. Déposez les fichiers `.json` complets directement dans le dossier choisi. Les tâches d’arrière-plan de Nextcloud vérifient le dossier à l’intervalle configuré. Pour le vérifier immédiatement, utilisez le bouton de lecture à côté de **Actif**. Un import volumineux peut nécessiter plusieurs passages.
 4. Pour consulter les détails sous **Exécuté le**, survolez l’horodatage, sélectionnez-le au clavier ou touchez-le. Une icône rouge signale une erreur ou un fichier en attente. Dans le dossier d’import, les fichiers traités sont déplacés vers `Verarbeitet` et les fichiers rejetés vers `Fehler`. Sélectionnez le nom du fichier pour l’ouvrir dans un nouvel onglet.
 
@@ -86,4 +86,4 @@ Si vous déposez à nouveau un lot identique avec le même compte, dans le même
 
 Si une catégorie ou un partenaire de paiement disparaît en cours d’import, **Exécuté le** indique le fichier en attente, le nom manquant et le nombre de paiements enregistrés. Les autres fichiers continuent d’être traités. Demandez au propriétaire de l’espace de rétablir le nom d’origine. CoBudget reprend alors le fichier en attente et enregistre les paiements restants avec leurs quotes-parts.
 
-Si le dossier a été supprimé puis recréé au même emplacement, sélectionnez-le à nouveau dans **Paramètres → Importations automatiques**. Une fois l’import actif, CoBudget peut terminer l’enregistrement des paiements sauvegardés même si le nouveau dossier est vide.
+Si le dossier a été supprimé puis recréé au même emplacement, sélectionnez-le à nouveau dans **Paramètres → Importation et API → Importations automatiques**. Une fois l’import actif, CoBudget peut terminer l’enregistrement des paiements sauvegardés même si le nouveau dossier est vide.

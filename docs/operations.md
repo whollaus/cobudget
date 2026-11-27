@@ -26,13 +26,13 @@ Repair checks the CoBudget jobs before adding missing registrations. Existing re
 
 ### Automatic payment imports
 
-For setup, supported fields and a working file, see [Import payments from JSON](payment-imports.md). Check **Settings → Automatic imports → Last run** when deliveries stop. The configured interval sets when a folder is due. Actual processing also depends on Nextcloud running its background jobs.
+For setup, supported fields and a working file, see [Import payments from JSON](payment-imports.md). Check **Settings → Import and API → Automatic imports → Last run** when deliveries stop. The configured interval sets when a folder is due. Actual processing also depends on Nextcloud running its background jobs.
 
 A folder import validates the file before booking and writes large deliveries in packets. If an area member's delivery is already partly booked and a required category or payment partner is subsequently renamed, later packets can no longer resolve the original name. Open the timestamp under Last run to see the filename, missing name and booked count while other deliveries continue. Ask the area owner to restore the original name for that payment type. Leave the file in place. CoBudget retries the saved delivery and books the remaining payments and shares.
 
 ## Personal Talk notifications
 
-In **Settings → Notifications**, choose **Reminders via Nextcloud** and **Reminders via Talk** independently. Nextcloud reminders default to on; Talk reminders default to off. These controls are available even without areas. Nextcloud delivers the bell notification; mobile push also depends on the Nextcloud notification app, registered devices and device preferences. Talk push follows Talk/device preferences.
+In **Settings → Reminders and notifications**, choose **Reminders via Nextcloud** and **Reminders via Talk** independently. Nextcloud reminders default to on; Talk reminders default to off. These controls are available even without areas. Nextcloud delivers the bell notification; mobile push also depends on the Nextcloud notification app, registered devices and device preferences. Talk push follows Talk/device preferences.
 
 A due reminder is processed on the next background-job run. Personal payments remind their owner; shared source payments remind every active area member, including the creator, using each recipient's preferences. Former/missing accounts are excluded. With both channels disabled, the due reminder is processed without sending; later opt-in does not replay it. Changing/rescheduling the reminder follows the payment editor's normal reminder-reset behavior.
 
@@ -66,7 +66,7 @@ back up the associated Nextcloud Files separately.
 
 ### Planned payment activation messages
 
-In Settings → Notifications, the Planned payments row enables Nextcloud and Talk
+In Settings → Reminders and notifications, the Planned payments row enables Nextcloud and Talk
 independently; both start off. The first future payment and each generated
 repetition become eligible at their saved due time, and are announced by the next
 reminder cron run. Generation of repetitions still uses 06:00 server time.
@@ -119,7 +119,7 @@ button synchronizes immediately; a persistent error is not normal cron delay.
 
 ### Notification channels and email
 
-Select each channel independently in Settings → Notifications. Mobile push also
+Select each channel independently in Settings → Reminders and notifications. Mobile push also
 depends on Nextcloud and device notification settings. Talk uses the private
 CoBudget chat described above.
 

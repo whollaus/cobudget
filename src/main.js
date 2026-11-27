@@ -48,7 +48,7 @@ const routes = [
 	{ path: '/annual-overview', name: 'annual-overview', component: AnnualOverviewView },
 	{ path: '/analytics', name: 'analytics', redirect: legacyAnalyticsLocation },
 	{ path: '/settings', name: 'settings', component: SettingsView },
-	{ path: '/workspaces', redirect: '/settings' }
+	{ path: '/workspaces', redirect: to => ({ name: 'settings', query: { ...to.query, section: 'workspaces' } }) }
 ]
 
 const router = createRouter({

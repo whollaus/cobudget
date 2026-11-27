@@ -79,16 +79,6 @@
 .cobudget-native-dialog.cobudget-standard-dialog .dialog__content {
 	padding-inline-end: var(--cobudget-dialog-padding);
 }
-/* Settlement detail dialog: edge-to-edge content container */
-.cobudget-native-dialog.cobudget-standard-dialog.settlement-detail-dialog.dialog__modal .modal-wrapper .modal-container {
-	padding-inline: 0;
-}
-.cobudget-native-dialog.cobudget-standard-dialog.settlement-detail-dialog .dialog__name {
-	padding-inline-start: var(--cobudget-dialog-padding);
-}
-.cobudget-native-dialog.cobudget-standard-dialog.settlement-detail-dialog .dialog__content {
-	padding-inline-end: 0;
-}
 .cobudget-native-dialog.cobudget-standard-dialog .dialog__text { padding-block-end: 0; }
 .cobudget-native-dialog.cobudget-standard-dialog.dialog__modal .dialog__actions {
 	flex-wrap: wrap;

@@ -1,6 +1,13 @@
 OC.L10N.register(
     "cobudget",
 {
+    "General and appearance": "General y apariencia",
+    "Payments and receipts": "Pagos y justificantes",
+    "Areas and workspaces": "Áreas y espacios de trabajo",
+    "Reminders and notifications": "Recordatorios y notificaciones",
+    "Import and API": "Importación y API",
+    "Export and recovery": "Exportación y restauración",
+    "Back to settings": "Volver a los ajustes",
     "A Nextcloud administrator can run this check in the administration overview.": "Un administrador de Nextcloud puede ejecutar esta comprobación en la vista general de administración.",
     "Open the CoBudget web server guide": "Abrir la guía de CoBudget para el servidor web",
     "CoBudget API request size": "Tamaño de las solicitudes de la API de CoBudget",
@@ -164,7 +171,6 @@ OC.L10N.register(
     "More filters": "Más filtros",
     "All payments in this workspace, across all periods": "Todos los pagos de este espacio de trabajo, de todos los períodos",
     "CoBudget administration": "Administración de CoBudget",
-    "Manage global categories, payment partners, data quality and full backups for all users.": "Gestiona las categorías globales, los destinatarios de pagos, la calidad de los datos y las copias de seguridad completas de todos los usuarios.",
     "Backs up all users’ CoBudget data to the selected administrator’s Files.": "Guarda los datos de CoBudget de todos los usuarios en los archivos del administrador seleccionado.",
     "Number of full backups to keep": "Número de copias de seguridad completas que se conservan",
     "After a new full backup, the oldest full backups are deleted when this number is exceeded.": "Después de una nueva copia de seguridad completa, se eliminan las más antiguas cuando se supera este número.",

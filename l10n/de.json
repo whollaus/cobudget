@@ -1,5 +1,12 @@
 {
 	"translations": {
+    "General and appearance": "Allgemein & Darstellung",
+    "Payments and receipts": "Zahlungen & Belege",
+    "Areas and workspaces": "Bereiche & Workspaces",
+    "Reminders and notifications": "Erinnerungen & Benachrichtigungen",
+    "Import and API": "Import & API",
+    "Export and recovery": "Export & Wiederherstellung",
+    "Back to settings": "Zurück zu Einstellungen",
     "A Nextcloud administrator can run this check in the administration overview.": "Die Nextcloud-Administration kann diese Prüfung in der Verwaltungsübersicht ausführen.",
     "Open the CoBudget web server guide": "CoBudget-Anleitung für den Webserver öffnen",
     "CoBudget API request size": "Größenlimit für CoBudget-API-Anfragen",
@@ -162,7 +169,6 @@
     "More filters": "Weitere Filter",
     "All payments in this workspace, across all periods": "Alle Zahlungen in diesem Workspace, über alle Zeiträume",
     "CoBudget administration": "CoBudget-Administration",
-    "Manage global categories, payment partners, data quality and full backups for all users.": "Verwalte globale Kategorien, Zahlungspartner, Datenqualität und Vollbackups für alle Benutzer.",
     "Backs up all users’ CoBudget data to the selected administrator’s Files.": "Sichert die CoBudget-Daten aller Benutzer in den Dateien des ausgewählten Administrators.",
     "Number of full backups to keep": "Anzahl aufzubewahrender Vollbackups",
     "After a new full backup, the oldest full backups are deleted when this number is exceeded.": "Nach einem neuen Vollbackup werden die ältesten Vollbackups gelöscht, sobald diese Anzahl überschritten wird.",

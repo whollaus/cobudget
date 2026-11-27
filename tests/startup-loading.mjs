@@ -44,6 +44,25 @@ await vm.fetchData()
 assert.equal(vm.initialDataReady, true, 'Failed initial requests must release the loading state')
 assert.equal(errors.length, 1)
 
+const appSource = fs.readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
+const openEntrySidebar = new Function(`return ({
+ ${appSource.slice(appSource.indexOf('\t\tasync openEntrySidebar('), appSource.indexOf('\t\tshouldCloseEntrySidebar('))}
+}).openEntrySidebar`)()
+const editorLoad = deferred()
+const paymentRoute = { name: 'personal' }
+const settingsState = {
+ $route: paymentRoute,
+ waitForEntrySidebarRef: () => editorLoad.promise,
+ routeProjectId: () => null,
+ routeDefaultEntryType: () => 'expense',
+ sanitizeEntryType: type => type,
+ isWideEntrySidebarViewport: () => true,
+}
+const automaticEditor = openEntrySidebar.call(settingsState, { automaticRoute: paymentRoute })
+settingsState.$route = { name: 'settings' }
+editorLoad.resolve({ openSidebar: () => assert.fail('A delayed payment editor must not cover Settings') })
+await automaticEditor
+
 const notificationSource = fs.readFileSync(new URL('../src/services/notifications.js', import.meta.url), 'utf8')
  .replace(/^import .*$/gm, '').replaceAll('export ', '')
  .replace(/import\(\/\* webpackChunkName: "cobudget-toast" \*\/ '\.\/toast'\)/, 'loadChunk()')

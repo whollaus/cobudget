@@ -591,6 +591,10 @@ export default {
 
 			this.entrySidebarReady = true;
 			const sidebar = await this.waitForEntrySidebarRef();
+			// A delayed automatic editor must stay on the page that requested it.
+			if (payload.automaticRoute && (this.$route !== payload.automaticRoute || !this.isWideEntrySidebarViewport())) {
+				return;
+			}
 			if (!sidebar) {
 				this.selectedEntryId = null;
 				return;
@@ -706,6 +710,7 @@ export default {
 			}
 
 			await this.openEntrySidebar({
+				automaticRoute: this.$route,
 				projectId: this.routeProjectId(),
 				isFuture: false,
 				defaultType: this.routeDefaultEntryType()

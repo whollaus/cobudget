@@ -1,13 +1,13 @@
 <template>
-	<div class="master-data-settings" :aria-busy="loading">
+	<div class="master-data-settings" :class="{ 'master-data-settings--topic': sectionKind }" :aria-busy="loading">
 		<p v-if="loading" class="master-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.common.loading() }}</p>
 		<NcNoteCard v-if="loadError" type="error">
 			<p>{{ loadError }}</p>
 			<NcButton @click="load">{{ $texts.masterData.retry() }}</NcButton>
 		</NcNoteCard>
 		<template v-if="!loading && (!loadError || scopes.length)">
-			<section v-for="kind in kinds" :key="kind" :data-master-section="kind" class="master-section">
-				<h3 class="cobudget-section-heading">{{ heading(kind) }}</h3>
+			<section v-for="kind in visibleKinds" :key="kind" :data-master-section="kind" class="master-section">
+				<h3 v-if="!sectionKind" class="cobudget-section-heading">{{ heading(kind) }}</h3>
 				<div v-for="type in types" :key="type" class="master-type">
 					<div class="master-heading">
 						<h4 class="cobudget-subheading">{{ type === 'income' ? $texts.annual.income() : $texts.annual.expenses() }}</h4>
@@ -158,10 +158,17 @@ const IconPicker = defineAsyncComponent(() => import(/* webpackChunkName: "cobud
 export default {
 	name: 'MasterDataSettings',
 	components: { DialogTransition, DisabledActionHint, Delete, Circle, NcAppNavigationItem, AreaIcon, Tune, Close, NcNoteCard, NcLoadingIcon, NcFormGroup, NcInputField, NcSelect, NcButton, NcDialog, NcModal, NcFormBoxSwitch, CheckboxMarked, CheckboxBlankOutline, Pencil, Plus, CategoryIcon, IconPicker, PaymentPartnerEditFields },
-	props: { projectId: { type: [Number, String], default: null }, admin: Boolean, advanced: { type: Boolean, default: true }, incomes: { type: Boolean, default: true } },
-	emits: ['changed', 'loaded'],
+	props: {
+		projectId: { type: [Number, String], default: null },
+		admin: Boolean,
+		advanced: { type: Boolean, default: true },
+		incomes: { type: Boolean, default: true },
+		sectionKind: { type: String, default: '' },
+	},
+	emits: ['changed'],
 	data: () => ({ advancedDrafts: null, advancedError: '', advancedDiscard: false, kinds: ['categories', 'payment-partners'], scopes: [], loading: true, loadError: '', saving: false, saveError: '', editor: null, confirmDelete: false, confirmDiscard: false, refreshRequired: false, closeRequested: false }),
 	computed: {
+		visibleKinds() { return this.kinds.includes(this.sectionKind) ? [this.sectionKind] : this.kinds },
 		types() { return this.incomes ? ['income', 'expense'] : ['expense'] },
 		rows() { return Object.fromEntries(this.kinds.map(kind => [kind, groupMasterData(this.scopes, kind)])) },
 		editorTitleId() { return `master-editor-${this.admin ? 'global' : this.projectId || 'personal'}` },
@@ -233,12 +240,6 @@ export default {
 		hasChildren(kind, row) { return this.rows[kind].some(child => child.parentKey === row.key) },
 		isGlobalRow(row) { return Object.values(row?.records || {}).some(record => this.flag(record.is_global)) },
 		visibleRows(kind, type) { return this.rows[kind].filter(row => row.type === type) },
-		scrollToSection(kind) {
-			if (!this.kinds.includes(kind)) return false
-			const section = this.$el?.querySelector?.(`[data-master-section="${kind}"]`)
-			section?.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: 'instant' })
-			return !!section
-		},
 		async load({ quiet = false } = {}) {
 			if (!quiet) this.loading = true; this.loadError = ''
 			try {
@@ -256,7 +257,7 @@ export default {
 				this.scopes = scopes
 				return true
 			} catch (error) { this.loadError = extractError(error, this.$texts.settings.loadError()); return false }
-			finally { this.loading = false; this.$emit('loaded') }
+			finally { this.loading = false }
 		},
 		openEditor(kind, type, row = null) {
 			this.advancedDrafts = null; this.advancedError = ''; this.advancedDiscard = false
@@ -518,6 +519,9 @@ export default {
 .master-section + .master-section { margin-block-start: calc(var(--default-grid-baseline, 4px) * 8); }
 .master-heading, .master-name { display: flex; align-items: center; gap: calc(var(--default-grid-baseline, 4px) * 2); }
 .master-heading { justify-content: space-between; margin-block: calc(var(--default-grid-baseline, 4px) * 4) calc(var(--default-grid-baseline, 4px) * 2); }
+.master-data-settings--topic { margin-block: 0; }
+.master-data-settings--topic .master-type:first-child > .master-heading { margin-block-start: 0; }
+.master-data-settings--topic .master-type + .master-type > .master-heading { margin-block-start: var(--cobudget-settings-section-gap); }
 .master-heading h4 { margin: 0; font-size: var(--cobudget-font-subheading); font-weight: var(--cobudget-font-weight-heading); }
 .master-table-scroll { overflow-x: auto; }
 .master-table {

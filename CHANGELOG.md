@@ -2,6 +2,16 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [1.3.1] - 2026-11-28
+
+- Organize personal settings into nine topics with native Nextcloud navigation and a mobile overview. Categories, payment partners and keyboard shortcuts each have a dedicated page. Existing bookmarks continue to work.
+- Give area settings the same topic navigation, with dedicated pages for members, categories, payment partners and area actions.
+- Organize administration settings into five topics using the same desktop navigation and mobile list. Keep the direct link to API request size guidance.
+- Use the shared settings navigation when creating and editing budget goals. New goals save general settings and criteria together.
+- Simplify settlement details and keep Print beside Close. Show the settlement time in the summary table and keep repayment amounts on one line on phones, with currency above when space is limited.
+- List external API integrations after the core features in public app descriptions.
+- Correct the SQLite key concurrency test and the automatic-import recovery fixture used in CI.
+
 ## [1.3.0] - 2026-11-27
 
 - Mark the external API as Beta in personal and administration settings. Document setup, permissions, supported endpoints and integration examples in the [API guide](docs/api.md).

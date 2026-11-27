@@ -78,7 +78,7 @@ try {
 		$controller = new \OCA\CoBudget\Controller\UserController('cobudget', Server::get(\OCP\IRequest::class),
 			Server::get(IDBConnection::class), Server::get(IUserManager::class), $session, Server::get(IConfig::class),
 			Server::get(\OCA\CoBudget\Service\BackupService::class), Server::get(\OCA\CoBudget\Service\UserResetService::class),
-			Server::get(IFactory::class)->get('cobudget', 'en'));
+			Server::get(IFactory::class)->get('cobudget', 'en'), Server::get(\OCA\CoBudget\Service\ApiTokenService::class));
 		if ($paymentImports !== null) $response($controller->saveSettings('EUR', enable_payment_imports: $paymentImports), 200);
 		return $response($controller->getSettings(), 200);
 	};

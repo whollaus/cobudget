@@ -64,5 +64,7 @@ const transactions = readFileSync(new URL('../src/views/TransactionsView.vue', i
 assert.match(transactions, /addEventListener\(PRINT_REPORT_EVENT, this.printEntries\)/)
 assert.match(transactions, /removeEventListener\(PRINT_REPORT_EVENT, this.printEntries\)/)
 const settings = readFileSync(new URL('../src/views/SettingsView.vue', import.meta.url), 'utf8')
-assert.ok(settings.indexOf('<KeyboardShortcuts />') < settings.indexOf('class="settings-subsection reset-section"'))
+assert.match(settings, /v-show="activeTopic\.id === 'keyboard-shortcuts'"[^>]*>\s*<KeyboardShortcuts \/>/)
+const shortcutsView = readFileSync(new URL('../src/components/KeyboardShortcuts.vue', import.meta.url), 'utf8')
+assert.match(shortcutsView, /<NcHotkeyList>\s*<NcHotkey\b/)
 console.log('Keyboard shortcuts passed: Ctrl/Command, Alt fallback, focus scope, dialogs, IME, repeats, pending/invalid saves, guarded creation and CoBudget report dispatch.')

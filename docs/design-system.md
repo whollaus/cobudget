@@ -535,10 +535,20 @@ The automatic import settings omit archived areas and show each active area with
 
 ### General preferences and workspaces
 
-[SettingsView](../src/views/SettingsView.vue) keeps general/notification/receipt
-preferences in one column and features/labels in the other. Labels follow Features
-with shared heading spacing, not an extra divider. Native form-box switches own
-their descriptions and styling. Notification preferences use a flat event/channel table with native
+[SettingsView](../src/views/SettingsView.vue) has nine topics with stable section
+links. The desktop view shows topic navigation and the selected topic, with
+General and appearance open by default. On phones the unqualified settings
+route shows the topic list. A topic includes a link back to that list.
+Feature switches and their settings live together in the relevant topic.
+The shared [SettingsTopicLayout](../src/components/SettingsTopicLayout.vue) uses
+native Nextcloud navigation items with centered icons and labels.
+It marks the displayed topic as current, including the desktop default. The
+mobile topic list has no selection until a topic is opened.
+The desktop topic list stays in view while the content scrolls and can scroll
+independently on short screens. Categories and payment partners have separate
+topics with the shared advanced master-data switch below their entries.
+Keyboard shortcuts have their own topic and use `NcHotkeyList` with `NcHotkey` rows. Native form-box
+switches own their descriptions and styling. Notification preferences use a flat event/channel table with native
 `NcCheckboxRadioSwitch` checkboxes, visible Nextcloud/Talk column headings,
 explicit event-and-channel accessible names and 44 px targets. Event labels wrap
 at mobile widths; unsupported channels display a named dash. Hide the entire Talk
@@ -552,9 +562,8 @@ target opens the native `NcSelect`; persist only after an explicit calendar choi
 The target row appears below the table, with retryable sync errors. At narrow
 widths the channel columns keep 44 px targets while event labels wrap.
 Related navigation buttons, such as Talk setup,
-remain outside the switch label. Feature-navigation return markers and
-master-data section jumps (`categories`, `payment-partners`) are one-shot and
-applied only after successful data loading.
+remain outside the switch label. Direct links open the requested topic. Links to automatic imports and API keys
+scroll to the corresponding section when its content is ready. Keep the section in the URL for reload and browser history.
 
 General preferences save immediately, on selection or the existing blur/Enter
 boundary. Validate, serialize writes, disable conflicting actions, and roll back
@@ -614,8 +623,12 @@ Files settings variant, with per-area dirty markers. Do not use an all-sections
 
 ### Administrator settings
 
-[AdminSettings](../src/components/AdminSettings.vue) reuses native fields and note
-cards, responsive columns and the shared settings rows. Keep scoped fixes for
+[AdminSettings](../src/components/AdminSettings.vue) uses the shared settings
+layout inside Nextcloud's administration page. The topics are Categories,
+Payment partners, Data quality, Full backups and API access. The API topic
+contains the request size guidance and keeps the direct link from Nextcloud's
+administration overview. The layout uses the outer Nextcloud section inset.
+Reuse native fields and note cards, responsive columns and settings rows. Keep scoped fixes for
 Nextcloud admin-section paragraph margins; do not globally reset paragraphs.
 Data-quality actions and results use semantic components, not manual status CSS.
 
@@ -652,8 +665,11 @@ with draft name/color/members and share preview. Before persistence it has no
 lifecycle actions or stored-area scope. Keep validation, route/unload discard
 guards, pending protection and navigation refresh after success.
 
-[ProjectSettingsView](../src/views/ProjectSettingsView.vue) starts with name/color,
-without a redundant General heading. Name blur/Enter and color changes save their
+[ProjectSettingsView](../src/views/ProjectSettingsView.vue) uses the same settings
+layout for General, Members, Categories, Payment partners, Archive or Restore,
+and Delete. Each topic link keeps the area ID. Members can view General and
+Members. Area admins see the other topics when available. Archived areas omit
+Categories and Payment partners. Name blur/Enter and color changes save their
 committed values independently; preserve newer typing when earlier requests
 complete. Member percentages retain their own explicit Save flow. A personal
 area shows its 100% information without a redundant split table or action.
@@ -667,13 +683,16 @@ selection-side mutation. Lifecycle availability comes from current server
 previews; refresh it without overwriting form drafts and revalidate at submission.
 
 [BudgetGoalFormView](../src/views/BudgetGoalFormView.vue) uses shared heading and
-field roles. New goals save the whole draft explicitly; existing identity fields
-use their established independent save boundaries. Criteria actions must use
+field roles. Creating and editing goals uses the shared settings layout with
+General settings and Criteria. New goals save both topics together through the
+same Save action available in either topic. Existing goals add a Delete topic,
+and their topic links retain the goal ID. Existing identity fields use their
+established independent save boundaries. Criteria actions must use
 committed identity values. Keep Without area distinct from unrestricted scope,
 retain invalid/failed drafts, and block choices until their catalogs are valid.
 An empty criterion set explains its scope through a note card. Mobile criteria
 become labeled rows with accessible delete actions rather than a horizontal form.
-Goal deletion is a separate trailing section and preserves its payments. Prevent
+Goal deletion is the last topic and preserves its payments. Prevent
 pointer Cancel from accidentally triggering a blur-save, without breaking
 keyboard cancellation.
 
@@ -689,6 +708,10 @@ percentage. Do not label that percentage as the actual share of all historical
 payments. Mobile identities and values reflow without horizontal scrolling;
 optional income details have a tertiary disclosure, initially collapsed.
 `RepaymentList` uses From/To/Amount columns, wrapping names and no clickable hover.
+On phones, compact cell padding and a narrower amount column give both names
+more space. At 400 px and below, the name cells show the full text without avatars.
+The numeric part of each repayment stays on one line. The currency moves above
+it when both parts need more room than the amount cell provides.
 
 Settlement confirmation uses native `NcDialog` and
 [SettlementSummary](../src/components/SettlementSummary.vue): area, creator,
@@ -696,11 +719,16 @@ complete open shared-payment count and total. Its scope is independent of table
 filters/pagination and includes the relevant future payments. Summary and
 repayments retain the saved currency where applicable. Capture area/permissions,
 block conflicting writes, retain errors for retry and make Cancel non-mutating.
+The summary uses a two-column table with row headers styled like repayment
+column headers. Shared table separators divide the rows and both columns.
 
 [ProjectSettlementsView](../src/views/ProjectSettlementsView.vue) uses a flat
 semantic history table, keyboard-accessible detail actions and stacked mobile
 metadata. Details focus the summary initially, then show member balances,
-repayments and payments. Lazy payment pages cache successes and retry failed
+repayments and payments. Print and the native close icon sit above the full-width
+summary table, which shows the recorded time directly below the area. The
+dialog title is available to assistive technology.
+Lazy payment pages cache successes and retry failed
 offsets. Keep loading/error states visible even before a count is known. Historical
 balances remain labeled as recorded values. Nested payment history returns focus
 to the settlement dialog; historical `EntryTable` rows are read-only with the
@@ -955,7 +983,7 @@ The personal and administrator API sections include the localized Beta status
 in their existing section headings. The request-size check and web server guide
 are presented in the administration settings.
 
-`ApiTokenSettings` renders directly below Personal export in `SettingsView`, using the
+`ApiTokenSettings` renders next to automatic imports under Import and API, using the
 same section heading, master `NcFormBoxSwitch`, flat semantic table (`api-token-table`
 matching `AutomaticImportSettings` with neutral row hover `--color-background-hover`,
 container-queried stacked mobile rows, and `Name`, masked `API key` preview,

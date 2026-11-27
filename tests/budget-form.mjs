@@ -11,6 +11,24 @@ const vm = {...component.data(), id:null, $enableProjects:true, $texts:{budgetGo
 for(const [name,fn] of Object.entries(component.methods)) vm[name]=fn.bind(vm)
 for(const [name,fn] of Object.entries(component.computed)) Object.defineProperty(vm,name,{get:fn.bind(vm)})
 vm.$texts.common = strings
+vm.$texts.settings = strings
+vm.$route = { query: {} }
+assert.deepEqual(vm.settingsLocation, { name: 'budget-new' })
+assert.deepEqual(vm.settingsTopics.map(topic => topic.id), ['general', 'criteria'])
+vm.$route.query.section = 'criteria'
+assert.equal(vm.activeTopicId, 'criteria')
+vm.$route.query.section = 'delete'
+assert.equal(vm.activeTopicId, 'general', 'Creation has no deletion topic')
+vm.$route.query.section = undefined
+vm.id = '7'
+assert.deepEqual(vm.settingsLocation, { name: 'budget-edit', params: { id: '7' } })
+assert.deepEqual(vm.settingsTopics.map(topic => topic.id), ['general', 'criteria', 'delete'])
+assert.equal(vm.activeTopicId, 'general')
+vm.$route.query.section = 'criteria'
+assert.equal(vm.activeTopicId, 'criteria')
+vm.$route.query.section = 'unknown'
+assert.equal(vm.activeTopicId, 'general')
+vm.id = null
 assert.equal(vm.deleteActionHint, 'loading')
 vm.loading = false
 assert.equal(vm.deleteActionHint, '')
@@ -119,7 +137,7 @@ count=writes.length
 await vm.blurDetail('name')
 assert.equal(writes.length,count,'Unchanged values do not write')
 vm.form.amount='31,75'
-await vm.submitDetail('amount')
+await vm.blurDetail('amount')
 assert.equal(vm.savedGoalDetails.amount,31.75)
 assert.equal(vm.form.amount,'31.75')
 await vm.selectDetail('period',{value:'year'})
@@ -144,7 +162,7 @@ assert.equal(vm.savedGoalDetails.name,'Failed label')
 assert.equal(vm.detailSaveErrors.name,'','Retry clears the resolved error')
 vm.form.name='Pending name'
 api.put=(...args)=>{writes.push(args);return new Promise(resolve=>{finish=resolve})}
-const detailSaving=vm.submitDetail('name')
+const detailSaving=vm.blurDetail('name')
 count=writes.length
 const navigationCount=navigation.length
 await vm.blurDetail('name');await vm.selectDetail('mode',{value:'hard'});await vm.removeRule(0)

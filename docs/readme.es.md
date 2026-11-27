@@ -29,12 +29,13 @@ que registras.
   correo electrónico opcional, por separado según el evento. Los recordatorios
   también se sincronizan con un calendario; los cambios en calendarios privados
   se reflejan en CoBudget.
-- **API externa (beta)** para integraciones con claves personales por espacio de trabajo y permisos separados para los pagos personales y cada área. Una vez que un administrador de Nextcloud active la API, puedes crear tus claves en los ajustes de CoBudget. [Configuración y referencia de la API (inglés)](api.md)
 - **[Importación de pagos](payment-imports.es.md):** opcionalmente, importar pagos en formato JSON manualmente con vista previa o automáticamente desde una carpeta de Nextcloud.
 - **Exportaciones y copias de seguridad:** imprimir informes, exportar en CSV, copiar tablas a una hoja de cálculo y crear exportaciones personales o copias de seguridad de administrador.
 - **Espacios de trabajo y apariencia:** conjuntos de datos separados mediante espacios de
   trabajo, vistas para móvil y escritorio y temas claro, oscuro o del sistema.
 - **Idiomas de la interfaz:** inglés, alemán, francés y español.
+- **Ajustes:** preferencias personales y ajustes de áreas, objetivos presupuestarios y administración organizados por tema, con una lista en el móvil.
+- **API externa (beta)** para integraciones con claves personales por espacio de trabajo y permisos separados para los pagos personales y cada área. Una vez que un administrador de Nextcloud active la API, puedes crear tus claves en los ajustes de CoBudget. [Configuración y referencia de la API (inglés)](api.md)
 
 La documentación técnica adicional está en inglés:
 [funciones](../FEATURES.md), [cálculos de los informes](reports.md) y

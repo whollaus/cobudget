@@ -41,7 +41,7 @@ const bindings = {
 const component = new Function(...Object.keys(bindings), script)(...Object.values(bindings))
 const vm = {
 	...component.data(),
-	$texts: { settings: new Proxy({}, { get: (_, key) => () => key }), common: { saveError: () => 'Save failed' } },
+	$texts: { shortcuts: { title: () => 'Keyboard shortcuts' }, settings: new Proxy({}, { get: (_, key) => () => key }), common: { saveError: () => 'Save failed' } },
 }
 for (const [name, method] of Object.entries(component.methods)) vm[name] = method.bind(vm)
 for (const [name, getter] of Object.entries(component.computed)) Object.defineProperty(vm, name, { get: getter.bind(vm) })
@@ -237,33 +237,42 @@ assert.equal(vm.calendarError, '')
 assert.equal(vm.calendarBusy, false)
 console.log('Calendar settings passed: explicit target, isolated preferences, failed save and unavailable calendar.')
 
-// Deep-linking to master data sections waits for settings, Talk and master data to settle.
-const scrolledSections = [], replacedRoutes = []
+// Direct settings destinations survive loading, browser history and feature gates.
+const scrolledSections = []
 vm.$nextTick = fn => fn()
 vm.$refs = {
-	masterDataSettings: { scrollToSection: section => { scrolledSections.push(section); return true } },
-	workspaceOptions: { scrollIntoView: () => scrolledSections.push('workspaces') },
+	topicContent: {
+		querySelector: id => id === '#automatic-imports'
+			? null
+			: { scrollIntoView: () => scrolledSections.push(id) },
+	},
 }
-vm.$route = { name: 'settings', query: { section: 'categories', keep: '1' } }
-vm.$router = { replace: route => replacedRoutes.push(route) }
+assert.deepEqual(vm.settingsTopics.map(topic => topic.id), [
+	'general', 'payments', 'categories', 'payment-partners', 'workspaces', 'notifications', 'integrations', 'exports', 'keyboard-shortcuts',
+])
+for (const [section, topic] of [['master-data', 'categories'], ['categories', 'categories'], ['payment-partners', 'payment-partners']]) {
+	vm.$route = { name: 'settings', query: { section } }
+	assert.equal(vm.activeTopic.id, topic, 'Master-data bookmarks open the relevant topic')
+	assert.equal(vm.$route.query.section, section, 'The selected destination remains bookmarkable')
+}
+vm.$route = { name: 'settings', query: { section: 'automatic-imports' } }
 vm.loading = true
-vm.masterDataLoaded = false
-vm.talkLoaded = false
-vm.consumeRequestedSection(vm.$route.query.section)
-assert.deepEqual(replacedRoutes, [{ name: 'settings', query: { keep: '1' } }], 'Consuming a section removes only the one-shot section query')
-assert.equal(scrolledSections.length, 0, 'Section scroll waits until loading completes')
+vm.consumeRequestedSection(vm.requestedSettingsSection)
+assert.deepEqual(scrolledSections, [], 'The import link waits for settings content')
 vm.loading = false
-vm.restoreWorkspacePosition()
-assert.equal(scrolledSections.length, 0, 'Section scroll waits for master data and Talk')
-vm.talkLoaded = true
-vm.onMasterDataLoaded()
-assert.deepEqual(scrolledSections, ['categories'])
-vm.restoreWorkspacePosition()
-assert.deepEqual(scrolledSections, ['categories'], 'Section scroll is one-shot')
-vm.$route = { name: 'settings', query: { section: 'payment-partners' } }
-vm.consumeRequestedSection('payment-partners')
-assert.deepEqual(scrolledSections, ['categories', 'payment-partners'])
-console.log('Master-data section deep links passed: one-shot query cleanup and post-load scrolling.')
+vm.scrollToSettingsTarget()
+vm.scrollToSettingsTarget()
+assert.deepEqual(scrolledSections, ['#settings-imports'], 'The import link scrolls once and falls back to the enable switch')
+vm.$route = { name: 'settings', query: { section: 'api-tokens' } }
+vm.consumeRequestedSection(vm.requestedSettingsSection)
+assert.equal(vm.activeTopic.id, 'integrations')
+assert.deepEqual(scrolledSections, ['#settings-imports', '#api-tokens'])
+vm.$route = { name: 'settings', hash: '#api-tokens', query: {} }
+assert.equal(vm.activeTopic.id, 'integrations', 'A fragment can target the API key section')
+vm.$route = { name: 'settings', query: { section: 'unknown' } }
+assert.equal(vm.requestedTopic, undefined, 'Unknown topics go to the settings entry point')
+assert.equal(vm.activeTopic.id, 'general', 'Desktop settings open on General by default')
+console.log('Settings topics and direct links passed: routing, post-load scrolling and fallback targets.')
 
 // Email preferences share serialized saving and rollback without enabling other channels.
 api.post = post
@@ -291,7 +300,7 @@ console.log('Email settings passed: default-off, address guard and independent s
 vm.applyLocalNextcloudHeaderVisibility = () => ({ showDesktop: true, showMobile: true })
 vm.fetchBackups = async () => {}
 vm.ensureValidWorkspaceContext = async () => {}
-vm.restoreWorkspacePosition = () => {}
+vm.scrollToSettingsTarget = () => {}
 vm.fetchWorkspaceScopedWithRetry = async () => ({ data: [] })
 for (const active of [true, false]) {
 	api.get = async () => ({ data: { enable_payment_imports: true, has_active_automatic_imports: active, api_access_admin_enabled: active, enable_api_access: true } })

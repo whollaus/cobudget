@@ -2,7 +2,7 @@
 
 [English](payment-imports.md) · [Deutsch](payment-imports.de.md) · [Français](payment-imports.fr.md) · **Español**
 
-Activa **Configuración → Funciones → Importación de pagos** para usar ambos métodos. La opción está desactivada de forma predeterminada. Al desactivarla, las importaciones desde carpetas se pausan y conservan su configuración y su progreso. Las importaciones activas se reanudan al volver a activar la opción.
+Activa **Configuración → Importación y API → Importación de pagos** para usar ambos métodos. La opción está desactivada de forma predeterminada. Al desactivarla, las importaciones desde carpetas se pausan y conservan su configuración y su progreso. Las importaciones activas se reanudan al volver a activar la opción.
 
 Para una importación puntual, abre **Importación masiva**. Para importaciones periódicas, configura una carpeta. Ambos métodos utilizan el mismo formato JSON. Tu cuenta figura como pagadora en los gastos y como receptora en los ingresos. En un área compartida, CoBudget aplica el reparto habitual del área.
 
@@ -63,8 +63,8 @@ Tras una interrupción, vuelve a abrir la vista previa con los mismos datos y el
 
 ## Importación automática desde una carpeta
 
-1. Abre **Configuración → Importaciones automáticas**. En la fila del destino, elige una carpeta de Archivos de Nextcloud. Al abrir la configuración, CoBudget prepara la carpeta `CoBudget/Import` como punto de partida. Usa una carpeta distinta para cada destino. Al pausar la importación, la carpeta sigue reservada.
-2. Elige el intervalo (cada 5 o 15 minutos, cada hora o cada día) y cuándo recibir notificaciones (nunca, solo en caso de error o después de cada importación). Luego activa **Activo**. Una vez activa una importación, puedes elegir Nextcloud, correo electrónico o tu chat personal de Talk en **Configuración → Notificaciones**, según los servicios disponibles en el servidor.
+1. Abre **Configuración → Importación y API → Importaciones automáticas**. En la fila del destino, elige una carpeta de Archivos de Nextcloud. Al abrir la configuración, CoBudget prepara la carpeta `CoBudget/Import` como punto de partida. Usa una carpeta distinta para cada destino. Al pausar la importación, la carpeta sigue reservada.
+2. Elige el intervalo (cada 5 o 15 minutos, cada hora o cada día) y cuándo recibir notificaciones (nunca, solo en caso de error o después de cada importación). Luego activa **Activo**. Una vez activa una importación, puedes elegir Nextcloud, correo electrónico o tu chat personal de Talk en **Configuración → Recordatorios y notificaciones**, según los servicios disponibles en el servidor.
 3. Coloca los archivos `.json` completos directamente en la carpeta elegida. Las tareas en segundo plano de Nextcloud revisan la carpeta con el intervalo configurado. Para revisarla de inmediato, pulsa el botón de inicio junto a **Activo**. Los lotes grandes pueden requerir varias ejecuciones.
 4. Para ver los detalles en **Ejecución**, pasa el puntero sobre la fecha y hora, selecciónala con el teclado o tócala. Un icono rojo indica un error o un archivo en espera. Dentro de la carpeta de importación, los archivos procesados pasan a `Verarbeitet` y los rechazados a `Fehler`. Selecciona el nombre del archivo para abrirlo en una pestaña nueva.
 
@@ -86,4 +86,4 @@ Si vuelves a subir un lote idéntico con la misma cuenta, en el mismo espacio de
 
 Si durante el registro desaparece una categoría o un tercero, **Ejecución** muestra el archivo en espera, el nombre que falta y cuántos pagos se han registrado. Los demás archivos se siguen procesando. Pide al propietario del área que restablezca el nombre original. CoBudget retoma el archivo guardado y registra los pagos pendientes con sus respectivas partes.
 
-Si la carpeta se eliminó y se volvió a crear en la misma ruta, selecciónala de nuevo en **Configuración → Importaciones automáticas**. Una vez activa la importación, CoBudget puede terminar de registrar los pagos guardados aunque la nueva carpeta esté vacía.
+Si la carpeta se eliminó y se volvió a crear en la misma ruta, selecciónala de nuevo en **Configuración → Importación y API → Importaciones automáticas**. Una vez activa la importación, CoBudget puede terminar de registrar los pagos guardados aunque la nueva carpeta esté vacía.

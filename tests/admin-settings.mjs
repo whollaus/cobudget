@@ -16,6 +16,20 @@ const vm = { ...component.data(), $texts: Object.fromEntries(['admin', 'apiToken
 for (const [name, method] of Object.entries(component.methods)) vm[name] = method.bind(vm)
 for (const [name, getter] of Object.entries(component.computed)) Object.defineProperty(vm, name, typeof getter === 'function' ? { get: getter.bind(vm) } : { get: getter.get.bind(vm), set: getter.set.bind(vm) })
 
+assert.deepEqual(vm.settingsTopics.map(topic => topic.id), ['categories', 'payment-partners', 'data-quality', 'backups', 'api'])
+vm.$route = { query: {}, hash: '' }
+assert.equal(vm.requestedTopic, undefined)
+assert.equal(vm.activeTopicId, 'categories', 'Desktop defaults to categories and phones show the topic list')
+vm.$route.query.section = 'payment-partners'
+assert.equal(vm.activeTopicId, 'payment-partners')
+for (const hash of ['#cobudget-api-settings', '#cobudget-api-request-limit']) {
+ vm.$route.hash = hash
+ assert.equal(vm.activeTopicId, 'api', 'Existing API anchors open the API topic')
+ assert.equal(vm.apiAnchor, hash, 'The exact legacy anchor is retained as the scroll target')
+}
+vm.$route = { query: { section: 'unknown' }, hash: '#unrelated' }
+assert.equal(vm.requestedTopic, undefined, 'Unknown topics fall back to the settings entry point')
+
 // Restore must still require an exact acknowledgement before any write.
 const backup = { file_name: 'test.zip' }
 vm.openFullBackupRestore(backup)

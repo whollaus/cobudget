@@ -150,7 +150,7 @@
 			<div class="section-header">
 				<h3 class="cobudget-section-heading">{{ $texts.areaDetail.repayments() }}</h3>
 			</div>
-			<RepaymentList :transfers="project.repaymentTransfers" :format-amount="formatCurrency" />
+			<RepaymentList :transfers="project.repaymentTransfers" :currency="$currency" />
 		</div>
 
 		<!-- Active Entries -->
@@ -270,7 +270,7 @@
 						:created-by="settlementAuthor.uid" :created-by-display-name="settlementAuthor.displayName || settlementAuthor.uid"
 						:payment-count="settlementPreview.entryCount" :total="formatCurrency(settlementPreview.totalCents / 100)" />
 					<NcFormGroup class="cobudget-form-group" :label="$texts.areaDetail.repayments()" aria-describedby="area-settlement-hint">
-						<RepaymentList v-if="project.repaymentTransfers?.length" :transfers="project.repaymentTransfers" :format-amount="formatCurrency" />
+						<RepaymentList v-if="project.repaymentTransfers?.length" :transfers="project.repaymentTransfers" :currency="$currency" />
 						<p v-else class="cobudget-form-hint">{{ $texts.areaDetail.noRepaymentNeeded() }}</p>
 						<NcNoteCard id="area-settlement-hint" class="area-settlement-hint" type="info" :text="$texts.areaDetail.settlementSuggestionSaved()" />
 					</NcFormGroup>

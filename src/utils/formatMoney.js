@@ -48,7 +48,7 @@ function cachedFormatter(key, factory) {
 	return formatterCache.get(key)
 }
 
-export function formatNumber(value, options = {}) {
+function formatNumberValue(value, options, method) {
 	const amount = options.absolute ? Math.abs(numericValue(value)) : numericValue(value)
 	const locale = options.locale || getAppLocale()
 	const minimumFractionDigits = options.minimumFractionDigits ?? 2
@@ -63,10 +63,14 @@ export function formatNumber(value, options = {}) {
 		useGrouping,
 	}))
 
-	return formatter.format(amount)
+	return formatter[method](amount)
 }
 
-export function formatMoney(value, currency = 'EUR', options = {}) {
+export function formatNumber(value, options = {}) {
+	return formatNumberValue(value, options, 'format')
+}
+
+function formatMoneyValue(value, currency, options, method) {
 	const amount = options.absolute ? Math.abs(numericValue(value)) : numericValue(value)
 	const locale = options.locale || getAppLocale()
 	const minimumFractionDigits = options.minimumFractionDigits ?? 2
@@ -84,20 +88,31 @@ export function formatMoney(value, currency = 'EUR', options = {}) {
 				maximumFractionDigits,
 				signDisplay,
 			}))
-			return formatter.format(amount)
+			return formatter[method](amount)
 		} catch (error) {
 			// Fall through to a neutral number plus suffix for custom or unsupported currency values.
 		}
 	}
 
-	const number = formatNumber(amount, {
+	const number = formatNumberValue(amount, {
 		locale,
 		minimumFractionDigits,
 		maximumFractionDigits,
 		signDisplay,
-	})
+	}, method)
 
+	if (method === 'formatToParts') {
+		return suffix ? [...number, { type: 'literal', value: ' ' }, { type: 'currency', value: suffix }] : number
+	}
 	return suffix ? `${number} ${suffix}` : number
+}
+
+export function formatMoney(value, currency = 'EUR', options = {}) {
+	return formatMoneyValue(value, currency, options, 'format')
+}
+
+export function formatMoneyToParts(value, currency = 'EUR', options = {}) {
+	return formatMoneyValue(value, currency, options, 'formatToParts')
 }
 
 export function formatSignedMoney(value, currency = 'EUR', options = {}) {

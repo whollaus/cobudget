@@ -38,7 +38,7 @@
 				<thead><tr>
 					<th scope="col" class="settlement-date">{{ $texts.settlements.date() }}</th>
 					<th scope="col" class="settlement-author">{{ $texts.settlements.author() }}</th>
-					<th scope="col" class="settlement-count">{{ $texts.settlements.paymentCount() }}</th>
+					<th scope="col" class="settlement-count">{{ $texts.settlements.entries() }}</th>
 					<th scope="col" class="settlement-total" :title="$texts.settlements.totalHint()">{{ $texts.settlements.total() }}</th>
 					<th scope="col" class="settlement-action"><span class="hidden-visually">{{ $texts.settlements.details() }}</span></th>
 				</tr></thead>
@@ -46,7 +46,7 @@
 					<tr v-for="settlement in settlements" :key="settlement.id" tabindex="0" :aria-label="$texts.settlements.settlementFrom(formatDateTime(settlement.createdAt))" @click="openSettlement(settlement, $event)" @keydown="onSettlementRowKeydown($event, settlement)">
 						<td class="settlement-date">{{ formatDateTime(settlement.createdAt) }}</td>
 						<td class="settlement-created-by" :data-label="$texts.settlements.author()"><MemberIdentity :user-id="settlement.createdBy" :display-name="settlement.createdByDisplayName" /></td>
-						<td class="settlement-count" :data-label="$texts.settlements.paymentCount()">{{ settlement.entryCount }}</td>
+						<td class="settlement-count" :data-label="$texts.settlements.entries()">{{ settlement.entryCount }}</td>
 						<td class="settlement-total" :data-label="$texts.settlements.total()" :title="$texts.settlements.totalHint()">{{ formatCurrency(settlementTotal(settlement), settlement.currency || $currency) }}</td>
 						<td class="settlement-action" @click.stop @keydown.stop>
 							<NcActions v-if="canExportSettlementEntries(settlement)" class="cobudget-action-menu" variant="tertiary" force-menu placement="bottom-end"
@@ -112,14 +112,11 @@
 		</template>
 
 		<DialogTransition :show="!!(activeSettlement)" :return-target="settlementReturnFocus" v-slot="{ returnFocus }">
-			<NcDialog :container="null" :set-return-focus="returnFocus" class="settlement-detail-dialog cobudget-native-dialog cobudget-standard-dialog"
-				:name="$texts.settlements.settlementFrom(formatDateTime(activeSettlement.createdAt))"
-				size="large" close-on-click-outside @closing="closeSettlement">
-				<div ref="settlementSummary" class="settlement-detail-meta" tabindex="-1">
-					<SettlementSummary :area-name="project?.name || ''"
-						:created-by="activeSettlement.createdBy" :created-by-display-name="activeSettlement.createdByDisplayName"
-						:payment-count="activeSettlement.entryCount"
-						:total="formatCurrency(settlementTotal(activeSettlement), activeSettlement.currency || $currency)" />
+			<NcModal :container="null" :show="true" :set-return-focus="returnFocus" class="settlement-detail-dialog cobudget-native-dialog"
+				label-id="settlement-detail-title" size="large" disable-swipe close-on-click-outside
+				@update:show="closeSettlement">
+				<span id="settlement-detail-title" class="hidden-visually">{{ $texts.settlements.settlementFrom(formatDateTime(activeSettlement.createdAt)) }}</span>
+				<div class="settlement-detail-layout">
 					<NcButton
 						variant="tertiary"
 						class="cobudget-native-button settlement-detail-print-button"
@@ -128,120 +125,124 @@
 						<template #icon><PrinterIcon :size="20" /></template>
 						{{ $texts.analytics.print() }}
 					</NcButton>
-				</div>
-				<div class="settlement-detail-content">
-					<section class="settlement-subsection">
-						<h3 class="cobudget-subheading">{{ $texts.settlements.balanceBeforeSettlement() }}</h3>
-						<MemberBalanceList :balances="activeSettlement.balances || []" :format-amount="value => formatCurrency(value, activeSettlement.currency || $currency)" />
-					</section>
+					<div ref="settlementSummary" class="settlement-detail-meta" tabindex="-1">
+						<SettlementSummary :area-name="project?.name || ''"
+							:settlement-date="formatDateTime(activeSettlement.createdAt)"
+							:created-by="activeSettlement.createdBy" :created-by-display-name="activeSettlement.createdByDisplayName"
+							:payment-count="activeSettlement.entryCount"
+							:total="formatCurrency(settlementTotal(activeSettlement), activeSettlement.currency || $currency)" />
+					</div>
+					<div class="settlement-detail-content">
+						<section class="settlement-subsection">
+							<h3 class="cobudget-subheading">{{ $texts.settlements.balanceBeforeSettlement() }}</h3>
+							<MemberBalanceList :balances="activeSettlement.balances || []" :format-amount="value => formatCurrency(value, activeSettlement.currency || $currency)" />
+						</section>
 
-					<section class="settlement-subsection">
-						<h3 class="cobudget-subheading">{{ $texts.settlements.repayments() }}</h3>
-						<RepaymentList v-if="activeSettlement.transfers && activeSettlement.transfers.length > 0" :transfers="activeSettlement.transfers" :format-amount="value => formatCurrency(value, activeSettlement.currency || $currency)" />
-						<p v-else class="cobudget-form-hint">{{ $texts.settlements.noRepaymentNeeded() }}</p>
-					</section>
+						<section class="settlement-subsection">
+							<h3 class="cobudget-subheading">{{ $texts.settlements.repayments() }}</h3>
+							<RepaymentList v-if="activeSettlement.transfers && activeSettlement.transfers.length > 0" :transfers="activeSettlement.transfers" :currency="activeSettlement.currency || $currency" />
+							<p v-else class="cobudget-form-hint">{{ $texts.settlements.noRepaymentNeeded() }}</p>
+						</section>
 
-					<section ref="settlementEntries" class="settlement-subsection settlement-entries-section">
-						<div class="settlement-subsection-header">
-							<h3 class="cobudget-subheading">{{ $texts.settlements.entries() }}</h3>
-							<NcActions v-if="canExportSettlementEntries(activeSettlement)" class="cobudget-action-menu" variant="tertiary" force-menu placement="bottom-end" :aria-label="$texts.filters.listActions()" @close="detailCsvMenuOpen = false">
-								<template v-if="detailCsvMenuOpen">
-									<NcActionButton key="detail-csv-back" ref="detailCsvBack" class="cobudget-action-menu-option cobudget-menu-back" :close-after-click="false" @click="showDetailCsvMenu(false)">
-										<template #icon><ArrowLeftIcon :size="20" /></template>
-										{{ $texts.common.exportCsv() }}
-									</NcActionButton>
-									<NcActionButton key="detail-csv-download" class="cobudget-action-menu-option" close-after-click :disabled="isExporting" :description="$texts.annual.downloadCsvHint()" @click="exportEntries(activeSettlement)">
-										<template #icon><DownloadIcon :size="20" /></template>
-										{{ $texts.common.download() }}
-									</NcActionButton>
-									<NcActionButton key="detail-csv-save" class="cobudget-action-menu-option" close-after-click :disabled="isExporting" :description="$texts.annual.saveInNextcloudHint()" @click="saveEntriesInNextcloud(activeSettlement)">
-										<template #icon><CloudUploadOutlineIcon :size="20" /></template>
-										{{ $texts.annual.saveInNextcloud() }}
-									</NcActionButton>
-									<NcActionButton key="detail-csv-copy" class="cobudget-action-menu-option" close-after-click :disabled="isExporting || !canCopySettlementEntriesToClipboard(activeSettlement)" :description="settlementClipboardExportDescription(activeSettlement)" @click="copyEntriesToClipboard(activeSettlement)">
-										<template #icon><ClipboardTextOutlineIcon :size="20" /></template>
-										{{ $texts.common.copyToClipboard() }}
-									</NcActionButton>
-								</template>
-								<template v-else>
-									<NcActionButton key="detail-csv-trigger" ref="detailCsvTrigger" class="cobudget-action-menu-option" is-menu :close-after-click="false" :disabled="isExporting" @click="showDetailCsvMenu(true)">
-										<template #icon><DownloadIcon :size="20" /></template>
-										{{ $texts.common.exportCsv() }}
-									</NcActionButton>
-									<NcActionButton key="detail-print" class="cobudget-action-menu-option" close-after-click :disabled="isPrinting" @click="printEntries(activeSettlement)">
-										<template #icon><PrinterIcon :size="20" /></template>
-										{{ $texts.analytics.print() }}
-									</NcActionButton>
-								</template>
-							</NcActions>
-						</div>
-						<p v-if="settlementEntryState(activeSettlement).loading" class="settlement-loading cobudget-form-hint" role="status">
-							<NcLoadingIcon :size="20" /> {{ $texts.common.loading() }}
-						</p>
-						<NcNoteCard v-else-if="settlementEntryState(activeSettlement).error" type="error">
-							<p>{{ settlementEntryState(activeSettlement).error }}</p>
-							<NcButton variant="secondary" class="cobudget-native-button" @click="fetchSettlementEntries(activeSettlement, settlementEntryState(activeSettlement).offset)">{{ $texts.common.retry() }}</NcButton>
-						</NcNoteCard>
-						<template v-else>
-							<div
-								v-if="settlementEntryState(activeSettlement).entries.length > 0"
-								class="settlement-entry-table"
-								:aria-busy="settlementEntryState(activeSettlement).loading ? 'true' : 'false'">
-								<EntryTable
-									mode="project"
-									:entries="settlementEntryState(activeSettlement).entries"
-									:currency="activeSettlement.currency || $currency"
-									:date-label="$texts.entry.tableDate()"
-									sort-by="date"
-									sort-dir="desc"
-									:enable-fixed-costs="$enableFixedCosts"
-									:enable-subscriptions="$enableSubscriptions"
-									:enable-child-related="$enableChildRelated"
-									:enable-important-payments="$enableImportantPayments"
-									:enable-review-payments="$enableReviewPayments"
-									:enable-tax-relevant="$enableTaxRelevant"
-									:enable-insurance="$enableInsurance"
-									:actions-enabled="false"
-									:sort-enabled="false"
-									:row-clickable="false"
-									:archived="false"
-									:group-by-date="false"
-									:project-name-resolver="getProjectName"
-									:project-color-resolver="getProjectColor"
-									:member-name-resolver="getMemberName"
-									@history="openEntryHistory" />
+						<section ref="settlementEntries" class="settlement-subsection settlement-entries-section">
+							<div class="settlement-subsection-header">
+								<h3 class="cobudget-subheading">{{ $texts.settlements.entries() }}</h3>
+								<NcActions v-if="canExportSettlementEntries(activeSettlement)" class="cobudget-action-menu" variant="tertiary" force-menu placement="bottom-end" :aria-label="$texts.filters.listActions()" @close="detailCsvMenuOpen = false">
+									<template v-if="detailCsvMenuOpen">
+										<NcActionButton key="detail-csv-back" ref="detailCsvBack" class="cobudget-action-menu-option cobudget-menu-back" :close-after-click="false" @click="showDetailCsvMenu(false)">
+											<template #icon><ArrowLeftIcon :size="20" /></template>
+											{{ $texts.common.exportCsv() }}
+										</NcActionButton>
+										<NcActionButton key="detail-csv-download" class="cobudget-action-menu-option" close-after-click :disabled="isExporting" :description="$texts.annual.downloadCsvHint()" @click="exportEntries(activeSettlement)">
+											<template #icon><DownloadIcon :size="20" /></template>
+											{{ $texts.common.download() }}
+										</NcActionButton>
+										<NcActionButton key="detail-csv-save" class="cobudget-action-menu-option" close-after-click :disabled="isExporting" :description="$texts.annual.saveInNextcloudHint()" @click="saveEntriesInNextcloud(activeSettlement)">
+											<template #icon><CloudUploadOutlineIcon :size="20" /></template>
+											{{ $texts.annual.saveInNextcloud() }}
+										</NcActionButton>
+										<NcActionButton key="detail-csv-copy" class="cobudget-action-menu-option" close-after-click :disabled="isExporting || !canCopySettlementEntriesToClipboard(activeSettlement)" :description="settlementClipboardExportDescription(activeSettlement)" @click="copyEntriesToClipboard(activeSettlement)">
+											<template #icon><ClipboardTextOutlineIcon :size="20" /></template>
+											{{ $texts.common.copyToClipboard() }}
+										</NcActionButton>
+									</template>
+									<template v-else>
+										<NcActionButton key="detail-csv-trigger" ref="detailCsvTrigger" class="cobudget-action-menu-option" is-menu :close-after-click="false" :disabled="isExporting" @click="showDetailCsvMenu(true)">
+											<template #icon><DownloadIcon :size="20" /></template>
+											{{ $texts.common.exportCsv() }}
+										</NcActionButton>
+										<NcActionButton key="detail-print" class="cobudget-action-menu-option" close-after-click :disabled="isPrinting" @click="printEntries(activeSettlement)">
+											<template #icon><PrinterIcon :size="20" /></template>
+											{{ $texts.analytics.print() }}
+										</NcActionButton>
+									</template>
+								</NcActions>
 							</div>
-							<p v-else class="cobudget-form-hint">{{ $texts.settlements.noEntries() }}</p>
+							<p v-if="settlementEntryState(activeSettlement).loading" class="settlement-loading cobudget-form-hint" role="status">
+								<NcLoadingIcon :size="20" /> {{ $texts.common.loading() }}
+							</p>
+							<NcNoteCard v-else-if="settlementEntryState(activeSettlement).error" type="error">
+								<p>{{ settlementEntryState(activeSettlement).error }}</p>
+								<NcButton variant="secondary" class="cobudget-native-button" @click="fetchSettlementEntries(activeSettlement, settlementEntryState(activeSettlement).offset)">{{ $texts.common.retry() }}</NcButton>
+							</NcNoteCard>
+							<template v-else>
+								<div
+									v-if="settlementEntryState(activeSettlement).entries.length > 0"
+									class="settlement-entry-table"
+									:aria-busy="settlementEntryState(activeSettlement).loading ? 'true' : 'false'">
+									<EntryTable
+										mode="project"
+										:entries="settlementEntryState(activeSettlement).entries"
+										:currency="activeSettlement.currency || $currency"
+										:date-label="$texts.entry.tableDate()"
+										sort-by="date"
+										sort-dir="desc"
+										:enable-fixed-costs="$enableFixedCosts"
+										:enable-subscriptions="$enableSubscriptions"
+										:enable-child-related="$enableChildRelated"
+										:enable-important-payments="$enableImportantPayments"
+										:enable-review-payments="$enableReviewPayments"
+										:enable-tax-relevant="$enableTaxRelevant"
+										:enable-insurance="$enableInsurance"
+										:actions-enabled="false"
+										:sort-enabled="false"
+										:row-clickable="false"
+										:archived="false"
+										:group-by-date="false"
+										:project-name-resolver="getProjectName"
+										:project-color-resolver="getProjectColor"
+										:member-name-resolver="getMemberName"
+										@history="openEntryHistory" />
+								</div>
+								<p v-else class="cobudget-form-hint">{{ $texts.settlements.noEntries() }}</p>
 
-							<nav
-								v-if="settlementEntryState(activeSettlement).total > settlementEntryState(activeSettlement).limit"
-								class="settlement-entry-pagination"
-								:aria-label="$texts.settlements.entries()">
-								<NcButton :aria-label="$texts.common.previous()"
-									variant="secondary"
-									class="btn-page cobudget-native-button"
-									:style="{ visibility: settlementEntryState(activeSettlement).offset > 0 ? 'visible' : 'hidden' }"
-									@click="previousSettlementEntryPage(activeSettlement)">
-									<template #icon><ArrowLeftIcon :size="20" /></template>
-									<span>{{ $texts.common.previous() }}</span>
-								</NcButton>
-								<span class="page-info">{{ settlementEntryPaginationInfo(activeSettlement) }}</span>
-								<NcButton :aria-label="$texts.common.next()" alignment="center-reverse"
-									variant="secondary"
-									class="btn-page cobudget-native-button"
-									:style="{ visibility: settlementEntryHasNextPage(activeSettlement) ? 'visible' : 'hidden' }"
-									@click="nextSettlementEntryPage(activeSettlement)">
-									<span>{{ $texts.common.next() }}</span>
-									<template #icon><ArrowRightIcon :size="20" /></template>
-								</NcButton>
-							</nav>
-						</template>
-					</section>
+								<nav
+									v-if="settlementEntryState(activeSettlement).total > settlementEntryState(activeSettlement).limit"
+									class="settlement-entry-pagination"
+									:aria-label="$texts.settlements.entries()">
+									<NcButton :aria-label="$texts.common.previous()"
+										variant="secondary"
+										class="btn-page cobudget-native-button"
+										:style="{ visibility: settlementEntryState(activeSettlement).offset > 0 ? 'visible' : 'hidden' }"
+										@click="previousSettlementEntryPage(activeSettlement)">
+										<template #icon><ArrowLeftIcon :size="20" /></template>
+										<span>{{ $texts.common.previous() }}</span>
+									</NcButton>
+									<span class="page-info">{{ settlementEntryPaginationInfo(activeSettlement) }}</span>
+									<NcButton :aria-label="$texts.common.next()" alignment="center-reverse"
+										variant="secondary"
+										class="btn-page cobudget-native-button"
+										:style="{ visibility: settlementEntryHasNextPage(activeSettlement) ? 'visible' : 'hidden' }"
+										@click="nextSettlementEntryPage(activeSettlement)">
+										<span>{{ $texts.common.next() }}</span>
+										<template #icon><ArrowRightIcon :size="20" /></template>
+									</NcButton>
+								</nav>
+							</template>
+						</section>
+					</div>
 				</div>
-				<template #actions>
-					<NcButton variant="tertiary" class="cobudget-native-button" @click="closeSettlement">{{ $texts.common.close() }}</NcButton>
-				</template>
-			</NcDialog>
+			</NcModal>
 		</DialogTransition>
 
 		<DialogTransition :show="!!(entryHistoryOpen)" v-slot="{ returnFocus }">
@@ -272,7 +273,7 @@ import DownloadIcon from 'vue-material-design-icons/Download.vue'
 import CloudUploadOutlineIcon from 'vue-material-design-icons/CloudUploadOutline.vue'
 import ClipboardTextOutlineIcon from 'vue-material-design-icons/ClipboardTextOutline.vue'
 import PrinterIcon from 'vue-material-design-icons/Printer.vue'
-import NcDialog from '@nextcloud/vue/components/NcDialog'
+import NcModal from '@nextcloud/vue/components/NcModal'
 import ChevronRightIcon from 'vue-material-design-icons/ChevronRight.vue'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
 import ArrowRightIcon from 'vue-material-design-icons/ArrowRight.vue'
@@ -300,7 +301,7 @@ export default {
 		MemberBalanceList,
 		MemberIdentity,
 		SettlementSummary,
-		NcLoadingIcon, NcEmptyContent, NcNoteCard, HistoryIcon, NcDialog, ChevronRightIcon,
+		NcLoadingIcon, NcEmptyContent, NcNoteCard, HistoryIcon, NcModal, ChevronRightIcon,
 		DownloadIcon,
 		CloudUploadOutlineIcon,
 		ClipboardTextOutlineIcon,
@@ -1129,22 +1130,35 @@ export default {
 	justify-content: center;
 }
 
-.settlement-detail-meta {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
+.settlement-detail-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-rows: minmax(var(--default-clickable-area), auto) auto auto;
 	gap: var(--cobudget-content-gap);
-	margin-bottom: var(--cobudget-section-gap);
-	padding-inline: var(--cobudget-dialog-padding, 24px);
+	align-items: center;
+	padding-block-start: var(--default-grid-baseline, 4px);
+}
+
+.settlement-detail-print-button {
+	/* Span the content so the action stays beside the native close button while scrolling. */
+	grid-area: 1 / 2 / 4 / 3;
+	position: sticky;
+	inset-block-start: var(--default-grid-baseline, 4px);
+	align-self: start;
+	margin-inline-end: calc(var(--default-clickable-area) + 2 * var(--default-grid-baseline, 4px));
+	background-color: var(--color-main-background);
+	z-index: 1;
+}
+
+.settlement-detail-meta {
+	--settlement-detail-table-inset: var(--cobudget-dialog-padding, 24px);
+	grid-area: 2 / 1 / 3 / -1;
+	min-width: 0;
+	margin-block-end: var(--cobudget-content-gap);
 }
 .settlement-detail-meta:focus { outline: none; }
-.settlement-detail-meta :deep(.settlement-summary) {
-	flex: 1 1 auto;
-	min-width: 0;
-}
-.settlement-detail-print-button {
-	flex: 0 0 auto;
-}
+.settlement-detail-meta :deep(th) { padding-inline-start: var(--settlement-detail-table-inset); }
+.settlement-detail-meta :deep(td) { padding-inline-end: var(--settlement-detail-table-inset); }
 
 .settlement-pagination {
 	display: grid;
@@ -1185,6 +1199,8 @@ export default {
 }
 
 .settlement-detail-content {
+	grid-area: 3 / 1 / 4 / -1;
+	min-width: 0;
 	display: flex;
 	flex-direction: column;
 	gap: var(--cobudget-settings-heading-gap);
@@ -1327,6 +1343,8 @@ export default {
 	.settings-header { margin-block-end: var(--cobudget-card-gap); }
 	.settlement-project-name { margin-block-end: var(--default-grid-baseline, 4px); }
 	.settlement-detail-content { gap: var(--cobudget-section-gap); }
+	.settlement-detail-dialog { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
+	.settlement-detail-meta { --settlement-detail-table-inset: calc(var(--default-grid-baseline, 4px) * 2); }
 	.settlement-detail-content :deep(.member-balance-list .balance-details) { padding-block-start: 0; }
 
 	.btn-page { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }

@@ -529,15 +529,11 @@ console.log('Advanced area visibility passed: enabled persisted scopes, selectio
 
 {
  const state = editorVm()
- const scrolled = []
- state.$el = {
-  querySelector: selector => selector === '[data-master-section="payment-partners"]'
-   ? { scrollIntoView: options => scrolled.push(options) }
-   : null,
- }
- assert.equal(state.scrollToSection('unknown'), false)
- assert.equal(state.scrollToSection('categories'), false)
- assert.equal(state.scrollToSection('payment-partners'), true)
- assert.deepEqual(scrolled, [{ block: 'start', inline: 'nearest', behavior: 'instant' }])
+ assert.deepEqual(state.visibleKinds, ['categories', 'payment-partners'], 'Admin and area settings show both lists')
+ state.sectionKind = 'categories'
+ assert.deepEqual(state.visibleKinds, ['categories'])
+ state.sectionKind = 'payment-partners'
+ assert.deepEqual(state.visibleKinds, ['payment-partners'])
+ assert.deepEqual(Object.keys(state.rows), ['categories', 'payment-partners'], 'Switching topics keeps both datasets in the manager')
 }
-console.log('Master-data section scrolling passed.')
+console.log('Separate master-data settings views passed.')

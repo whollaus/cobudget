@@ -238,13 +238,16 @@ console.log('Member balances passed: paid/share columns, signed and zero amounts
 // Repayments keep payer/recipient direction and saved currency in the shared table.
 const repaymentSource = fs.readFileSync(new URL('../src/components/RepaymentList.vue', import.meta.url), 'utf8')
 const repaymentDescriptor = parse(repaymentSource).descriptor
-const repaymentComponent = new Function('MemberIdentity', repaymentDescriptor.script.content.replace(/^import .*$/gm, '').replace('export default', 'return'))(identity)
+const repaymentComponent = new Function('MemberIdentity', 'formatMoneyToParts', repaymentDescriptor.script.content.replace(/^import .*$/gm, '').replace('export default', 'return'))(
+ identity,
+ (amount, currency) => new Intl.NumberFormat('de-AT', { style: 'currency', currency }).formatToParts(amount),
+)
 const repaymentTemplate = compileTemplate({ source: repaymentDescriptor.template.content, filename: 'RepaymentList.vue', id: 'repayment-test', compilerOptions: { mode: 'function' } })
 assert.deepEqual(repaymentTemplate.errors, [])
 repaymentComponent.render = new Function('Vue', repaymentTemplate.code)(Vue)
 const repaymentApp = Vue.createSSRApp(repaymentComponent, {
- transfers: [{ fromUserId: 'former:a', fromDisplayName: 'Former <payer>', toUserId: 'b', toDisplayName: 'Recipient', amountCents: 1000, amount: 10 }],
- formatAmount: value => vm.formatCurrency(value, 'CHF'),
+ transfers: [{ fromUserId: 'former:a', fromDisplayName: 'Former <payer>', toUserId: 'b', toDisplayName: 'Recipient', amountCents: 123456, amount: 1234.56 }],
+ currency: 'CHF',
 })
 repaymentApp.config.globalProperties.$texts = { repayments: { from: () => 'From', to: () => 'To', amount: () => 'Amount' } }
 const repaymentHtml = await renderToString(repaymentApp)
@@ -252,7 +255,9 @@ assert.equal((repaymentHtml.match(/scope="col"/g) || []).length, 3)
 for (const label of ['From', 'To', 'Amount']) assert.ok(repaymentHtml.includes(`>${label}</th>`))
 assert.match(repaymentHtml, /Former &lt;payer&gt;/)
 assert.ok(repaymentHtml.indexOf('data-user="former:a"') < repaymentHtml.indexOf('data-user="b"'))
-assert.match(repaymentHtml, /CHF 10/)
+assert.match(repaymentHtml, /class="repayment-full-amount">CHF\s1\.234,56<\/strong>/)
+assert.match(repaymentHtml, /class="repayment-currency">CHF<\/bdi>/)
+assert.match(repaymentHtml, /class="repayment-number">1\.234,56<\/bdi>/)
 assert.doesNotMatch(repaymentHtml, /EUR|undefined|NaN/)
 console.log('Repayment table passed: column headers, payer/recipient order, escaped names, former IDs and caller currency; native identity rendering stubbed.')
 
@@ -453,14 +458,14 @@ console.log('Historical payment table passed: no inert sorting/row tab stops, hi
 const viewDescriptor = parse(source).descriptor
 const viewTemplate = compileTemplate({ source: viewDescriptor.template.content, filename: 'ProjectSettlementsView.vue', id: 'settlement-view-test', compilerOptions: { mode: 'function' } })
 assert.deepEqual(viewTemplate.errors, [])
-const dialogShell = { props: ['name'], setup: (props, {slots}) => () => Vue.h('div', {role: 'dialog', 'aria-label': props.name}, [slots.default?.(), slots.actions?.()]) }
+const dialogShell = { props: ['labelId'], setup: (props, {slots}) => () => Vue.h('div', {role: 'dialog', 'aria-labelledby': props.labelId}, slots.default?.()) }
 const detailSnapshot = { ...settlement, createdAt: 1793232000, createdBy: 'a', createdByDisplayName: 'Alex', transfers: [{fromUserId:'a',toUserId:'b',amount:10}], balances: balances.map((balance, index) => ({...balance, paidCents: index === 0 ? 20000 : 0, receivedCents: 0})) }
 const otherSnapshot = { ...detailSnapshot, id: 11, createdByDisplayName: 'Other creator', currency: 'USD' }
 const summaryComponent = loadTableComponent('SettlementSummary', {MemberIdentity: identity})
 async function renderOverview(openSettlementId = null) {
  const view = {
   ...component,
-  components: Object.fromEntries(Object.keys(component.components).map(key => [key, key === 'DialogTransition' ? { props: ['show'], setup: (props, { slots }) => () => props.show ? slots.default?.({ returnFocus: () => false }) : null } : key === 'SettlementSummary' ? summaryComponent : key === 'NcDialog' ? dialogShell : key === 'MemberIdentity' ? identity : key === 'NcButton' ? { setup: (_, {slots}) => () => Vue.h('button', [slots.default?.(), slots.icon?.()]) } : shell])),
+  components: Object.fromEntries(Object.keys(component.components).map(key => [key, key === 'DialogTransition' ? { props: ['show'], setup: (props, { slots }) => () => props.show ? slots.default?.({ returnFocus: () => false }) : null } : key === 'SettlementSummary' ? summaryComponent : key === 'NcModal' ? dialogShell : key === 'MemberIdentity' ? identity : key === 'NcButton' ? { setup: (_, {slots}) => () => Vue.h('button', [slots.default?.(), slots.icon?.()]) } : shell])),
   render: new Function('Vue', viewTemplate.code)(Vue),
   data: () => ({ ...component.data(), loading: false, project: {id:4,name:'Area <name>'}, settlements: [detailSnapshot,otherSnapshot], openSettlementId, pagination: {limit:10,offset:0,total:2} }),
  }
@@ -478,14 +483,15 @@ assert.match(overviewHtml, /Alex/); assert.match(overviewHtml, /Other creator/)
 assert.doesNotMatch(overviewHtml, /role="dialog"|settlement-detail-content/)
 const detailHtml = await renderOverview(10)
 assert.equal((detailHtml.match(/role="dialog"/g) || []).length, 1)
-assert.match(detailHtml, /aria-label="settlementFrom:/)
+assert.match(detailHtml, /aria-labelledby="settlement-detail-title"/)
+assert.match(detailHtml, /<span id="settlement-detail-title" class="hidden-visually">settlementFrom:/)
+assert.doesNotMatch(detailHtml, /#actions|>close:<\/button>/)
 assert.match(detailHtml, /Area &lt;name&gt;/)
 assert.equal((detailHtml.match(/settlement-detail-content/g) || []).length, 1)
 assert.match(detailHtml, /balanceBeforeSettlement/)
-assert.match(detailHtml, /<dt>area::<\/dt>/)
-assert.match(detailHtml, /<dt>author::<\/dt>/)
-assert.match(detailHtml, /<dt>paymentCount::<\/dt>/)
-assert.match(detailHtml, /class="settlement-summary"[\s\S]*?class="settlement-summary-total">CHF 200<\/dd>/, 'Dialog summary uses the same total and saved currency as its overview row')
+assert.deepEqual([...detailHtml.matchAll(/<th scope="row">([^<]+)<\/th>/g)].map(match => match[1]), ['area:', 'date:', 'author:', 'paymentCount:', 'total:'])
+assert.ok(detailHtml.includes(`<th scope="row">date:</th><td>${vm.formatDateTime(detailSnapshot.createdAt)}</td>`))
+assert.match(detailHtml, /class="settlement-summary"[\s\S]*?class="settlement-summary-total">CHF 200<\/td>/, 'Dialog summary uses the same total and saved currency as its overview row')
 assert.match(source, /<NcButton\s+variant="tertiary"\s+class="cobudget-native-button settlement-detail-print-button"/, 'Settlement detail header print button uses tertiary variant')
 console.log('Settlement table/dialog rendering passed: compact overview, one selected snapshot, escaped area context and native detail action shells.')
 

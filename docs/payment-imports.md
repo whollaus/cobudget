@@ -2,7 +2,7 @@
 
 **English** · [Deutsch](payment-imports.de.md) · [Français](payment-imports.fr.md) · [Español](payment-imports.es.md)
 
-Enable **Settings → Features → Payment imports** to use either import method. It is off by default. Turning it off pauses folder imports and keeps their settings and progress. Active folders resume when you turn it back on.
+Enable **Settings → Import and API → Payment imports** to use either import method. It is off by default. Turning it off pauses folder imports and keeps their settings and progress. Active folders resume when you turn it back on.
 
 Use **Bulk import** for a one-off batch or set up a folder for regular imports. Both use the same JSON format. Your account is the payer for expenses and the recipient for income. In a shared area, CoBudget applies the area’s usual split.
 
@@ -63,8 +63,8 @@ After an interruption, preview the same data again for the same destination. The
 
 ## Automatic folder import
 
-1. Open **Settings → Automatic imports**. Choose a Nextcloud Files folder on the row for your destination. Settings prepares `CoBudget/Import` as a starting point. Use a separate folder for each destination. A paused import keeps its folder reserved.
-2. Choose an interval (every 5 or 15 minutes, hourly or daily), set notifications (off, errors only or after every import), then enable **Active**. Once an import is active, you can select Nextcloud, email or personal Talk under **Settings → Notifications**, depending on server availability.
+1. Open **Settings → Import and API → Automatic imports**. Choose a Nextcloud Files folder on the row for your destination. Settings prepares `CoBudget/Import` as a starting point. Use a separate folder for each destination. A paused import keeps its folder reserved.
+2. Choose an interval (every 5 or 15 minutes, hourly or daily), set notifications (off, errors only or after every import), then enable **Active**. Once an import is active, you can select Nextcloud, email or personal Talk under **Settings → Reminders and notifications**, depending on server availability.
 3. Place complete `.json` files directly in the chosen folder. Nextcloud background jobs check it at the configured interval. To check it immediately, select the play button next to **Active**. Large batches can span several runs.
 4. Hover over, focus or tap the timestamp under **Last run** for details. A red icon marks an error or a waiting file. Completed files move to `Verarbeitet` and rejected files to `Fehler` inside the import folder. Select the filename to open the file in a new browser tab.
 
@@ -86,4 +86,4 @@ Uploading an identical batch again leaves the booked payments intact, even under
 
 If a category or payment partner disappears after booking has started, **Last run** shows the waiting file, the missing name and the booked count. Other files continue. Ask the area owner to restore the original name. CoBudget then resumes the saved file and books the remaining payments and shares.
 
-If the input folder was deleted and recreated at the same path, select it again in **Settings → Automatic imports**. Once the import is active, CoBudget can finish the saved payments even if the replacement folder is empty.
+If the input folder was deleted and recreated at the same path, select it again in **Settings → Import and API → Automatic imports**. Once the import is active, CoBudget can finish the saved payments even if the replacement folder is empty.

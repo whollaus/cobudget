@@ -72,8 +72,8 @@ namespace CoBudget\Tests\ApiToken {
 		private array $rows;
 		private int $index = 0;
 
-		public function __construct(\PDOStatement $stmt) {
-			$this->rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+		public function __construct(array $rows) {
+			$this->rows = $rows;
 		}
 
 		public function fetch(): array|false {
@@ -232,35 +232,34 @@ namespace CoBudget\Tests\ApiToken {
 			if ($this->limit !== null) {
 				$sql .= ' LIMIT ' . $this->limit;
 			}
-			return new ApiTokenTestResult($this->run($sql));
+			return new ApiTokenTestResult($this->run($sql, static fn(\PDOStatement $stmt) => $stmt->fetchAll(\PDO::FETCH_ASSOC)));
 		}
 
 		public function executeStatement(): int {
+			return $this->run($this->getWriteSql(), static fn(\PDOStatement $stmt) => $stmt->rowCount());
+		}
+
+		private function getWriteSql(): string {
 			if ($this->mode === 'insert') {
 				$cols = array_keys($this->insertValues);
 				$vals = array_values($this->insertValues);
-				$sql = 'INSERT INTO ' . $this->table . ' (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
-				return $this->run($sql)->rowCount();
-			}
-			if ($this->mode === 'update') {
+				return 'INSERT INTO ' . $this->table . ' (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
+			} elseif ($this->mode === 'update') {
 				$sets = [];
 				foreach ($this->setValues as $col => $val) {
 					$sets[] = $col . ' = ' . $val;
 				}
 				$sql = 'UPDATE ' . $this->table . ' SET ' . implode(', ', $sets);
-				if ($this->wheres !== []) {
-					$sql .= ' WHERE ' . implode(' AND ', $this->wheres);
-				}
-				return $this->run($sql)->rowCount();
+			} else {
+				$sql = 'DELETE FROM ' . $this->table;
 			}
-			$sql = 'DELETE FROM ' . $this->table;
 			if ($this->wheres !== []) {
 				$sql .= ' WHERE ' . implode(' AND ', $this->wheres);
 			}
-			return $this->run($sql)->rowCount();
+			return $sql;
 		}
 
-		private function run(string $sql): \PDOStatement {
+		private function run(string $sql, callable $consume): mixed {
 			$stmt = $this->db->pdo->prepare($sql);
 			foreach ($this->params as $key => $meta) {
 				$val = $meta['value'];
@@ -271,8 +270,13 @@ namespace CoBudget\Tests\ApiToken {
 				}
 				$stmt->bindValue($key, $val, $type);
 			}
-			$stmt->execute();
-			return $stmt;
+			try {
+				$stmt->execute();
+				return $consume($stmt);
+			} finally {
+				// Release SQLite's statement even when a competing write raises SQLITE_BUSY.
+				$stmt->closeCursor();
+			}
 		}
 	}
 

@@ -1,7 +1,7 @@
 # CoBudget REST API v1 (Beta)
 
 The API lets external scripts and integrations work with CoBudget through personal
-API keys. It is a Beta feature in CoBudget 1.3.0. Parameters, response fields and
+API keys. The API has been in Beta since CoBudget 1.3.0. Parameters, response fields and
 behavior may change while the API is in Beta. Check [the changelog](../CHANGELOG.md)
 before updating an integration.
 
@@ -14,7 +14,7 @@ before updating an integration.
 2. In **Administration settings → CoBudget → API access (Beta)**, enable API
    access for all users. The instance-wide switch starts off. Changing it
    requires Nextcloud password confirmation.
-3. In **CoBudget → Settings → API access (Beta)**, enable personal API access
+3. In **CoBudget → Settings → Import and API → API access (Beta)**, enable personal API access
    with Nextcloud password confirmation. Choose **New API key**, name the
    integration and select its workspace, permissions and optional expiration.
 4. Copy the key when it is shown and store it as a secret in your integration.

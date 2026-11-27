@@ -2,7 +2,7 @@
 
 [English](payment-imports.md) · **Deutsch** · [Français](payment-imports.fr.md) · [Español](payment-imports.es.md)
 
-Aktiviere **Einstellungen → Funktionen → Zahlungsimport**, um beide Importwege zu nutzen. Die Funktion ist standardmäßig ausgeschaltet. Beim Ausschalten pausieren die Ordnerimporte. Einstellungen und Buchungsstand bleiben gespeichert. Beim erneuten Einschalten laufen die aktiven Ordnerimporte weiter.
+Aktiviere **Einstellungen → Import & API → Zahlungsimport**, um beide Importwege zu nutzen. Die Funktion ist standardmäßig ausgeschaltet. Beim Ausschalten pausieren die Ordnerimporte. Einstellungen und Buchungsstand bleiben gespeichert. Beim erneuten Einschalten laufen die aktiven Ordnerimporte weiter.
 
 Für einen einmaligen Import verwendest du den **Bulk-Import**. Für regelmäßige Importe kannst du einen Ordner einrichten. Beide verwenden dasselbe JSON-Format. Bei Ausgaben bist du der Zahler, bei Einnahmen der Empfänger. In gemeinsamen Bereichen gilt die übliche Aufteilung des Bereichs.
 
@@ -63,8 +63,8 @@ Nach einem Abbruch kannst du dieselben Daten für dasselbe Ziel erneut prüfen. 
 
 ## Automatischer Ordnerimport
 
-1. Öffne **Einstellungen → Automatische Importe**. Wähle in der Zeile des gewünschten Ziels einen Ordner aus Nextcloud Files. Beim Öffnen der Einstellungen wird `CoBudget/Import` als Ausgangsordner angelegt. Verwende für jedes Ziel einen eigenen Ordner. Er bleibt auch bei pausiertem Import reserviert.
-2. Wähle das Intervall (alle 5 oder 15 Minuten, stündlich oder täglich) und die Benachrichtigung (aus, nur bei Fehlern oder nach jedem Import). Schalte **Aktiv** ein. Sobald ein Import aktiv ist, kannst du unter **Einstellungen → Benachrichtigungen** je nach Server Nextcloud, E-Mail oder deinen persönlichen Talk-Chat auswählen.
+1. Öffne **Einstellungen → Import & API → Automatische Importe**. Wähle in der Zeile des gewünschten Ziels einen Ordner aus Nextcloud Files. Beim Öffnen der Einstellungen wird `CoBudget/Import` als Ausgangsordner angelegt. Verwende für jedes Ziel einen eigenen Ordner. Er bleibt auch bei pausiertem Import reserviert.
+2. Wähle das Intervall (alle 5 oder 15 Minuten, stündlich oder täglich) und die Benachrichtigung (aus, nur bei Fehlern oder nach jedem Import). Schalte **Aktiv** ein. Sobald ein Import aktiv ist, kannst du unter **Einstellungen → Erinnerungen & Benachrichtigungen** je nach Server Nextcloud, E-Mail oder deinen persönlichen Talk-Chat auswählen.
 3. Lege vollständige `.json`-Dateien direkt in den gewählten Ordner. Die Nextcloud-Hintergrundaufgaben prüfen ihn im gewählten Intervall. Mit dem Startsymbol neben **Aktiv** prüfst du ihn sofort. Große Importe können mehrere Durchläufe benötigen.
 4. Bewege den Mauszeiger auf den Zeitpunkt unter **Ausgeführt**, fokussiere ihn per Tastatur oder tippe ihn an. Ein rotes Symbol kennzeichnet einen Fehler oder eine wartende Datei. Verarbeitete Dateien landen im Unterordner `Verarbeitet`, abgelehnte in `Fehler`. Klicke auf den Dateinamen, um die Datei in einem neuen Tab zu öffnen.
 
@@ -86,4 +86,4 @@ Wenn du dieselben Zahlungen mit demselben Konto, Workspace und Ziel erneut hochl
 
 Fällt nach Buchungsbeginn eine Kategorie oder ein Zahlungspartner weg, zeigt **Ausgeführt** die wartende Datei, den fehlenden Namen und den Buchungsstand. Andere Dateien laufen weiter. Bitte den Bereichsinhaber, den ursprünglichen Namen wiederherzustellen. CoBudget setzt die gespeicherte Datei fort und bucht die offenen Zahlungen samt Anteilen.
 
-Wurde der Eingangsordner gelöscht und unter demselben Pfad neu angelegt, wähle ihn unter **Einstellungen → Automatische Importe** erneut aus. Sobald der Import aktiv ist, kann CoBudget die gespeicherten Zahlungen auch bei leerem Ersatzordner fertig buchen.
+Wurde der Eingangsordner gelöscht und unter demselben Pfad neu angelegt, wähle ihn unter **Einstellungen → Import & API → Automatische Importe** erneut aus. Sobald der Import aktiv ist, kann CoBudget die gespeicherten Zahlungen auch bei leerem Ersatzordner fertig buchen.

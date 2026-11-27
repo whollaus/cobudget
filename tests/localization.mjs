@@ -18,7 +18,7 @@ const moduleUrl = relative => {
 }
 const loadModule = relative => import(moduleUrl(relative))
 const { texts } = await loadModule('src/l10n/texts.js')
-const { getAppLocale, formatMoney } = await loadModule('src/utils/formatMoney.js')
+const { getAppLocale, formatMoney, formatMoneyToParts } = await loadModule('src/utils/formatMoney.js')
 const { formatCalendarLabel, formatPeriodLabel, getAppLanguage } = await loadModule('src/utils/formatDate.js')
 const { reportComparisonLabel } = await loadModule('src/services/reportComparisons.js')
 const catalog = JSON.parse(read('l10n/de.json')).translations
@@ -150,6 +150,13 @@ setLanguage('en')
 setLocale('en_US')
 assert.equal(getAppLocale(), 'en-US')
 assert.equal(formatMoney(1234.5, 'USD'), '$1,234.50')
+for (const [locale, currency] of [['en-US', 'USD'], ['de-AT', 'CHF'], ['de-DE', 'EUR'], ['fr-FR', 'EUR'], ['de-AT', 'Test Credits']]) {
+	const amount = -1234.56
+	const parts = formatMoneyToParts(amount, currency, { locale })
+	assert.equal(parts.map(part => part.value).join(''), formatMoney(amount, currency, { locale }))
+	assert.ok(parts.some(part => part.type === 'currency'))
+	assert.equal(parts.find(part => part.type === 'fraction')?.value, '56')
+}
 assert.equal(formatPeriodLabel('2026-10-01'), 'Oct 1')
 assert.equal(formatPeriodLabel('2026-10'), 'Oct 2026')
 assert.equal(formatPeriodLabel('2026-02-30', 'invalid date'), 'invalid date')

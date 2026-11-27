@@ -1,92 +1,103 @@
 <template>
-	<div class="cobudget-project-settings settings-section">
+	<div class="cobudget-project-settings">
 		<AppPageHeader>
 			<template #title><span class="cobudget-page-title-with-back">
 				<NcButton variant="tertiary" class="cobudget-native-button cobudget-header-back-button" :aria-label="$texts.areaSettings.backToArea()" :title="$texts.areaSettings.backToArea()" @click="goBackToProject"><template #icon><ArrowLeftIcon :size="20" /></template></NcButton>
 				<ReportPeriodPicker navigation-only force-navigation area-navigation :period-enabled="false" :title="$texts.areaSettings.title()" label="" :disabled="busy" />
 			</span></template>
 		</AppPageHeader>
-		<div class="settings-content">
+		<div v-if="loading || loadError" class="settings-content">
 			<p v-if="loading" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.areaSettings.loading() }}</p>
-			<NcNoteCard v-else-if="loadError" type="error"><p>{{ loadError }}</p><NcButton @click="fetchProjectSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
-			<template v-else-if="project">
-				<NcNoteCard v-if="!canManageProject" type="info" :text="$texts.areaSettings.ownerOnly()" />
-				<section class="settings-block settings-general-block">
-					<form class="project-edit-form" :aria-busy="savingProject" @submit.prevent="updateProject('name')">
-						<NcFormGroup class="cobudget-form-group project-name-field">
-							<template #label><label class="cobudget-form-label" for="project-settings-name">{{ $texts.areaSettings.areaName() }}</label></template>
-							<NcInputField id="project-settings-name" ref="projectNameInput" v-model="editProjectData.name" label-outside :label="$texts.areaSettings.areaName()" required maxlength="128" :disabled="identityDisabled" :error="projectNameInvalid" :helper-text="projectNameInvalid ? $texts.areaSettings.nameRequired() : ''" @blur="updateProject('name')" @keydown.enter.prevent="$event.target.blur()" class="cobudget-native-field" />
-						</NcFormGroup>
-						<NcFormGroup class="cobudget-form-group project-color-field" :label="$texts.areaSettings.areaColor()">
-							<NcColorPicker popover-base-class="cobudget-menu-popover" :model-value="editProjectData.color || undefined" clearable @update:model-value="editColorChanged">
-								<NcButton class="cobudget-native-button" variant="secondary" :disabled="identityDisabled" :aria-label="$texts.areaSettings.selectAreaColor()"><template #icon><span class="area-color-preview" :style="{ backgroundColor: editProjectData.color || 'transparent' }" /></template>{{ editProjectData.color || $texts.areaSettings.selectAreaColor() }}</NcButton>
-							</NcColorPicker>
-						</NcFormGroup>
-					</form>
-					<p v-if="savingProject" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.common.saveBusy() }}</p>
-					<NcNoteCard v-if="projectError" type="error"><p>{{ projectError }}</p><NcButton :disabled="identityDisabled || savingProject" @click="flushProjectChanges">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
-				</section>
-
-				<section class="settings-block">
-					<h3 class="cobudget-section-heading">{{ $texts.areaDetail.membersTitle() }}</h3>
-					<div class="member-section-header">
-						<p class="settings-hint">{{ $texts.areaSettings.membersSummary() }}</p>
-						<div v-if="canManageProject" class="member-list-actions">
-							<NcButton v-if="projectMemberCount > 1" class="cobudget-native-button" variant="secondary" :disabled="memberManagementLocked || hasFormerMembers || busy" @click="openShareDialog"><template #icon><PencilIcon :size="20" /></template>{{ $texts.areaSettings.changeShares() }}</NcButton>
-							<NcButton v-if="canAddProjectMembers" class="cobudget-native-button" variant="secondary" :disabled="memberManagementLocked || busy" @click="openMemberDialog"><template #icon><PlusIcon :size="20" /></template>{{ $texts.common.add() }}</NcButton>
-						</div>
-					</div>
-					<NcNoteCard v-if="projectMemberCount === 1" type="info" :text="$texts.areaSettings.personalAreaMembersHint()" />
-					<NcNoteCard v-if="memberManagementLocked" type="info" :text="memberManagementLockHint" />
-					<NcNoteCard v-if="hasFormerMembers" type="warning" :text="$texts.areaSettings.resolveFormerMember()" />
-					<div v-if="projectMemberCount > 1" class="share-editor-table-wrapper member-list">
-						<table class="share-editor-table member-table" :aria-label="$texts.areaSettings.areaShareTable()">
-							<colgroup><col /><col class="share-column" /><col v-if="canRemoveProjectMembers || canChangeAreaAdmin" class="member-actions-column" /></colgroup>
-							<thead><tr><th scope="col">{{ $texts.areaSettings.member() }}</th><th scope="col" class="member-share-cell">{{ $texts.areaSettings.share() }} (%)</th><th v-if="canRemoveProjectMembers || canChangeAreaAdmin" scope="col"><span class="hidden-visually">{{ $texts.common.edit() }}</span></th></tr></thead>
-							<tbody>
-								<tr v-for="member in savedShareRows" :key="member.id">
-									<th scope="row">
-										<div class="member-identity">
-											<NcAvatar class="member-avatar" :user="member.isFormer ? undefined : member.id" :display-name="member.displayName" :is-no-user="member.isFormer" :size="32" hide-status disable-menu />
-											<div class="share-member-info member-info">
-												<span class="member-name">{{ member.displayName }}</span>
-												<NcChip v-if="member.id === project.owner_id" :text="$texts.areaSettings.areaAdmin()" no-close variant="secondary" />
-												<NcChip v-if="member.isFormer" :text="$texts.areaSettings.formerMember()" no-close variant="secondary" />
-											</div>
-										</div>
-									</th>
-									<td class="member-share-cell"><span class="member-share-value" :aria-label="`${$texts.areaSettings.share()}: ${formatSharePercent(percentToBasisPoints(member.sharePercent))}%`">{{ formatSharePercent(percentToBasisPoints(member.sharePercent)) }}%</span></td>
-									<td v-if="canRemoveProjectMembers || canChangeAreaAdmin">
-										<div class="member-row-actions">
-											<NcButton v-if="member.id === project.owner_id && canChangeAreaAdmin" variant="tertiary" :disabled="busy" :aria-label="$texts.areaSettings.changeAreaAdmin()" :title="$texts.areaSettings.changeAreaAdmin()" @click="openOwnerDialog"><template #icon><AccountSwitchIcon :size="20" /></template></NcButton>
-											<DisabledActionHint :reason="memberManagementLocked ? memberManagementLockHint : busy ? $texts.common.waitBusy() : ''" :label="$texts.areaDetail.removeMember()" v-else-if="member.id !== project.owner_id && canRemoveProjectMembers"><NcButton variant="tertiary" :disabled="memberManagementLocked || busy" :aria-label="`${$texts.areaDetail.removeMember()}: ${member.displayName}`" :title="$texts.areaDetail.removeMember()" @click="removeMember(member.id)"><template #icon><DeleteIcon :size="20" /></template></NcButton></DisabledActionHint>
-										</div>
-									</td>
-								</tr>
-							</tbody>
-						</table>
-					</div>
-					<NcNoteCard v-if="memberError" type="error" :text="memberError" />
-				</section>
-				<section v-if="canManageProject && !isArchived" class="settings-block settings-master-data-block"><ProjectScopedSettings class="area-master-data" :project-id="projectId" @changed="onProjectScopedSettingsChanged" /></section>
-
-				<template v-if="canManageProject">
-					<section class="settings-block">
-						<h3 class="cobudget-section-heading">{{ isArchived ? $texts.areaSettings.unarchiveTitle() : $texts.areaSettings.archiveTitle() }}</h3>
-						<p class="settings-hint">{{ isArchived ? $texts.areaSettings.unarchiveHint() : $texts.areaSettings.archiveHint() }}</p>
-						<NcNoteCard v-if="availabilityError" id="area-action-availability" type="error"><p>{{ availabilityError }}</p><NcButton :disabled="actionLoading || busy" @click="refreshActionAvailability">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
-						<NcNoteCard v-if="archiveError" type="error" :text="archiveError" />
-						<DisabledActionHint :reason="archiveActionHint" :label="isArchived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive()"><NcButton class="area-action-button cobudget-native-button" variant="secondary" :disabled="busy || actionLoading || !!availabilityError || !!archiveBlockedReason" :aria-describedby="availabilityError ? 'area-action-availability' : undefined" @click="toggleArchiveProject"><template #icon><ArchiveIcon :size="20" /></template>{{ isArchived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive() }}</NcButton></DisabledActionHint>
-					</section>
-					<section class="settings-block">
-						<h3 class="cobudget-section-heading">{{ $texts.areaSettings.deleteTitle() }}</h3>
-						<p class="settings-hint">{{ $texts.areaSettings.deleteHint() }}</p>
-						<NcNoteCard v-if="deleteError" type="error" :text="deleteError" />
-						<DisabledActionHint :reason="deleteActionHint" :label="$texts.areaSettings.deleteConfirm()" ><NcButton class="area-action-button" variant="error" :disabled="busy || actionLoading || !!availabilityError || !!deleteBlockedReason" :aria-describedby="availabilityError ? 'area-action-availability' : undefined" @click="deleteProject"><template #icon><DeleteIcon :size="20" /></template>{{ $texts.areaSettings.deleteConfirm() }}</NcButton></DisabledActionHint>
-					</section>
-				</template>
-			</template>
+			<NcNoteCard v-else type="error"><p>{{ loadError }}</p><NcButton @click="fetchProjectSettings">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
 		</div>
+		<SettingsTopicLayout
+			v-else-if="project"
+			:label="$texts.areaSettings.title()"
+			:to="{ name: 'project-settings', params: { id: projectId } }"
+			:topics="settingsTopics"
+			:requested-topic="requestedTopic">
+			<NcNoteCard v-if="!canManageProject" type="info" :text="$texts.areaSettings.ownerOnly()" />
+
+			<section v-show="activeSection === 'general'" class="settings-block">
+				<form class="project-edit-form" :aria-busy="savingProject" @submit.prevent="updateProject('name')">
+					<NcFormGroup class="cobudget-form-group project-name-field">
+						<template #label><label class="cobudget-form-label" for="project-settings-name">{{ $texts.areaSettings.areaName() }}</label></template>
+						<NcInputField id="project-settings-name" ref="projectNameInput" v-model="editProjectData.name" label-outside :label="$texts.areaSettings.areaName()" required maxlength="128" :disabled="identityDisabled" :error="projectNameInvalid" :helper-text="projectNameInvalid ? $texts.areaSettings.nameRequired() : ''" @blur="updateProject('name')" @keydown.enter.prevent="$event.target.blur()" class="cobudget-native-field" />
+					</NcFormGroup>
+					<NcFormGroup class="cobudget-form-group project-color-field" :label="$texts.areaSettings.areaColor()">
+						<NcColorPicker popover-base-class="cobudget-menu-popover" :model-value="editProjectData.color || undefined" clearable @update:model-value="editColorChanged">
+							<NcButton class="cobudget-native-button" variant="secondary" :disabled="identityDisabled" :aria-label="$texts.areaSettings.selectAreaColor()"><template #icon><span class="area-color-preview" :style="{ backgroundColor: editProjectData.color || 'transparent' }" /></template>{{ editProjectData.color || $texts.areaSettings.selectAreaColor() }}</NcButton>
+						</NcColorPicker>
+					</NcFormGroup>
+				</form>
+				<p v-if="savingProject" class="settings-loading" role="status"><NcLoadingIcon :size="20" /> {{ $texts.common.saveBusy() }}</p>
+				<NcNoteCard v-if="projectError" type="error"><p>{{ projectError }}</p><NcButton :disabled="identityDisabled || savingProject" @click="flushProjectChanges">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+			</section>
+
+			<section v-show="activeSection === 'members'" class="settings-block">
+				<div class="member-section-header">
+					<p class="settings-hint">{{ $texts.areaSettings.membersSummary() }}</p>
+					<div v-if="canManageProject" class="member-list-actions">
+						<NcButton v-if="projectMemberCount > 1" class="cobudget-native-button" variant="secondary" :disabled="memberManagementLocked || hasFormerMembers || busy" @click="openShareDialog"><template #icon><PencilIcon :size="20" /></template>{{ $texts.areaSettings.changeShares() }}</NcButton>
+						<NcButton v-if="canAddProjectMembers" class="cobudget-native-button" variant="secondary" :disabled="memberManagementLocked || busy" @click="openMemberDialog"><template #icon><PlusIcon :size="20" /></template>{{ $texts.common.add() }}</NcButton>
+					</div>
+				</div>
+				<NcNoteCard v-if="projectMemberCount === 1" type="info" :text="$texts.areaSettings.personalAreaMembersHint()" />
+				<NcNoteCard v-if="memberManagementLocked" type="info" :text="memberManagementLockHint" />
+				<NcNoteCard v-if="hasFormerMembers" type="warning" :text="$texts.areaSettings.resolveFormerMember()" />
+				<div v-if="projectMemberCount > 1" class="share-editor-table-wrapper member-list">
+					<table class="share-editor-table member-table" :aria-label="$texts.areaSettings.areaShareTable()">
+						<colgroup><col /><col class="share-column" /><col v-if="canRemoveProjectMembers || canChangeAreaAdmin" class="member-actions-column" /></colgroup>
+						<thead><tr><th scope="col">{{ $texts.areaSettings.member() }}</th><th scope="col" class="member-share-cell">{{ $texts.areaSettings.share() }} (%)</th><th v-if="canRemoveProjectMembers || canChangeAreaAdmin" scope="col"><span class="hidden-visually">{{ $texts.common.edit() }}</span></th></tr></thead>
+						<tbody>
+							<tr v-for="member in savedShareRows" :key="member.id">
+								<th scope="row">
+									<div class="member-identity">
+										<NcAvatar class="member-avatar" :user="member.isFormer ? undefined : member.id" :display-name="member.displayName" :is-no-user="member.isFormer" :size="32" hide-status disable-menu />
+										<div class="share-member-info member-info">
+											<span class="member-name">{{ member.displayName }}</span>
+											<NcChip v-if="member.id === project.owner_id" :text="$texts.areaSettings.areaAdmin()" no-close variant="secondary" />
+											<NcChip v-if="member.isFormer" :text="$texts.areaSettings.formerMember()" no-close variant="secondary" />
+										</div>
+									</div>
+								</th>
+								<td class="member-share-cell"><span class="member-share-value" :aria-label="`${$texts.areaSettings.share()}: ${formatSharePercent(percentToBasisPoints(member.sharePercent))}%`">{{ formatSharePercent(percentToBasisPoints(member.sharePercent)) }}%</span></td>
+								<td v-if="canRemoveProjectMembers || canChangeAreaAdmin">
+									<div class="member-row-actions">
+										<NcButton v-if="member.id === project.owner_id && canChangeAreaAdmin" variant="tertiary" :disabled="busy" :aria-label="$texts.areaSettings.changeAreaAdmin()" :title="$texts.areaSettings.changeAreaAdmin()" @click="openOwnerDialog"><template #icon><AccountSwitchIcon :size="20" /></template></NcButton>
+										<DisabledActionHint :reason="memberManagementLocked ? memberManagementLockHint : busy ? $texts.common.waitBusy() : ''" :label="$texts.areaDetail.removeMember()" v-else-if="member.id !== project.owner_id && canRemoveProjectMembers"><NcButton variant="tertiary" :disabled="memberManagementLocked || busy" :aria-label="`${$texts.areaDetail.removeMember()}: ${member.displayName}`" :title="$texts.areaDetail.removeMember()" @click="removeMember(member.id)"><template #icon><DeleteIcon :size="20" /></template></NcButton></DisabledActionHint>
+									</div>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<NcNoteCard v-if="memberError" type="error" :text="memberError" />
+			</section>
+			<section
+				v-if="canManageProject && !isArchived"
+				v-show="activeSection === 'categories' || activeSection === 'payment-partners'"
+				class="settings-block">
+				<ProjectScopedSettings
+					:project-id="projectId"
+					:section-kind="activeSection === 'payment-partners' ? 'payment-partners' : 'categories'"
+					@changed="onProjectScopedSettingsChanged" />
+			</section>
+
+			<section v-if="canManageProject" v-show="activeSection === 'archive' || activeSection === 'delete'" class="settings-block">
+				<NcNoteCard v-if="availabilityError" id="area-action-availability" type="error"><p>{{ availabilityError }}</p><NcButton :disabled="actionLoading || busy" @click="refreshActionAvailability">{{ $texts.common.retry() }}</NcButton></NcNoteCard>
+				<div v-show="activeSection === 'archive'">
+					<p class="settings-hint">{{ isArchived ? $texts.areaSettings.unarchiveHint() : $texts.areaSettings.archiveHint() }}</p>
+					<NcNoteCard v-if="archiveError" type="error" :text="archiveError" />
+					<DisabledActionHint :reason="archiveActionHint" :label="isArchived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive()"><NcButton class="area-action-button cobudget-native-button" variant="secondary" :disabled="busy || actionLoading || !!availabilityError || !!archiveBlockedReason" :aria-describedby="availabilityError ? 'area-action-availability' : undefined" @click="toggleArchiveProject"><template #icon><ArchiveIcon :size="20" /></template>{{ isArchived ? $texts.areaSettings.unarchive() : $texts.areaSettings.archive() }}</NcButton></DisabledActionHint>
+				</div>
+				<div v-show="activeSection === 'delete'">
+					<p class="settings-hint">{{ $texts.areaSettings.deleteHint() }}</p>
+					<NcNoteCard v-if="deleteError" type="error" :text="deleteError" />
+					<DisabledActionHint :reason="deleteActionHint" :label="$texts.areaSettings.deleteConfirm()" ><NcButton class="area-action-button" variant="error" :disabled="busy || actionLoading || !!availabilityError || !!deleteBlockedReason" :aria-describedby="availabilityError ? 'area-action-availability' : undefined" @click="deleteProject"><template #icon><DeleteIcon :size="20" /></template>{{ $texts.areaSettings.deleteConfirm() }}</NcButton></DisabledActionHint>
+				</div>
+			</section>
+		</SettingsTopicLayout>
 		<DialogTransition :show="!!(memberDialogOpen)" v-slot="{ returnFocus }">
 			<NcModal :container="null" :set-return-focus="returnFocus" class="cobudget-native-dialog area-settings-modal" :show="true" label-id="member-editor-title" :no-close="addingMembers || loading || !!confirmDialog" :close-on-click-outside="!addingMembers && !loading && !confirmDialog" @update:show="closeMemberDialog" @keydown.esc.stop.prevent="closeMemberDialog">
 				<div class="area-settings-editor">
@@ -203,6 +214,11 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import PencilIcon from 'vue-material-design-icons/Pencil.vue'
 import PlusIcon from 'vue-material-design-icons/Plus.vue'
 import ProjectScopedSettings from '../components/ProjectScopedSettings.vue'
+import SettingsTopicLayout from '../components/SettingsTopicLayout.vue'
+import CogOutlineIcon from 'vue-material-design-icons/CogOutline.vue'
+import AccountGroupOutlineIcon from 'vue-material-design-icons/AccountGroupOutline.vue'
+import TagMultipleOutlineIcon from 'vue-material-design-icons/TagMultipleOutline.vue'
+import AccountMultipleIcon from 'vue-material-design-icons/AccountMultiple.vue'
 import ReportPeriodPicker from '../components/ReportPeriodPicker.vue'
 import AppPageHeader from '../components/AppPageHeader.vue'
 import ArrowLeftIcon from 'vue-material-design-icons/ArrowLeft.vue'
@@ -229,6 +245,7 @@ export default {
 		PlusIcon,
 		PencilIcon,
 		ProjectScopedSettings,
+		SettingsTopicLayout,
 		ArrowLeftIcon,
 		DeleteIcon,
 		ArchiveIcon,
@@ -264,6 +281,32 @@ export default {
 		}
 	},
 	computed: {
+		settingsTopics() {
+			const { areaDetail, areaSettings, settings } = this.$texts;
+			const topics = [
+				{ id: 'general', label: areaSettings.general(), icon: CogOutlineIcon },
+				{ id: 'members', label: areaDetail.membersTitle(), icon: AccountGroupOutlineIcon },
+			];
+			if (this.canManageProject && !this.isArchived) {
+				topics.push(
+					{ id: 'categories', label: settings.categories(), icon: TagMultipleOutlineIcon },
+					{ id: 'payment-partners', label: settings.paymentPartners(), icon: AccountMultipleIcon },
+				);
+			}
+			if (this.canManageProject) {
+				topics.push(
+					{ id: 'archive', label: this.isArchived ? areaSettings.unarchiveTitle() : areaSettings.archiveTitle(), icon: ArchiveIcon },
+					{ id: 'delete', label: areaSettings.deleteTitle(), icon: DeleteIcon },
+				);
+			}
+			return topics;
+		},
+		requestedTopic() {
+			return this.settingsTopics.find(topic => topic.id === this.$route.query.section);
+		},
+		activeSection() {
+			return this.requestedTopic?.id ?? 'general';
+		},
 		savedShareRows() {
 			const members = Array.isArray(this.project?.members) ? this.project.members : [];
 			return members.map(member => ({
@@ -953,18 +996,10 @@ export default {
 	.member-list { --default-clickable-area: var(--cobudget-mobile-touch-size, 44px); }
 	.area-settings-modal { --default-clickable-area: var(--cobudget-mobile-touch-size); }
 }
-.settings-section { display: block; margin: 0; width: 100%; box-sizing: border-box; }
 .settings-content { box-sizing: border-box; margin: 0 var(--cobudget-form-inset); max-width: var(--cobudget-form-max-width); width: calc(100% - var(--cobudget-form-inset) * 2); }
 .settings-hint { color: var(--color-text-maxcontrast); font-size: var(--font-size, 15px); margin: 0; }
 .settings-loading { display: flex; align-items: center; gap: 8px; color: var(--color-text-maxcontrast); }
-.settings-block { margin-block-start: 0; padding-block-start: var(--cobudget-settings-heading-gap); }
-.settings-block > h3 { margin-block-start: 0; }
-.settings-general-block { padding-block-start: 0; }
-.settings-master-data-block { padding-block-start: 0; }
-.area-master-data { margin-block: 0; }
-.area-master-data :deep(.master-section) { padding-block-start: var(--cobudget-settings-heading-gap); }
-.area-master-data :deep(.master-section + .master-section) { margin-block-start: 0; }
-.area-master-data :deep(.master-section > h3) { margin-block-start: 0; }
+.settings-block { padding-block-end: var(--cobudget-settings-heading-gap); }
 .project-edit-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--cobudget-content-gap, 16px); align-items: end; }
 .project-name-field, .member-search-field { min-width: 0; }
 .area-color-preview { display: inline-block; width: 20px; height: 20px; border: 1px solid var(--color-border); border-radius: var(--border-radius-element, 4px); }
@@ -1004,15 +1039,11 @@ export default {
 .share-member-info { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--default-grid-baseline, 4px) * 2); min-width: 0; }
 .share-input :deep(input) { text-align: end; font-variant-numeric: tabular-nums; }
 .area-action-button { margin-top: var(--cobudget-section-gap); }
-.settings-block:last-child { padding-bottom: var(--cobudget-settings-heading-gap); }
 @media (max-width: 768px) {
 	.settings-content { margin: 0; width: 100%; }
-	.settings-block { padding-block-start: var(--cobudget-section-gap); }
-	.settings-general-block, .settings-master-data-block { padding-block-start: 0; }
-	.area-master-data :deep(.master-section) { padding-block-start: var(--cobudget-section-gap); }
+	.settings-block { padding-block-end: var(--cobudget-section-gap); }
 	.member-section-header { gap: var(--cobudget-content-gap); margin-block-end: var(--cobudget-content-gap); }
 	.area-action-button { margin-top: var(--cobudget-card-gap); }
-	.settings-block:last-child { padding-bottom: var(--cobudget-section-gap); }
 	.project-edit-form { grid-template-columns: minmax(0, 1fr); }
 	.share-editor-table .share-column { width: 100px; }
 	.member-table .share-column { width: calc(var(--default-grid-baseline, 4px) * 20); }
