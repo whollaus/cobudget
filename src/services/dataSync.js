@@ -1,12 +1,18 @@
 import { listen } from '@nextcloud/notify_push'
 import { generateUrl } from '@nextcloud/router'
+import { readonly, ref } from 'vue'
 import axios from './http'
 
 export const REMOTE_DATA_CHANGED_EVENT = 'cobudget-remote-data-changed'
+export const loadedAppVersion = typeof appVersion === 'string' ? appVersion : ''
+
+const updateVersion = ref('')
+export const appUpdateVersion = readonly(updateVersion)
 
 const PUSH_EVENT = 'cobudget_data_changed'
 const REFRESH_DELAY_MS = 300
 const POLL_INTERVAL_MS = 30_000
+const APP_VERSION_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 const FALLBACK_DOMAINS = ['reminders', 'entries', 'projects', 'settlements', 'budgets', 'analytics']
 
 let started = false
@@ -19,6 +25,7 @@ let refreshTimer = null
 let deferredChange = null
 let pollTimer = null
 let pushSequence = 0
+let nextAppVersionCheckAt = 0
 
 function normalizeDomains(domains) {
 	if (!Array.isArray(domains)) {
@@ -84,10 +91,22 @@ function isVisible() {
 }
 
 async function requestRevision() {
+	const now = Date.now()
+	const checkAppVersion = loadedAppVersion !== '' && now >= nextAppVersionCheckAt
+	const params = { _t: now }
+	if (checkAppVersion) {
+		params.checkAppVersion = 1
+		nextAppVersionCheckAt = now + APP_VERSION_CHECK_INTERVAL_MS
+	}
+
 	const response = await axios.get(generateUrl('/apps/cobudget/api/sync/state'), {
-		params: { _t: Date.now() },
+		params,
 		skipWorkspaceHeader: true,
 	})
+	const installedVersion = response.data?.appVersion
+	if (checkAppVersion && typeof installedVersion === 'string' && installedVersion && installedVersion !== loadedAppVersion) {
+		updateVersion.value = installedVersion
+	}
 	return typeof response.data?.revision === 'string' ? response.data.revision : ''
 }
 
@@ -192,6 +211,7 @@ export function startDataSync() {
 	}
 
 	started = true
+	nextAppVersionCheckAt = Date.now() + APP_VERSION_CHECK_INTERVAL_MS
 	window.addEventListener('focus', resumeSync)
 	window.addEventListener('online', resumeSync)
 	document.addEventListener('visibilitychange', resumeSync)

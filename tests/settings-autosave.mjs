@@ -41,7 +41,7 @@ const bindings = {
 const component = new Function(...Object.keys(bindings), script)(...Object.values(bindings))
 const vm = {
 	...component.data(),
-	$texts: { shortcuts: { title: () => 'Keyboard shortcuts' }, settings: new Proxy({}, { get: (_, key) => () => key }), common: { saveError: () => 'Save failed' } },
+	$texts: { shortcuts: { title: () => 'Keyboard shortcuts' }, about: { title: () => 'About CoBudget' }, settings: new Proxy({}, { get: (_, key) => () => key }), common: { saveError: () => 'Save failed' } },
 }
 for (const [name, method] of Object.entries(component.methods)) vm[name] = method.bind(vm)
 for (const [name, getter] of Object.entries(component.computed)) Object.defineProperty(vm, name, { get: getter.bind(vm) })
@@ -248,7 +248,7 @@ vm.$refs = {
 	},
 }
 assert.deepEqual(vm.settingsTopics.map(topic => topic.id), [
-	'general', 'payments', 'categories', 'payment-partners', 'workspaces', 'notifications', 'integrations', 'exports', 'keyboard-shortcuts',
+	'general', 'payments', 'categories', 'payment-partners', 'workspaces', 'notifications', 'integrations', 'exports', 'reset', 'keyboard-shortcuts', 'about',
 ])
 for (const [section, topic] of [['master-data', 'categories'], ['categories', 'categories'], ['payment-partners', 'payment-partners']]) {
 	vm.$route = { name: 'settings', query: { section } }
@@ -269,6 +269,12 @@ assert.equal(vm.activeTopic.id, 'integrations')
 assert.deepEqual(scrolledSections, ['#settings-imports', '#api-tokens'])
 vm.$route = { name: 'settings', hash: '#api-tokens', query: {} }
 assert.equal(vm.activeTopic.id, 'integrations', 'A fragment can target the API key section')
+vm.$route = { name: 'settings', query: { section: 'reset' } }
+assert.equal(vm.activeTopic.id, 'reset', 'Reset has its own bookmarkable topic')
+vm.$route = { name: 'settings', query: { section: 'exports' } }
+assert.equal(vm.activeTopic.id, 'exports', 'Saved export links still open export and recovery')
+vm.$route = { name: 'settings', query: { section: 'about' } }
+assert.equal(vm.activeTopic.id, 'about', 'About CoBudget is directly linkable')
 vm.$route = { name: 'settings', query: { section: 'unknown' } }
 assert.equal(vm.requestedTopic, undefined, 'Unknown topics go to the settings entry point')
 assert.equal(vm.activeTopic.id, 'general', 'Desktop settings open on General by default')

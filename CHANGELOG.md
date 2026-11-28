@@ -2,6 +2,12 @@
 
 All notable changes to CoBudget are documented in this file.
 
+## [1.3.2] - 2026-11-28
+
+- Check for CoBudget updates every 24 hours in open tabs. Expand **CoBudget update available** to see the new version and reload manually after saving your changes.
+- Give **Reset** its own topic in personal settings, between **Export and recovery** and **Keyboard shortcuts**.
+- Add **About CoBudget** with the running version, release notes, localized documentation, bug reporting, source code, license and optional one-time contributions.
+
 ## [1.3.1] - 2026-11-28
 
 - Organize personal settings into nine topics with native Nextcloud navigation and a mobile overview. Categories, payment partners and keyboard shortcuts each have a dedicated page. Existing bookmarks continue to work.

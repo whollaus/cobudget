@@ -159,6 +159,12 @@ Busy controls are disabled, suppress hover and prevent repeat submission in
 handlers as well as markup. Show retryable inline errors without discarding
 input. Native note cards communicate information, warning and error roles;
 avoid manually recoloring them or duplicating a message in several places.
+The app update notice floats at the top right below the Nextcloud header,
+with a native disclosure button and update icon. The version, save reminder
+and primary reload button expand inside the same card, with the action
+aligned to the inline end. Keyboard focus on the disclosure outlines the
+whole card. Its position follows the Nextcloud header visibility. Detection
+preserves focus and leaves the current form editable.
 
 ### Hints and interaction states
 
@@ -535,7 +541,7 @@ The automatic import settings omit archived areas and show each active area with
 
 ### General preferences and workspaces
 
-[SettingsView](../src/views/SettingsView.vue) has nine topics with stable section
+[SettingsView](../src/views/SettingsView.vue) has eleven topics with stable section
 links. The desktop view shows topic navigation and the selected topic, with
 General and appearance open by default. On phones the unqualified settings
 route shows the topic list. A topic includes a link back to that list.
@@ -564,6 +570,13 @@ widths the channel columns keep 44 px targets while event labels wrap.
 Related navigation buttons, such as Talk setup,
 remain outside the switch label. Direct links open the requested topic. Links to automatic imports and API keys
 scroll to the corresponding section when its content is ready. Keep the section in the URL for reload and browser history.
+The **Reset** topic follows **Export and recovery** and precedes **Keyboard
+shortcuts**. It contains the personal reset preview and destructive action.
+The final **About CoBudget** topic uses native form-box links. The description
+below the release notes label shows the loaded bundle version. The source link
+shows the license, and documentation and bug reporting have short hints. Use
+tertiary donation buttons with the suggested one-time amounts on the payment
+pages. On phones, the two support actions stack.
 
 General preferences save immediately, on selection or the existing blur/Enter
 boundary. Validate, serialize writes, disable conflicting actions, and roll back

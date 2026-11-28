@@ -12,7 +12,10 @@ return [
 
 		$state = $t->methodBody('lib/Controller/SyncController.php', 'state');
 		$t->assertContains('authErrorResponse()', $state, 'The revision endpoint should enforce authentication and workspace-header validation');
-		$t->assertContains('revisionForUser($this->userId)', $state, 'The revision endpoint should return only the current user revision');
+		$t->assertContains('revisionForUser($this->userId)', $state, 'The revision endpoint should scope data revisions to the current user');
+		$t->assertContains('if ($checkAppVersion)', $state, 'Regular synchronization requests should omit the version lookup');
+		$t->assertContains("'installed_version'", $state, 'The sync endpoint should use the app version registered by Nextcloud');
+		$t->assertContains("addHeader('Cache-Control', 'no-store, private')", $state, 'A cached response should not hide a newly installed version');
 		$t->assertContains('loggedErrorResponse($e)', $state, 'The revision endpoint should preserve JSON error responses');
 
 		$service = $t->read('lib/Service/DataChangeService.php');

@@ -94,6 +94,13 @@ paquets installables. Sauvegardez avant toute mise à jour. Exécutez `cron.php`
 toutes les cinq minutes avec le compte du serveur web. Voir le
 [guide d’exploitation](operations.md).
 
+CoBudget recherche les mises à jour toutes les 24 heures dans les onglets ouverts.
+Lorsque **Mise à jour de CoBudget disponible** apparaît en haut à droite,
+enregistrez vos modifications, développez le message pour voir la nouvelle
+version et cliquez sur **Recharger maintenant**. Le message reste visible
+jusqu’au rechargement. Rechargez une fois manuellement les onglets ouverts
+avant l’installation de cette fonction.
+
 ## Que contient une sauvegarde ?
 
 Un **export personnel** conserve votre propre perspective financière. Il ne peut
@@ -103,6 +110,9 @@ administrateur** contient les données financières de tous les utilisateurs de
 CoBudget et leurs paramètres transférables. Sa restauration remplace les données
 actuelles de l’application.
 
+Dans **Paramètres → Réinitialiser**, vous pouvez vérifier quelles données
+personnelles de CoBudget seront supprimées avant de confirmer.
+
 **Incluez les justificatifs dans votre sauvegarde de Nextcloud Files.** Les archives CoBudget contiennent leurs références. Après un déplacement ou la restauration d’une sauvegarde ancienne ou provenant d’une autre instance, vous devrez parfois joindre le fichier à nouveau. Conservez une sauvegarde complète de Nextcloud pour pouvoir restaurer le serveur.
 CoBudget
 bloque temporairement l’accès à l’application pendant la sauvegarde et la
@@ -111,6 +121,9 @@ les onglets CoBudget ouverts après une restauration. Voir la
 [procédure de restauration](operations.md#backup-and-recovery).
 
 ## Retours et soutien
+
+Dans **Paramètres → À propos de CoBudget**, vous trouverez la version utilisée,
+ses notes de version, la documentation et les liens pour signaler un bug ou faire un don.
 
 Les signalements de bugs et les résultats de tests contribuent à améliorer CoBudget. CoBudget est principalement maintenu par une personne ; discutez
 au préalable des contributions de code.

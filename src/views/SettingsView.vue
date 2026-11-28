@@ -12,7 +12,8 @@
 			:topics="settingsTopics"
 			:requested-topic="requestedTopic"
 			:prevent-focus-scroll="opensSettingsTarget">
-			<div ref="topicContent">
+			<SettingsAbout v-if="activeTopic.id === 'about'" />
+			<div v-show="activeTopic.id !== 'about'" ref="topicContent">
 				<NcNoteCard v-if="settingsActionError" type="error" :text="settingsActionError" />
 				<NcNoteCard v-if="settingsLoadError" type="error">
 					<p>{{ settingsLoadError }}</p><NcButton :disabled="loading || backupSettingsSaving" @click="fetchData">{{ $texts.common.retry() }}</NcButton>
@@ -270,28 +271,26 @@
 								</SettingsList>
 							</div>
 						</div>
-
-						<div class="settings-subsection reset-section">
-							<h3 class="cobudget-section-heading">{{ $texts.settings.resetTitle() }}</h3>
-							<p class="settings-hint">
-								{{ $texts.settings.resetHint() }}
-							</p>
-							<NcNoteCard v-if="resetPreviewError" id="settings-reset-error" type="error">
-								<p>{{ resetPreviewError }}</p>
-								<NcButton :disabled="resetPreviewLoading || resetRunning" @click="refreshResetAvailability">{{ $texts.common.retry() }}</NcButton>
-							</NcNoteCard>
-							<DisabledActionHint :reason="resetButtonDisabled ? (resetBlockerMessage || resetPreviewError || (resetRunning ? $texts.settings.resetRunning() : $texts.common.loading())) : ''" :label="$texts.settings.resetButton()" ><NcButton
-								class="reset-danger-button"
-								variant="error"
-								:disabled="resetButtonDisabled"
-								:aria-describedby="resetPreviewError ? 'settings-reset-error' : undefined"
-								@click="resetAllData">
-								{{ resetRunning ? $texts.settings.resetRunning() : $texts.settings.resetButton() }}
-							</NcButton></DisabledActionHint>
-						</div>
 					</div>
 					<div v-show="activeTopic.id === 'keyboard-shortcuts'" class="settings-topic-panel">
 						<KeyboardShortcuts />
+					</div>
+					<div v-show="activeTopic.id === 'reset'" class="settings-topic-panel">
+						<p class="settings-hint">
+							{{ $texts.settings.resetHint() }}
+						</p>
+						<NcNoteCard v-if="resetPreviewError" id="settings-reset-error" type="error">
+							<p>{{ resetPreviewError }}</p>
+							<NcButton :disabled="resetPreviewLoading || resetRunning" @click="refreshResetAvailability">{{ $texts.common.retry() }}</NcButton>
+						</NcNoteCard>
+						<DisabledActionHint :reason="resetButtonDisabled ? (resetBlockerMessage || resetPreviewError || (resetRunning ? $texts.settings.resetRunning() : $texts.common.loading())) : ''" :label="$texts.settings.resetButton()" ><NcButton
+							class="reset-danger-button"
+							variant="error"
+							:disabled="resetButtonDisabled"
+							:aria-describedby="resetPreviewError ? 'settings-reset-error' : undefined"
+							@click="resetAllData">
+							{{ resetRunning ? $texts.settings.resetRunning() : $texts.settings.resetButton() }}
+						</NcButton></DisabledActionHint>
 					</div>
 				</div>
 			</div>
@@ -326,6 +325,7 @@ import NcRadioGroup from '@nextcloud/vue/components/NcRadioGroup'
 import NcRadioGroupButton from '@nextcloud/vue/components/NcRadioGroupButton'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import SettingsTopicLayout from '../components/SettingsTopicLayout.vue'
+import SettingsAbout from '../components/SettingsAbout.vue'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -364,6 +364,7 @@ import BellOutlineIcon from 'vue-material-design-icons/BellOutline.vue'
 import ImportIcon from 'vue-material-design-icons/Import.vue'
 import ArchiveOutlineIcon from 'vue-material-design-icons/ArchiveOutline.vue'
 import KeyboardOutlineIcon from 'vue-material-design-icons/KeyboardOutline.vue'
+import InformationOutlineIcon from 'vue-material-design-icons/InformationOutline.vue'
 
 const settingsTargetTopics = new Map([
 	['automatic-imports', 'integrations'],
@@ -376,7 +377,7 @@ function settingsTopicId(section) {
 
 export default {
 	name: 'SettingsView',
-	components: { KeyboardShortcuts, DialogTransition, DisabledActionHint, SettingsTopicLayout,
+	components: { KeyboardShortcuts, DialogTransition, DisabledActionHint, SettingsTopicLayout, SettingsAbout,
 		AutomaticImportSettings,
 		ApiTokenSettings,
 		MasterDataSettings,
@@ -497,7 +498,9 @@ export default {
 				{ id: 'notifications', label: t.topicNotifications(), icon: BellOutlineIcon },
 				{ id: 'integrations', label: t.topicIntegrations(), icon: ImportIcon },
 				{ id: 'exports', label: t.topicExports(), icon: ArchiveOutlineIcon },
+				{ id: 'reset', label: t.topicReset(), icon: DeleteOutlineIcon },
 				{ id: 'keyboard-shortcuts', label: this.$texts.shortcuts.title(), icon: KeyboardOutlineIcon },
+				{ id: 'about', label: this.$texts.about.title(), icon: InformationOutlineIcon },
 			]
 		},
 		requestedSettingsSection() {
@@ -1386,13 +1389,10 @@ export default {
 .settings-basic-fields .setting-item { min-width: 0; }
 .settings-basic-fields :deep(.v-select.select) { width: 100%; min-width: 0; margin: 0; }
 .settings-master-data-options { margin-block-start: var(--cobudget-settings-heading-gap); }
-.settings-subsection:not(.reset-section) > h3 { margin-block-start: 0; }
-.settings-subsection:not(.reset-section) {
+.settings-subsection > h3 { margin-block-start: 0; }
+.settings-subsection {
 	margin-block-start: 0;
 	padding-block-start: var(--cobudget-settings-heading-gap);
-}
-.settings-subsection {
-	margin-top: var(--cobudget-settings-section-gap);
 }
 .workspace-section-header {
 	display: flex;
@@ -1640,14 +1640,6 @@ export default {
 
 .backup-restore-action {
 	display: inline-flex;
-}
-
-.reset-section {
-	padding-top: 22px;
-}
-
-.reset-section h3 {
-	color: var(--cobudget-error);
 }
 
 .settings-native-options {

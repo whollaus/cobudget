@@ -93,6 +93,13 @@ instalables. Haz una copia de seguridad antes de actualizar. Configura `cron.php
 para que se ejecute cada cinco minutos como usuario del servidor web.
 Consulta la [guía de administración](operations.md).
 
+CoBudget comprueba cada 24 horas si hay actualizaciones en las pestañas abiertas.
+Cuando aparezca **Actualización de CoBudget disponible** en la parte superior
+derecha, guarda tus cambios, despliega el aviso para ver la nueva versión y
+pulsa **Recargar ahora**. El aviso permanece visible hasta que recargues la
+página. Recarga una vez de forma manual las pestañas que se abrieron antes de
+instalar esta función.
+
 ## ¿Qué incluye una copia de seguridad?
 
 Una **exportación personal** conserva tu perspectiva financiera y solo se puede
@@ -109,7 +116,13 @@ en curso, vuelve a intentarlo cuando termine. Recarga las pestañas abiertas de
 CoBudget después de una restauración. Consulta el
 [procedimiento de recuperación](operations.md#backup-and-recovery).
 
+En **Configuración → Restablecer** puedes consultar qué datos personales de
+CoBudget se eliminarán antes de confirmar.
+
 ## Comentarios y apoyo
+
+En **Configuración → Acerca de CoBudget** encontrarás la versión en uso, sus
+notas, la documentación y los enlaces para informar de errores y hacer donaciones.
 
 Los informes de errores y los resultados de pruebas ayudan a mejorar CoBudget. CoBudget se mantiene principalmente por una persona; acuerda antes
 las contribuciones de código.

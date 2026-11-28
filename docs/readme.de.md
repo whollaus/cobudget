@@ -94,6 +94,13 @@ Die automatisch von GitHub erzeugten Quellcodearchive sind keine installierbaren
 App-Pakete. Vor Updates ein Backup erstellen. Nextclouds `cron.php` sollte alle fünf
 Minuten als Webserver-Benutzer laufen. Details stehen im [Betriebshandbuch](operations.md).
 
+CoBudget prüft in offenen Tabs alle 24 Stunden auf Updates. Wenn rechts oben
+**CoBudget Update verfügbar** erscheint, speichere deine
+Änderungen. Klappe den Hinweis auf, um die neue Versionsnummer zu sehen, und
+klicke auf **Jetzt neu laden**. Der Hinweis bleibt bis zum Neuladen sichtbar.
+Tabs, die vor der Installation dieser Funktion geöffnet wurden, müssen einmal
+manuell neu geladen werden.
+
 ## Was wird gesichert?
 
 Ein **persönlicher Export** bewahrt deine eigene finanzielle Sicht. Er lässt sich
@@ -102,6 +109,9 @@ dabei eigenständige persönliche Zahlungen. Ein **Admin-Vollbackup** enthält a
 CoBudget-Finanzdaten und übertragbare Benutzereinstellungen. Seine Wiederherstellung
 ersetzt den aktuellen Datenbestand der App.
 
+Unter **Einstellungen → Zurücksetzen** siehst du vor der Bestätigung eine
+Vorschau für das Löschen deiner persönlichen CoBudget-Daten.
+
 **Sichere Belegdateien mit deinem Backup für Nextcloud Files.** CoBudget-Archive enthalten Belegverweise. Nach einem Verschieben oder dem Einspielen einer älteren oder fremden Sicherung musst du den Beleg gegebenenfalls erneut anhängen. Halte für die Wiederherstellung des Servers ein vollständiges Nextcloud-Backup bereit.
 Während Backup und Restore sperrt CoBudget den
 App-Zugriff vorübergehend. Läuft noch ein Vorgang, starte die Sicherung oder
@@ -109,6 +119,9 @@ Wiederherstellung danach erneut. Lade offene CoBudget-Tabs nach einem Restore ne
 Siehe [Wiederherstellung](operations.md#backup-and-recovery).
 
 ## Rückmeldungen und Unterstützung
+
+Unter **Einstellungen → Über CoBudget** findest du die aktuell verwendete Version,
+die Versionshinweise, die Dokumentation und Links für Fehlermeldungen und Spenden.
 
 Fehlermeldungen und Testergebnisse helfen bei der Weiterentwicklung. CoBudget wird
 hauptsächlich von einer Person gepflegt; Codebeiträge bitte vorher absprechen.

@@ -6,6 +6,28 @@ const tx = (text, vars, count, options) => t(APP_ID, text, vars, count, options)
 const nx = (singular, plural, count, vars, options) => n(APP_ID, singular, plural, count, vars, options)
 
 export const texts = {
+	appUpdate: {
+		available: () => tx('CoBudget update available'),
+		version: version => tx('Version {version} is available.', { version }),
+		reloadNow: () => tx('Reload now'),
+		saveChanges: () => tx('Save any open changes before reloading.'),
+	},
+	about: {
+		title: () => tx('About CoBudget'),
+		currentVersion: version => tx('Current version {version}', { version }),
+		license: () => tx('License: AGPL-3.0 or later'),
+		resources: () => tx('Resources'),
+		changes: () => tx('Changelog'),
+		documentation: () => tx('Documentation'),
+		documentationHint: () => tx('Guides for setting up, using and backing up CoBudget.'),
+		reportBug: () => tx('Report a bug'),
+		reportBugHint: () => tx('Check existing reports first. Include your CoBudget and Nextcloud versions and steps to reproduce with sample data.'),
+		sourceCode: () => tx('Source code on GitHub'),
+		support: () => tx('Support development'),
+		supportText: () => tx('CoBudget is free and open source. If it helps you in everyday life, I appreciate a voluntary one-time contribution. Even small amounts help me maintain and improve CoBudget. Thank you!'),
+		supportGitHub: () => tx('Support on GitHub'),
+		supportStripe: () => tx('Donate via Stripe'),
+	},
 	reminders: {
 		snooze: () => tx('Remind me later'),
 		tomorrow: () => tx('Tomorrow'),
@@ -895,6 +917,7 @@ export const texts = {
 		topicNotifications: () => tx('Reminders and notifications'),
 		topicIntegrations: () => tx('Import and API'),
 		topicExports: () => tx('Export and recovery'),
+		topicReset: () => tx('Reset'),
 		backToSettings: () => tx('Back to settings'),
 		settings: () => tx('Settings'),
 		generalTitle: () => tx('General settings'),

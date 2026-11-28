@@ -30,6 +30,11 @@ Read the [development guide](development.md) for builds and tests, and the
 - Backend: PHP 8, Nextcloud AppFramework controllers, `IDBConnection`
 - Database changes live in `lib/Migration`
 - API routes live in `appinfo/routes.php`
+- The authenticated sync endpoint returns the installed CoBudget version when
+  requested with `checkAppVersion=1`. The first version check becomes due 24
+  hours after loading the app. The next regular sync request in a visible tab
+  includes the version check, at most once per 24 hours. Only the update
+  notice's reload action replaces the page for a version change.
 
 ## Nextcloud compatibility
 

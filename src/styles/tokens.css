@@ -499,6 +499,7 @@ body.theme--dark:not(.cobudget-theme-light) #content.app-cobudget {
 .cobudget-dialog,
 .cobudget-menu-popover,
 .cobudget-toast-container,
+.app-update-notice,
 /* The Files picker teleports its New folder input outside the theme container. */
 body:has(.cobudget-folder-picker) .action-item__popper:has(.action-input),
 .action-item__popper:has(.cobudget-action-menu-option, .cobudget-report-menu-option) {

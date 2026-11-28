@@ -109,6 +109,9 @@
 			</div>
 		</NcAppContent>
 
+		<span class="hidden-visually" role="status">{{ appUpdateVersion ? $texts.appUpdate.available() : '' }}</span>
+		<AppUpdateNotice v-if="appUpdateVersion" :version="appUpdateVersion" />
+
 		<nav class="mobile-bottom-navigation" :aria-label="$texts.mobileNavigation.label()">
 			<router-link
 				:to="{ name: 'personal' }"
@@ -165,7 +168,7 @@ import { computed, defineAsyncComponent } from 'vue'
 import axios from './services/http'
 import { showRequestError, showToast } from './services/notifications'
 import { openPaymentLink } from './services/paymentLink'
-import { REMOTE_DATA_CHANGED_EVENT, startDataSync } from './services/dataSync'
+import { appUpdateVersion, REMOTE_DATA_CHANGED_EVENT, startDataSync } from './services/dataSync'
 import { clearWorkspaceId, readWorkspaceId, writeWorkspaceId } from './services/workspaceStorage'
 import { isReportView, reportLocation } from './services/reportNavigation'
 import { shouldCloseEntrySidebarForRequest } from './utils/entrySidebarToggle'
@@ -174,6 +177,7 @@ import { hasPersonalEntryListRouteState, hasProjectEntryListRouteState } from '.
 import { generateUrl } from '@nextcloud/router'
 import { subscribe, unsubscribe, emit as emitNextcloudEvent } from '@nextcloud/event-bus'
 import CoBudgetIcon from './components/CoBudgetIcon.vue'
+import AppUpdateNotice from './components/AppUpdateNotice.vue'
 import { titleNavigationLocation } from './services/titleNavigation'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
@@ -205,6 +209,7 @@ export default {
 	components: {
 		EntrySidebar, ReminderSidebar, BellOutlineIcon,
 		CoBudgetIcon,
+		AppUpdateNotice,
 		NcContent,
 		NcAppContent,
 		NcAppNavigation,
@@ -222,6 +227,9 @@ export default {
 		SwapHorizontalIcon,
 		ChevronDownIcon,
 		ChartLineIcon
+	},
+	setup() {
+		return { appUpdateVersion }
 	},
 	provide() {
 		return { appNavigation: computed(() => ({ open: this.navigationOpen, entries: this.titleNavigationEntries, areas: this.titleAreaEntries, years: this.navigationYears, navigate: this.navigateTitleMenu })) }

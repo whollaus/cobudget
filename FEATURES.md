@@ -20,6 +20,13 @@ See [payments and shares in CoBudget](docs/concept.md) for an example.
 
 - Navigate between Payments, Income, Expenses, Planned, Areas, Budget goals,
   Reports and Settings using the sidebar or the page-title menu.
+- Open **Settings → Reset** to preview deleting your personal CoBudget data
+  and restoring the default settings.
+- **Settings → About CoBudget** shows the running version and links to its
+  release notes, localized documentation, bug reports, source and funding.
+- CoBudget checks for updates once every 24 hours in open tabs. Expand
+  **CoBudget update available** at the top right to see the version number
+  and **Reload now**. Save any changes before reloading.
 - Payment title menus offer label presets. Area and budget pages instead list
   their existing areas or goals; report and settings menus omit label presets.
 - Create records beside the desktop title or through mobile creation actions.
@@ -352,8 +359,9 @@ typography, theme, keyboard and responsive conventions.
 | Ctrl/Command+P | Use CoBudget's printing action while in Reports. |
 | Escape | Dismiss the active supported menu/dialog or editor through its normal close behavior. |
 
-The Settings page lists shortcuts before Reset all. Shortcuts respect the active
-app context, nested dialogs and pending operations; browsers may reserve some keys.
+Find these shortcuts under **Settings → Keyboard shortcuts**. Shortcuts respect
+the active app context, nested dialogs and pending operations; browsers may
+reserve some keys.
 
 ### Optional email notifications
 

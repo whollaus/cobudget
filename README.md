@@ -88,12 +88,21 @@ data before updating. Configure system cron to run Nextcloud's `cron.php` every
 five minutes as the web server user. See [Operating CoBudget](docs/operations.md)
 for jobs, notifications and recovery.
 
+CoBudget checks for updates once every 24 hours in open tabs. When
+**CoBudget update available** appears at the top right, save your changes,
+then expand the notice to see the new version and select **Reload now**. The
+notice stays visible until you reload. Tabs opened before this feature was
+installed need one manual reload to start checking for updates.
+
 ## What a backup contains
 
 A **personal export** preserves your financial perspective and can be imported
 only into an empty CoBudget user state. Shared amounts become independent personal
 payments. An **administrator full backup** preserves all CoBudget financial data
 and portable user settings; restoring it replaces the app's current data.
+
+Open **Settings → Reset** to preview deleting your personal CoBudget data and
+restoring the default settings.
 
 **Back up receipt files with your Nextcloud Files backup.** CoBudget archives store receipt references. After moving a file or restoring an older archive or one from another instance, you may need to attach the receipt again. Keep a complete Nextcloud backup for server recovery.
 CoBudget temporarily blocks app access during backup and
@@ -102,6 +111,9 @@ CoBudget tabs after a restore. See the
 [recovery procedure](docs/operations.md#backup-and-recovery).
 
 ## Feedback and support
+
+Open **Settings → About CoBudget** in Nextcloud for your current app version,
+release notes, documentation, bug reporting and ways to support development.
 
 Bug reports and test results help improve CoBudget. CoBudget is
 primarily maintained by one person; please discuss code contributions first.
